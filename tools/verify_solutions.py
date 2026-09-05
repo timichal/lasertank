@@ -104,9 +104,9 @@ def verify_one(lvl_path, lpb, scratch):
     return True, level, nkeys, out["moves"], out["shots"], ""
 
 
-def verify_collection(directory, jobs):
+def verify_collection(directory, jobs, lvl=None):
     collection = directory.name
-    lvl = find_lvl(collection)
+    lvl = lvl or find_lvl(collection)
     lpbs = sorted(p for p in directory.iterdir() if p.suffix.lower() == ".lpb")
     if not lpbs:
         return None
@@ -152,9 +152,16 @@ def main():
     ap.add_argument("path", nargs="?", default="solutions",
                     help="solver output root, or one collection directory")
     ap.add_argument("--jobs", type=int, default=8)
+    # Normally the .lvl is found from the directory name, which is how a
+    # campaign's output is laid out.  A caller that already knows the path --
+    # the interactive driver hands one candidate at a time to this gate -- says
+    # so instead, and is then not required to keep its levels in data/.
+    ap.add_argument("--levels", help="the .lvl these solutions play, "
+                                     "instead of looking it up by directory name")
     args = ap.parse_args()
 
     engines.require_engines()
+    lvl = pathlib.Path(args.levels) if args.levels else None
     root = pathlib.Path(args.path)
     if not root.exists():
         raise SystemExit("no such directory: %s" % root)
@@ -168,7 +175,7 @@ def main():
     total_ok = total = 0
     failures = []
     for d in dirs:
-        res = verify_collection(d, args.jobs)
+        res = verify_collection(d, args.jobs, lvl)
         if res is None:
             continue
         _, ok, n, bad = res

@@ -28,6 +28,25 @@ using LaserTank.Core;
 
 namespace LaserTank.Solver
 {
+    /// A one-bit channel from a driver into a running search, and a node
+    /// counter back out of it.
+    ///
+    /// The batch harness has no use for either -- it governs a level with a
+    /// budget and reads the counter off the SolveResult afterwards -- but the
+    /// interactive driver (Auto.cs) runs a search with *no* deadline the user
+    /// has agreed to, so it needs to be able to end one on a keypress and to
+    /// show that it is making progress meanwhile.  Both are handled where the
+    /// budget already is, once per expanded node, so nothing new is on the hot
+    /// path but a predictable branch.
+    ///
+    /// Shared by reference across a SolveOptions clone rather than copied, or
+    /// setting Stop would only ever stop the copy the driver holds.
+    public sealed class CancelFlag
+    {
+        public volatile bool Stop;   // driver -> search: give up now
+        public long Nodes;           // search -> driver: ApplyKey calls so far
+    }
+
     public sealed class SolveOptions
     {
         public int MaxKeys = 1200;         // keystream cap; also the depth cap
@@ -49,6 +68,9 @@ namespace LaserTank.Solver
         public int IdaMaxDepth = 24;
         public bool RunIda = true;
         public bool RunBeam = true;
+
+        /// Null in batch mode; Auto.cs sets it.  See CancelFlag.
+        public CancelFlag Cancel;
 
         // ---- layer 1: macro-actions (Macro.cs) ----------------------------
         //
@@ -225,11 +247,13 @@ namespace LaserTank.Solver
         private long _nodes;
         private Stopwatch _clock;
         private long _stageMs, _stageNodes;
+        private readonly CancelFlag _cancel;
 
         public Solver(string lvlPath, SolveOptions opt)
         {
             _lvlPath = lvlPath;
             _opt = opt;
+            _cancel = opt.Cancel;
             if (opt.SgLearned) _eval = opt.Eval ?? Eval.Default();
         }
 
@@ -239,9 +263,21 @@ namespace LaserTank.Solver
         private void Give(EngineSnapshot s) { if (_pool.Count < 4096) _pool.Push(s); }
 
         /// Budget is asked about once per expanded node, so it is two integer
-        /// compares against the *stage's* share rather than the run's total.
-        private bool OutOfBudget =>
-            _nodes >= _stageNodes || _clock.ElapsedMilliseconds >= _stageMs;
+        /// compares against the *stage's* share rather than the run's total --
+        /// plus, when a driver is watching, publishing the counter and reading
+        /// its stop bit (CancelFlag).
+        private bool OutOfBudget
+        {
+            get
+            {
+                if (_cancel != null)
+                {
+                    _cancel.Nodes = _nodes;
+                    if (_cancel.Stop) return true;
+                }
+                return _nodes >= _stageNodes || _clock.ElapsedMilliseconds >= _stageMs;
+            }
+        }
 
         /// Give the next stage everything up to `share` of the level's budget.
         /// Cumulative, not per-stage: a cheap IDA* that gave up after 50 ms
@@ -346,6 +382,10 @@ namespace LaserTank.Solver
             r.Nodes = _nodes;
             r.Ms = _clock.Elapsed.TotalMilliseconds;
             if (r.Stop == "-") r.Stop = OutOfBudget ? "budget" : "exhausted";
+            // A cancelled run stopped for a reason no budget explains, and
+            // reporting it as "budget" would make a keypress look like a
+            // measurement.
+            if (_cancel != null && _cancel.Stop) r.Stop = "cancelled";
             return r;
         }
 

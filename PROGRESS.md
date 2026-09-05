@@ -1197,6 +1197,41 @@ layer 0 — four layers now. Everything above is
 `RankDump`), `Weights.cs` (generated), three published fields on `Heuristic`,
 and a `Rank()` call in place of two `WorkDistance` calls in `Subgoal.cs`.
 
+### Phase 4 addendum — the interactive driver  ☑
+
+Everything above measures the solver; this is how you *use* it on a level you
+care about. `build/lasertank-solve.exe FILE.lvl [--from N] [--to N]` — a bare
+`.lvl` and nothing else required — walks the collection in level-number order
+and stays on each level until it falls or you press a key.
+
+    build/lasertank-solve.exe data/levels/Beginner-I.lvl --from 12 --to 40
+
+**It is the portfolio the campaign could not afford.** A round runs all four
+searchers *at once, one per thread* — layer 0's beam (with IDA* on round 0,
+where a probe is cheap), layer 3's subgoal beam, layer 4's learned ranking of
+it, layer 1's macro beam — and the first win cancels the rest. In a campaign
+that trade is a loss, because every node a specialist spends is a node taken
+from the raw beam (hence `second_pass.sh`); here a specialist spends a *core*,
+and one level at a time means the cores are there. If nobody wins, the node
+budget quadruples and the round repeats — 400k on round 0, about a second;
+400M on round 5, about an hour — and rounds also widen what only widening
+helps: the raw beam doubles its width, since a `beam-dead-end` stop has nothing
+to do with a bigger budget, and the subgoal beam gets six more restarts.
+
+**The two-engine gate is not optional here, it is the write path.** A win goes
+to a scratch `.lpb`, then to `tools/verify_solutions.py` (which grew a
+`--levels` argument so one candidate can be checked against a named `.lvl`
+rather than by directory name), and is moved into the output directory only if
+the frozen C oracle and the C# core both report WIN with byte-identical traces.
+A solution that fails is deleted and the search carries on — loudly, because
+after Phase 3 that can only mean an engine divergence. Missing engines or no
+python is a startup error, not a discovery made six levels in.
+
+`Auto.cs` is the whole of it, plus a `CancelFlag` on `SolveOptions` that
+`OutOfBudget` reads — the keypress ends a search at the next node rather than
+at the end of a stage, and the searchers publish their node counts back through
+it for the live line. `Engine.Search.cs` is still unchanged since layer 0.
+
 ### Phase 5 — Presentation & features  ☐
 
 **This is the first phase where the deliverable is the game rather than a measurement, and the
@@ -1432,6 +1467,9 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
   LaserTank.Solver/ Search.cs Heuristic.cs Trim.cs Report.cs Program.cs — the batch
                    solver; writes .lpb, never trusted without verify_solutions.py
+                   Auto.cs — the interactive driver: `lasertank-solve FILE.lvl`,
+                   every searcher at once, budget x4 per round, until you press
+                   a key; keeps only what verify_solutions.py has passed
                    Macro.cs — layer 1: Goto (a movement closure over ApplyKey)
                    + Shoot, so search depth is shots rather than keypresses
                    Subgoal.cs — layer 2: the obstacles between the closure and
@@ -1457,7 +1495,9 @@ tools/
   test_fuzz.py      self-test for fuzz.py: injects known faults into the C# core,
                       rebuilds, and fails unless the fuzzer finds and shrinks them
   verify_solutions.py replay every solver .lpb through BOTH engines: WIN on each,
-                      byte-identical traces, and the ratio to the .ghs record
+                      byte-identical traces, and the ratio to the .ghs record.
+                      --levels names the .lvl instead of finding it by directory
+                      name, which is how Auto.cs gates one candidate at a time
   campaign.sh       one solver campaign over all 13 collections into one report.
                       Node-governed, not wall-clock: two layers have to be
                       comparable and a contended machine makes seconds lie.

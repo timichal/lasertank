@@ -29,7 +29,16 @@ namespace LaserTank.Solver
         private static void Usage()
         {
             Console.Error.WriteLine(
-"usage: lasertank-solve --levels FILE.lvl [--out DIR] [--report FILE.jsonl]\n" +
+"usage: lasertank-solve FILE.lvl [--from N] [--to N]           <- interactive\n" +
+"       lasertank-solve --levels FILE.lvl [--out DIR] [--report FILE.jsonl]\n" +
+"\n" +
+"  interactive -- a bare FILE.lvl, no other flag required.  Solves level by\n" +
+"  level in *number* order, and spends as long on each as it takes: every\n" +
+"  searcher that ships runs side by side on its own thread and the node budget\n" +
+"  quadruples each round, until the level falls or you press a key to give up\n" +
+"  on it (q quits).  A solution is kept only once tools/verify_solutions.py\n" +
+"  has replayed it through both engines.  --from/--to/--out/--force/--author/\n" +
+"  --trim-ratio/--jobs apply; --nodes sets round 0's budget, not a cap.\n" +
 "\n" +
 "  selection\n" +
 "    --level N            just this level        --from N / --to N   a range\n" +
@@ -138,7 +147,7 @@ namespace LaserTank.Solver
 "    --quiet              summary only         --verbose   one line per level\n");
         }
 
-        private sealed class Args
+        internal sealed class Args
         {
             public string Levels, Out = "solutions", Report;
             public string Author = "LTSolver";
@@ -146,6 +155,7 @@ namespace LaserTank.Solver
             public int Jobs = Environment.ProcessorCount;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
+            public bool Auto, NodesGiven, OutGiven;
             public int Stride = 1;
             public readonly HashSet<int> Difficulty = new HashSet<int>();
             public HashSet<int> Only;      // --levels-list, null when unused
@@ -156,6 +166,7 @@ namespace LaserTank.Solver
         public static int Main(string[] argv)
         {
             Args a = new Args();
+            if (argv.Length == 0) { Usage(); return 2; }
             try
             {
                 for (int i = 0; i < argv.Length; i++)
@@ -165,7 +176,7 @@ namespace LaserTank.Solver
                     switch (k)
                     {
                         case "--levels": a.Levels = V(); break;
-                        case "--out": a.Out = V(); break;
+                        case "--out": a.Out = V(); a.OutGiven = true; break;
                         case "--report": a.Report = V(); break;
                         case "--author": a.Author = V(); break;
                         case "--level": a.From = a.To = int.Parse(V()); break;
@@ -184,7 +195,7 @@ namespace LaserTank.Solver
                         case "--jobs": a.Jobs = Math.Max(1, int.Parse(V())); break;
                         case "--trim-ratio": a.TrimRatio = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--budget-ms": a.Opt.TimeBudgetMs = int.Parse(V()); break;
-                        case "--nodes": a.Opt.NodeBudget = long.Parse(V()); break;
+                        case "--nodes": a.Opt.NodeBudget = long.Parse(V()); a.NodesGiven = true; break;
                         case "--beam": a.Opt.BeamWidth = int.Parse(V()); break;
                         case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); break;
                         case "--ida-depth": a.Opt.IdaMaxDepth = int.Parse(V()); break;
@@ -234,7 +245,17 @@ namespace LaserTank.Solver
                         case "--force": a.Force = true; break;
                         case "--quiet": a.Quiet = true; break;
                         case "--verbose": a.Verbose = true; break;
-                        default: Usage(); return 2;
+                        default:
+                            // A bare FILE.lvl is the interactive driver's whole
+                            // command line; everything else still needs a flag.
+                            if (k.Length > 0 && k[0] != '-' && a.Levels == null)
+                            {
+                                a.Levels = k;
+                                a.Auto = true;
+                                break;
+                            }
+                            Usage();
+                            return 2;
                     }
                 }
             }
@@ -250,6 +271,7 @@ namespace LaserTank.Solver
             }
 
             if (a.RankDump != null) return RankDumpAll(a);
+            if (a.Auto) return Auto.Run(a);
 
             string ghsPath = Path.ChangeExtension(a.Levels, ".ghs");
             string collection = Path.GetFileNameWithoutExtension(a.Levels);
@@ -280,7 +302,7 @@ namespace LaserTank.Solver
 
             Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = a.Jobs }, job =>
             {
-                Outcome o = SolveOne(a, job, outDir);
+                Outcome o = SolveOne(a, job, Clone(a.Opt));
                 lock (gate)
                 {
                     done++;
@@ -302,7 +324,7 @@ namespace LaserTank.Solver
 
         // ---- planning ------------------------------------------------------
 
-        private sealed class Job
+        internal sealed class Job
         {
             public int Level;
             public string Name = "", Author = "";
@@ -361,7 +383,7 @@ namespace LaserTank.Solver
 
         // ---- one level -----------------------------------------------------
 
-        private sealed class Outcome
+        internal sealed class Outcome
         {
             public Job J;
             public bool Solved, Trimmed;
@@ -432,12 +454,12 @@ namespace LaserTank.Solver
             }
         }
 
-        private static Outcome SolveOne(Args a, Job job, string outDir)
+        internal static Outcome SolveOne(Args a, Job job, SolveOptions opt)
         {
+            // The caller owns the SolveOptions and must not share one between
+            // workers: Solve() clamps IdaMaxDepth in place, and two threads
+            // sharing an options object would race.
             Outcome o = new Outcome { J = job };
-            // Each worker gets its own SolveOptions: Solve() clamps IdaMaxDepth
-            // in place, and two threads sharing one options object would race.
-            SolveOptions opt = Clone(a.Opt);
             try
             {
                 Solver s = new Solver(a.Levels, opt);
@@ -545,7 +567,7 @@ namespace LaserTank.Solver
             return 0;
         }
 
-        private static SolveOptions Clone(SolveOptions s) => new SolveOptions
+        internal static SolveOptions Clone(SolveOptions s) => new SolveOptions
         {
             MaxKeys = s.MaxKeys,
             BeamWidth = s.BeamWidth,
