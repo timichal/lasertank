@@ -7,7 +7,7 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 3 — not started. **Phases 1 and 2 are complete.** The C reference oracle replays the
+**Phase:** 3 — **under way and green.** Phases 1 and 2 are complete. The C reference oracle replays the
 whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
 with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
 handoff; if you only need the current state, read the step 5 block and "What is still not ported".
@@ -112,9 +112,32 @@ K8 (**sliding mirror**), K10, N10, and N8."* A paint routine's side effect, driv
 step inside one tick, on a level built to depend on it — reproduced exactly. Hazard #1 is the one
 that justified compiling `LTANK2.C` verbatim in the oracle, and it is now verified in the port too.
 
-**Next action:** Phase 3 — differential fuzzing. That is where remaining divergences actually get
-found: 187 recordings are 187 paths through the state space, and the flagship collection alone is
-2,030 levels the corpus never touches.
+**Phase 3, first campaign — complete, and the harness is proven.** `tools/fuzz.py` exists:
+random keystreams, both engines, diff, and — the part that matters — **shrink any divergence to a
+minimal repro**. `tools/sweep.py` lifts the empty-keystream sweep out of scratch, and
+`tools/engines.py` is the two-engine plumbing both share.
+
+**The fuzzer has gone red on purpose before being trusted green.** `python tools/test_fuzz.py`
+injects two known faults into `Engine.cs`, rebuilds, and fails unless the fuzzer finds *and*
+shrinks each one. **25 passed, 0 failed**, with a green control run before and after:
+
+| injected fault | found in | shrunk to |
+|---|---|---|
+| `AntiTank`'s four scans reordered | 93 cases, 4 s | **2 keys** — level 765, `dd` → `L.x` at tick 8 |
+| `MoveTank`'s `SlideT` write moved inside the `if` | 2 cases, 2 s | **2 keys** — level 1314, `rr` → `SlT.dx` at tick 2 |
+
+Both minimal repros are re-verified independently of the shrinker: they still diverge, and
+deleting any single remaining key stops the divergence.
+
+**First campaign: 20,626 cases, 0 divergences.** Six keystream shapes over all 2,030 flagship
+levels plus every quirk pack — **3,751,638 tick-lines compared, 24× the whole recorded corpus**
+(156,504). 890,690 of 1,630,624 generated keys were actually consumed (55%); 141 runs won their
+level by accident, 10,758 killed the tank, 9,727 ran out of keys. `MouseOperation` was never
+reached (`NOTPORTED` 0), which is the expected answer and now a measured one.
+
+**Next action:** keep fuzzing — new seeds, the other 12 collections (18,884 more levels), longer
+keystreams — and start Phase 4. The campaign below is one afternoon; the surface is unbounded and
+free.
 **Blocked on:** nothing.
 
 **What is still not ported:** `MouseOperation` only. The mouse buffer is empty headless
@@ -325,10 +348,86 @@ The field name *is* the localisation — `S.moves` sends you to `ScoreMove`, `Sl
 `P` to the key-consume test at `LTANK.C:613`. The summary at the end counts how many ticks each
 field diverges on, which separates "one wrong cell" from "everything after tick 90".
 
-### Phase 3 — Differential fuzzing  ☐
+### Phase 3 — Differential fuzzing  ◐ (harness done and proven; campaign ongoing)
 This is what finds the remaining divergences. Random keystreams (weight toward fire/turn), both
 engines, diff traces, shrink any divergence to a minimal repro. Run across all 20,914 levels.
 Cheap, unlimited, needs no solutions.
+
+`tools/fuzz.py` does all of that; `tools/test_fuzz.py` is what makes a green run mean something.
+
+#### The Phase 3 harness
+
+```
+bash oracle/build.sh && bash src/build.sh
+python tools/test_difftrace.py                       # trust the differ      29 cases
+python tools/test_fuzz.py                            # trust the fuzzer      25 cases, ~90 s
+python tools/sweep.py                                # 2,347 levels, empty keystream, ~50 s
+python tools/fuzz.py --each 3 --seed 1               # 6,090 cases over the flagship, ~140 s
+```
+
+**Run `test_fuzz.py` before believing any green fuzz run.** It is the one step that is easy to
+skip and the one the whole phase rests on: a fuzzer that has never gone red is untested, and
+"20,626 cases, no divergence" is then a claim about the fuzzer rather than about the port. It
+patches `Engine.cs` with two faults a transliteration would plausibly make, rebuilds, and requires
+that each is found, shrunk, and independently reproducible — then restores `Engine.cs` **in
+bytes** (an earlier version used `write_text` and silently rewrote all 1,362 lines LF→CRLF, which
+`git diff` hides under `core.autocrlf`) and requires green again. If it is ever killed between the
+patch and the restore: `git checkout src/LaserTank.Core/Engine.cs`.
+
+**The shrinker is the deliverable, not an extra.** A divergence at key 300 of 400 on level 1,712
+is not a bug report; `level 1712, keys "rrfud"` is. `fuzz.reduce_keys` is three passes:
+
+1. **Shortest diverging prefix**, by binary search — O(log n) runs, and where nearly all the length
+   goes. Not assumed to be sound: every prefix that survives is one that actually ran and actually
+   diverged, and pass 2 cleans up after it.
+2. **Delta debugging** (ddmin) over what is left.
+3. **Measure 1-minimality rather than claim it** — delete each remaining key and check the
+   divergence goes away. ddmin's exit condition guarantees this on paper; a bug report should not
+   quote a guarantee it did not check. Nearly free, because the candidates are already cached.
+
+All three hold the divergence **signature** fixed — the name of the first field that moved, which
+is `difftrace.py`'s localisation — so what comes out is a reduction of the bug you started with and
+not a different one found along the way. `--shrink-any` relaxes that when the same root cause
+surfaces through a different field once the noise is gone.
+
+Each finding gets a directory under `--out`: the minimal keystream, both traces re-run with
+`--field --bmf`, the full `difftrace.py` report, the level as ASCII, and the exact commands. Plus
+`findings.json` for scripts. Findings are deduped by signature, so a systematic bug reports once
+rather than 9,000 times.
+
+**Fuzzing runs without `--field`/`--bmf`** — those add 512 hex bytes per tick each, and the default
+trace already carries `H=fnv1a(PF),fnv1a(PF2)`, so a playfield divergence still shows up, as a hash
+rather than a cell. The minimal repro is then re-run *with* both, and the tool warns if the wider
+trace does not reproduce the same signature.
+
+#### What the first campaign covered
+
+Six keystream shapes, because one shape is one bias — varying length and the fire/turn weights is
+how you reach code the default under-samples:
+
+| run | cases | shape | keys consumed |
+|---|---:|---|---:|
+| `--each 3` | 6,090 | every flagship level ×3, 48 keys | 65% |
+| `--keys 200` | 3,000 | long streams | 42% |
+| `--p-fire 0.60` | 3,000 | shot-heavy | 71% |
+| `--p-fire 0.10 --p-repeat 0.80` | 3,000 | movement-heavy, 96 keys | 51% |
+| `--p-fire 0.15 --p-repeat 0.05` | 3,000 | almost pure turning | 84% |
+| every quirk pack, `--each 8` | 2,536 | 64 keys | 20–100% |
+
+**20,626 cases, 3,751,638 tick-lines, 0 divergences.** Consumed keys, not generated keys, is the
+honest coverage number: random play drowns or shoots the tank early, so the two differ by nearly
+half, and `fuzz.py` reports both.
+
+**Two things the campaign taught about running it, both worth not rediscovering:**
+
+- **Four of the ten quirk packs ship `.LVL`, six ship `.lvl`** — `tutor`, `tutor-with-playbacks`,
+  `rotary-mirrors` and `game-objects` are the uppercase ones, i.e. exactly the four biggest. A
+  `*.lvl` shell glob skips them in silence. `replay_all.py` already used `suffix.lower()`;
+  `sweep.py` now does too. Anything new that walks `data/quirks/` must.
+- **Random keystreams are shallow.** Over half of all runs end `DEAD`, and the flagship's own
+  level 1 needs 149 keypresses to win. Random play is wide but not deep, which is the argument for
+  Phase 4's solver being the *other* kind of coverage rather than a nice-to-have: a solved level is
+  a long, legal, non-random path through the engine.
 
 ### Phase 4 — Solver  ☐
 Search over **macro-steps**: one keypress, then tick until quiescent (condition at `LTANK.C:613`).
@@ -472,6 +571,14 @@ tools/
   difftrace.py      compare two traces, or two directories of them: first diverging
                       tick, first field, per-cell playfield diff   <- the Phase 2 gate
   test_difftrace.py self-test for difftrace.py; run it before trusting a verdict
+  engines.py        both engines on one input + compare -> a Div or None.  Shared
+                      plumbing for the two below; the comparison is difftrace's
+  sweep.py          one fixed keystream over every level of a .lvl, both engines.
+                      Bare, it is the empty-keystream sweep: 2,347 levels
+  fuzz.py           random keystreams, both engines, and **shrink** a divergence
+                      to level + shortest keystream   <- the Phase 3 gate
+  test_fuzz.py      self-test for fuzz.py: injects known faults into the C# core,
+                      rebuilds, and fails unless the fuzzer finds and shrinks them
   bump_rate.py      classify consumed keys; bumps = desync signature
   dump_level.py     print a .lvl level as ASCII with its hint
   unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -918,3 +1025,69 @@ weighted toward fire/turn, both engines, diff, shrink any divergence to a minima
 worth building into it from the start: the trace comparison is already the oracle, and
 `NotPortedException` proved twice this phase that a loud stop beats a plausible answer — keep
 `MouseOperation` throwing rather than teaching the fuzzer to avoid it.
+
+### 2026-09-05 (session 8) — Phase 3: the fuzzer, and proving it works
+
+Three new tools plus a self-test; nothing in `src/` or `oracle/` changed, and `Engine.cs` is
+byte-identical to where it started.
+
+- **`tools/engines.py`** — run both engines on one input, compare, classify. It *imports*
+  `difftrace.py` rather than reimplementing the comparison, so a sweep verdict and a
+  `difftrace.py` verdict cannot drift apart. Returns a `Div` whose `sig` is the first field that
+  moved, values stripped: `T.dir`, `PF`, `S.moves`, `length`, `NOTPORTED`. That signature is the
+  dedup key *and* what the shrinker holds fixed.
+- **`tools/sweep.py`** — the empty-keystream sweep, out of scratch and into a tool. Bare, it is
+  the documented check: **2,347/2,347 identical** with `--field --bmf`, 49 s.
+- **`tools/fuzz.py`** — the phase. Weighted random keystreams (`--p-fire`, `--p-repeat`), both
+  engines, diff, shrink, one directory per finding.
+- **`tools/test_fuzz.py`** — the reason to believe any of it. **25 passed, 0 failed.**
+
+**Fault injection, and it works.** The two faults the plan named, both caught:
+
+| fault | found | shrunk |
+|---|---|---|
+| `AntiTank` scans reordered | 93 cases, 4 s | 48 → **2** keys: level 765 `dd`, `L.x` at tick 8 |
+| `MoveTank` `SlideT` write moved into the `if` | 2 cases, 2 s | 48 → **2** keys: level 1314 `rr`, `SlT.dx` at tick 2 |
+
+Level 765 is worth looking at, because it is the shape of report the shrinker is for: the tank at
+(4,9) has an anti-tank aligned to its right *and* one aligned above it, so the reorder changes
+which one fires — oracle laser at `5,9 dir 4`, injected core at `4,1 dir 3`. The tank dies either
+way; only the trace tells them apart. Two keys, and the level's ASCII is in the report.
+Level 1314 catches the other fault at the *board edge*: `rr` turns then bumps into the wall at
+x=15, and `CheckLoc` returns off-board without writing `wasIce`, which is quirk #3's exact shape.
+
+**Three things this session got wrong first and fixed, all worth not repeating:**
+
+- **`bash` from Python is WSL's `System32\bash.exe`**, not Git Bash — different filesystem, no
+  gcc, no dotnet, and the failure is an `execvpe` error rather than anything readable.
+  `engines.find_bash()` skips System32 and falls back to the Git for Windows paths; `$LT_BASH`
+  overrides.
+- **Restoring a patched source file with `write_text` rewrites every line ending.** Engine.cs is
+  LF; Python's text mode made it CRLF; `core.autocrlf` made `git diff` show nothing while the
+  file on disk had all 1,362 lines changed. `test_fuzz.py` now patches and restores in bytes, and
+  a green self-test leaves the tree byte-clean.
+- **The quirk packs mix `.lvl` and `.LVL`.** The first campaign's shell glob silently skipped
+  `tutor`, `tutor-with-playbacks`, `rotary-mirrors` and `game-objects` — the four biggest packs,
+  no warning. `sweep.py` had the same latent bug (`glob("*.lvl")` is case-insensitive on Windows
+  and would have dropped four packs on Linux). Both fixed to match `replay_all.py`'s
+  `suffix.lower()`.
+
+**Campaign: 20,626 cases, 3,751,638 tick-lines, 0 divergences** — 24× the recorded corpus's
+156,504 tick-lines. Six keystream shapes over all 2,030 flagship levels and all ten quirk packs.
+141 random keystreams won their level; 10,758 killed the tank.
+
+`fuzz.py` reports **keys consumed, not keys generated** (55%: 890,690 of 1,630,624). The gap is
+the honest limit of this technique: random play is wide but shallow, over half the runs end
+`DEAD`, and level 1 alone needs 149 keypresses to win. That is the case for Phase 4's solver as
+the *complementary* kind of coverage — a solved level is a long, legal, non-random path.
+
+`MouseOperation` still throws and was never reached (`NOTPORTED` 0). Reaching it stays a finding,
+not an obstacle: `engines.compare` classifies a `NOTPORTED` footer as its own signature, and
+`test_fuzz.py` asserts that classification.
+
+Gates at the end of the session, all green: `test_difftrace.py` 29/29, `test_fuzz.py` 25/25,
+`sweep.py` 2,347/2,347, `replay_all.py` on *both* engines 187 replayed / 181 win / 6 documented
+non-winners / 0 unexpected / 112/112 `.ghs` exact.
+
+**Next: more fuzzing (new seeds, the other 12 collections — 18,884 levels the campaign has not
+touched, longer keystreams), and Phase 4.**

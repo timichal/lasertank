@@ -132,17 +132,22 @@ class Trace:
 
     def meta(self):
         """level / name / keys from the header, for the same-input sanity check."""
-        out = {}
-        for line in self.head:
-            for k, v in _META_RE.findall(line):
-                out[k] = v.strip()
-        return out
+        return parse_meta(self.head)
 
     def result(self):
         for line in self.foot:
             if "result=" in line:
                 return line.lstrip("# ").strip()
         return None
+
+
+def parse_meta(lines):
+    """level / name / author / keys off a trace's # header lines."""
+    out = {}
+    for line in lines:
+        for k, v in _META_RE.findall(line):
+            out[k] = v.strip()
+    return out
 
 
 def split(raw):
