@@ -27,15 +27,22 @@ the 187 is found and localised.
 **Phase 2, step 1 — complete.** .NET SDK 10 and Godot 4.7.2 Mono are installed. `src/` holds
 `LaserTank.Core` (the transliteration, pure C#) and `LaserTank.Cli` (the oracle's command line,
 the oracle's trace format), building to `build/lasertank-core.exe` via `bash src/build.sh`.
-Ported so far: `BuildBMField`, `PutLevel`, `GameOn`, `Animate`, the logic-carrying half of
+Ported in step 1: `BuildBMField`, `PutLevel`, `GameOn`, `Animate`, the logic-carrying half of
 `LoadNextLevel`, the whole `Tick()` frame and the `SendMessage`/`PostMessage` death split.
 Everything else throws `NotPortedException` rather than no-opping.
 **Empty-keystream equivalence holds on 2,347 levels** — all 2030 of the flagship collection and
 all 317 quirk-pack levels — byte-identical with `--field` and `--bmf`.
 
-**Next action:** Phase 2, step 2 — transliterate `CheckLoc`, then `MoveObj`, re-running the trace
-diff after each. `replay_all.py --engine build/lasertank-core.exe` currently stops at the first
-`MoveTank`, which is the right failure and the right next target.
+**Phase 2, step 2 — complete.** `CheckLoc` and `MoveObj` are transliterated, and with them the
+dependency closure `MoveObj` drags in: `TranslateTunnel`, `UpDateTankPos`, `UpdateUndo` and
+`ResetUndoBuffer` (which `LoadLevel` was missing — `LoadNextLevel` calls it at `LTANK2.C:1033`).
+The empty-keystream sweep still gives **2,347/2,347 byte-identical** with `--field --bmf`, so
+nothing regressed; see below for why that is the *only* trace signal these two functions can
+produce yet.
+
+**Next action:** Phase 2, step 3 — `MoveTank`, which is what turns the recorded corpus back into a
+gate. Its dependencies are now all present (`CheckLoc`, `UpDateTankPos`, `UpdateUndo`), so it is a
+small function on top of finished parts.
 **Blocked on:** nothing.
 
 ---
@@ -116,8 +123,10 @@ Toolchain: MinGW-w64 (WinLibs, gcc 16.1, UCRT) installed via
   Self-tested by `tools/test_difftrace.py`; see "The Phase 2 harness".
 - ☑ **step 1:** the C# projects exist and build; the load path and the tick frame are
   transliterated, and an empty-keystream run traces identically to the oracle. See below.
-- ☐ **step 2..n:** port in dependency order, re-running the trace diff after *each* function:
-  `CheckLoc` → `MoveObj` → `CheckLLoc` → `MoveLaser` → `AntiTank` → `IceMoveT`/`IceMoveO` →
+- ☑ **step 2:** `CheckLoc` and `MoveObj`, plus `MoveObj`'s closure — `TranslateTunnel`,
+  `UpDateTankPos`, `UpdateUndo`, `ResetUndoBuffer`.
+- ☐ **step 3..n:** port in dependency order, re-running the trace diff after *each* function:
+  `MoveTank` → `CheckLLoc` → `MoveLaser` → `AntiTank` → `IceMoveT`/`IceMoveO` →
   conveyor → tick loop. (`Animate` is already done — it fell out of the idle tick.)
 
 Run both engines with `--field` (and `--bmf` while porting `Animate`) so the diff has the whole
@@ -145,6 +154,15 @@ format: the differ is textual on purpose, so any drift shows up as a divergence 
 parser bug. Once the C# CLI answers to the same flags, teach `replay_all.py` an `--engine` option
 and both sides come from one script.
 
+**When a trace stops early.** `NotPortedException` used to take the process down before the
+buffered trace was flushed, so a partly-ported engine produced *no* trace and `difftrace.py`
+reported `UNUSABLE` — no signal at all. The CLI now catches it, closes the trace after the last
+*complete* tick, writes `# result=NOTPORTED`, prints the function and the tick to stderr and exits
+**4**. `difftrace.py` then says `DIVERGE length mismatch after N ticks`, which is the useful
+reading: the ported half matched for N ticks and the port has to continue at N+1. Nothing about
+this softens the failure — the point of the exception is that it is never mistaken for a result,
+and `NOTPORTED` is not a result.
+
 **First milestone, before `CheckLoc` — done.** Run with an empty keystream (`--keys ""`). Both
 engines trace exactly two lines, `t=0` and `t=1`: level load, then one idle tick. Matching those
 two lines means the `.lvl` parser, the `TGAMEREC` layout, `BuildBMField`, `PutLevel`, `Animate`,
@@ -159,15 +177,15 @@ src/LaserTank.Cli/     Program.cs  TraceWriter.cs      -> build/lasertank-core.e
 ```
 
 Ported: `BuildBMField`, `PutLevel`, `UpDateTank`'s `TankDirty` write, `GameOn`, `Animate`,
-the logic-carrying half of `LoadNextLevel`, the whole `Tick()` frame, and the
+the logic-carrying half of `LoadNextLevel`, the whole `Tick()` frame, the
 `SendMessage`/`PostMessage` death split (quirk #8: `SendDead` runs inline, `PostDead` queues for
-`Pump()` after the tick, exactly as the oracle's stub message pump does).
+`Pump()` after the tick, exactly as the oracle's stub message pump does), and — step 2 —
+`CheckLoc`, `TranslateTunnel`, `UpDateTankPos`, `UpdateUndo`, `ResetUndoBuffer`, `MoveObj`.
 
-**Everything not yet ported throws `NotPortedException`, not a no-op.** `CheckLoc`, `MoveTank`,
-`FireLaser`, `MoveLaser`, `AntiTank`, `IceMoveO`, `IceMoveT`, `ConvMoveTank`, `UpdateUndo`,
-`MouseOperation`. A silent stub would produce a *plausible* wrong trace, which is the one failure
-mode this whole approach exists to prevent; today
-`replay_all.py --engine build/lasertank-core.exe` stops at the first `MoveTank` with a stack trace,
+**Everything not yet ported throws `NotPortedException`, not a no-op.** `MoveTank`, `FireLaser`,
+`MoveLaser`, `AntiTank`, `IceMoveO`, `IceMoveT`, `ConvMoveTank`, `MouseOperation`. A silent stub
+would produce a *plausible* wrong trace, which is the one failure mode this whole approach exists
+to prevent; today `replay_all.py --engine build/lasertank-core.exe` stops at the first `MoveTank`,
 which is the correct answer.
 
 Decisions worth not relitigating:
@@ -182,6 +200,14 @@ Decisions worth not relitigating:
 - **`net8.0` for both projects.** It is the lowest TFM Godot 4.x accepts, so Phase 5 can reference
   `LaserTank.Core` unchanged; the CLI sets `RollForward=LatestMajor` because only the .NET 10
   runtime is installed.
+- **The undo buffer is carried even though nothing headless reads it.** `UndoStep` is unreachable
+  from a keystream, so the `TGAMEREC` snapshots `UpdateUndo` stores are write-only. `UndoP` is not:
+  `MoveObj`'s tunnel path decrements it (quirk #7), so its growth (`UndoBufSize` in steps of 200)
+  and its roll-over at `UndoMax` have to be exact, and the cheapest way to be sure of that is to
+  keep the buffer that they are the indices into. The two `GlobalReAlloc == NULL` branches in
+  `UpdateUndo`/`ResetUndoBuffer` are *not* carried: the oracle's stub is plain `realloc`
+  (`oracle/win32_stub.c:74`), so they are unreachable on both sides. They are the only pieces of
+  either function left out.
 - **Trace line 1 differs by design** (`# lasertank core trace` vs `# lasertank oracle trace`).
   Line 2 and every tick line are byte-identical; `difftrace.py` reads level/name/author/keys off
   line 2 to check both sides ran the same input.
@@ -416,6 +442,11 @@ place despite not winning.
   `~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/Godot_v4.7.2-stable_mono_win64/`.
   The `godot` alias needs admin to be created, so call the `.exe` by path. Nothing in Phase 2
   needs it — the core and its CLI are plain .NET — it is here for Phase 5.
+- **Trap in the oracle's own usage text:** it advertises `--keys` as accepting "raw decimal VK
+  codes separated by commas", but `driver.c` only parses the characters `u d l r f` and silently
+  skips everything else. `--keys 38,38,32` therefore yields an *empty* keystream and an idle run
+  that looks like it worked. The C# CLI matches this behaviour deliberately (same parser, same
+  skipping) — if you fix one, fix both and re-run the corpus.
 - laser-tank.com is behind Cloudflare: `WebFetch` returns 403. Use `curl` with a browser
   User-Agent. The site is a frameset — real content is in `menu.html`, `help.html`, `levels.html`.
 - Original build was lcc-win32 (`original/src/_How to compile LTank.txt`, `LTank.prj`). Its dependencies are
@@ -547,3 +578,45 @@ The oracle is the only authority.
   done
   python tools/difftrace.py i0 i1 -q
   ```
+
+### 2026-09-05 (session 4) — Phase 2 step 2: `CheckLoc` and `MoveObj`
+
+- **`CheckLoc`** (`LTANK2.C:1278`) with `CheckArray` (`:78`), and `wasIce` as a field rather than an
+  `out` parameter. The reason is behavioural, not stylistic: `CheckLoc` returns early on an
+  off-board coordinate **without writing `wasIce`**, so a move blocked at the edge of the board
+  leaves the previous call's value for `MoveTank`'s `if (wasIce)` to read. An `out` parameter
+  cannot express "sometimes I don't write this".
+- **`MoveObj`** (`:1287`) and the closure it drags in — `TranslateTunnel` (`:1164`),
+  `UpDateTankPos` (`:1216`), `UpdateUndo` (`:423`), `ResetUndoBuffer` (`:402`). Quirk #7 is intact:
+  `Game.ScoreMove--` / `UpDateTankPos(0,0)` / `UndoP--` bracket to a net zero, and only because all
+  three are present.
+- **Found a gap in the load path:** `LoadLevel` never called `ResetUndoBuffer`, which
+  `LoadNextLevel` does at `LTANK2.C:1033`. Invisible until now because nothing touched `UndoP`;
+  `MoveObj` decrements it, so it would have started drifting from the second level onward.
+- `WaitToTrans` and `BlackHole` stay globals because the *staleness* is load-bearing:
+  `UpDateTankPos` and `ConvMoveTank` read `WaitToTrans` after a move that was not into a tunnel,
+  where nobody assigned it this tick. `MoveObj` is the only caller that clears it (`else
+  WaitToTrans = FALSE`).
+
+**The honest state of the verification.** The recorded corpus cannot reach either function yet.
+`CheckLoc` is called from `MoveTank`, `IceMoveT`, `IceMoveO`, `CheckLLoc` and the conveyor arm of
+the tick; `MoveObj` only from `CheckLLoc` and `IceMoveO`. All of those are still unported, and no
+corpus level starts the tank on a conveyor, so a `.lpb` replay still stops on tick 1 at the first
+`MoveTank` and `difftrace` reports a 1-tick prefix on all 16 of `game-objects`. **Step 2 is
+verified as "nothing regressed", not as "the new code is right"** — that arrives with `MoveTank`
+in step 3, which is the first thing that makes 54,162 recorded keypresses run through `CheckLoc`.
+What was actually checked:
+
+- Empty-keystream sweep, **2,347/2,347 byte-identical** with `--field --bmf` (2030 flagship + 317
+  quirk levels), so the changed load path and the new code cost nothing on the idle tick.
+- `tools/test_difftrace.py` 29/29, and the oracle corpus still 187 replayed / 181 win / 0
+  unexpected / 112 `.ghs` exact.
+- A mechanical transliteration check over all six functions: strip comments, normalise the
+  substitutions the port is allowed to make, and diff the token streams against `LTANK2.C`. Every
+  remaining difference is accounted for — `private`, return types, `TRUE`/`FALSE`, the `byte` casts
+  C# needs, `ref` unpacking for `TranslateTunnel`'s `int *`, `PF[x][y]` → `PF[x,y]`, two unused C
+  locals (`i` in `TranslateTunnel` and `MoveObj`), and the two unreachable `GlobalReAlloc == NULL`
+  branches. Nothing unexplained. It is a reading aid, not a proof; the trace is the proof.
+- Harness: the CLI now flushes the trace before dying on `NotPortedException` (`# result=NOTPORTED`,
+  exit 4). Before this, a partly-ported engine wrote *nothing* and `difftrace` said `UNUSABLE` —
+  the prefix, which is the whole point of porting one function at a time, was being thrown away.

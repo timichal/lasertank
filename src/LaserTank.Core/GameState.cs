@@ -54,6 +54,24 @@ namespace LaserTank.Core
         public uint RecP;                                // recording pointer
         public TTANKREC Tank;
 
+        /// `UndoBuffer[UndoP] = Game` (LTANK2.C:450) is a struct assignment in
+        /// C, so it copies the four playfields.  TGAMEREC is a class here, so
+        /// the copy has to be explicit or the undo buffer would alias the live
+        /// state.
+        public TGAMEREC Clone()
+        {
+            var c = new TGAMEREC();
+            System.Array.Copy(PF, c.PF, PF.Length);
+            System.Array.Copy(PF2, c.PF2, PF2.Length);
+            System.Array.Copy(BMF, c.BMF, BMF.Length);
+            System.Array.Copy(BMF2, c.BMF2, BMF2.Length);
+            c.ScoreMove = ScoreMove;
+            c.ScoreShot = ScoreShot;
+            c.RecP = RecP;
+            c.Tank = Tank;
+            return c;
+        }
+
         public void CopyPFFrom(byte[] flat)
         {
             for (int x = 0; x < W; x++)

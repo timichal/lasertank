@@ -113,19 +113,39 @@ namespace LaserTank.Cli
             }
 
             // ---- run ----
+            string notPorted = null;
             tr?.Tick(0, e);
-            while (e.Game_On && e.Deaths == 0 && tick < maxTicks)
+            try
             {
-                tick++;
-                e.Tick();
-                e.Pump();                    // dispatch anything posted this tick
-                tr?.Tick(tick, e);
-                // Out of keys and the world has settled: nothing further can happen.
-                if (e.Game.RecP >= (uint)e.RB_TOS && e.Quiescent() && e.Game_On) break;
+                while (e.Game_On && e.Deaths == 0 && tick < maxTicks)
+                {
+                    tick++;
+                    e.Tick();
+                    e.Pump();                    // dispatch anything posted this tick
+                    tr?.Tick(tick, e);
+                    // Out of keys and the world has settled: nothing further can happen.
+                    if (e.Game.RecP >= (uint)e.RB_TOS && e.Quiescent() && e.Game_On) break;
+                }
+            }
+            catch (NotPortedException ex)
+            {
+                // Stop, but flush the ticks that did run.  Porting one function
+                // at a time is only checkable if the prefix survives: difftrace
+                // then reports "identical for N ticks, then B stops", which is a
+                // real regression gate on the already-ported half and pins the
+                // tick where the port has to continue.  Nothing here softens the
+                // failure -- the trace ends at the last *complete* tick, the
+                // footer says NOTPORTED rather than a plausible outcome, stderr
+                // names the function and the tick, and the exit code is its own.
+                notPorted = ex.Message;
+                Console.Error.WriteLine(
+                    $"lasertank-core: tick {tick}: {ex.Message}");
             }
 
-            bool won = e.Deaths == 0 && e.Game.PF[e.Game.Tank.X, e.Game.Tank.Y] == 2;
-            string result = won ? "WIN" : (e.Deaths != 0 ? "DEAD" : "UNFINISHED");
+            bool won = notPorted == null && e.Deaths == 0
+                       && e.Game.PF[e.Game.Tank.X, e.Game.Tank.Y] == 2;
+            string result = notPorted != null ? "NOTPORTED"
+                          : won ? "WIN" : (e.Deaths != 0 ? "DEAD" : "UNFINISHED");
 
             if (tr != null)
             {
@@ -141,6 +161,7 @@ namespace LaserTank.Cli
                                   result, level, tick, e.Game.ScoreMove, e.Game.ScoreShot,
                                   e.Game.RecP, e.RB_TOS, e.CurRecData.LName);
             }
+            if (notPorted != null) return 4;
             return won ? 0 : 1;
         }
 

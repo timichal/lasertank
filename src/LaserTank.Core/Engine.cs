@@ -39,6 +39,14 @@ namespace LaserTank.Core
 
         public const int ani_delay = 4;      // LTANK.H:95
 
+        // lt_sfx.h:13 -- only the ones the ported logic names so far.  sf is a
+        // real parameter that MoveObj reassigns, so it is carried; SoundPlay
+        // itself does nothing headless (lt_sfx.c:26 returns immediately when
+        // !Sound_On, which is what a headless build is).
+        public const int S_Push2 = 12, S_Push1 = 13, S_Push3 = 15, S_Sink = 16;
+
+        private static void SoundPlay(int sn) { }
+
         // ---- globals owned by LTANK2.C ------------------------------------
         public readonly TGAMEREC Game = new TGAMEREC();
         public TTANKREC laser;
@@ -52,6 +60,39 @@ namespace LaserTank.Core
         public bool Game_On;
         public bool FindTank;
         public bool LaserBounceOnIce;
+
+        /// LTANK2.C:68 -- "CheckLoc will set this to true if Ice".  Quirk #3:
+        /// CheckLoc's real second return value, read after the call by
+        /// MoveTank (LTANK2.C:1270), IceMoveT (:1381), IceMoveO (:1416) and
+        /// ConvMoveTank (:1206).  It stays a field rather than becoming an
+        /// `out` parameter because that would change behaviour: CheckLoc
+        /// returns early on an off-board coordinate *without* writing it, so a
+        /// move blocked at the edge of the board leaves whatever the previous
+        /// call left there, and MoveTank's `if (wasIce)` then reads that.
+        public bool wasIce;
+
+        /// LTANK2.C:69 and :56, both written only by TranslateTunnel.  They are
+        /// globals rather than out-parameters because their *staleness* is
+        /// load-bearing: UpDateTankPos and ConvMoveTank read WaitToTrans after
+        /// a move that was not into a tunnel, in which case nobody assigned it
+        /// this tick and the value is whatever the last tunnel translation left.
+        /// MoveObj is the only caller that clears it on the non-tunnel path.
+        public bool WaitToTrans;
+        public bool BlackHole;
+
+        // ---- the undo buffer (LTANK2.C:52, :83, :390, :402, :423) ---------
+        // Nothing headless ever calls UndoStep, so the stored snapshots are
+        // never read back.  They are kept anyway because UndoP is *not* dead:
+        // MoveObj's tunnel path decrements it (quirk #7), and getting UndoP's
+        // arithmetic right means having the growth and the roll-over it can
+        // grow into.
+        public const int UndoBufStep = 200;      // LTANK.H:102
+        public const int UndoMax = 10000;        // LTANK.H:103
+        public int UndoBufSize = 3200;           // LTANK2.C:52
+        public int UndoP;                        // LTANK2.C:83
+        public int UndoRollOver = UndoMax;       // InitBuffers, LTANK2.C:399
+        private TGAMEREC[] UndoBuffer = new TGAMEREC[3200];
+
         public int CurLevel;
         public TLEVEL CurRecData;
 
@@ -212,6 +253,7 @@ namespace LaserTank.Core
             BuildBMField();
             GameOn(true);
             FindTank = true;
+            ResetUndoBuffer();               // LTANK2.C:1033, in this position
 
             Game.RecP = 0;
             RB_TOS = 0;
@@ -221,14 +263,233 @@ namespace LaserTank.Core
             return true;
         }
 
+        // ---- LTANK2.C:402  ResetUndoBuffer ----------------------------------
+        // The GlobalReAlloc down to one block cannot fail here, so the
+        // FileError() branch is unreachable and is not carried.
+        private void ResetUndoBuffer()
+        {
+            Array.Resize(ref UndoBuffer, UndoBufStep);
+            UndoBufSize = UndoBufStep;
+            UndoP = 0;
+            UndoBuffer[0] = new TGAMEREC();      // UndoBuffer->Tank.Dir = 0
+            // Lets also init the Mouse Buffer
+            MB_TOS = MB_SP = 0;
+        }
+
+        // ---- LTANK2.C:423  UpdateUndo ---------------------------------------
+        private void UpdateUndo()        // Come here whenever we move or shoot
+        {
+            int i;
+
+            UndoP++;
+            if (UndoP >= UndoBufSize)
+            {
+                if (UndoP >= UndoMax)
+                {
+                    UndoRollOver = (UndoP - 1);          // Save Where we rolled Over
+                    UndoP = 0;
+                }
+                else
+                {
+                    i = UndoBufSize + UndoBufStep;
+                    // GlobalReAlloc cannot return NULL here, so the original's
+                    // allocation-failure branch (which also rolls UndoP over)
+                    // is unreachable and is not carried.
+                    Array.Resize(ref UndoBuffer, i);
+                    UndoBufSize = i;
+                }
+            }
+            UndoBuffer[UndoP] = Game.Clone();    // UndoBuffer[UndoP] = Game
+            // EnableMenuItem / EnableWindow are UI.
+        }
+
+        // ---- LTANK2.C:1164  TranslateTunnel ---------------------------------
+        // Given a tunnel cell, find its twin.  Three outcomes, and the two flags
+        // are how the callers tell them apart (quirk #4): warped (both false),
+        // blocked because something is sitting on the exit -- PF2 holds the twin
+        // there, so the exit is occupied -- (WaitToTrans), or no twin at all
+        // (BlackHole).  Note the first scan matches the *whole* cell including
+        // the low wait bit, so a twin already marked waiting is not an exit.
+        private void TranslateTunnel(ref int x, ref int y)
+        {
+            int cx, cy;
+            byte bb;
+
+            bb = Game.PF[x, y];              // bb is ID #
+            WaitToTrans = false;
+            BlackHole = false;
+            for (cy = 0; cy < 16; cy++) for (cx = 0; cx < 16; cx++)
+                if ((Game.PF[cx, cy] == bb) && (!((x == cx) && (y == cy))))
+                {
+                    x = cx;                  // We found an exit YEA !!!
+                    y = cy;
+                    return;
+                }
+            // check for blocked hole - something is over the exit
+            // Scan the 2nd layer any matches are blocked holes
+            for (cy = 0; cy < 16; cy++) for (cx = 0; cx < 16; cx++)
+                if ((Game.PF2[cx, cy] == bb) && (!((x == cx) && (y == cy))))
+                {
+                    // We found one so we will set the flag
+                    WaitToTrans = true;
+                    return;                  // Blocked so no warp
+                }
+            // There is no match, so it is a black hole
+            BlackHole = true;
+        }
+
+        // ---- LTANK2.C:1216  UpDateTankPos -----------------------------------
+        // SoundPlay, the SetTextAlign/TextOut score readout and UpDateSprite are
+        // paint; UpdateUndo, ScoreMove, the position, Tank.Good and TankDirty
+        // are not.  Called with (0,0) from MoveObj's tunnel path, where "moving
+        // the tank by nothing" exists purely to re-run the tunnel check on the
+        // cell it is already standing on.
+        private void UpDateTankPos(int x, int y)
+        {
+            UpdateUndo();
+            Game.ScoreMove++;
+            Game.Tank.Y += y;
+            Game.Tank.X += x;
+            Game.Tank.Good = 0;              // we need it somewhere if we move off a tunnel
+            if (Obj.IsTunnel(Game.PF[Game.Tank.X, Game.Tank.Y]))
+            {
+                int tx = Game.Tank.X, ty = Game.Tank.Y;
+                TranslateTunnel(ref tx, ref ty);     // We moved into a tunnel
+                Game.Tank.X = tx; Game.Tank.Y = ty;
+                if (BlackHole) PostDead();           // The tunnel was a black hole
+            }
+            // No else: WaitToTrans keeps whatever the last TranslateTunnel left
+            // in it.  See the field's comment -- this is the original's shape.
+            if (WaitToTrans) Game.Tank.Good = 1;
+            TankDirty = true;
+        }
+
+        // ---- LTANK2.C:1287  MoveObj -----------------------------------------
+        // used by CheckLLoc
+        //
+        // Moves the object at (x,y) by (dx,dy), restoring whatever it was
+        // standing on and saving whatever it lands on.  Quirk #7 is in the first
+        // half: when the object being moved is sitting in a tunnel exit that
+        // nothing else is waiting for, the thing that was blocked may be the
+        // tank, and it is released by a zero-distance UpDateTankPos -- whose
+        // UpdateUndo and ScoreMove++ are then undone by the ScoreMove-- and
+        // UndoP-- bracketing the call.  That is the "Bartok Bug.lvl" workaround
+        // (MGY, 2003/05/18, v408b15), and the net effect on the score is zero
+        // only because both halves are there: port one without the other and the
+        // move counter drifts.
+        private void MoveObj(int x, int y, int dx, int dy, int sf)
+        {
+            int obt, bm, bb, ok;
+            // cx/cy are uninitialised in the original and are only read when ok
+            // is true, i.e. when the search below has assigned them.  Zero here
+            // is C#'s demand, not a behaviour change.
+            int cx = 0, cy = 0;
+
+            obt = Game.PF[x, y];                                // Get Object type
+            bm = Game.BMF[x, y];
+            if ((Game.PF2[x, y] & Obj.Tunnel) == Obj.Tunnel)    // Check if Tunnel
+            {
+                bb = Game.PF2[x, y] | 1;                        // bb is ID # w/ 1 set
+                ok = 0;
+                for (cy = 0; cy < 16; cy++) for (cx = 0; cx < 16; cx++)
+                    if ((Game.PF2[cx, cy] == bb) && (!((x == cx) && (y == cy))))
+                    {
+                        ok = 1;
+                        goto MoveObj1;
+                        // Ok if something wants to move here; cx & cy set to orig
+                    }
+MoveObj1:
+                if (ok != 0)                                // We are Moving an Object
+                {
+                    Game.PF[x, y] = Game.PF[cx, cy];        // Transfer Blocked Object
+                    Game.BMF[x, y] = Game.BMF[cx, cy];
+                    Game.PF[cx, cy] = (byte)(Game.PF2[cx, cy] & 0xFE);  // Return Saved State
+                    Game.PF2[cx, cy] = 0;
+                    Game.BMF[cx, cy] = Game.BMF2[cx, cy];
+                    // UpDateSprite(cx, cy) -- paint.
+                }
+                else
+                {                                           // Not Blocked Anymore
+                    Game.PF[x, y] = (byte)(Game.PF2[x, y] & 0xFE);  // Return Saved State strip
+                    Game.PF2[x, y] = 0;
+                    Game.BMF[x, y] = Game.BMF2[x, y];
+                    // We didn't find a match so maybe the tank is it
+                    if ((Game.PF[Game.Tank.X, Game.Tank.Y] == (bb & 0xFE)) && Game.Tank.Good != 0)
+                    {
+                        Game.ScoreMove--; // MGY - 2003/05/18 - v408b15 -  Bartok Bug.lvl
+                        UpDateTankPos(0, 0);
+                        UndoP--;
+                    }
+                }
+            }
+            else
+            {               // If not a tunnel
+                Game.PF[x, y] = Game.PF2[x, y];             // Return Saved State
+                Game.PF2[x, y] = 0;
+                Game.BMF[x, y] = Game.BMF2[x, y];
+            }
+            // UpDateSprite(x, y) -- paint.
+            x += dx;
+            y += dy;
+            if (Obj.IsTunnel(Game.PF[x, y]))
+            {
+                TranslateTunnel(ref x, ref y);  // We moved into a tunnel
+                if (BlackHole) return;          // The tunnel was a black hole
+            }
+            else WaitToTrans = false;
+
+            Game.PF2[x, y] = Game.PF[x, y];                 // Save Return State
+            if (WaitToTrans) Game.PF2[x, y] |= 1;           // Set bit 1 if we are waiting to transport
+            Game.BMF2[x, y] = Game.BMF[x, y];
+            if (Game.PF[x, y] != 3)
+            {
+                Game.PF[x, y] = (byte)obt;
+                Game.BMF[x, y] = (byte)bm;
+            }
+            else
+            {
+                sf = S_Sink;
+                if (obt == 5)
+                {
+                    Game.PF[x, y] = 0;
+                    Game.PF2[x, y] = 0;  // Pushing Block into Water }
+                    Game.BMF[x, y] = 19;
+                    Game.BMF2[x, y] = 19;
+                }
+            }
+            // UpDateSprite(x, y) -- paint.
+            if ((x == Game.Tank.X) && (y == Game.Tank.Y)) TankDirty = true;
+            SoundPlay(sf);
+        }
+
         // ---- not transliterated yet ------------------------------------------
         // Ported in this order (PROGRESS.md, Phase 2 step 1..n):
         //   CheckLoc -> MoveObj -> CheckLLoc -> MoveLaser -> AntiTank
         //   -> IceMoveT/IceMoveO -> conveyor -> tick loop
-        private bool CheckLoc(int x, int y) => throw new NotPortedException("CheckLoc");
+        // ---- LTANK2.C:78  CheckArray -----------------------------------
+        // Object id -> may the tank enter.  Indexed by the raw PF cell, so in
+        // the original a cell outside 0..25 reads past the array; the
+        // BuildBMField sanitisation makes that unreachable (every such value
+        // becomes a tunnel, and tunnels return before the lookup).  C# throws
+        // instead of reading whatever followed the array, which is the loud
+        // failure we want if the premise ever stops holding.
+        private static readonly int[] CheckArray =
+        {
+            1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1,
+        };
+
+        // ---- LTANK2.C:1278  CheckLoc -------------------------------------
+        private bool CheckLoc(int x, int y)
+        {
+            // Check if Tank can move
+            if ((x < 0) || (x > 15) || (y < 0) || (y > 15)) return false;
+            wasIce = ((Game.PF[x, y] == Obj.Ice) || (Game.PF[x, y] == Obj.ThinIce));
+            if ((Game.PF[x, y] & Obj.Tunnel) == Obj.Tunnel) return true;
+            return CheckArray[Game.PF[x, y]] != 0;
+        }
         private void MoveTank(int dir) => throw new NotPortedException("MoveTank");
         private void FireLaser(int x, int y, int dir, int snd) => throw new NotPortedException("FireLaser");
-        private void UpdateUndo() => throw new NotPortedException("UpdateUndo");
         private void MoveLaser() => throw new NotPortedException("MoveLaser");
         private void AntiTank() => throw new NotPortedException("AntiTank");
         private void IceMoveO() => throw new NotPortedException("IceMoveO");
