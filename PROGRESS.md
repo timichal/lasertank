@@ -7,8 +7,10 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 2 — in progress. Phase 1 is **complete**: the oracle builds, runs headless, and replays
-the whole recorded corpus.
+**Phase:** 3 — not started. **Phases 1 and 2 are complete.** The C reference oracle replays the
+whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
+with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
+handoff; if you only need the current state, read the step 5 block and "What is still not ported".
 **Result:** `python tools/replay_all.py` is green — **187 replayed, 181 win, 6 documented
 non-winners, 0 unexpected**, exit 0. 112/112 `Tutor-with-Playbacks` match their bundled `.ghs` move
 *and* shot targets exactly. **54,162 replayed keypresses, zero wasted.**
@@ -40,10 +42,85 @@ The empty-keystream sweep still gives **2,347/2,347 byte-identical** with `--fie
 nothing regressed; see below for why that is the *only* trace signal these two functions can
 produce yet.
 
-**Next action:** Phase 2, step 3 — `MoveTank`, which is what turns the recorded corpus back into a
-gate. Its dependencies are now all present (`CheckLoc`, `UpDateTankPos`, `UpdateUndo`), so it is a
-small function on top of finished parts.
+**Phase 2, step 3 — complete.** `MoveTank` *and* `AntiTank` are transliterated, and together they
+turn the recorded corpus back into a gate. `MoveTank` alone could not: `Tick()` calls `AntiTank()`
+after every consumed key, so a `MoveTank`-only engine still stopped at tick 1 on all 16
+`game-objects` recordings — the earlier "MoveTank is what turns the corpus back into a gate" was
+wrong on that point and is corrected here. `AntiTank` is portable ahead of `FireLaser` because its
+four scans need only `CheckLoc` and every `FireLaser` call sits behind a match, so a recording with
+no aligned anti-tank runs to whatever stops it next.
+
+**Result: 187 compared, 1 identical, 186 `DIVERGE length mismatch`, and not one field divergence.**
+Every recording is byte-identical with `--field --bmf` up to the tick where the port stops, and
+`Game-Objects-in-LT_0001` (pure movement, no shot) now replays end to end and wins.
+1,041 of 156,504 corpus tick-lines are reproduced. Where the 186 stop:
+`FireLaser` 161, `IceMoveT` 20, `ConvMoveTank` 5 — every one a function that still throws.
+`AntiTank`'s scans are genuinely exercised, not merely compiled: `_0007` ("Covering the
+anti-tanks") replays 52 ticks of pure movement and then stops in `FireLaser` *called from
+`AntiTank`*, having consumed no fire key at all.
+Empty-keystream spot sweep (202 levels across `LaserTank.lvl`) still byte-identical — neither new
+function is reachable without a consumed key, so nothing there could regress, and nothing did.
+
+**Phase 2, step 4 — complete.** The whole laser subsystem: `FireLaser`, `MoveLaser`, `CheckLLoc`,
+`KillAtank`, the logic half of `UpDateLaserBounce`, `TestIfConvCanMoveTank`, and the six
+`SlideO`/`SlideMem` stack helpers `CheckLLoc` drags in (`Mem_to_SlideO`, `SlideO_to_Mem`,
+`add_SlideO_to_Mem`, `sub_SlideO_from_Mem`, `del_SlideO_from_Mem`).
+
+**Result: 187 compared, 41 identical, 146 `DIVERGE length mismatch`, still zero field
+divergences.** **53.2% of the corpus is now reproduced** — 83,219 of 156,504 tick-lines, up from
+1,041 — and every one of them is byte-identical with `--field --bmf`. The remaining stops are
+`ConvMoveTank` 59, `IceMoveT` 55, `IceMoveO` 32; `FireLaser`, `MoveLaser` and `CheckLLoc` have
+disappeared from that list entirely. 41 recordings now replay end to end and win.
+
+**A real bug was hiding behind the exception.** The step-1 tick frame called
+`FireLaser(..., 0)` where the oracle passes `S_Fire` (`driver.c:193`). That is not a sound-only
+argument: `FireLaser` ends with `laser.Good = (sf == 2)`, which is how the engine tells the tank's
+own shot from an anti-tank's (`S_Anti2` = 9). It was invisible for three steps because `FireLaser`
+threw before reading it. Fixed with the constant, not the literal. **This is the argument for
+`NotPortedException` over a no-op, stated concretely:** a stub would have run this call happily and
+the divergence would have surfaced hundreds of ticks later as a wrong `laser.Good`.
+
+**Hazard #1 is transliterated but NOT yet exercised — do not treat it as verified.**
+*(Superseded by step 5 below: it is exercised and verified now. Kept because the probe technique
+is reusable and because "written" vs. "reached" is a distinction worth keeping visible.)* Probed
+directly: temporarily replacing `LaserBounceOnIce = true` inside `UpDateLaserBounce` with a throw
+and re-running all 187 recordings fires it **zero times**. It needs a mirror that is *actively
+sliding* at the moment the beam deflects off it, and the sliding is `IceMoveO`'s job, which still
+throws. So the `goto LaserMoveJump` second-step path gets its first real test in step 5, not here.
+
+**Phase 2, step 5 — complete, and with it PHASE 2 ITSELF.** `ConvMoveTank`, `IceMoveT` and
+`IceMoveO` are transliterated. The exit criterion is met:
+
+> **`python tools/difftrace.py build/t-oracle build/t-csharp` — 187 compared, 187 identical,
+> 0 cosmetic-only, 0 diverged, 0 unusable. Exit 0.**
+
+With `--field --bmf`, so that is every playfield cell, both layers, both bitmap layers, the tank
+pose, the laser, both slide records, the whole slide stack and the scores, on every tick of all
+187 recordings — 156,504 tick-lines, not one byte different. Even the cosmetic `BMF` tripwire holds
+(0 cosmetic-only), which was allowed to differ and does not.
+
+Driven independently, the C# core also reproduces the oracle's replay result exactly:
+**187 replayed, 181 win, 6 documented non-winners, 0 unexpected, 112/112 `.ghs` move+shot targets
+exact** — the same numbers Phase 1 pinned for the oracle, now produced by the port.
+The empty-keystream sweep is still **2,347/2,347 byte-identical**.
+
+**Hazard #1 is now genuinely exercised.** The step-4 probe (swap `LaserBounceOnIce = true` for a
+throw, replay all 187) fired *zero* times; re-run after `IceMoveO`, it fires on
+**`Tutor-with-Playbacks_0093` at tick 527 and `_0094` at tick 206**. Level 93 is "One suicidal
+anti-tank", and its own hint spells the mechanism out: *"The laser is deflected by three mirrors at
+K8 (**sliding mirror**), K10, N10, and N8."* A paint routine's side effect, driving a second beam
+step inside one tick, on a level built to depend on it — reproduced exactly. Hazard #1 is the one
+that justified compiling `LTANK2.C` verbatim in the oracle, and it is now verified in the port too.
+
+**Next action:** Phase 3 — differential fuzzing. That is where remaining divergences actually get
+found: 187 recordings are 187 paths through the state space, and the flagship collection alone is
+2,030 levels the corpus never touches.
 **Blocked on:** nothing.
+
+**What is still not ported:** `MouseOperation` only. The mouse buffer is empty headless
+(`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it.
+It still throws rather than no-opping, so if that premise ever breaks the run stops loudly. It is
+Phase 5 work — it is a UI entry point, not game logic.
 
 ---
 
@@ -117,7 +194,7 @@ run. See "The six non-winning recordings" below.
 Toolchain: MinGW-w64 (WinLibs, gcc 16.1, UCRT) installed via
 `winget install BrechtSanders.WinLibs.POSIX.UCRT`. Nothing else is needed to build the oracle.
 
-### Phase 2 — Transliterate the core  ☐
+### Phase 2 — Transliterate the core  ☑
 - ☑ **step 0:** `tools/difftrace.py` — compare two traces (or two directories of them), report the
   first diverging tick and the first field that moved. Nothing downstream is checkable without it.
   Self-tested by `tools/test_difftrace.py`; see "The Phase 2 harness".
@@ -125,9 +202,16 @@ Toolchain: MinGW-w64 (WinLibs, gcc 16.1, UCRT) installed via
   transliterated, and an empty-keystream run traces identically to the oracle. See below.
 - ☑ **step 2:** `CheckLoc` and `MoveObj`, plus `MoveObj`'s closure — `TranslateTunnel`,
   `UpDateTankPos`, `UpdateUndo`, `ResetUndoBuffer`.
-- ☐ **step 3..n:** port in dependency order, re-running the trace diff after *each* function:
-  `MoveTank` → `CheckLLoc` → `MoveLaser` → `AntiTank` → `IceMoveT`/`IceMoveO` →
-  conveyor → tick loop. (`Animate` is already done — it fell out of the idle tick.)
+- ☑ **step 3:** `MoveTank` and `AntiTank`. They go together: `Tick()` runs `AntiTank()` after
+  every consumed key, so `MoveTank` on its own advances the trace by nothing.
+- ☑ **step 4:** the laser subsystem — `FireLaser`, `MoveLaser`, `CheckLLoc`, plus `KillAtank`,
+  `UpDateLaserBounce`, `TestIfConvCanMoveTank` and the `SlideO`/`SlideMem` stack helpers.
+- ☑ **step 5:** `ConvMoveTank`, `IceMoveT`, `IceMoveO` — the ice and conveyor code, and with it
+  quirk #6 and the first real exercise of hazard #1.
+
+**Exit criterion — MET.** `difftrace.py build/t-oracle build/t-csharp` reports **187/187 identical**
+with `--field --bmf`, exit 0. `MouseOperation` is the only unported function and is unreachable
+from a keystream.
 
 Run both engines with `--field` (and `--bmf` while porting `Animate`) so the diff has the whole
 playfield to bite on, not just the hashes.
@@ -140,19 +224,23 @@ cosmetic-only one, and `--strict` if you want to hold the cosmetic line too.
 #### The Phase 2 harness
 
 ```
-bash oracle/build.sh
+bash oracle/build.sh && bash src/build.sh
 python tools/test_difftrace.py                                  # trust the differ first
 python tools/replay_all.py --traces build/t-oracle --field --bmf
-<csharp> ... --trace build/t-csharp/<same name> --field --bmf
+python tools/replay_all.py --traces build/t-csharp --field --bmf \
+       --engine build/lasertank-core.exe
 python tools/difftrace.py build/t-oracle build/t-csharp -q      # -q: failures only
 ```
 
-For that last line to be one command, **the C# CLI must take the oracle's arguments and emit
-byte-identical trace lines** — same field order, same spacing, same `%08lx` hashes,
-same `#` header and result footer (`oracle/driver.c`, `trace_tick`). Do not invent a nicer
-format: the differ is textual on purpose, so any drift shows up as a divergence rather than as a
-parser bug. Once the C# CLI answers to the same flags, teach `replay_all.py` an `--engine` option
-and both sides come from one script.
+Add `--pack game-objects` to both replay lines for the 16-recording fast loop (one level per
+object); run the whole 187 before believing anything. The full pair takes a few minutes and about
+327 MB per side.
+
+`replay_all.py --engine` is what makes both sides one script, and it works because **the C# CLI
+takes the oracle's arguments and emits byte-identical trace lines** — same field order, same
+spacing, same `%08lx` hashes, same `#` header and result footer (`oracle/driver.c`, `trace_tick`).
+Do not invent a nicer format: the differ is textual on purpose, so any drift shows up as a
+divergence rather than as a parser bug.
 
 **When a trace stops early.** `NotPortedException` used to take the process down before the
 buffered trace was flushed, so a partly-ported engine produced *no* trace and `difftrace.py`
@@ -179,14 +267,26 @@ src/LaserTank.Cli/     Program.cs  TraceWriter.cs      -> build/lasertank-core.e
 Ported: `BuildBMField`, `PutLevel`, `UpDateTank`'s `TankDirty` write, `GameOn`, `Animate`,
 the logic-carrying half of `LoadNextLevel`, the whole `Tick()` frame, the
 `SendMessage`/`PostMessage` death split (quirk #8: `SendDead` runs inline, `PostDead` queues for
-`Pump()` after the tick, exactly as the oracle's stub message pump does), and — step 2 —
-`CheckLoc`, `TranslateTunnel`, `UpDateTankPos`, `UpdateUndo`, `ResetUndoBuffer`, `MoveObj`.
+`Pump()` after the tick, exactly as the oracle's stub message pump does), — step 2 —
+`CheckLoc`, `TranslateTunnel`, `UpDateTankPos`, `UpdateUndo`, `ResetUndoBuffer`, `MoveObj`, —
+step 3 — `MoveTank`, `AntiTank`, and — step 4 — `FireLaser`, `MoveLaser`, `CheckLLoc`,
+`KillAtank`, `UpDateLaserBounce`, `TestIfConvCanMoveTank` and the `SlideO`/`SlideMem` helpers.
 
-**Everything not yet ported throws `NotPortedException`, not a no-op.** `MoveTank`, `FireLaser`,
-`MoveLaser`, `AntiTank`, `IceMoveO`, `IceMoveT`, `ConvMoveTank`, `MouseOperation`. A silent stub
-would produce a *plausible* wrong trace, which is the one failure mode this whole approach exists
-to prevent; today `replay_all.py --engine build/lasertank-core.exe` stops at the first `MoveTank`,
-which is the correct answer.
+and — step 5 — `ConvMoveTank`, `IceMoveT`, `IceMoveO`. That is every function a keystream can
+reach.
+
+**`MouseOperation` is the only remaining stub, and it still throws rather than no-ops.** A silent
+stub would produce a *plausible* wrong trace, which is the one failure mode this whole approach
+exists to prevent — and step 4 turned that from an argument into an incident report: the tick frame
+had been passing `0` instead of `S_Fire` to `FireLaser` since step 1, and only the exception kept
+it from silently corrupting `laser.Good`. Today `replay_all.py --engine build/lasertank-core.exe`
+reports 187 replayed / 181 win / 0 unexpected / 112 `.ghs` exact — the oracle's own numbers.
+
+Worth knowing before step 4: `AntiTank` is a `wasIce` writer even though it never names the flag.
+Its four scans are `while (CheckLoc(...))` loops, so whichever scan ran last leaves `wasIce`
+holding its final probe — and `MoveTank`, `IceMoveT`, `IceMoveO` and `ConvMoveTank` all read it
+after their own `CheckLoc`. That is quirk #3 with a longer reach than the three callers the
+hazard list names.
 
 Decisions worth not relitigating:
 
@@ -314,6 +414,11 @@ Key codes: `37`=Left `38`=Up `39`=Right `40`=Down `32`=Fire.
 1. **Rendering mutates game state.** `UpDateLaserBounce()` (`LTANK2.C:565`) is a *paint* function
    that sets `LaserBounceOnIce`, making `MoveLaser` `goto LaserMoveJump` and take a second step in
    the same tick (`LTANK2.C:1631`). Stub drawing naively → laser-on-sliding-mirror behaviour changes.
+   **Confirmed live in Phase 2:** `Tutor-with-Playbacks` levels 93 and 94 are the only two
+   recordings in the corpus that reach it (tick 527 and tick 206). Level 93's own hint names the
+   mechanism — *"deflected by three mirrors at K8 (**sliding mirror**), K10, N10, and N8"*. To
+   re-check it after any change to the laser or ice code, swap `LaserBounceOnIce = true` in
+   `UpDateLaserBounce` for a throw and replay the corpus: it must fire exactly twice.
 2. ~~**Animation frame is game state.**~~ **Corrected in Phase 1 — animation is cosmetic.**
    `Animate()` writes `Game.BMF[][]` and `MoveObj:1293` reads `bm = Game.BMF[x][y]` to carry the
    sprite along (the "Tere6 Bug" fix, `original/src/Bugs.txt` 02-25-02), but *every* read of `BMF`
@@ -620,3 +725,196 @@ What was actually checked:
 - Harness: the CLI now flushes the trace before dying on `NotPortedException` (`# result=NOTPORTED`,
   exit 4). Before this, a partly-ported engine wrote *nothing* and `difftrace` said `UNUSABLE` —
   the prefix, which is the whole point of porting one function at a time, was being thrown away.
+
+### 2026-09-05 (session 5) — Phase 2 step 3: `MoveTank`, `AntiTank`
+
+**The corpus is a gate again.** Step 2 closed saying step 3 would be the moment 54,162 recorded
+keypresses start running through `CheckLoc`. That is what happened, but it took two functions, not
+one, and the handoff note was wrong about which:
+
+- `MoveTank` alone moved nothing. `Tick()` runs `AntiTank()` immediately after every consumed key
+  (`LTANK.C:617`), so the very first keypress still ended in `NotPortedException` and all 16
+  `game-objects` recordings stayed at a 1-tick prefix — identical to the step-2 baseline, with only
+  the `keys=` counter moving from 0 to 1. Ported in isolation it is unverifiable.
+- `AntiTank` is portable *before* `FireLaser` because its four scans need nothing but `CheckLoc`,
+  and every `FireLaser` call in it sits behind a match. A recording with no anti-tank lined up on
+  the tank therefore runs straight through it. That is what makes the pair, rather than the whole
+  laser subsystem, the smallest thing that unlocks the corpus.
+
+**Result — 187 recordings, `--field --bmf`: 1 identical, 186 `DIVERGE length mismatch`, zero field
+divergences.** Not one playfield cell, score, tank pose or `BMF` byte differs anywhere in the
+1,041 tick-lines the port now reproduces (of 156,504). Every divergence is the port stopping, and
+every stop is a function that still throws: `FireLaser` 161, `IceMoveT` 20, `ConvMoveTank` 5.
+`Game-Objects-in-LT_0001` — pure movement, no shot — replays end to end and wins.
+
+**`AntiTank` is exercised, not just compiled.** `game-objects/_0007` ("Covering the anti-tanks")
+replays 52 ticks of pure movement and then stops inside `FireLaser` *reached from `AntiTank`*,
+having consumed no fire key at all: the scans found a live anti-tank and tried to shoot. Levels
+13/14 (Ice, Thin ice) stop in `IceMoveT`, which means `MoveTank`'s `if (wasIce)` arm ran and set
+`SlideT` — the two halves of the function are both on the tested path.
+
+Kept verbatim, and worth not "cleaning up" later:
+
+- **`MoveTank` turns without moving.** A key whose direction differs from the tank's sets
+  `Tank.Dir` and returns, spending the keypress and leaving `SlideT` untouched. Only a repeat of
+  the facing direction attempts a move.
+- **`SlideT.dx`/`dy` are written on both arms of every `if`.** A move blocked by a wall still
+  records the direction it was blocked in, and `IceMoveT` reads it later, so a bump is not a no-op.
+- **Quirk #5 is `AntiTank`'s shape**, not a comment on it: right → left → down → up, first match
+  returns. Two anti-tanks on the same row/column and only one fires, chosen by scan order rather
+  than by distance. Tutor level 42 is a level built to test exactly this. The four scans are not a
+  loop over four directions and must not become one.
+- **`AntiTank` writes `wasIce` without ever naming it.** Its scans are `while (CheckLoc(...))`
+  loops, so whichever ran last leaves its final probe in the flag, and `MoveTank`, `IceMoveT`,
+  `IceMoveO` and `ConvMoveTank` all read `wasIce` after their own `CheckLoc`. Quirk #3 reaches
+  further than the three callers hazard #3 lists — noted in "What the C# side looks like now"
+  because it is a trap for step 4 and beyond.
+- The bound checks in `AntiTank` are `x < 16` / `x >= 0`, not a `CheckLoc` result, so a scan that
+  walked off the board is rejected before the `Game.PF` read. `Game.Tank.X != x` rejects the tank
+  standing on the anti-tank's own cell.
+
+Also checked: empty-keystream spot sweep over 202 levels of `LaserTank.lvl` still byte-identical
+with `--field --bmf`. Neither new function is reachable without a consumed key, so this could not
+have regressed — it is a guard against a stray edit, not evidence about the new code.
+
+**Next:** `FireLaser` (161 of the 186 stops), then its closure `CheckLLoc` → `MoveLaser`. Hazard #1
+lands there: `UpDateLaserBounce` is a *paint* routine that sets `LaserBounceOnIce` and makes
+`MoveLaser` `goto LaserMoveJump` for a second step in the same tick (`LTANK2.C:1631`). The oracle
+gets that for free by compiling the original; the C# port will not.
+
+### 2026-09-05 (session 6) — Phase 2 step 4: the laser subsystem
+
+Ported `FireLaser`, `MoveLaser`, `CheckLLoc` and everything they drag in: `KillAtank`, the logic
+half of `UpDateLaserBounce`, `TestIfConvCanMoveTank`, and the six `SlideO`/`SlideMem` stack
+helpers (`Mem_to_SlideO`, `SlideO_to_Mem`, `add_SlideO_to_Mem`, `sub_SlideO_from_Mem`,
+`del_SlideO_from_Mem`). Trace diff after each of the three stages, as the protocol requires:
+
+| after | game-objects (16) | stops in |
+|---|---|---|
+| step 3 | 1 identical, 15 diverge | `FireLaser` |
+| `FireLaser` | 1 identical, 15 diverge — *no tick gain* | `MoveLaser` |
+| `+ CheckLLoc` + helpers | 1 identical, 15 diverge — *no tick gain* | `MoveLaser` |
+| `+ MoveLaser` | **12 identical**, 4 diverge | ice / conveyor |
+
+The first two stages moving nothing is the same shape as step 3's `MoveTank`: `FireLaser` ends by
+calling `MoveLaser`, and `CheckLLoc` is only reachable *from* `MoveLaser`, so neither is
+independently observable. Port them anyway, in that order, and check — a stage that fails to move
+the number is information, and a stage that moves it *unexpectedly* would be a bug.
+
+**Whole corpus: 41 identical, 146 `DIVERGE length mismatch`, zero field divergences.**
+**53.2% of the corpus now replays byte-identically** — 83,219 of 156,504 tick-lines, up from 1,041
+after step 3. Remaining stops: `ConvMoveTank` 59, `IceMoveT` 55, `IceMoveO` 32.
+
+**The `S_Fire` bug — the case for `NotPortedException`, made concrete.** Reading `FireLaser`
+turned up that the step-1 tick frame passes `0` where the oracle passes `S_Fire` (`driver.c:193`,
+`LTANK.C:631`). That argument is not sound-only: `FireLaser` ends with `laser.Good = (sf == 2)`,
+which is how the engine distinguishes the tank's own shot from an anti-tank's (`S_Anti2` = 9).
+The literal `0` had been sitting in the port for three steps and could not be caught, because
+`FireLaser` threw before reading it. A no-op stub would have accepted the call, and the divergence
+would have surfaced much later and much further from its cause. Fixed to the named constant.
+
+**Hazard #1 is written but NOT verified. Do not tick it off.** `UpDateLaserBounce`'s slide scan is
+transliterated and `MoveLaser` keeps the `goto LaserMoveJump`, but the path is provably not
+exercised yet: temporarily swapping `LaserBounceOnIce = true` for a throw and re-running all 187
+recordings fires it **zero times**. It needs a mirror *actively sliding* when the beam deflects off
+it, and the sliding is `IceMoveO`'s, which still throws. Step 5 is where the second-step-in-one-tick
+behaviour gets its first real test — expect it to be the interesting failure, and re-run this probe
+afterwards to confirm the path is genuinely hit rather than merely compiled.
+
+Shapes kept verbatim, worth not tidying later:
+
+- **`CheckLLoc`'s `wasIce` is not about the cell that was hit.** It is set FALSE on entry, then the
+  push arms call `CheckLoc(x+dx, y+dy)` which sets it from the cell the object is being pushed
+  *into*. That is the entire mechanism by which a laser starts an object sliding, and it only reads
+  that way if the `wasIce = FALSE` and the tail `if (wasIce)` stay where they are.
+- **An anti-tank dies only when shot in the face** (`dy == 1` for a down-travelling beam vs. an
+  up-facing A-T, and so on). Shot in the side or the back it is *pushed*, like a block. And it dies
+  into `Obj_Solid`, not dirt — `KillAtank` sets `PF = 4`, so the wreck still blocks the square.
+- **The laser death is `SendMessage`** (quirk #8) — immediate, mid-tick — so a shot can kill the
+  tank in the same tick it was fired, unlike drowning, which is posted.
+- **`del_SlideO_from_Mem`'s trailing `SlideO.s = (count > 0)` runs only when nothing matched.**
+  The `return` inside the loop skips it, leaving `SlideO` holding whatever `sub_SlideO_from_Mem`'s
+  shuffle left there. `sub_SlideO_from_Mem` shuffles *through* `SlideO`, so it clobbers it too —
+  which is why `IceMoveO` reloads from the stack every iteration.
+- **`MoveLaser`'s dead-shot arm carries three separate pieces of tick behaviour**: clearing
+  `Game.Tank.Firing` (what lets the next tick consume a key), `AntiTank()` (an A-T can answer a
+  shot the instant it expires), and `TestIfConvCanMoveTank() -> ConvMoving = TRUE`, MGY's 2002
+  speed-bug handling, which blocks the key consume for one more tick.
+- `MoveLaser`'s `goto` is kept as a `goto`. The label is also where `LaserBounceOnIce` is cleared;
+  a `while` would have to reproduce that ordering anyway.
+- `TestIfConvCanMoveTank` is another `wasIce` writer — four `CheckLoc` calls on the conveyor cases,
+  and none on the default. Same trap as `AntiTank`, noted in step 3.
+
+**Next:** `IceMoveO` / `IceMoveT` (87 of the 146 stops), then `ConvMoveTank` (59). `IceMoveO` is
+where quirk #6 lands — the stack is walked top-down *while being mutated*, and the 16-entry cap is
+silent — and where hazard #1 finally becomes testable.
+
+### 2026-09-05 (session 7) — Phase 2 step 5, and Phase 2 complete
+
+Ported `ConvMoveTank`, then `IceMoveT`, then `IceMoveO`, diffing after each:
+
+| after | game-objects (16) | whole corpus |
+|---|---|---|
+| step 4 | 12 identical | 41 identical, 146 stops |
+| `ConvMoveTank` | 13 identical | — |
+| `+ IceMoveT` | 14 identical | — |
+| `+ IceMoveO` | **16 identical** | **187 identical, 0 diverged** |
+
+**`difftrace.py build/t-oracle build/t-csharp` → 187 compared, 187 identical, 0 cosmetic-only,
+0 diverged, 0 unusable. Exit 0.** With `--field --bmf`: every playfield cell on both layers, both
+bitmap layers, tank pose, laser, both slide records, the whole slide stack and the scores, on all
+156,504 tick-lines. The cosmetic `BMF` tripwire — which the exit criterion *permits* to differ —
+does not differ either.
+
+Independently, driving the C# core through `replay_all.py` reproduces Phase 1's pinned numbers:
+**187 replayed, 181 win, 6 documented non-winners, 0 unexpected, 112/112 `.ghs` exact.** Both the
+6 non-winners and the `.ghs` targets are asserted, so this is a real gate, not a tautology of the
+trace comparison. `test_difftrace.py` 29/29 first, as the harness section requires. Empty-keystream
+sweep still 2,347/2,347.
+
+**Hazard #1 is verified, not just written.** The step-4 probe fired zero times; re-run now it fires
+exactly twice — `Tutor-with-Playbacks_0093` tick 527 and `_0094` tick 206. Level 93 ("One suicidal
+anti-tank") documents the mechanism in its own hint: *"The laser is deflected by three mirrors at
+K8 (**sliding mirror**), K10, N10, and N8."* A paint routine's side effect driving a second beam
+step inside a single tick, on levels built to depend on it. The probe is now written into hazard #1
+as the way to re-check it after any change to the laser or ice code: **it must fire exactly twice.**
+
+Shapes kept verbatim in this step:
+
+- **`ConvMoveTank` is `UpDateTankPos` minus the accounting.** Same move, same tunnel translation,
+  but no `UpdateUndo`, no `ScoreMove++`, no `S_Move` — a tank *carried* by ice or a conveyor does
+  not spend a move. It also never clears `Tank.Good` first (`UpDateTankPos` does), so a tunnel wait
+  survives a ride, and it sets `ConvMoving = TRUE`, which costs the player a tick at the key
+  consume. Two functions that look mergeable and are not.
+- **`savei` in both `IceMoveT` and `IceMoveO` captures `wasIce` before the call that clobbers it.**
+  `ConvMoveTank` ends in `AntiTank()`, and `MoveObj`+`AntiTank` do the same in `IceMoveO`; both
+  overwrite `wasIce` via their `CheckLoc` scans. Read the flag after the call instead of saving it
+  and the slide ends on whatever the anti-tank scan last probed. `savei` is what makes a slide
+  terminate correctly — quirk #3 biting exactly where step 3 predicted it would.
+- **The melt writes different layers in the two functions.** `IceMoveT` turns `PF` to water (the
+  tank has nothing under it); `IceMoveO` turns `PF2` to water (the ice is *under* the sliding
+  object). Irreversible either way — Phase 4's pruning depends on it.
+- **Quirk #6, `IceMoveO`'s loop.** Top-down from `SlideMem.count`, and both arms can call
+  `sub_SlideO_from_Mem`, which decrements `count` and shuffles entries down: the collection is
+  mutated while iterated. Walking top-down is what makes that survive, and MGY's
+  `if (iSlideObj <= SlideMem.count)` guard — comment: *"just in case ..."* — is the seatbelt. Do
+  not rewrite as a filtered list; which object moves next is observable.
+- **`SlideO_to_Mem(i)` immediately followed by `sub_SlideO_from_Mem(i)`** writes a slot the shuffle
+  then overwrites — dead for every `i < count`, live only at `i == count`. Kept.
+- **`IceMoveO`'s tail clears `SlideO` when the stack empties.** `Mem_to_SlideO(0)` passes its own
+  `0 <= count` guard and copies slot 0, which nothing ever writes, so it is still zeroed. Depends
+  on `TICEMEM.Objects` starting zeroed and `LoadLevel` resetting only `count` — which is exactly
+  what the C global does.
+- **`IceMoveO` tests the tank's square separately from `CheckLoc`**, because `CheckLoc` does not
+  know where the tank is; without that test an object slides into the tank.
+
+**Phase 2 is done. `MouseOperation` is the only unported function** — the mouse buffer is empty
+headless (`MB_TOS == MB_SP`), so no keystream reaches it. It still throws. It is a UI entry point,
+Phase 5 work, not game logic.
+
+**Next: Phase 3, differential fuzzing.** 187 recordings are 187 paths; the flagship collection
+alone is 2,030 levels the corpus never touches, and 20,914 across all 13. Random keystreams
+weighted toward fire/turn, both engines, diff, shrink any divergence to a minimal repro. Two things
+worth building into it from the start: the trace comparison is already the oracle, and
+`NotPortedException` proved twice this phase that a loud stop beats a plausible answer — keep
+`MouseOperation` throwing rather than teaching the fuzzer to avoid it.
