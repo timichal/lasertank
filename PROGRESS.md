@@ -7,10 +7,20 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 0 — planning complete, repo reorganized, nothing built yet.
-**Next action:** Phase 1, step 1 — get `LTANK2.C` compiling headless under MinGW/clang with a stub
-Win32 layer, driven by a keystream. See "Phase 1" below.
-**Blocked on:** nothing.
+**Phase:** 1 — **complete**. The oracle builds, runs headless, and replays the whole recorded corpus.
+**Result:** `python tools/replay_all.py` is green — **187 replayed, 181 win, 6 documented
+non-winners, 0 unexpected**, exit 0. 112/112 `Tutor-with-Playbacks` match their bundled `.ghs` move
+*and* shot targets exactly. **54,162 replayed keypresses, zero wasted.**
+The 6 non-winners are recordings their own authors describe as incomplete, pinned in
+`EXPECTED_NON_WIN` with the numbers they must reproduce; the suite fails if any of them changes in
+either direction (fault-injection tested).
+**Next action:** Phase 2, step 0 — **write `tools/difftrace.py` first.** Phase 2 says "re-run the
+trace diff after each function", but no differ exists yet; the oracle emits traces and nothing
+compares them. It needs to report the *first* diverging tick and which field went first, since that
+is what localises a transliteration bug. Build it against two oracle runs (a real one and a
+deliberately perturbed one) so it is known to work before there is any C# to blame.
+Then step 1: stand up the C# core project and transliterate `CheckLoc`.
+**Blocked on:** .NET SDK + Godot .NET are being installed. Step 0 needs neither.
 
 ---
 
@@ -66,28 +76,37 @@ shipping 25-year-old code and complicates web export).
 
 ## Phases
 
-### Phase 1 — Oracle & tooling  ☐
-This is the real gate. If the C reference will not build headless, everything downstream stalls.
-Timebox it.
+### Phase 1 — Oracle & tooling  ☑
+- ☑ Build `LTANK2.C` headless, **preserving logic-carrying side effects**. Key move: stub only the
+  Win32 *API*, never LaserTank's own code — see `oracle/README.md`. `UpDateLaserBounce` compiles
+  verbatim, so hazard #1 survives for free.
+- ☑ Drive from a keystream file; emit per-tick trace.
+- ☑ Parsers for `.lvl` / `.ghs` / `.lpb`.
+- ☑ Trace format — see `oracle/README.md`.
+- ☑ Replay all 187 corpus `.lpb` (186 shipped + level 21 decoded from its packed `.txt`).
+- ☑ For `Tutor-with-Playbacks`, assert move/shot counts match its bundled `.ghs` — **112/112 exact**.
 
-- ☐ Build `LTANK2.C` headless: stub the Win32/GDI layer, **preserving logic-carrying side effects**
-  (see hazard #1 — `UpDateLaserBounce` is a *paint* function that mutates control flow).
-- ☐ Drive from a keystream file; emit per-tick trace.
-- ☐ Parsers for `.lvl` / `.ghs` / `.lpb`.
-- ☐ Trace format: per tick — `PF`, `PF2`, `BMF`, `BMF2`, tank x/y/dir/firing, laser x/y/dir,
-  `ScoreMove`, `ScoreShot`, slide stack, `AniLevel`/`AniCount`.
-- ☐ Replay all 186 corpus `.lpb` files; assert each reaches the flag.
-- ☐ For `Tutor-with-Playbacks`, also assert move/shot counts match its bundled `.ghs`.
+**Exit criterion — met, restated.** "186/186 reach the flag" was the wrong bar: the corpus does not
+contain 186 solutions. 181 of 187 reach the flag; the other 6 are documented incomplete recordings.
+The suite encodes that distinction, so it is a real regression gate rather than a permanently red
+run. See "The six non-winning recordings" below.
 
-**Exit criterion:** 186/186 green.
+Toolchain: MinGW-w64 (WinLibs, gcc 16.1, UCRT) installed via
+`winget install BrechtSanders.WinLibs.POSIX.UCRT`. Nothing else is needed to build the oracle.
 
 ### Phase 2 — Transliterate the core  ☐
-Port in dependency order, re-running the trace diff after *each* function:
+- ☐ **step 0:** `tools/difftrace.py` — compare two traces, report the first diverging tick and the
+  first field that moved. Nothing downstream is checkable without it. Self-test it on two oracle
+  runs before trusting it against C#.
+- ☐ **step 1..n:** port in dependency order, re-running the trace diff after *each* function:
+  `CheckLoc` → `MoveObj` → `CheckLLoc` → `MoveLaser` → `AntiTank` → `IceMoveT`/`IceMoveO` →
+  conveyor → `Animate` → tick loop.
 
-`CheckLoc` → `MoveObj` → `CheckLLoc` → `MoveLaser` → `AntiTank` → `IceMoveT`/`IceMoveO` →
-conveyor → `Animate` → tick loop.
+Run the oracle with `--field` (and `--bmf` while porting `Animate`) so the diff has the whole
+playfield to bite on, not just the hashes.
 
-**Exit criterion:** byte-identical traces on all 186.
+**Exit criterion:** identical traces on all 187, `--field` included. `BMF`/`AniLevel` differences
+are cosmetic (hazard #2) — worth investigating as a tripwire, but not a correctness failure.
 
 ### Phase 3 — Differential fuzzing  ☐
 This is what finds the remaining divergences. Random keystreams (weight toward fire/turn), both
@@ -178,10 +197,16 @@ Key codes: `37`=Left `38`=Up `39`=Right `40`=Down `32`=Fire.
 1. **Rendering mutates game state.** `UpDateLaserBounce()` (`LTANK2.C:565`) is a *paint* function
    that sets `LaserBounceOnIce`, making `MoveLaser` `goto LaserMoveJump` and take a second step in
    the same tick (`LTANK2.C:1631`). Stub drawing naively → laser-on-sliding-mirror behaviour changes.
-2. **Animation frame is game state.** `Animate()` writes `Game.BMF[][]`; `MoveObj` reads
-   `bm = Game.BMF[x][y]` to carry the sprite along (the "Tere6 Bug" fix, `original/src/Bugs.txt` 02-25-02).
-   Tutor readme *requires* Animation ON or "the tank will temporarily disappear."
-   `AniLevel`/`AniCount` must be simulated.
+2. ~~**Animation frame is game state.**~~ **Corrected in Phase 1 — animation is cosmetic.**
+   `Animate()` writes `Game.BMF[][]` and `MoveObj:1293` reads `bm = Game.BMF[x][y]` to carry the
+   sprite along (the "Tere6 Bug" fix, `original/src/Bugs.txt` 02-25-02), but *every* read of `BMF`
+   in the whole program is either a paint call or that sprite carry — **no bitmap ever feeds a
+   decision.** Verified by exhaustive grep; see `oracle/README.md`.
+   Consequences: `AniLevel`/`AniCount` need not be simulated for logic equivalence, and — more
+   importantly — a `.lpb` replays identically regardless of which animation phase the game happened
+   to be in when the level loaded, which would otherwise make every replay phase-dependent.
+   The tutor readme's "the tank will temporarily disappear" is a rendering artifact.
+   Still worth tracing in Phase 2: a BMF divergence is a cheap tripwire for a transliteration slip.
 3. **`wasIce` is a hidden return channel** from `CheckLoc()` (`LTANK2.C:1278`), read by three callers.
 4. **Tunnel low bit is a flag.** `Game.PF2[x][y] |= 1` marks "waiting to transport";
    `Game.PF[x][y] & 0xFE` strips it.
@@ -208,16 +233,25 @@ original/   the frozen 25-year-old artifact — read-only
   bin/        shipped 2010 lasertank.exe + LTUDU data updater
 data/       game content = the regression corpus
   levels/     13 collections, 20,914 levels, all with .ghs targets
-  quirks/     10 tutorial/trick packs, 317 levels, 186 .lpb solutions
+  quirks/     10 tutorial/trick packs, 317 levels, 187 .lpb recordings
   graphics/   .ltg packs      meta/  changelogs & name indexes
-oracle/     Phase 1 goes here      tools/  parsers, differ, fuzzer, solver
+oracle/     the C reference oracle — see oracle/README.md
+  stub/       minimal <windows.h> that shadows the real one
+  win32_stub.c  real memory/files/messages, no-op GDI
+  driver.c    LTANK.C globals + window proc + the WM_TIMER tick loop + tracing
+  build.sh    gcc -x c -I stub -I original/src
+tools/
+  replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
+  bump_rate.py      classify consumed keys; bumps = desync signature
+  dump_level.py     print a .lvl level as ASCII with its hint
+  unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
 ```
 
 See `README.md` and `data/SOURCES.md` for provenance.
 
 ## Test corpus
 
-**Tier 1 — `data/quirks/`, 317 quirk-focused levels, 186 with recorded solutions.**
+**Tier 1 — `data/quirks/`, 317 quirk-focused levels, 187 recorded playbacks.**
 Upstream deliberately withholds `.lpb` for the main collections; these help-section packs are the
 only recorded human solutions in existence.
 
@@ -225,7 +259,7 @@ only recorded human solutions in existence.
 |---|---:|---:|---|
 | `tutor-with-playbacks` | 112 | 112 | + bundled `.ghs` — the only pack where recorded counts can be checked against a target |
 | `tutor` | 92 | 0 | **the quirk specification** — each hint documents its trick |
-| `rotary-mirrors` | 39 | 38 | |
+| `rotary-mirrors` | 39 | 39 | 6 of these do not reach the flag — see above |
 | `tricks` | 26 | 0 | |
 | `pono-trick` | 18 | 20 | more LPBs than levels (alternate solutions) |
 | `game-objects` | 16 | 16 | one level per object — **best first target for the oracle** |
@@ -235,9 +269,47 @@ only recorded human solutions in existence.
 entry. No keystreams, but a solvability guarantee and a (moves, shots) target for each. This is the
 fuzzing surface for Phase 3.
 
+## The six non-winning recordings
+
+All six are in `rotary-mirrors`, and five of the six are the only files in that pack whose `.lpb`
+author field reads `Ihab` rather than `Ihab-Ihab`. They consume their entire keystream and stop
+short of the flag. `tools/replay_all.py` pins each one's expected outcome, asserting the exact
+numbers wherever a level hint documents them. Evidence that this is the recordings, not the engine:
+
+| file | level | replay | corroboration |
+|---|---|---|---|
+| `_0036` | 36 `noor II` | 621 keys, 419 shots | hint: *"I invite you to complete the solution … it is stopped at step 621 (after 419 shots)"* — **exact match** |
+| `_0009` | 9 `rotary mirrors 4-c1` | 39 moves | hint: *"blocked at 39 steps"* — **exact match**; level 10 is the same puzzle (`4-c2`) and its recording wins |
+| `_0021` | 21 `rotary mirrors 5-g` | 148 moves, 257 shots, then dies | hint: *"it has a solution : 148/257 or better"* — **exact match**; see below |
+| `_0011`, `_0013`, `_0017` | 11, 13, 17 | — | no hint text; inferred from the zero-bump result below |
+
+**The zero-bump result.** A key that produces neither a move, a turn, nor a shot means the tank
+walked into something solid. Across all 187 replays — **54,162 keypresses — not one bump.** A
+desynced engine puts the tank in the wrong place and blocked moves pile up immediately; instead
+every single recorded keystroke in the corpus does exactly what a keystroke should do, including
+throughout all five non-winning recordings. `tools/bump_rate.py` computes this.
+
+**The level-21 confirmation.** `rotary-mirrors` ships level 21's playback as `_0021.txt`, a
+Text-Converter base64 wrapper rather than a `.lpb`. Decoded with `tools/unpack_lpb_txt.py` (594 B,
+528 keys, author `Ihab`) and added to the corpus — the only derived file under `data/`, documented
+in `data/SOURCES.md` and regenerable from the `.txt` beside it.
+
+Level 21's hint says *"it has a solution : 148/257 or better."* Replaying it gives **148 moves /
+257 shots** and leaves the tank one cell above the flag, facing it — then its final two keys turn
+the tank around and drive it into water. Replace that trailing `uu` with `dd` and the oracle **wins
+at exactly 148/257**, the documented optimum. So the engine reproduces a known-good solution
+precisely, and the distributed recording's tail is simply wrong. This is one of the few independent
+checks on absolute scoring outside the `Tutor-with-Playbacks` `.ghs`, which is why it earns its
+place despite not winning.
+
 ## Environment notes
 
-- Python is `python` on this box, **not** `python3` (that alias hits the Microsoft Store shim).
+- Two Pythons, both fine: `python` = 3.12.7 (miniforge), `python3` = 3.14.7 (installed 2026-09-05,
+  which retired the old Microsoft Store shim). Everything in `tools/` is stdlib-only and verified on
+  both — keep it that way so either alias works.
+- C toolchain: MinGW-w64 (WinLibs gcc 16.1, UCRT), `winget install BrechtSanders.WinLibs.POSIX.UCRT`.
+  Not on `PATH` globally; `oracle/build.sh` finds it under `~/AppData/Local/Microsoft/Winget/Packages/`.
+- Not installed yet, needed for Phase 2: the .NET SDK and Godot .NET.
 - laser-tank.com is behind Cloudflare: `WebFetch` returns 403. Use `curl` with a browser
   User-Agent. The site is a frameset — real content is in `menu.html`, `help.html`, `levels.html`.
 - Original build was lcc-win32 (`original/src/_How to compile LTank.txt`, `LTank.prj`). Its dependencies are
@@ -286,3 +358,31 @@ The oracle is the only authority.
   `data/levels/LaserTank-2016-snapshot.zip` — a third vintage of the flagship collection,
   59 of 2030 levels differing from the current one. Relevant if a `.lpb` ever fails to replay.
 - Committed as `3ce1efa init` and pushed. **No code written yet — Phase 1 starts clean.**
+
+### 2026-09-05 (session 2) — Phase 1 done
+- Installed MinGW-w64 (WinLibs gcc 16.1 UCRT) via winget; the box had no C compiler at all.
+- Built the oracle. The load-bearing decision: **stub only the Win32 API, compile `LTANK2.C`
+  verbatim.** Hazard #1 (`UpDateLaserBounce` mutating `LaserBounceOnIce`) then needs no special
+  handling — it survives because only `Rectangle`/`SelectObject` are stubbed out from under it.
+  Hazard #8 needed a real message pump: `SendMessage` re-enters the window proc, `PostMessage`
+  queues for after the tick.
+- Measured the external surface first (`nm -u` on `LTANK2.C` built against real headers): 49 Win32
+  calls and ~12 globals. That made the stub a bounded job rather than an open-ended one.
+- `LT_Tick()` in `oracle/driver.c` is a line-by-line transliteration of `WM_TIMER` (`LTANK.C:579`).
+  `LTANK.C`/`LTANK_D.C` are not compiled — they are window and dialog code.
+- **Replayed all recordings: 181 reach the flag, 54,162 keypresses, 0 bumps.** All 112
+  `Tutor-with-Playbacks` match their bundled `.ghs` on both moves and shots.
+- Decoded level 21's playback out of its Text-Converter `.txt` wrapper and added it to the corpus
+  (187 now). Taught `replay_all.py` which recordings are documented non-winners and what numbers
+  they must reproduce, so the suite exits 0 when correct and 1 on any change — verified by fault
+  injection in both directions. Before that it was permanently red and so useless as a gate.
+- Established that the 5 non-winners are incomplete recordings, corroborated by two level hints
+  quoting the exact stopping points we reproduce, and by the level-21 `148/257` confirmation.
+- **Corrected hazard #2**: `Game.BMF` is cosmetic — no bitmap feeds a decision anywhere in the
+  program. This removes an animation-phase dependency that would have made replays non-deterministic
+  across level loads.
+- Also noticed but left alone: `LTANK2.C:1738` reads `if (GFXOn) GFXKill;` — a missing `()`, so the
+  call never happens. Real bug in the original, in `SetGameSize`, cosmetic. Do not "fix" it.
+- Open: which `lasertank.exe` is the behavioural reference is still unresolved, but the oracle now
+  agrees with 132/132 quirk-pack recordings that carry independent score targets, so the question is
+  much less urgent than it looked.

@@ -16,17 +16,17 @@ original/          The 25-year-old artifact. Frozen — treat as read-only.
 data/              Game content — this is also the test corpus.
   levels/            13 collections: *.lvl + *.ghs  (20,914 levels, all with global high scores)
                      plus LaserTank-2016-snapshot.zip, an older vintage of the flagship set
-  quirks/            10 tutorial/trick packs, extracted (317 levels, 186 with .lpb solutions)
+  quirks/            10 tutorial/trick packs, extracted (317 levels, 187 .lpb playbacks)
   graphics/          .ltg user graphics packs
   meta/              per-collection changelogs, level-name and author indexes
-oracle/            Phase 1: headless C reference build + trace tooling  (empty)
-tools/             Format parsers, trace differ, fuzzer, solver              (empty)
+oracle/            Headless C reference build + per-tick tracing  (see oracle/README.md)
+tools/             Replay gate, level dumper, .lpb decoder, bump analysis
 ```
 
 ## Why so much binary data is committed
 
 Deliberate. The `.lvl`/`.ghs` files *are* the regression corpus — 20,914 levels, every one with a
-best-known move/shot count, and 186 with recorded keystroke solutions. `original/` is a historical
+best-known move/shot count, and 187 recorded keystroke playbacks. `original/` is a historical
 artifact that must not drift. Total repo ≈ 24 MB, and it barely changes. See the note at the top of
 `.gitignore` before adding rules.
 

@@ -28,7 +28,7 @@ the site's data administrator, not part of the game). This snapshot: **2026-04-1
 The zip was verified byte-identical to these extracted files before being discarded; its three
 index text files are in `meta/`.
 
-## `quirks/` — 10 packs, 317 levels, 186 `.lpb` solutions
+## `quirks/` — 10 packs, 317 levels, 187 `.lpb` playbacks
 
 From the **Help** section, `https://laser-tank.com/_help/<name>.zip` — re-downloadable with a
 browser User-Agent (see the Cloudflare note above). The pristine zips were verified byte-identical
@@ -38,7 +38,7 @@ to these extracted files and then discarded.
 |---|---|---:|---:|---|
 | `tutor` | `Tutor.zip` | 92 | 0 | **The quirk specification.** Each level's hint documents its trick. Readme: *"Some of the tricks are bugs that have been intentionally left in the software because they make the game more interesting."* |
 | `tutor-with-playbacks` | `Tutor-with-Playbacks.zip` | 112 | 112 | Full solutions **plus a bundled `.ghs`** — the only pack where recorded move/shot counts can be checked against a target |
-| `rotary-mirrors` | `Rotary Mirrors-Challenge.zip` | 39 | 38 | Rotating-mirror edge cases |
+| `rotary-mirrors` | `Rotary Mirrors-Challenge.zip` | 39 | 39 | Rotating-mirror edge cases (38 shipped as `.lpb`, one as packed text — see below) |
 | `tricks` | `Tricks.zip` | 26 | 0 | Tricks used in the main collections |
 | `pono-trick` | `Pono_trick.zip` | 18 | 20 | (more LPBs than levels — alternate solutions) |
 | `game-objects` | `Game-Objects-in-LT.zip` | 16 | 16 | One level per game object; best first target for the oracle |
@@ -46,6 +46,23 @@ to these extracted files and then discarded.
 | `telek-1` | `telek-1.zip` | 5 | 0 | |
 | `l40` | `l40.zip` | 3 | 0 | |
 | `inchworm` | `inchworm.zip` | 1 | 0 | |
+
+### The one derived file: `rotary-mirrors/Rotary Mirrors-Challenge_0021.lpb`
+
+The only file under `data/` that did not arrive as bytes from upstream. The pack ships level 21's
+playback as `Rotary Mirrors-Challenge_0021.txt` — a base64 wrapper produced by LaserTank's
+`Text-Converter.exe`, presumably to survive mail or a forum post. Regenerate it with:
+
+```
+python tools/unpack_lpb_txt.py "data/quirks/rotary-mirrors/Rotary Mirrors-Challenge_0021.txt"
+```
+
+594 bytes, matching the `Size : 594` the wrapper declares; level 21, 528 keys, author `Ihab`. The
+`.txt` is kept alongside it, so this is reproducible and reversible. Note the recording does *not*
+win — its last two keys turn the tank around into water one cell from the flag. It earns its place
+anyway: level 21's hint documents a solution at *"148/257 or better"*, and the replay reaches
+exactly 148 moves / 257 shots, which makes it one of the few independent checks on the oracle's
+absolute scoring. See `PROGRESS.md`.
 
 Upstream deliberately withholds `.lpb` files for the main collections — *"The real goal of LaserTank
 is not to watch playback files."* These help-section packs are the exception, and are the only
