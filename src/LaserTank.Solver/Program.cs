@@ -98,6 +98,26 @@ namespace LaserTank.Solver
 "                         found both of layer 2's wrong turns; keep it working\n" +
 "    --subgoal-first      run it before the raw beam    --subgoal-share R (0.9)\n" +
 "\n" +
+"  layer 3 -- restarts (Restart.cs).  ON by default, unlike the two above,\n" +
+"  because a restart only ever spends budget that was already forfeit: the\n" +
+"  subgoal beam is re-run only when it died at subgoal-dead-end with nodes\n" +
+"  still in hand (19.1% of layer 2's failures, with a median 84% of the\n" +
+"  budget unspent).  Attempt 0 is layer 2 exactly, so nothing can be lost\n" +
+"    --sg-restarts N      extra attempts after a dead-end, default 6; 0 is off\n" +
+"    --sg-noise N         ranking jitter on a restart, default 3.  The frontier\n" +
+"                         of a dead-ending run is almost all slack nodes, so\n" +
+"                         this is the diversifier that acts; it is added after\n" +
+"                         acceptance is decided and can only reorder\n" +
+"    --sg-grow / --sg-no-grow  double width and slack on each restart, on by\n" +
+"                         default: width bought up front is a loss (deep bench\n" +
+"                         10 at width 4, 8 at 8, 6 at 16) and the same width\n" +
+"                         bought after narrow has failed is a win\n" +
+"    --sg-reuse root|reserve  where a restart begins, default root.  reserve\n" +
+"                         re-seeds from the nodes the width trim discarded --\n" +
+"                         cheaper, and measured worse (corpus 43 against 44)\n" +
+"    --sg-reserve N       discarded nodes held for a restart, default 64\n" +
+"    --sg-reserve-depth N ...and how many one depth may add, default 2\n" +
+"\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
 "    --author NAME        .lpb author field, default \"LTSolver\"\n" +
@@ -174,6 +194,13 @@ namespace LaserTank.Solver
                         case "--sg-closed": a.Opt.SgCloseOnExpand = V() != "generate"; break;
                         case "--sg-aim": a.Opt.SgAim = true; break;
                         case "--sg-trace": a.Opt.SgTrace = true; break;
+                        case "--sg-restarts": a.Opt.SgRestarts = int.Parse(V()); break;
+                        case "--sg-noise": a.Opt.SgNoise = int.Parse(V()); break;
+                        case "--sg-reuse": a.Opt.SgReuse = V() != "root"; break;
+                        case "--sg-reserve": a.Opt.SgReserve = int.Parse(V()); break;
+                        case "--sg-reserve-depth": a.Opt.SgReservePerDepth = int.Parse(V()); break;
+                        case "--sg-grow": a.Opt.SgGrow = true; break;
+                        case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
                         case "--closure-nodes": a.Opt.ClosureNodes = int.Parse(V()); break;
@@ -317,7 +344,7 @@ namespace LaserTank.Solver
         {
             public Job J;
             public bool Solved, Trimmed;
-            public int Keys, Moves, Shots, RawKeys, Depth;
+            public int Keys, Moves, Shots, RawKeys, Depth, Restarts;
             public string Method = "-", Stop = "-";
             public long Nodes;
             public double Ms;
@@ -374,6 +401,7 @@ namespace LaserTank.Solver
                     w.WriteString("method", Method);
                     w.WriteString("stop", Stop);
                     w.WriteNumber("depth", Depth);
+                    w.WriteNumber("restarts", Restarts);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
                     if (Error != null) w.WriteString("error", Error);
@@ -395,6 +423,7 @@ namespace LaserTank.Solver
                 SolveResult r = s.Solve(job.Level);
                 o.Method = r.Method;
                 o.Stop = r.Stop;
+                o.Restarts = r.Restarts;
                 o.Nodes = r.Nodes;
                 o.Ms = r.Ms;
                 o.Depth = r.Depth;
@@ -469,6 +498,12 @@ namespace LaserTank.Solver
             SgTrace = s.SgTrace,
             SubgoalShare = s.SubgoalShare,
             SubgoalLast = s.SubgoalLast,
+            SgRestarts = s.SgRestarts,
+            SgNoise = s.SgNoise,
+            SgReuse = s.SgReuse,
+            SgReserve = s.SgReserve,
+            SgReservePerDepth = s.SgReservePerDepth,
+            SgGrow = s.SgGrow,
         };
     }
 }

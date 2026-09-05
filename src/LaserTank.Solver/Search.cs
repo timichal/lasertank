@@ -115,6 +115,46 @@ namespace LaserTank.Solver
         /// subgoal beam is 4 wide and dies of an empty frontier.
         public bool SgCloseOnExpand = true;
         public bool SgTrace = false;       // per-expansion diagnostics to stderr
+
+        // ---- layer 3: restarts (Restart.cs) -------------------------------
+        //
+        // **A restart is spending budget that was already forfeit, which is why
+        // this one is on by default and layers 1 and 2 are not.**  Layer 2's
+        // failures split 80.8% `budget` / 19.1% `subgoal-dead-end`, and the
+        // dead-ends died with a median of 84% of their nodes unspent -- 90
+        // million ApplyKey calls across one pass.  SubgoalSearch re-runs the
+        // beam only on that stop reason and only while budget remains, so
+        // attempt 0 is layer 2 exactly and nothing a level would have solved
+        // can be taken away.  Restart.cs has the measurement that shaped it.
+        // **What actually recovers a dead-end is width, not randomness, and the
+        // two directions of that are the measurement worth keeping.**  A wider
+        // subgoal beam from the start is a *loss* -- on the 50 deep levels,
+        // width 4 solves 10, width 8 solves 8 and width 16 solves 6 -- because
+        // narrow-and-deep is what buys the depth this layer exists for.  The
+        // same width bought only after narrow has provably failed is a *win*:
+        // 10, and 24 -> 27 on the 60 bench-1 levels.  So SgGrow doubles width
+        // and slack per restart (4 -> 8 -> 16 ... capped at 64/32) and the
+        // start stays narrow.
+        public int SgRestarts = 6;         // extra attempts after a dead-end
+        public int SgNoise = 3;            // ranking jitter on a restart; the
+                                           // frontier of a dead-ending run is
+                                           // almost all slack, so this is the
+                                           // diversifier that acts (bench only:
+                                           // 26 -> 28 on bench-1, untested on
+                                           // the corpus)
+        public bool SgGrow = true;         // double width and slack per restart
+
+        // **Restarting from the nodes the width trim discarded loses to
+        // restarting from the root, which inverts the design prior and is why
+        // the flag survives with its numbers.**  Re-seeding from the reserve is
+        // strictly cheaper -- it skips re-deriving the shallow part -- but it
+        // also inherits every commitment the beam had already made, and a
+        // grown beam wants to re-take those decisions wider.  Over layer 0's
+        // 3,790 failures: root 44, reserve 43; on bench-1, 28 against 27.  Off,
+        // so nothing is harvested and no snapshots are held.
+        public bool SgReuse = false;       // restart from discarded nodes
+        public int SgReserve = 64;         // discarded nodes held for a restart
+        public int SgReservePerDepth = 2;  // ...and how many one depth may add
         public double SubgoalShare = 0.9;
         public bool SubgoalLast = true;
 
@@ -152,6 +192,7 @@ namespace LaserTank.Solver
         public int Moves, Shots;
         public string Method = "-";
         public string Stop = "-";          // why it gave up, when it did
+        public int Restarts;               // layer 3: extra attempts spent
         public long Nodes;
         public double Ms;
         public int Depth;                  // keypresses in the winning path
@@ -248,7 +289,7 @@ namespace LaserTank.Solver
                 Stage(_opt.SubgoalShare);
                 if (!OutOfBudget)
                 {
-                    SolveResult g = SubgoalBeam(root);
+                    SolveResult g = SubgoalSearch(root);
                     if (g.Solved) return Finish(g, "subgoal");
                     r = g;
                 }
@@ -279,7 +320,7 @@ namespace LaserTank.Solver
                 Stage(1.0);
                 if (!OutOfBudget)
                 {
-                    SolveResult g = SubgoalBeam(root);
+                    SolveResult g = SubgoalSearch(root);
                     if (g.Solved) return Finish(g, "subgoal");
                     r = g;
                 }

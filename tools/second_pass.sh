@@ -5,10 +5,15 @@
 #   tools/second_pass.sh <first-report.jsonl> <out-subdir> <report.jsonl> [args...]
 #
 #   tools/campaign.sh     solutions/l0 build/reports/l0.jsonl --no-macro
-#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l2pass \
-#                         build/reports/l2pass.jsonl --no-ida --no-beam --subgoal
-#   tools/second_pass.sh  build/reports/l2pass.jsonl solutions/l2pass \
-#                         build/reports/pass3.jsonl --no-ida --no-beam --macro --macro-first
+#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l3n \
+#                         build/reports/l3n.jsonl --no-ida --no-beam --subgoal
+#   tools/second_pass.sh  build/reports/l3n.jsonl solutions/l3n \
+#                         build/reports/l3pass3.jsonl --no-ida --no-beam --macro --macro-first
+#
+# --subgoal now carries layer 3 with it: the subgoal beam restarts when it dies
+# of an empty frontier with budget still in hand (--sg-restarts 0 turns that off
+# and gives layer 2 exactly).  That is why the chain is still two passes -- layer
+# 3 *is* layer 2 plus restarts, so it replaces that pass rather than following it.
 #
 # **Why this exists rather than a bigger portfolio.**  Both specialists win
 # decisively on levels the raw beam cannot solve and lose over the corpus as a
@@ -19,9 +24,11 @@
 # not: the previous pass identifies the population, this one attacks only it,
 # and neither pays for the other.
 #
-# Chain them in that order.  Over layer 0's 3,790 failures the subgoal beam adds
-# 40 and the macro beam adds 21; they overlap on 15, so subgoal-then-macro banks
-# 46 and the composite is 441 of 4,185.  See PROGRESS.md, Phase 4 layer 2.
+# Chain them in that order.  Over layer 0's 3,790 failures the subgoal beam with
+# restarts adds 44 and the macro beam then adds 5 more, so the composite is 444
+# of 4,185.  Without restarts those are 40 and 6, composite 441.  See PROGRESS.md,
+# Phase 4 layer 3 -- including why the four levels restarts buy are a smaller
+# result than the 717 dead-ends they eliminate would suggest.
 #
 # Writes into the *same* solutions directory by design -- a level solved by
 # either pass is one solution -- so verify_solutions.py sees the union and the
@@ -53,9 +60,16 @@ todo = {}
 for (coll, lv), r in rows.items():
     if not r["solved"]:
         todo.setdefault(coll, []).append(lv)
+# SAMPLE=N takes every Nth unsolved level instead of all of them.  A pass at a
+# budget bigger than the campaign's is hours, and the question such a run asks is
+# a *rate* question, so a stride over each collection's failures answers it
+# unbiased -- the same argument as the campaign's STRIDE.  It is how the 400k
+# control in PROGRESS (Phase 4 layer 3) was measured.
+step = max(1, int(os.environ.get("SAMPLE", "1")))
 for coll, lv in todo.items():
+    lv = sorted(lv)[::step]
     with open(os.path.join(out, coll + ".txt"), "w") as f:
-        f.write("\n".join(str(x) for x in sorted(lv)))
+        f.write("\n".join(str(x) for x in lv))
     print(f"{coll}: {len(lv)} unsolved")
 PY
 

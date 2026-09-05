@@ -104,19 +104,34 @@ namespace LaserTank.Solver
         /// 400-keypress solution is tens of steps, not hundreds of keypresses.
         /// (Slack successors, below, are the exception -- they are steps that
         /// removed nothing, kept so that a two-move manoeuvre can be found.)
-        private SolveResult SubgoalBeam(EngineSnapshot root)
+        /// `seed`, when non-null and non-empty, replaces the root as the
+        /// starting frontier and is *owned* by this call -- layer 3 hands over
+        /// nodes an earlier attempt's width trim discarded so a restart begins
+        /// where that attempt gave up rather than re-deriving its way back
+        /// there.  The closed set is fresh either way: closing the previous
+        /// attempt's states again would restart into the same dead end.
+        private SolveResult SubgoalBeam(EngineSnapshot root, List<Node> seed)
         {
             SolveResult r = new SolveResult();
             HashSet<ulong> seen = new HashSet<ulong>();
 
             _e.Restore(root);
-            seen.Add(_e.StateHash());
             FindFlag(out int fx, out int fy);
 
-            List<Node> frontier = new List<Node>
+            List<Node> frontier;
+            if (seed != null && seed.Count > 0)
             {
-                new Node { S = CopyOf(root), G = 0, H = _h.WorkDistance(_e) },
-            };
+                frontier = seed;
+                foreach (Node n in frontier) seen.Add(n.Hash);
+            }
+            else
+            {
+                seen.Add(_e.StateHash());
+                frontier = new List<Node>
+                {
+                    new Node { S = CopyOf(root), G = 0, H = _h.WorkDistance(_e) },
+                };
+            }
             List<Node> next = new List<Node>();
             HashSet<ulong> layer = new HashSet<ulong>();
 
@@ -131,10 +146,10 @@ namespace LaserTank.Solver
                         Recycle(frontier, next);
                         return Won(r);
                     }
-                    if (next.Count > 4 * _opt.SgWidth) Cut(next, _opt.SgWidth);
+                    if (next.Count > 4 * _sgWidth) CutKeep(next, _sgWidth);
                 }
 
-                Cut(next, _opt.SgWidth);
+                CutKeep(next, _sgWidth);
                 foreach (Node n in frontier) Give(n.S);
                 frontier.Clear();
                 (frontier, next) = (next, frontier);
@@ -169,6 +184,7 @@ namespace LaserTank.Solver
             Array.Clear(_reached, 0, 256);
 
             _e.Restore(at);
+            ShuffleKeys();
             int baseWork = _h.WorkDistance(_e);
             local.Add(_e.StateHash());
             _reached[at.Tank.X * 16 + at.Tank.Y] = true;
@@ -180,7 +196,7 @@ namespace LaserTank.Solver
                 EngineSnapshot s = closure[head];
                 if (s.KeyLen - startKeys >= _opt.SgClosureDepth) continue;
 
-                foreach (byte key in MoveKeys)
+                foreach (byte key in _keyOrder)
                 {
                     if (OutOfBudget) { DrainStep(closure); return false; }
                     _e.Restore(s);
@@ -320,7 +336,7 @@ namespace LaserTank.Solver
         {
             int work = cleared || nt == 0 ? -1 : _h.WorkDistance(_e);
             bool advanced = cleared || nt == 0 || (!_opt.SgStrict && work < baseWork);
-            if (!advanced && _opt.SgSlack <= 0) return false;
+            if (!advanced && _sgSlack <= 0) return false;
             if (!Fresh(hash, seen, layer, !_opt.SgCloseOnExpand)) return false;
             if (work < 0) work = _h.WorkDistance(_e);
 
@@ -328,7 +344,11 @@ namespace LaserTank.Solver
             {
                 S = _e.Snapshot(Take()),
                 G = (int)_e.Game.RecP,
-                H = work,
+                // The ranking key, and the jitter goes *here* rather than into
+                // `work` above: `advanced` has already been decided from the
+                // true distance, so layer 3's noise can only ever reorder the
+                // frontier, never change what is admitted to it.
+                H = work + Jitter(),
                 Hash = hash,
                 Tier = advanced ? 0 : 1,
             };
@@ -356,7 +376,7 @@ namespace LaserTank.Solver
         /// scale.
         private void Slack(Node n)
         {
-            if (_slack.Count < _opt.SgSlack) { _slack.Add(n); return; }
+            if (_slack.Count < _sgSlack) { _slack.Add(n); return; }
             int worst = 0;
             for (int i = 1; i < _slack.Count; i++)
                 if (_slack[i].H > _slack[worst].H) worst = i;
@@ -433,7 +453,8 @@ namespace LaserTank.Solver
                 if (!Fresh(h, seen, layer, !_opt.SgCloseOnExpand)) continue;
                 next.Add(new Node
                 {
-                    S = _e.Snapshot(Take()), G = s.KeyLen, H = _h.WorkDistance(_e), Hash = h,
+                    S = _e.Snapshot(Take()), G = s.KeyLen,
+                    H = _h.WorkDistance(_e) + Jitter(), Hash = h,
                 });
             }
         }

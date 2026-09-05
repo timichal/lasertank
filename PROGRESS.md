@@ -7,8 +7,8 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 4 — **layers 0, 1 and 2 built and measured; the whole corpus has been run through all
-three and every solution verified.** Phase 3's harness is green and its first campaign
+**Phase:** 4 — **layers 0, 1, 2 and 3 built and measured; the whole corpus has been run through all
+four and every solution verified.** Phase 3's harness is green and its first campaign
 found nothing. Phases 1 and 2 are complete. The C reference oracle replays the
 whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
 with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
@@ -471,7 +471,7 @@ half, and `fuzz.py` reports both.
   Phase 4's solver being the *other* kind of coverage rather than a nice-to-have: a solved level is
   a long, legal, non-random path through the engine.
 
-### Phase 4 — Solver  ◐ (layers 0, 1 and 2 done; whole corpus run and verified)
+### Phase 4 — Solver  ◐ (layers 0-3 done; whole corpus run and verified)
 
 **The bar, measured before building anything.** Best-known solution cost from the 13 `.ghs` files,
 by the difficulty rating in each level record:
@@ -504,8 +504,12 @@ nothing else, which is why the plan is layered.
   has the version that used a model instead, and the measurement that killed it. **As a second pass
   it is worth roughly twice layer 1: +40 against +21**, and the two are complementary (441 together).
   As a portfolio member it loses, for the same structural reason layer 1 does.
-- **Layer 3 — portfolio and restarts.** Beam and IDA* already; NRPA / nested Monte-Carlo for the
-  levels beam gets stuck on.
+- **Layer 3 — restarts.** ☑ Built and measured. The subgoal beam is re-run when it dies of an
+  *empty frontier* with budget still in hand, each restart doubling its width and slack. It is the
+  first layer that is **strictly additive** — attempt 0 is layer 2 exactly, and a restart only ever
+  spends budget that was already forfeit — so it needs no portfolio bet. It is also the smallest
+  win: **+4 on the pass, 441 -> 444 composite**, and the section below has the negative result that
+  is worth more than the number.
 - **Layer 4 — learning.** The 187 recordings are labelled winning trajectories: fit a small
   evaluation function over board features and use it to order the beam, then feed every newly
   solved level back in. Hints as landmarks belongs here too, but it is a *tail* tool and the size
@@ -593,31 +597,31 @@ ordered cheapest-by-`.ghs` first.** Layer 0 is the raw-keypress portfolio (IDA* 
 budget. The final column is **layer 2's subgoal beam followed by layer 1's macro beam**, which is
 the composite that ships.
 
-| tier | levels | layer 0 | + layer 1 pass | + layer 2 passes | median ratio |
-|---|---:|---:|---:|---:|---:|
-| Kids | 960 | 303 (31.6%) | 319 (33.2%) | **339 (35.3%)** | 1.6× |
-| Easy | 2,118 | 84 (4.0%) | 89 (4.2%) | **94 (4.4%)** | 1.7× |
-| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 7 (0.9%) | 1.6× |
-| Hard | 257 | 0 | 0 | 0 | — |
-| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | 1 (1.8%) | — |
-| unrated | 10 | 0 | 0 | 0 | — |
-| **all** | **4,185** | 395 (9.4%) | 416 (9.9%) | **441 (10.5%)** | **1.6×** |
+| tier | levels | layer 0 | + layer 1 pass | + layer 2 passes | + layer 3 passes | median ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| Kids | 960 | 303 (31.6%) | 319 (33.2%) | 339 (35.3%) | **341 (35.5%)** | 1.6× |
+| Easy | 2,118 | 84 (4.0%) | 89 (4.2%) | 94 (4.4%) | **95 (4.5%)** | 1.7× |
+| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 7 (0.9%) | **7 (0.9%)** | 1.6× |
+| Hard | 257 | 0 | 0 | 0 | **0** | — |
+| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | 1 (1.8%) | **1 (1.8%)** | — |
+| unrated | 10 | 0 | 0 | 0 | **0** | — |
+| **all** | **4,185** | 395 (9.4%) | 416 (9.9%) | 441 (10.5%) | **444 (10.6%)** | **1.6×** |
 
-| collection | levels | layer 0 | + layer 1 pass | + layer 2 passes |
-|---|---:|---:|---:|---:|
-| `Beginner-I` | 400 | 143 | 150 | **162** |
-| `Beginner-II` | 276 | 82 | 86 | **90** |
-| `Challenge-I` | 400 | 39 | 42 | **44** |
-| `LaserTank` | 406 | 34 | 35 | **38** |
-| `Challenge-III` | 400 | 31 | 34 | **36** |
-| `Special-I` | 105 | 19 | 20 | **20** |
-| `Challenge-II` | 400 | 17 | 18 | **18** |
-| `Challenge-IV` | 400 | 14 | 15 | **15** |
-| `Gary-I` | 400 | 7 | 7 | **8** |
-| `Sokoban-II` | 348 | 4 | 4 | **5** |
-| `Sokoban-I` | 400 | 3 | 3 | **3** |
-| `Challenge-V` | 185 | 1 | 1 | **1** |
-| `Gary-II` | 65 | 1 | 1 | **1** |
+| collection | levels | layer 0 | + layer 1 pass | + layer 2 passes | + layer 3 passes |
+|---|---:|---:|---:|---:|---:|
+| `Beginner-I` | 400 | 143 | 150 | 162 | **164** |
+| `Beginner-II` | 276 | 82 | 86 | 90 | **90** |
+| `Challenge-I` | 400 | 39 | 42 | 44 | **44** |
+| `LaserTank` | 406 | 34 | 35 | 38 | **38** |
+| `Challenge-III` | 400 | 31 | 34 | 36 | **36** |
+| `Special-I` | 105 | 19 | 20 | 20 | **20** |
+| `Challenge-II` | 400 | 17 | 18 | 18 | **19** |
+| `Challenge-IV` | 400 | 14 | 15 | 15 | **15** |
+| `Gary-I` | 400 | 7 | 7 | 8 | **8** |
+| `Sokoban-II` | 348 | 4 | 4 | 5 | **5** |
+| `Sokoban-I` | 400 | 3 | 3 | 3 | **3** |
+| `Challenge-V` | 185 | 1 | 1 | 1 | **1** |
+| `Gary-II` | 65 | 1 | 1 | 1 | **1** |
 
 **The unsolved are unsolved on budget, not on structure: 3,636 of layer 0's 3,790 stopped at
 `budget` (95.9%) and only 154 at a beam dead end.** No errors, no `NOTPORTED`, no crashes in
@@ -649,13 +653,24 @@ a `git clean`):
 | `build/reports/pass3.jsonl` | layer 1's macro beam over what that left (+6) |
 | `build/reports/l2first.jsonl`, `l2last.jsonl` | layer 2 as a portfolio member, both orderings |
 | `build/solutions/l2pass/<collection>/NNNNN.lpb` | the 46 those two passes found |
+| `build/reports/l3n.jsonl` | layer 3's pass over layer 0's 3,790 failures (+44) — **the shipped one** |
+| `build/reports/l3r.jsonl` | the same pass restarting from the reserve instead (+43) |
+| `build/reports/l3pass3.jsonl` | layer 1's macro beam over what layer 3 left (+5) |
+| `build/reports/b3-{off,on}.jsonl` | the 400k budget control, 1-in-3 of the pass population |
+| `build/solutions/l3n/<collection>/NNNNN.lpb` | the 49 layer 3's chain found |
 
 Regenerate any of it with `tools/campaign.sh` / `tools/second_pass.sh`; read it with
-`tools/report_stats.py` (`--diff` for two layers).
+`tools/report_stats.py` (`--diff` for two layers). The tuning benches are `tools/bench.sh`, one
+labelled configuration over one of the two banked level lists — and its header repeats the warning
+those lists have earned three times over: a bench picks parameters, a campaign decides what ships.
+`SAMPLE=N` on `second_pass.sh` takes every Nth failure instead of all of them, which is how the
+400k control (`b3-{off,on}.jsonl`, `SAMPLE=3` → 1,268 levels) was measured.
 
 **Where this leaves the deliverable.** The Phase 4 promise was "a solved-count-vs-budget curve,
 Kids-first ordered by `.ghs` cost, not a promise of 20,914". At 150k nodes that curve reads:
 **Kids 35%, Easy 4%, everything else ≈ 0**, and the binding constraint is depth, not correctness.
+Layer 3 moves that to Kids 35.5% / Easy 4.5% and does not change the shape, which is itself the
+result: see below.
 
 #### Layer 1 — macro-actions  ☑
 
@@ -907,6 +922,152 @@ restarts are for.
 `partial`, and `Engine.Search.cs` is unchanged since layer 0. Everything above is in
 `src/LaserTank.Solver/`: `Subgoal.cs` (new), `Heuristic.FrontierObstacles` (new), plus `Node.Tier`
 and a width argument on `Cut()`.
+
+#### Layer 3 — restarts  ☑
+
+**The brief was layer 2's failure mode, and the first job was to price it.** Layer 0's unsolved
+levels stop on budget 95.9% of the time; layer 2's stop on budget 80.8% and at `subgoal-dead-end`
+19.1%. Instrumenting that second number before designing anything for it: over layer 2's pass on
+layer 0's 3,790 failures, **717 levels dead-ended and they did it with a median of 84% of their node
+budget unspent** — 507 of them below a third of it. That is about **90 million `ApplyKey` calls the
+pass paid for and threw away**, and it is the resource this layer exists to spend.
+
+**What a dead-end actually looks like, which killed the design that was going to be built.**
+`--sg-trace` over six of them (`Beginner-I` 101, 126, 611, 1131, 1206, 1226, 1856):
+
+| | |
+|---|---|
+| expansions before the frontier emptied | 53–357 |
+| closure size, p50 | **8–18 states** (the cap is 400) |
+| expansions deriving `added = 0` | **81–99%** |
+| expansions offering no slack either | 33–64% |
+
+Three readings, and each one cost a plausible idea:
+
+- **The closure cap is not the problem.** A tank that is boxed in reaches eight states, not the 400
+  it is allowed. So randomising *which* states a truncated closure keeps — the obvious diversifier,
+  and the one that would matter in layer 1 — buys almost nothing here. It is still done, because it
+  is three lines and levels like 101 do truncate at 403, but it is not the lever.
+- **The search is running on slack.** With `added = 0` on nine expansions in ten, essentially every
+  frontier node is a Tier 1 slack node, picked as the best `--sg-slack` by `WorkDistance`. *That*
+  choice is the arbitrary one, so that is where the noise goes: `--sg-noise` jitters the ranking key
+  **after `Offer()` has decided the successor advanced**, so a restart keeps a different handful and
+  never an inadmissible one. Acceptance stays a board test; only the ordering is randomised.
+- **The frontier emptied because the run had closed everything it saw**, which is what suggested
+  re-seeding a restart from the nodes the width trim discarded rather than from the root. That is
+  the idea the corpus refuted — below.
+
+**Restarts are strictly additive, and that is the structural difference from layers 1 and 2.**
+`SubgoalSearch` re-runs the beam only when it stopped at `subgoal-dead-end` *and* budget remains —
+never on a `budget` stop, where there is nothing left to spend. Attempt 0 has no jitter, no
+re-seed and the canonical key order, so **it is layer 2 exactly**: verified, `--sg-restarts 0`
+reproduces layer 2's benches to the level (10/50 deep, 24/60 bench-1, identical stop breakdowns).
+Layers 1 and 2 each had to be measured as a portfolio member and each lost, because a portfolio bets
+on every level in advance. This one cannot tax the pass it runs inside, so the only question it has
+to answer is what the recovered budget buys.
+
+**What recovers a dead-end is width, not randomness — and the two directions of that are the
+measurement worth keeping.** Buying width *up front* is a loss and buying the same width *after
+narrow has provably failed* is a win:
+
+| subgoal beam | deep (50 @ 400k) | bench 1 (60 @ 150k) |
+|---|---:|---:|
+| width 4, no restarts (layer 2) | **10** | 24 |
+| width 8 from the start | 8 | 25 |
+| width 16 from the start | 6 | 25 |
+| restarts, no growth | 10 | 25 |
+| restarts + `--sg-grow` (4→8→16…) | **11** | **28** |
+
+That is the whole layer in one table. Narrow-and-deep is what buys layer 2 the depth it exists for,
+so widening it costs; a restart is the only way to have both, because by then the narrow search has
+*already reported* that it failed. `--sg-grow` doubles width and slack per restart, capped at 64/32,
+and is on by default.
+
+**The design prior that was wrong: restarting from the reserve.** Re-seeding a restart from the
+nodes the width trim discarded is strictly cheaper — it skips re-deriving the shallow part — and it
+loses, because it also inherits every commitment the beam had already made, and a *grown* beam wants
+to re-take those decisions wider. Kept as `--sg-reuse reserve` with its numbers: **corpus 43 against
+root's 44**, bench-1 27 against 28. The default is `root`.
+
+**The campaign, which is the one that counts.** Same 3,790 failures, same 150,000-node budget, so it
+is directly comparable with layer 2's pass:
+
+| pass over layer 0's 3,790 failures | solved | `subgoal-dead-end` | lost |
+|---|---:|---:|---:|
+| layer 2 (`--sg-restarts 0`) | 40 | 717 | — |
+| layer 3, restarting from the reserve | 43 | 37 | 0 |
+| **layer 3, restarting from the root** | **44** | **9** | **0** |
+
+**717 levels spent at least one restart, the mechanism did what it was built to do — dead-ends fell
+from 717 to 9 — and it bought four levels.** That is the result, and the negative half of it is
+worth more than the positive half: **converting an emptied frontier into a spent budget mostly does
+not convert it into a solution.** The 19.1% dead-end figure marked where budget was being *wasted*,
+not where solutions were being *missed*; the levels that dead-end are, with four exceptions, the
+same levels that fail on budget. Depth remains the binding constraint, exactly as layer 0's 95.9%
+said, and re-running a search that is out of its depth does not change that.
+
+The four include `Beginner-I` 101 "BE the RABBIT" — the level whose walled-in flag and tunnel route
+is the worked example that killed layer 2's modelled derivation. It now falls on the first restart.
+
+**The chain that ships, and the composite.** Layer 3's pass replaces layer 2's in the chain, since
+it *is* layer 2 plus restarts; layer 1's macro beam still runs third and still finds levels neither
+subgoal pass does:
+
+| pass | adds | composite |
+|---|---:|---|
+| layer 0's campaign | — | 395 (9.4%) |
+| layer 3's subgoal beam with restarts | **44** | 439 (10.5%) |
+| layer 1's macro beam over what that left | 5 | **444 (10.6%)** |
+
+Against the layer-2 chain's 441 that is **+3 levels and none lost** — `Beginner-I` 101 and 1001,
+`Challenge-II` 576. **49/49 verified through both engines**, byte-identical traces, 11 matching the
+`.ghs` record exactly.
+
+**Does the win grow with the budget?  Bench 1 says yes, the corpus says no, and the corpus wins.**
+This is the third time the project has been caught benching on levels layer 0 already failed, so it
+is recorded with both numbers. On the 60 bench-1 levels the gap widens with budget; on an unbiased
+1-in-3 sample of the *pass population* (1,268 of the 3,790) at 400k it holds at roughly the relative
+size it had at 150k:
+
+| | 150k | 400k | 1M |
+|---|---:|---:|---:|
+| bench 1, layer 2 | 24 | 25 | 28 |
+| bench 1, layer 3 | **28** | **29** | **34** |
+| corpus sample, layer 2 | — | 26 | — |
+| corpus sample, layer 3 | — | **28** | — |
+
+What *does* grow with the budget, on both, is the waste layer 3 removes: layer 2's dead-ends are
+19.1% of its failures at 150k and **26.7% at 400k** (332 of 1,242), because a bigger budget is
+mostly a bigger amount left unspent when the frontier empties. The justification for the mechanism
+strengthens with budget even where the solved count does not.
+
+**Measured settings that did not win**, kept with their numbers so they are not re-invented:
+
+| | deep | bench 1 |
+|---|---:|---:|
+| shipped defaults | 10 | **28** |
+| `--sg-reuse reserve` | 11 | 27 |
+| `--sg-noise 0` (growth alone, no randomisation) | 10 | 26 |
+| `--sg-restarts 3` instead of 6 | — | 25 |
+| `--sg-width 8` / `16` from the start, no restarts | 8 / 6 | 25 / 25 |
+
+`--sg-noise` is the one to read carefully: worth +2 on bench 1, nothing on the deep bench, and never
+separated on the corpus. It ships at 3 because it is free and the bench evidence points one way,
+**not** because it is measured at corpus scale — unlike `--sg-grow` and `--sg-reuse`, which are.
+
+**Why not NRPA or nested Monte-Carlo, which is what the plan said.** Those adapt *which action* a
+playout picks. The measurement above says the subgoal search does not fail by picking the wrong
+successor among many — it fails with `added = 0` on nine expansions in ten, i.e. with almost nothing
+to pick from, and giving it strictly more (16× the width, six restarts, 84% more budget actually
+spent) moved 4 levels of 3,790. A policy that learns to order an empty list has nothing to learn.
+That is an argument from this game's measured shape rather than against the technique, and it is the
+argument for layer 4 being about **depth** — a learned evaluation that makes the beam's long lines
+pay off — rather than about restart policy.
+
+**Layer 3 does not touch the engine either.** `Engine.cs` still differs from layer 0 by the single
+word `partial`, and `Engine.Search.cs` is unchanged since layer 0. Everything above is
+`src/LaserTank.Solver/Restart.cs` (new) plus a `seed` argument on `SubgoalBeam`, `_sgWidth` /
+`_sgSlack` in place of the two options a restart grows, and a `restarts` field in the report.
 
 ### Phase 5 — Presentation & features  ☐
 Rendering (`Game.BMP` sprite sheet + `Mask.BMP`; `.ltg` packs in `data/graphics/` — format at
@@ -1738,3 +1899,53 @@ it, which wall-clock budgeting would not have.
 on budget 95.9% of the time; layer 2's stop on budget 80.8% and at `subgoal-dead-end` 19.1%. A
 frontier that empties is a different failure from a clock that runs out, and it is the one restarts
 address.
+
+### 2026-09-05 (session 12) — Phase 4, layer 3: restarts
+
+**Instrumented before building, and the instrument chose the design.** Layer 2's brief for this
+layer was a *failure mode*: 19.1% of its failures were `subgoal-dead-end` rather than `budget`.
+Pricing that first, from `l2pass.jsonl`: **717 levels, median 84% of the node budget unspent**, 507
+of them below a third of it — about 90M forfeited `ApplyKey` calls. Then `--sg-trace` over six of
+those levels, which is what stopped the obvious build: their movement closures are **8–18 states**,
+nowhere near the 400 cap, so randomising a truncated closure — the diversifier a restart scheme
+would normally reach for — has nothing to act on. `added = 0` on 81–99% of expansions said the
+search was running almost entirely on slack nodes, so the ranking of *slack* is the arbitrary
+choice, and that is where the jitter went.
+
+**Built:** `src/LaserTank.Solver/Restart.cs` — `SubgoalSearch`, a driver that re-runs the subgoal
+beam while it keeps dying at `subgoal-dead-end` with budget in hand, doubling width and slack each
+time (`--sg-grow`), jittering the ranking key after acceptance (`--sg-noise`), optionally re-seeding
+from the nodes the width trim discarded (`--sg-reuse reserve`). Attempt 0 is layer 2 exactly, so the
+layer is **strictly additive** — checked, not assumed: `--sg-restarts 0` reproduces both benches to
+the level and to the stop breakdown.
+
+**The finding is the table where the same width wins and loses depending on when it is bought.**
+Deep bench: width 4 solves 10, width 8 solves 8, width 16 solves 6 — width up front is a loss.
+Width bought *after* the narrow search has reported failure: 11, and 24 → 28 on bench 1. That is
+the argument for restarts stated as a measurement rather than as a principle.
+
+**The corpus, at layer 2's budget over layer 2's population:** 3,790 levels, 150k nodes. Layer 2
+40, layer 3 **44**, none lost, and `subgoal-dead-end` 717 → 9. The chain that ships is
+l0 → layer 3's subgoal pass (+44) → layer 1's macro pass (+5) = **444 of 4,185 (10.6%)**, against
+the layer-2 chain's 441; +3 levels, 0 lost. **49/49 verified through both engines**, byte-identical.
+
+**The negative result is the more useful half and is written up as such.** The mechanism worked —
+717 levels restarted, the waste is gone — and it bought four levels. Converting an emptied frontier
+into a spent budget mostly does not convert it into a solution: the levels that dead-end are, with
+four exceptions, the same levels that fail on budget. Depth is still the binding constraint. That is
+also the argument recorded against building NRPA here: a policy that learns which successor to pick
+has nothing to learn on expansions that offer none, and layer 4 should be about depth.
+
+**Two designs refuted, both kept as flags with numbers.** Restarting from the discarded-node reserve
+(cheaper, inherits the beam's commitments) loses 43 to 44 on the corpus and 27 to 28 on bench 1.
+Width up front loses as above. And one caveat recorded rather than hidden: `--sg-noise` is
+bench-only evidence (+2 on bench 1, 0 on deep, never separated on the corpus).
+
+**Bench 1 flattered this layer too, for the third time.** It says the win grows with budget
+(+4/+4/+6 at 150k/400k/1M); an unbiased 1-in-3 sample of the pass population at 400k says it holds
+at its 150k relative size (26 → 28). Both agree on the thing that does grow: layer 2's dead-end
+waste, 19.1% of failures at 150k and 26.7% at 400k.
+
+**Gates green:** `replay_all.py` 187 replayed / 181 win / 6 documented non-winners / 0 unexpected,
+`test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` still differs from the
+transliteration by the single word `partial`; `Engine.Search.cs` untouched since layer 0.
