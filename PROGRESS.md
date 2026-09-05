@@ -7,7 +7,8 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 4 — **layer 0 done and verified.** Phase 3's harness is green and its first campaign
+**Phase:** 4 — **layer 1 built and measured; the whole corpus has been run through both
+layers and every solution verified.** Phase 3's harness is green and its first campaign
 found nothing. Phases 1 and 2 are complete. The C reference oracle replays the
 whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
 with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
@@ -148,10 +149,36 @@ portfolio and writes each solution as a **`.lpb`** — a real recording, playabl
 record's keypresses. See the Phase 4 section for the measured bar, the layer plan above this one,
 and the two bugs the self-check caught.
 
-**Next action:** run the campaign over the real collections (`lasertank-solve.exe` is resumable —
-it skips a level whose `.lpb` exists), then build layer 1 (macro-actions: `Goto` + `Shoot` instead
-of raw keys). Keep fuzzing in parallel — new seeds, the other 12 collections, longer keystreams.
-**Blocked on:** nothing.
+**Phase 4, layer 1 — built, measured, and the measurement is the deliverable.** Macro-actions:
+`Goto` + `Shoot` instead of raw keys, with `Goto` a breadth-first closure *over `Engine.ApplyKey`*
+rather than a grid A*, so ice, conveyors, tunnels, pushes and anti-tank turns are resolved by being
+executed and the repo still holds exactly one implementation of the game.
+
+**It wins where the raw beam fails and loses over the corpus, and no ordering or share fixes
+that.** On 60 levels layer 0 could not solve it goes 18→28, 23→31, 33→38 (at 150k / 400k / 1M
+nodes). Over 4,185 levels of the real corpus, as a portfolio member it *loses*: 395 → 381 run
+first, 395 → 354 run last. Most solvable levels are ones the raw beam gets easily, and every node
+the macro beam spends is one taken from it. **So it ships as a second pass, not a portfolio
+member** (`tools/second_pass.sh`, `RunMacro` off by default): layer 0 runs, then the macro beam
+re-attacks only its failures. Composite **395 → 416 of 4,185 (9.4% → 9.9%)**, nothing lost.
+
+**The whole corpus has been run through both layers, and every solution verified.** 1-in-5 stride,
+all 13 collections, 150,000 `ApplyKey` calls per level. **416/416 composite solutions and 381/381
+layer-1 solutions replay byte-identically through the unmodified C oracle and the C# core with
+`--field --bmf`** — 797 solver-produced winning recordings, zero divergences, 280 of the composite
+matching the `.ghs` record exactly, median 1.6×. 95.9% of the unsolved stopped on **budget**, not
+on a dead end: the binding constraint is depth, not correctness.
+
+**Campaigns are governed by nodes, not by wall clock.** The session's first campaign was
+wall-clock-budgeted and was thrown away — the gates and benches were running beside it, so its
+budget bought a varying amount of work. `tools/campaign.sh` takes `--nodes` (equal work,
+load-independent, comparable between layers) and demotes `--budget-ms` to a backstop;
+`tools/report_stats.py` reads a report and `--diff`s two.
+
+**Next action:** layer 2 — subgoal decomposition, which is what layer 1's measurement argues for
+(the reason to fire has to be derived, not scored). `data/quirks/tutor` is the operator library,
+92 levels with one named technique each. Keep fuzzing in parallel — new seeds, the other 12
+collections, longer keystreams. **Blocked on:** nothing.
 
 **What is still not ported:** `MouseOperation` only. The mouse buffer is empty headless
 (`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it.
@@ -442,7 +469,7 @@ half, and `fuzz.py` reports both.
   Phase 4's solver being the *other* kind of coverage rather than a nice-to-have: a solved level is
   a long, legal, non-random path through the engine.
 
-### Phase 4 — Solver  ◐ (layer 0 done: search API, batch harness, two-engine verification)
+### Phase 4 — Solver  ◐ (layers 0 and 1 done; whole corpus run and verified)
 
 **The bar, measured before building anything.** Best-known solution cost from the 13 `.ghs` files,
 by the difficulty rating in each level record:
@@ -465,8 +492,10 @@ nothing else, which is why the plan is layered.
 
 **The plan.** Layer 0 is built (below). Above it:
 
-- **Layer 1 — macro-actions.** `Goto(x,y,dir)` by A* over tank movement plus `Shoot`, instead of
-  raw keys. Depth drops 3–5×; branching rises to "reachable firing poses".
+- **Layer 1 — macro-actions.** ☑ Built and measured. `Goto(x,y,dir)` — a movement closure *over
+  the engine*, not a grid A* — plus `Shoot`, so depth becomes the shot count. It wins on shallow
+  branchy levels and loses on deep ones; the numbers and the reason are below, and the reason is
+  the argument for layer 2.
 - **Layer 2 — subgoal decomposition.** Relax the world, find what blocks the flag, ask per obstacle
   how it is removed (shoot the brick, push the block into water, redirect via mirror). Each subgoal
   is a *shallow* search, which is how a 400-key solution becomes reachable. The operator library is
@@ -531,6 +560,208 @@ A second, larger sample on the easiest collection: **`Beginner-I.lvl`, 400 cheap
 each, 12 workers — 384 solved in 12 s wall, 384/384 verified, 332 matching the record exactly**,
 median 1.6×, exactly one solution over 10× (10.4×, and the trimmer could not shorten it). Verifying
 all 384 through both engines takes 11 s, so the gate is cheap enough to run on every campaign.
+
+#### The campaign — the whole corpus, both layers  ☑
+
+**How it is budgeted, and why that changed.** The first run of this was wall-clock-budgeted, 4 s a
+level, and it was thrown away: the test gates and the layer-1 tuning benches were running beside
+it on the same 16 cores, so its budget bought a varying amount of work and its per-tier rates were
+not reproducible. A campaign is now governed by **`--nodes`, a count of `Engine.ApplyKey` calls** —
+equal work, load-independent, and the only way two layers can be compared honestly. `--budget-ms`
+survives as a backstop against a level whose ticks are pathologically slow (the Grand Prix case
+above). `tools/campaign.sh` runs one campaign over all 13 collections into one report;
+`tools/report_stats.py` reads it, and `--diff` compares two.
+
+**And it is a 1-in-5 stride sample, not the whole corpus, which is a scoping decision worth
+stating.** All 20,914 levels at a budget worth having is about six hours per layer — the hard
+collections spend the whole budget on nearly every level — and this campaign exists to *measure
+per-tier rates*, not to bank solutions. Level numbers are not sorted by difficulty, so every fifth
+level of every collection is an unbiased sample of each tier; `sweep.py` already used the same
+trick. `STRIDE=1` runs the lot when banking solutions is the point.
+
+**The stride matters for more than runtime, and getting it wrong once proved it.** An earlier,
+aborted campaign was ordered cheapest-by-`.ghs` and stopped part-way, so its first 1,451
+`Beginner-I` levels were *the cheapest 1,451* — a sample that reported a median of 10 shots per
+level where the unbiased stride sample reports **16 shots against 27 moves, with 15% needing no
+shot at all**. A truncated cheapest-first run is not a sample of the collection, and any number
+taken from one is wrong in a direction that flatters the solver.
+
+**150,000 `ApplyKey` calls per level, every 5th level of all 13 collections — 4,185 levels — 7
+workers, ordered cheapest-by-`.ghs` first.** Layer 0 is the raw-keypress portfolio (IDA* + beam);
+"+ pass 2" is that campaign followed by `tools/second_pass.sh` re-attacking its 3,790 failures
+with the macro beam at the same budget.
+
+| tier | levels | layer 0 | + pass 2 | median ratio |
+|---|---:|---:|---:|---:|
+| Kids | 960 | 303 (31.6%) | **319 (33.2%)** | 1.6× |
+| Easy | 2,118 | 84 (4.0%) | **89 (4.2%)** | 1.6× |
+| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 1.6× |
+| Hard | 257 | 0 | 0 | — |
+| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | — |
+| unrated | 10 | 0 | 0 | — |
+| **all** | **4,185** | 395 (9.4%) | **416 (9.9%)** | **1.6×** |
+
+| collection | levels | layer 0 | + pass 2 |
+|---|---:|---:|---:|
+| `Beginner-I` | 400 | 143 (35.8%) | **150 (37.5%)** |
+| `Beginner-II` | 276 | 82 (29.7%) | **86 (31.2%)** |
+| `Special-I` | 105 | 19 (18.1%) | **20 (19.0%)** |
+| `Challenge-I` | 400 | 39 (9.8%) | **42 (10.5%)** |
+| `LaserTank` | 406 | 34 (8.4%) | **35 (8.6%)** |
+| `Challenge-III` | 400 | 31 (7.8%) | **34 (8.5%)** |
+| `Challenge-II` | 400 | 17 (4.2%) | **18 (4.5%)** |
+| `Challenge-IV` | 400 | 14 (3.5%) | **15 (3.8%)** |
+| `Gary-I` | 400 | 7 (1.8%) | 7 (1.8%) |
+| `Sokoban-II` | 348 | 4 (1.1%) | 4 (1.1%) |
+| `Sokoban-I` | 400 | 3 (0.8%) | 3 (0.8%) |
+| `Gary-II` | 65 | 1 (1.5%) | 1 (1.5%) |
+| `Challenge-V` | 185 | 1 (0.5%) | 1 (0.5%) |
+
+**The unsolved are unsolved on budget, not on structure: 3,636 of layer 0's 3,790 stopped at
+`budget` (95.9%) and only 154 at a beam dead end.** No errors, no `NOTPORTED`, no crashes in
+8,370 level-solves. That matters for reading the low tiers: `Hard` at 0/257 is not the search
+failing to find a route, it is the search never getting near the end of one.
+
+**Every solution verified through both engines** — `tools/verify_solutions.py` replays each `.lpb`
+through the *unmodified* C oracle and the C# core with `--field --bmf` and requires WIN on both
+plus byte-identical traces. **416/416 verified, 280 matching the `.ghs` record exactly**, median
+1.6× and worst 5.0×. The separate all-layer-1 run verified 381/381 the same way. That is 797
+solver-produced recordings replayed tick-for-tick through the 25-year-old C, with zero
+divergences — and none of it random: these are long, legal, *winning* paths, which is the coverage
+a fuzzer cannot reach.
+
+**Where this leaves the deliverable.** The Phase 4 promise was "a solved-count-vs-budget curve,
+Kids-first ordered by `.ghs` cost, not a promise of 20,914". At 150k nodes that curve reads:
+**Kids 33%, Easy 4%, everything else ≈ 0**, and the binding constraint is depth, not correctness.
+
+#### Layer 1 — macro-actions  ☑
+
+**The action set.** `Goto(x, y, dir)` — drive the tank somewhere, spending as many keys as
+that takes — plus `Shoot`, one space bar. A solution is an alternation of the two, and that is
+*complete rather than restrictive*: any keystream is a run of direction keys, a space, a run of
+direction keys, a space, …, so searching (Goto, Shoot) pairs expresses everything layer 0's raw
+five-key search could. What changes is the depth. **Search depth is now the number of shots.**
+In the unbiased 1-in-5 sample of `Beginner-I` the median level needs **16 shots against 27
+moves**, and **15% need no shot at all** — those are solved by one Goto with nothing after it.
+
+**The Goto is a sub-search *in* the engine, not a model of it.** The plan said "A* over tank
+movement (ice slides, conveyors and tunnels resolved by a deterministic sub-search)". A grid A*
+would have to re-derive `MoveTank`'s turn-costs-a-key rule, `IceMoveT`'s slide, `ConvMoveTank`,
+`TranslateTunnel`'s pairing, and the fact that `AntiTank()` runs on every key-consuming tick —
+i.e. it would be a second implementation of the game, free to drift from the one being ported.
+Four phases have gone into there being exactly one. So `Goto` is a **breadth-first closure over
+`Engine.ApplyKey` with the four direction keys, deduplicated by `StateHash`**: ice, conveyors,
+tunnels, pushed blocks and anti-tank turns are "resolved" by being *executed*. It costs more per
+node than a grid A* would and it cannot be wrong. The closure is the expensive part and the cap
+on it (`--closure-nodes`, default 1500; `--closure-depth`, default 40 keys) is the one place
+layer 1 gives up completeness — a knob with a number on it rather than a hidden constant.
+
+**Two prunes, and the difference matters.**
+
+- *A shot that changes nothing is dropped, and that is lossless.* If the state hash is identical
+  after the space bar then nothing happened at all — not even an anti-tank turn, because
+  `AntiTank()` runs inside the same key-consuming tick and any move it made would show. So the
+  successor **is** the state it was fired from, which is already in this expansion's closure, and
+  every continuation through it is some other (Goto, Shoot) pair of the same parent.
+- *The closure cap is not lossless.* See above.
+
+**The escape hatch.** Alongside the shot successors, the `--move-only` (default 6) closure states
+that end nearest the flag are kept as pure-`Goto` successors. Without them a level needing no
+shot at all and a solution longer than one closure has no successors to expand and the beam dies
+at depth 1 — and 15% of `Beginner-I`'s sampled levels have `.ghs` shots = 0.
+
+**A new heuristic, because the old one goes flat exactly here.** `FlagDistance` is a BFS over
+cells the tank may *currently* enter. After a Goto closure that is guaranteed useless: the closure
+only ends on states whose flag is not movement-reachable — if it were, the closure would already
+have won there — so every macro successor scores `Unreachable + manhattan` and the beam is left
+ranking by tank position. `Heuristic.WorkDistance` keeps a gradient by *charging* for obstacles
+instead of refusing to cross them: a Dijkstra from the flag where an empty step costs 1, a brick 4
+(one shot and walk through), a block 6, an anti-tank 6, a mirror 7, water 9 (a block has to go in
+first), a rotary mirror 12, and only `Solid` and `Crystal` are impassable — crystal because
+`CheckLLoc` case 19 returns `true` without touching the cell, so a laser goes straight through one
+and never clears it. Tunnel mouths sharing an id are joined by zero-cost edges, which is the other
+half of "tunnels resolved": a route in one and out another is a real route rather than the dead
+end `FlagDistance` sees. Deliberately not admissible — a beam needs a gradient, not a lower bound,
+and the admissible version of this (every price 1) *is* `FlagDistance`'s flat spot. Pushing a
+block into water turns the cell to `Dirt` (`Engine.cs`, `MoveObj`'s `obt == 5` arm), so the number
+really does drop by 8 when the level's central puzzle is solved.
+
+**Measured three ways, and the first two measurements were misleading.** This is the part of
+layer 1 worth reading, because the code was right and the *experiment* was wrong twice.
+
+**Bench 1 — levels layer 0 failed.** 60 `Beginner-I` levels, node-governed, three budgets. Layer 1
+wins at every one, and by a lot:
+
+| nodes per level | layer 0 | layer 1 |
+|---|---:|---:|
+| 150,000 | 18/60 | **28/60** |
+| 400,000 | 23/60 | **31/60** |
+| 1,000,000 | 33/60 | **38/60** |
+
+**Bench 2 — deep levels.** 50 `Beginner-I` levels with a `.ghs` total of 40–150 — the ones layer 1
+was built for. Layer 1 does *not* win: 12 against 13 at 400k, 13 against 13 at 1M. The macro beam
+alone scores 8–9 at every setting tried (macro beam 4/8/24/32/48/64, closure cap 150/400/1500/3000,
+move-only 0/6/16, both closed-set policies). **Parameters are not the lever.**
+
+**Bench 3 — the campaign, which is the one that counts.** Every 5th level of all 13 collections,
+4,185 levels, 150,000 nodes each:
+
+| portfolio | solved | vs layer 0 |
+|---|---:|---|
+| layer 0 alone (`--no-macro`) | **395** | — |
+| macro beam first, a tenth of the budget | 381 | +21, **−35** |
+| macro beam last, raw beam capped at 0.6 | 354 | +23, **−64** |
+
+**As a portfolio member layer 1 is a net loss, either way round, and no share or ordering fixes
+it.** Running it first taxes every level to help a few; running it last starves the beam of the
+budget it was going to win with. Both directions have the same cause: **most solvable levels are
+ones the raw beam gets easily, and every node the macro beam spends is a node taken from it.** A
+portfolio has to make that bet on every level *in advance*.
+
+**Why bench 1 lied.** It was run on levels layer 0 had already failed — a population where the raw
+beam is 0% by construction, so anything the macro beam adds is free. That is a real population,
+but it is not the corpus. Holding the level set fixed and sweeping the budget (bench 1's table)
+shows the win is stable in budget, so it was never about how much the probe got.
+
+**So layer 1 ships as a second pass, not as a portfolio member** — `tools/second_pass.sh`, which
+reads a campaign report, takes the levels it did not solve, and re-attacks only those with
+`--macro-first --no-ida --no-beam` into the same solutions directory. The first pass identifies
+the population; the second attacks it; neither pays for the other. `RunMacro` is therefore **off
+by default** and `--macro` turns it on.
+
+**The composite, measured.** Layer 0's campaign solved 395 of 4,185. The second pass over its
+3,790 failures — same 150,000-node budget, macro beam only — solved **21 more**, none of them at
+layer 0's expense: **416 of 4,185, 9.4% → 9.9%**, 16 Kids and 5 Easy, median 1.6× the record.
+Every one of the 416 is verified through both engines.
+
+Layer 1's honest contribution is therefore *those 21 levels and the method that finds them*, not
+a better portfolio. Small — and it is the shape of the result rather than its size that points at
+layer 2.
+
+**And the deep-level result is real regardless of ordering, which is the finding that matters
+most.** A Goto closure costs `5 × |closure|` `ApplyKey` calls — the four direction keys from every
+state it reaches, plus a shot from each — 1,500 to 7,500 where a raw-beam successor costs exactly
+1. At an equal node budget the raw beam reaches roughly 300 keypresses of depth; the macro beam
+reaches six to twenty shots. Macro-actions cut the *number* of decisions by an order of magnitude
+and multiply the *price* of each by two or three.
+
+**The ranking signal is weaker in macro space too, and that is the more interesting half.** Inside
+a Goto, movement is *exhausted* rather than searched, so the beam never ranks a movement — it
+ranks *board changes*, and `WorkDistance` is a thin signal for those. A keypress beam has a
+gradient to walk down (get nearer the flag); a shot beam has to guess which of two hundred
+available shots is the useful one. **That is the argument for layer 2 rather than for more tuning
+here:** the reason to fire has to be *derived* — this brick is on the only path — not scored.
+
+**A closed-set policy that looks like a bug and is not.** Both beams mark a successor visited the
+moment it is *generated*, so a state the width trim discards is closed forever and no later depth
+can regenerate it — the search prunes far more than its width suggests. That reads as a defect,
+and layer 1 shows the symptom loudly: 33 of 60 bench-1 levels end at `macro-dead-end`, the
+frontier having emptied because everything reachable was marked and then binned. The fix was
+written and measured, and **it is a regression**: closing only on expansion takes the raw beam
+from 33 to 27 and the macro portfolio from 36 to 30. Over-pruning wins, because the budget is
+nodes and the greedy policy spends them on depth instead of on re-deriving positions it has
+already rejected. Kept as `--closed generate|expand` with the measured default, and the reasoning
+sits in `Search.cs` so it does not get "fixed" again.
 
 ### Phase 5 — Presentation & features  ☐
 Rendering (`Game.BMP` sprite sheet + `Mask.BMP`; `.ltg` packs in `data/graphics/` — format at
@@ -673,6 +904,8 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
   LaserTank.Solver/ Search.cs Heuristic.cs Trim.cs Report.cs Program.cs — the batch
                    solver; writes .lpb, never trusted without verify_solutions.py
+                   Macro.cs — layer 1: Goto (a movement closure over ApplyKey)
+                   + Shoot, so search depth is shots rather than keypresses
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
@@ -690,6 +923,14 @@ tools/
                       rebuilds, and fails unless the fuzzer finds and shrinks them
   verify_solutions.py replay every solver .lpb through BOTH engines: WIN on each,
                       byte-identical traces, and the ratio to the .ghs record
+  campaign.sh       one solver campaign over all 13 collections into one report.
+                      Node-governed, not wall-clock: two layers have to be
+                      comparable and a contended machine makes seconds lie.
+                      STRIDE=N samples every Nth level of every collection
+  second_pass.sh    re-attack a campaign's unsolved levels with a different
+                      searcher, into the same solutions dir  <- where layer 1 ships
+  report_stats.py   read a campaign .jsonl: per-tier solved rates, per-collection
+                      rates, stop-reason breakdown.  --diff compares two layers
   bump_rate.py      classify consumed keys; bumps = desync signature
   dump_level.py     print a .lvl level as ASCII with its hint
   unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1246,3 +1487,58 @@ Gates re-run and green after the change: `replay_all.py` on **both** engines 187
 112/112 `.ghs` exact, `test_difftrace.py` 29/29, `sweep.py` 2,347/2,347 identical.
 
 **Next: run the campaign over the real collections, then layer 1.**
+
+### 2026-09-05 (session 10) — the campaign, and Phase 4 layer 1
+
+Layer 1 is built, the whole corpus has been through both layers, and the useful output of the
+session is a negative result with a fix attached.
+
+**The campaign methodology changed first, and that is its own finding.** The first run was
+wall-clock-budgeted (4 s a level) and was thrown away: the gates and the tuning benches were
+running beside it on the same 16 cores, so its budget bought a varying amount of work and its
+per-tier rates were not reproducible. Campaigns are now governed by **`--nodes`, an `ApplyKey`
+count** — equal work, load-independent, comparable between layers — with `--budget-ms` demoted to
+a backstop, and they take a **`--stride`** sample (the corpus at a real budget is ~6 h per layer,
+and the question was per-tier rates, not banked solutions). New: `tools/campaign.sh`,
+`tools/second_pass.sh`, `tools/report_stats.py`.
+
+**Layer 1: `Goto` + `Shoot`, with `Goto` a closure over the engine rather than a grid A*.** That
+choice is the one to keep: a hand-written A* would have to re-derive `MoveTank`'s turn-costs-a-key
+rule, `IceMoveT`, `ConvMoveTank` and `TranslateTunnel`, i.e. become a second implementation of the
+game after four phases spent ensuring there is one. Ice, conveyors, tunnels, pushes and anti-tank
+turns are resolved by being *executed*.
+
+**Three measurements, and the first two were misleading — this is the session's real content.**
+
+- On 60 levels layer 0 failed, layer 1 wins big and stably: 18→28, 23→31, 33→38 at 150k/400k/1M.
+- On 50 deep levels it does not win at all: 12 vs 13, 13 vs 13, and 8–9 for the macro beam alone
+  at *every* parameter setting tried. Parameters are not the lever.
+- On 4,185 real corpus levels it **loses**: 395 → 381 as a first probe, 395 → 354 run last.
+
+The first bench measured a population where the raw beam is 0% by construction, so anything the
+macro beam added was free. The corpus is not that population. **Both portfolio orderings fail for
+the same reason: every node the macro beam spends is a node taken from the beam, and on most
+solvable levels the beam wanted it.** The fix is not a share or an ordering — it is to stop making
+the bet in advance. Layer 1 now ships as a **second pass** over the first campaign's failures
+(`RunMacro` off by default, `--macro` to enable). Composite: **395 → 416, nothing lost.**
+
+**Two things that look like bugs and are not, both measured before being kept.** The beams close a
+state at *generation*, so the width trim is permanent — "fixing" that costs 33→27 on the raw beam
+and 36→30 on the portfolio, because the budget is nodes and over-pruning buys depth. And layer 1's
+large `macro-dead-end` count is a symptom of that policy, not a leak. Both are now `--closed
+generate|expand` with the measured default and the reasoning in `Search.cs`.
+
+**Verification is the strongest artefact here.** 416/416 composite and 381/381 layer-1 solutions
+replay byte-identically through the *unmodified* C oracle and the C# core with `--field --bmf` —
+**797 solver-produced winning recordings, zero divergences**, 280 matching the `.ghs` record
+exactly. Long legal winning paths are coverage random keystreams cannot reach.
+
+Gates green after every change: `replay_all.py` on both engines 187/181/6/0 with 112/112 `.ghs`
+exact, `test_difftrace.py` 29/29, `sweep.py` 2,347/2,347 identical.
+
+`Engine.cs` and `Engine.Search.cs` are **untouched** — `git diff src/LaserTank.Core/` is empty.
+
+**Next: layer 2.** The shape of layer 1's failure is the argument for it. Inside a `Goto` movement
+is exhausted rather than searched, so the beam ranks *board changes* and `WorkDistance` is thin at
+those — a shot beam has to guess which of two hundred available shots matters. The reason to fire
+has to be **derived** (this brick is on the only path), not scored.

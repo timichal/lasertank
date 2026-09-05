@@ -33,16 +33,39 @@ namespace LaserTank.Solver
 "\n" +
 "  selection\n" +
 "    --level N            just this level        --from N / --to N   a range\n" +
+"    --levels-list FILE   one level number per line -- e.g. the levels a\n" +
+"                         previous campaign report says are still unsolved\n" +
 "    --difficulty LIST    comma list of 1,2,4,8,16 (Kids..Deadly) or 0 (unrated)\n" +
 "    --order ghs|number   solve cheapest-by-.ghs first (default) or in file order\n" +
 "    --limit N            stop after N levels attempted\n" +
+"    --stride N           every Nth level only -- a whole-corpus campaign at a\n" +
+"                         real budget is hours, and a 1-in-N sample of every\n" +
+"                         collection measures the same rates (cf. sweep.py)\n" +
 "    --force              re-solve levels whose .lpb already exists\n" +
 "\n" +
 "  budget (per level)\n" +
-"    --budget-ms N        wall clock, default 4000     --nodes N   macro-steps\n" +
+"    --budget-ms N        wall clock, default 4000\n" +
+"    --nodes N            ApplyKey calls -- the unit that costs, and the one\n" +
+"                         to govern a campaign by; wall clock is not reproducible\n" +
 "    --beam N             beam width, default 600      --max-keys N\n" +
 "    --ida-depth N        IDA* bound cap, default 24   --no-ida / --no-beam\n" +
 "    --jobs N             parallel workers, default = processor count\n" +
+"\n" +
+"  layer 1 -- macro-actions (Goto + Shoot).  OFF by default: it wins on levels\n" +
+"  the raw beam cannot solve and loses over the corpus, so it belongs in a\n" +
+"  second pass (tools/second_pass.sh), not in the portfolio.  --macro enables it\n" +
+"    --macro-beam N       macro-nodes kept per shot-depth, default 24\n" +
+"    --macro-depth N      shots in a solution, default 128\n" +
+"    --closure-nodes N    states in one Goto closure, default 1500\n" +
+"    --closure-depth N    movement keys in one Goto, default 40\n" +
+"    --move-only N        pure-Goto successors kept per node, default 6\n" +
+"    --ida-share R        budget fraction IDA* may run until, default 0.2\n" +
+"    --macro-share R      ...and the macro beam, default 0.3 (cumulative, so\n" +
+"                         that is a tenth of the budget after IDA*)\n" +
+"    --closed generate|expand  when a beam closes a state, default generate\n" +
+"    --macro-first        run the macro beam before the raw beam, not after\n" +
+"    --beam-share R       budget fraction the raw beam runs until when the\n" +
+"                         macro beam is last, default 0.6\n" +
 "\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
@@ -58,7 +81,9 @@ namespace LaserTank.Solver
             public int Jobs = Environment.ProcessorCount;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
+            public int Stride = 1;
             public readonly HashSet<int> Difficulty = new HashSet<int>();
+            public HashSet<int> Only;      // --levels-list, null when unused
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
@@ -78,9 +103,18 @@ namespace LaserTank.Solver
                         case "--report": a.Report = V(); break;
                         case "--author": a.Author = V(); break;
                         case "--level": a.From = a.To = int.Parse(V()); break;
+                        case "--levels-list":
+                            a.Only = new HashSet<int>();
+                            foreach (string line in File.ReadAllLines(V()))
+                            {
+                                string t = line.Trim();
+                                if (t.Length > 0 && t[0] != '#') a.Only.Add(int.Parse(t));
+                            }
+                            break;
                         case "--from": a.From = int.Parse(V()); break;
                         case "--to": a.To = int.Parse(V()); break;
                         case "--limit": a.Limit = int.Parse(V()); break;
+                        case "--stride": a.Stride = Math.Max(1, int.Parse(V())); break;
                         case "--jobs": a.Jobs = Math.Max(1, int.Parse(V())); break;
                         case "--trim-ratio": a.TrimRatio = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--budget-ms": a.Opt.TimeBudgetMs = int.Parse(V()); break;
@@ -90,6 +124,18 @@ namespace LaserTank.Solver
                         case "--ida-depth": a.Opt.IdaMaxDepth = int.Parse(V()); break;
                         case "--no-ida": a.Opt.RunIda = false; break;
                         case "--no-beam": a.Opt.RunBeam = false; break;
+                        case "--macro": a.Opt.RunMacro = true; break;
+                        case "--no-macro": a.Opt.RunMacro = false; break;
+                        case "--macro-first": a.Opt.MacroLast = false; break;
+                        case "--beam-share": a.Opt.BeamShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
+                        case "--closed": a.Opt.CloseOnGenerate = V() != "expand"; break;
+                        case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
+                        case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
+                        case "--closure-nodes": a.Opt.ClosureNodes = int.Parse(V()); break;
+                        case "--closure-depth": a.Opt.ClosureDepth = int.Parse(V()); break;
+                        case "--move-only": a.Opt.MoveOnlyK = int.Parse(V()); break;
+                        case "--ida-share": a.Opt.IdaShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
+                        case "--macro-share": a.Opt.MacroShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--order": a.ByNumber = V() == "number"; break;
                         case "--difficulty":
                             foreach (string s in V().Split(',')) a.Difficulty.Add(int.Parse(s));
@@ -126,16 +172,18 @@ namespace LaserTank.Solver
 
             object gate = new object();
             StreamWriter report = a.Report == null ? null
-                : new StreamWriter(a.Report, append: true, Encoding.UTF8);
+                : new StreamWriter(a.Report, append: true, new UTF8Encoding(false));
             List<Summary.Row> rows = new List<Summary.Row>(jobs.Count);
             Progress bar = new Progress(collection, jobs.Count);
             int done = 0, solved = 0;
             DateTime t0 = DateTime.UtcNow;
 
             if (!a.Quiet)
-                Console.WriteLine("{0}: {1} levels, {2} workers, {3} ms + {4} nodes each, beam {5}",
+                Console.WriteLine("{0}: {1} levels, {2} workers, {3} ms + {4} nodes each, beam {5}{6}",
                     Ansi.Bold(collection), jobs.Count, a.Jobs, a.Opt.TimeBudgetMs,
-                    a.Opt.NodeBudget, a.Opt.BeamWidth);
+                    a.Opt.NodeBudget, a.Opt.BeamWidth,
+                    a.Opt.RunMacro ? ", macro beam " + a.Opt.MacroBeamWidth
+                                     + " x closure " + a.Opt.ClosureNodes : "");
 
             Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = a.Jobs }, job =>
             {
@@ -179,6 +227,8 @@ namespace LaserTank.Solver
             {
                 TLEVEL info = LevelFile.ReadLevel(a.Levels, lv);
                 if (info == null) break;
+                if (a.Stride > 1 && (lv - 1) % a.Stride != 0) continue;
+                if (a.Only != null && !a.Only.Contains(lv)) continue;
                 if (a.Difficulty.Count > 0 && !a.Difficulty.Contains(info.SDiff)) continue;
 
                 string lpb = Path.Combine(outDir, string.Format("{0:D5}.lpb", lv));
@@ -222,7 +272,7 @@ namespace LaserTank.Solver
         {
             public Job J;
             public bool Solved, Trimmed;
-            public int Keys, Moves, Shots, RawKeys;
+            public int Keys, Moves, Shots, RawKeys, Depth;
             public string Method = "-", Stop = "-";
             public long Nodes;
             public double Ms;
@@ -278,6 +328,7 @@ namespace LaserTank.Solver
                     w.WriteBoolean("trimmed", Trimmed);
                     w.WriteString("method", Method);
                     w.WriteString("stop", Stop);
+                    w.WriteNumber("depth", Depth);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
                     if (Error != null) w.WriteString("error", Error);
@@ -301,6 +352,7 @@ namespace LaserTank.Solver
                 o.Stop = r.Stop;
                 o.Nodes = r.Nodes;
                 o.Ms = r.Ms;
+                o.Depth = r.Depth;
                 if (!r.Solved) return o;
 
                 byte[] keys = r.Keys;
@@ -341,6 +393,17 @@ namespace LaserTank.Solver
         {
             MaxKeys = s.MaxKeys,
             BeamWidth = s.BeamWidth,
+            RunMacro = s.RunMacro,
+            MacroBeamWidth = s.MacroBeamWidth,
+            MacroDepth = s.MacroDepth,
+            ClosureNodes = s.ClosureNodes,
+            ClosureDepth = s.ClosureDepth,
+            MoveOnlyK = s.MoveOnlyK,
+            IdaShare = s.IdaShare,
+            MacroShare = s.MacroShare,
+            CloseOnGenerate = s.CloseOnGenerate,
+            MacroLast = s.MacroLast,
+            BeamShare = s.BeamShare,
             NodeBudget = s.NodeBudget,
             TimeBudgetMs = s.TimeBudgetMs,
             TickCap = s.TickCap,
