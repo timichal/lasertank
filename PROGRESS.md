@@ -272,9 +272,8 @@ The oracle is the only authority.
 - Established the determinism insight (keystream-driven 20 Hz tick) and its consequence for
   validation strategy.
 - Catalogued the 10 quirk hazards above with file:line references.
-- Downloaded and inventoried the 10-pack test corpus into `_port/corpus/`.
+- Downloaded and inventoried the 10-pack quirk corpus (now `data/quirks/`).
 - Settled architecture: C oracle + C# Godot core + presentation layer.
-- Nothing built yet.
 - Reorganized the repo (`original/` frozen, `data/` corpus, `oracle/`+`tools/` for the build);
   wrote `.gitignore`, `README.md`, `data/SOURCES.md`.
 - Corpus is much larger than first thought: **20,914 levels across 13 collections**, all with
@@ -282,8 +281,8 @@ The oracle is the only authority.
 - Verified and removed duplicates: `Updates.zip` was byte-identical to the extracted level files;
   root `Tutor.*` and `.ltg` copies duplicated the packs and `original/src/Setups/Files/`.
 - Logged an open question: which of the two `lasertank.exe` builds is the behavioural reference.
-- Nothing committed yet — repo is git-inited with no commits.
 - Dropped the redundant archive: all 202 quirk-pack zip entries verified byte-identical to
   `data/quirks/` before removal. Kept the one genuinely unique file as
   `data/levels/LaserTank-2016-snapshot.zip` — a third vintage of the flagship collection,
   59 of 2030 levels differing from the current one. Relevant if a `.lpb` ever fails to replay.
+- Committed as `3ce1efa init` and pushed. **No code written yet — Phase 1 starts clean.**
