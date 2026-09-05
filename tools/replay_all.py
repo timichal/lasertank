@@ -10,7 +10,11 @@ incomplete; they are listed in EXPECTED_NON_WIN below with what they should do,
 so this script is a green/red gate: it fails only on a real change in
 behaviour, in either direction.
 
-    python tools/replay_all.py [-v] [--traces DIR] [--pack NAME]
+    python tools/replay_all.py [-v] [--traces DIR] [--pack NAME] [--engine EXE]
+
+--engine drives the C# core instead of the oracle; both take the same command
+line, so two runs into two --traces directories are what tools/difftrace.py
+compares to settle Phase 2.
 """
 import argparse
 import pathlib
@@ -99,11 +103,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--traces", metavar="DIR", help="write a per-replay trace here")
+    ap.add_argument("--field", action="store_true",
+                    help="with --traces: include full PF/PF2 (what Phase 2 diffs on)")
+    ap.add_argument("--bmf", action="store_true",
+                    help="with --traces: include BMF/BMF2 (cosmetic tripwire)")
     ap.add_argument("--pack", help="only this pack directory")
+    ap.add_argument("--engine", metavar="EXE", default=str(ORACLE),
+                    help="engine to drive (default: the C oracle).  The C# core "
+                         "takes the same arguments, so use build/lasertank-core.exe "
+                         "to produce the other side of a Phase 2 trace diff.")
     args = ap.parse_args()
 
-    if not ORACLE.exists():
-        raise SystemExit(f"oracle not built: {ORACLE}\nrun: bash oracle/build.sh")
+    engine = pathlib.Path(args.engine)
+    if not engine.exists():
+        how = "bash oracle/build.sh" if engine == ORACLE else "bash src/build.sh"
+        raise SystemExit(f"engine not built: {engine}\nrun: {how}")
 
     traces = pathlib.Path(args.traces) if args.traces else None
     if traces:
@@ -127,9 +141,13 @@ def main():
         won = expected = 0
 
         for lpb in lpbs:
-            cmd = [str(ORACLE), "--levels", str(lvl), "--lpb", str(lpb)]
+            cmd = [str(engine), "--levels", str(lvl), "--lpb", str(lpb)]
             if traces:
                 cmd += ["--trace", str(traces / f"{pack.name}.{lpb.stem}.trace")]
+                if args.field:
+                    cmd.append("--field")
+                if args.bmf:
+                    cmd.append("--bmf")
             proc = subprocess.run(cmd, capture_output=True, text=True)
             out = proc.stdout.strip()
             line = out.splitlines()[-1] if out else ""

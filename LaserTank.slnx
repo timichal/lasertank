@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LaserTank.Cli/LaserTank.Cli.csproj" />
+    <Project Path="src/LaserTank.Core/LaserTank.Core.csproj" />
+  </Folder>
+</Solution>

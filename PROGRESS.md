@@ -7,20 +7,36 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 1 — **complete**. The oracle builds, runs headless, and replays the whole recorded corpus.
+**Phase:** 2 — in progress. Phase 1 is **complete**: the oracle builds, runs headless, and replays
+the whole recorded corpus.
 **Result:** `python tools/replay_all.py` is green — **187 replayed, 181 win, 6 documented
 non-winners, 0 unexpected**, exit 0. 112/112 `Tutor-with-Playbacks` match their bundled `.ghs` move
 *and* shot targets exactly. **54,162 replayed keypresses, zero wasted.**
 The 6 non-winners are recordings their own authors describe as incomplete, pinned in
 `EXPECTED_NON_WIN` with the numbers they must reproduce; the suite fails if any of them changes in
 either direction (fault-injection tested).
-**Next action:** Phase 2, step 0 — **write `tools/difftrace.py` first.** Phase 2 says "re-run the
-trace diff after each function", but no differ exists yet; the oracle emits traces and nothing
-compares them. It needs to report the *first* diverging tick and which field went first, since that
-is what localises a transliteration bug. Build it against two oracle runs (a real one and a
-deliberately perturbed one) so it is known to work before there is any C# to blame.
-Then step 1: stand up the C# core project and transliterate `CheckLoc`.
-**Blocked on:** .NET SDK + Godot .NET are being installed. Step 0 needs neither.
+**Phase 2, step 0 — complete.** `tools/difftrace.py` exists and is proven. It reports the first
+diverging tick, the first field to move (sub-field resolution: `S.moves`, `SlO.dy`, `T.dir`) and,
+for `PF`/`PF2`, the individual cells decoded to object names. Given two *directories* it pairs
+traces by filename, which is the Phase 2 exit criterion in one command.
+`python tools/test_difftrace.py` is green — **29 cases**, and every one of 7 fault injections into
+the differ was caught. Whole-corpus check: `replay_all.py --traces … --field --bmf` run twice gives
+**187/187 identical** (327 MB per side, ~1 s to diff), and poking a single playfield cell in one of
+the 187 is found and localised.
+
+**Phase 2, step 1 — complete.** .NET SDK 10 and Godot 4.7.2 Mono are installed. `src/` holds
+`LaserTank.Core` (the transliteration, pure C#) and `LaserTank.Cli` (the oracle's command line,
+the oracle's trace format), building to `build/lasertank-core.exe` via `bash src/build.sh`.
+Ported so far: `BuildBMField`, `PutLevel`, `GameOn`, `Animate`, the logic-carrying half of
+`LoadNextLevel`, the whole `Tick()` frame and the `SendMessage`/`PostMessage` death split.
+Everything else throws `NotPortedException` rather than no-opping.
+**Empty-keystream equivalence holds on 2,347 levels** — all 2030 of the flagship collection and
+all 317 quirk-pack levels — byte-identical with `--field` and `--bmf`.
+
+**Next action:** Phase 2, step 2 — transliterate `CheckLoc`, then `MoveObj`, re-running the trace
+diff after each. `replay_all.py --engine build/lasertank-core.exe` currently stops at the first
+`MoveTank`, which is the right failure and the right next target.
+**Blocked on:** nothing.
 
 ---
 
@@ -95,18 +111,93 @@ Toolchain: MinGW-w64 (WinLibs, gcc 16.1, UCRT) installed via
 `winget install BrechtSanders.WinLibs.POSIX.UCRT`. Nothing else is needed to build the oracle.
 
 ### Phase 2 — Transliterate the core  ☐
-- ☐ **step 0:** `tools/difftrace.py` — compare two traces, report the first diverging tick and the
-  first field that moved. Nothing downstream is checkable without it. Self-test it on two oracle
-  runs before trusting it against C#.
-- ☐ **step 1..n:** port in dependency order, re-running the trace diff after *each* function:
+- ☑ **step 0:** `tools/difftrace.py` — compare two traces (or two directories of them), report the
+  first diverging tick and the first field that moved. Nothing downstream is checkable without it.
+  Self-tested by `tools/test_difftrace.py`; see "The Phase 2 harness".
+- ☑ **step 1:** the C# projects exist and build; the load path and the tick frame are
+  transliterated, and an empty-keystream run traces identically to the oracle. See below.
+- ☐ **step 2..n:** port in dependency order, re-running the trace diff after *each* function:
   `CheckLoc` → `MoveObj` → `CheckLLoc` → `MoveLaser` → `AntiTank` → `IceMoveT`/`IceMoveO` →
-  conveyor → `Animate` → tick loop.
+  conveyor → tick loop. (`Animate` is already done — it fell out of the idle tick.)
 
-Run the oracle with `--field` (and `--bmf` while porting `Animate`) so the diff has the whole
+Run both engines with `--field` (and `--bmf` while porting `Animate`) so the diff has the whole
 playfield to bite on, not just the hashes.
 
 **Exit criterion:** identical traces on all 187, `--field` included. `BMF`/`AniLevel` differences
 are cosmetic (hazard #2) — worth investigating as a tripwire, but not a correctness failure.
+`difftrace.py` encodes exactly that distinction: exit 1 for a logic divergence, exit **3** for a
+cosmetic-only one, and `--strict` if you want to hold the cosmetic line too.
+
+#### The Phase 2 harness
+
+```
+bash oracle/build.sh
+python tools/test_difftrace.py                                  # trust the differ first
+python tools/replay_all.py --traces build/t-oracle --field --bmf
+<csharp> ... --trace build/t-csharp/<same name> --field --bmf
+python tools/difftrace.py build/t-oracle build/t-csharp -q      # -q: failures only
+```
+
+For that last line to be one command, **the C# CLI must take the oracle's arguments and emit
+byte-identical trace lines** — same field order, same spacing, same `%08lx` hashes,
+same `#` header and result footer (`oracle/driver.c`, `trace_tick`). Do not invent a nicer
+format: the differ is textual on purpose, so any drift shows up as a divergence rather than as a
+parser bug. Once the C# CLI answers to the same flags, teach `replay_all.py` an `--engine` option
+and both sides come from one script.
+
+**First milestone, before `CheckLoc` — done.** Run with an empty keystream (`--keys ""`). Both
+engines trace exactly two lines, `t=0` and `t=1`: level load, then one idle tick. Matching those
+two lines means the `.lvl` parser, the `TGAMEREC` layout, `BuildBMField`, `PutLevel`, `Animate`,
+the fnv1a hashes and the trace formatting are already right — a large fraction of the surface
+area, verified before a single rule of game logic is written.
+
+#### What the C# side looks like now
+
+```
+src/LaserTank.Core/    Objects.cs  GameState.cs  LevelFile.cs  Engine.cs
+src/LaserTank.Cli/     Program.cs  TraceWriter.cs      -> build/lasertank-core.exe
+```
+
+Ported: `BuildBMField`, `PutLevel`, `UpDateTank`'s `TankDirty` write, `GameOn`, `Animate`,
+the logic-carrying half of `LoadNextLevel`, the whole `Tick()` frame, and the
+`SendMessage`/`PostMessage` death split (quirk #8: `SendDead` runs inline, `PostDead` queues for
+`Pump()` after the tick, exactly as the oracle's stub message pump does).
+
+**Everything not yet ported throws `NotPortedException`, not a no-op.** `CheckLoc`, `MoveTank`,
+`FireLaser`, `MoveLaser`, `AntiTank`, `IceMoveO`, `IceMoveT`, `ConvMoveTank`, `UpdateUndo`,
+`MouseOperation`. A silent stub would produce a *plausible* wrong trace, which is the one failure
+mode this whole approach exists to prevent; today
+`replay_all.py --engine build/lasertank-core.exe` stops at the first `MoveTank` with a stack trace,
+which is the correct answer.
+
+Decisions worth not relitigating:
+
+- **`byte[16,16]`, not `sbyte`.** `PF`/`PF2`/`BMF`/`BMF2` are `char[16][16]` in C, and gcc's `char`
+  is signed. It cannot matter: `BuildBMField`'s 2003 sanitisation forces every cell to `<= 0x19`
+  or to a tunnel (`0x40 | id<<1 | wait`), so nothing above `0x7F` survives a load. The single place
+  the original's signedness is visible is `GetOBM(char)`'s `ob > -1` guard, which `Obj.GetOBM`
+  keeps verbatim.
+- **Original names, not C# conventions.** `Game`, `ScoreMove`, `SlideO`, `wasIce`, `IceMoveO`.
+  Renaming is how a quirk stops looking like a quirk.
+- **`net8.0` for both projects.** It is the lowest TFM Godot 4.x accepts, so Phase 5 can reference
+  `LaserTank.Core` unchanged; the CLI sets `RollForward=LatestMajor` because only the .NET 10
+  runtime is installed.
+- **Trace line 1 differs by design** (`# lasertank core trace` vs `# lasertank oracle trace`).
+  Line 2 and every tick line are byte-identical; `difftrace.py` reads level/name/author/keys off
+  line 2 to check both sides ran the same input.
+
+What `difftrace.py` gives you when it does go wrong:
+
+```
+=== first divergence: tick 90 (line 91) ===
+first field:  T.dir 1 -> 4                 [tank]
+also:         T.firing 1 -> 0, L.y 11 -> 12, S.shots 23 -> 22
+    PF[x=4,y=9]       0d mirror dr      -> 19 thin ice
+```
+
+The field name *is* the localisation — `S.moves` sends you to `ScoreMove`, `SlO.dy` to `IceMoveO`,
+`P` to the key-consume test at `LTANK.C:613`. The summary at the end counts how many ticks each
+field diverges on, which separates "one wrong cell" from "everything after tick 90".
 
 ### Phase 3 — Differential fuzzing  ☐
 This is what finds the remaining divergences. Random keystreams (weight toward fire/turn), both
@@ -240,8 +331,16 @@ oracle/     the C reference oracle — see oracle/README.md
   win32_stub.c  real memory/files/messages, no-op GDI
   driver.c    LTANK.C globals + window proc + the WM_TIMER tick loop + tracing
   build.sh    gcc -x c -I stub -I original/src
+src/        the C# port                       build.sh -> build/lasertank-core.exe
+  LaserTank.Core/  Objects.cs GameState.cs LevelFile.cs Engine.cs  (no Godot here)
+  LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
+build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
+                      --traces DIR [--field] [--bmf] writes one trace per recording
+  difftrace.py      compare two traces, or two directories of them: first diverging
+                      tick, first field, per-cell playfield diff   <- the Phase 2 gate
+  test_difftrace.py self-test for difftrace.py; run it before trusting a verdict
   bump_rate.py      classify consumed keys; bumps = desync signature
   dump_level.py     print a .lvl level as ASCII with its hint
   unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -309,7 +408,14 @@ place despite not winning.
   both — keep it that way so either alias works.
 - C toolchain: MinGW-w64 (WinLibs gcc 16.1, UCRT), `winget install BrechtSanders.WinLibs.POSIX.UCRT`.
   Not on `PATH` globally; `oracle/build.sh` finds it under `~/AppData/Local/Microsoft/Winget/Packages/`.
-- Not installed yet, needed for Phase 2: the .NET SDK and Godot .NET.
+- **.NET SDK 10.0.400**, `winget install Microsoft.DotNet.SDK.10`, at
+  `C:\Program Files\dotnet`. Same story: not on the shell's `PATH` until it restarts, so
+  `src/build.sh` finds it. Only the .NET 10 runtime is present, hence `RollForward=LatestMajor`
+  on the `net8.0` CLI.
+- **Godot 4.7.2 (.NET/Mono build)**, `winget install GodotEngine.GodotEngine.Mono`, unpacked to
+  `~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/Godot_v4.7.2-stable_mono_win64/`.
+  The `godot` alias needs admin to be created, so call the `.exe` by path. Nothing in Phase 2
+  needs it — the core and its CLI are plain .NET — it is here for Phase 5.
 - laser-tank.com is behind Cloudflare: `WebFetch` returns 403. Use `curl` with a browser
   User-Agent. The site is a frameset — real content is in `menu.html`, `help.html`, `levels.html`.
 - Original build was lcc-win32 (`original/src/_How to compile LTank.txt`, `LTank.prj`). Its dependencies are
@@ -386,3 +492,58 @@ The oracle is the only authority.
 - Open: which `lasertank.exe` is the behavioural reference is still unresolved, but the oracle now
   agrees with 132/132 quirk-pack recordings that carry independent score targets, so the question is
   much less urgent than it looked.
+
+### 2026-09-05 (session 3) — Phase 2 steps 0 and 1
+
+**Step 0 — the differ.**
+- Wrote `tools/difftrace.py`: first diverging tick, first field, sub-field resolution
+  (`T.dir`, `S.moves`, `SlO.dy`, `M1.dy`), per-cell `PF`/`PF2` diffs decoded to object names
+  including the tunnel encoding, a context window, and a whole-file summary counting how many
+  ticks each field moves on. Directory mode pairs two trace trees by filename.
+- Cosmetic fields (`A`, `BMF`, `BMF2`) get their own exit code, **3**, so the Phase 2 exit
+  criterion's "cosmetic is a tripwire, not a failure" is expressed in the tool rather than in a
+  convention someone has to remember. `--strict` collapses it back to a failure.
+- Proved it before trusting it, which was the point of doing this first:
+  `tools/test_difftrace.py`, **29 cases**. Two are real oracle runs of the same level differing by
+  one keypress (index 60, a shot turned into a left turn), which must be reported at tick 90 as
+  `T.dir 1 -> 4`; the rest are synthetic mutations of a real trace, which is the only way to pin
+  the exact wording — a changed keypress moves half the fields at once.
+- Fault-injected the differ 7 ways (emptied the cosmetic set, swapped the `S`/`T` ranking, disabled
+  grid decoding, disabled first-divergence capture, disabled cell decoding, dropped absent-field
+  handling, dropped length-mismatch detection). **All 7 caught.** Green again after restoring.
+- Corpus scale: `replay_all.py --traces … --field --bmf` twice → **187/187 identical**, 327 MB a
+  side, ~1 s to diff. Poking one playfield cell in one of the 187 is found and localised.
+- Taught `replay_all.py` `--field`/`--bmf` (it wrote hash-only traces before, which Phase 2 cannot
+  bite on) and `--engine EXE`.
+
+**Step 1 — the C# core stood up.**
+- Installed .NET SDK 10.0.400 and Godot 4.7.2 Mono. Godot is *not* needed for Phase 2: the core is
+  a plain class library and the driver is a console app, so the whole trace-diff loop is
+  `dotnet` only.
+- `src/LaserTank.Core` + `src/LaserTank.Cli` → `build/lasertank-core.exe`, taking the oracle's
+  command line and writing the oracle's trace format byte for byte.
+- Ported: `BuildBMField`, `PutLevel`, `GameOn`, `Animate`, the logic-carrying half of
+  `LoadNextLevel`, the `Tick()` frame, and the `SendMessage`/`PostMessage` death split.
+- Two state writes hiding in "paint" functions, both nearly missed and both now carried:
+  `UpDateTank()` clears `TankDirty` (`LTANK2.C:537`) and **`Animate()` ends with
+  `TankDirty = TRUE`** (`LTANK2.C:1161`). Hazard #1's lesson generalises: in this program a
+  function's name tells you nothing about whether it mutates state.
+- Unported functions **throw `NotPortedException`** instead of no-opping. Verified:
+  `replay_all.py --engine build/lasertank-core.exe` stops at the first `MoveTank` with a stack
+  trace rather than emitting a plausible wrong trace.
+- Empty-keystream milestone reached, and then widened: `--keys ""` on **2,347 levels** — all 2030
+  of `data/levels/LaserTank.lvl` plus all 317 quirk-pack levels — is **byte-identical on every
+  one**, with `--field` and `--bmf`, and no `NotPortedException` anywhere (no level in the corpus
+  leaves the tank on water or a conveyor at load). Level 1 was also checked independently of
+  `difftrace.py` with a raw `diff` of everything after line 1: LF-only on both sides, and the only
+  size difference is line 1 itself.
+
+  The sweep is a shell loop, not a tool — Phase 3's fuzzer will generalise it:
+
+  ```bash
+  for i in $(seq 1 2030); do
+    ./oracle/build/oracle.exe  --levels "$L" --level $i --keys "" --trace i0/$i.trace --field --bmf -q
+    ./build/lasertank-core.exe --levels "$L" --level $i --keys "" --trace i1/$i.trace --field --bmf -q
+  done
+  python tools/difftrace.py i0 i1 -q
+  ```

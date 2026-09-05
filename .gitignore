@@ -19,8 +19,11 @@
 # --- our build output ---
 /oracle/build/
 /oracle/bin/
+/build/
 /tools/**/bin/
 /tools/**/obj/
+/src/**/bin/
+/src/**/obj/
 *.o
 *.exe.tmp
 __pycache__/

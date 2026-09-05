@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The headless driver: the oracle's command line, the oracle's trace.
+       This is what the Phase 2 diff runs against; Godot never loads it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>lasertank-core</AssemblyName>
+    <RootNamespace>LaserTank.Cli</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- net8.0 keeps the core referenceable from any Godot 4 project, but only
+         the .NET 10 runtime is installed here, so roll forward to it. -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LaserTank.Core\LaserTank.Core.csproj" />
+  </ItemGroup>
+
+</Project>

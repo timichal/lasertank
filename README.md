@@ -20,7 +20,19 @@ data/              Game content — this is also the test corpus.
   graphics/          .ltg user graphics packs
   meta/              per-collection changelogs, level-name and author indexes
 oracle/            Headless C reference build + per-tick tracing  (see oracle/README.md)
-tools/             Replay gate, level dumper, .lpb decoder, bump analysis
+src/               The C# port.  LaserTank.Core is the transliterated engine —
+                   pure C#, no Godot; LaserTank.Cli is a headless driver that
+                   speaks the oracle's command line and writes the oracle's trace
+tools/             Replay gate, trace differ, level dumper, .lpb decoder, bump analysis
+```
+
+## Building
+
+```
+bash oracle/build.sh                 # the C reference oracle (needs MinGW-w64)
+bash src/build.sh                    # the C# core           (needs .NET SDK 10)
+python tools/replay_all.py           # replay the recorded corpus through the oracle
+python tools/test_difftrace.py       # self-test the trace differ
 ```
 
 ## Why so much binary data is committed

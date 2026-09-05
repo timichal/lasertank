@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The transliterated game core.  Pure C#: no Godot, no Node, no rendering,
+       no signals.  net8.0 is the lowest TFM Godot 4.x accepts, so the Godot
+       project (Phase 5) and the headless CLI can both reference this unchanged. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Field names are transliterated from LTANK2.C and deliberately break
+         C# conventions; see the header comment in Engine.cs. -->
+    <NoWarn>IDE1006</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>
