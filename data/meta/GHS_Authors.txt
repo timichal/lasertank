@@ -1,0 +1,200 @@
+The author's high score is better than the current Global High Score
+(GHS) for the following 182 levels:   
+
+ ===================================================================
+| Levels Collection                   | Current GHS  | Author's HS  |
+| Challenge-IV      [ 41 levels ]     | MOVES  SHOTS | MOVES  SHOTS |
+|-------------------------------------|--------------|--------------|
+| 0500  Inclined Strata               |   329   136  |   266   153  |
+| 0573  A tribute to Wolf 2           |  1183   573  |  1087   567  |
+| 0783  Bigleux SSnniippeerr          |   341   109  |   293   109  |
+| 0786  Sculpter un nouveau monde     |   421   381  |   347   433  |
+| 0954  Laser Test                    |   762   207  |   745   170  |
+| 1066  Man In The Mirror             |   165   326  |   153   320  |
+| 1067  California Dreamin'           |   166   122  |   124   215  |
+| 1068  Aranjuez                      |   343   421  |   261   415  |
+| 1101  My Level 100 Moves            |   102   150  |   100   178  |
+| 1201  Late Morning Run              |  1037   234  |   977   227  |
+| 1275  The incredible machine        |  1099   271  |   652   270  |
+| 1339  Dead A-T Shuffle (Short)      |   404   184  |   371   166  |
+| 1463  Second one                    |    35    48  |    33    55  |
+| 1489  Tomorrow                      |   272   163  |   255   154  |
+| 1491  Minitour                      |    82    97  |    82    95  |
+| 1504  Espejito, espejito (5)        |  2496   786  |  1232   492  |
+| 1515  Robinson Crusoe               |    41    42  |    40    47  |
+| 1516  Thinking about                |    30    78  |    29    78  |
+| 1517  The marsh                     |   127    58  |   112    58  |
+| 1519  The accordion                 |    57    82  |    57    53  |
+| 1520  A small spin                  |   123   114  |   122   118  |
+| 1521  Quick path...                 |    90    61  |    90    59  |
+| 1539  quattro-due                   |   122   106  |    91   142  |
+| 1541  quattro-quattro               |    17    44  |    14    97  |
+| 1542  quattro-cinque                |   180   119  |   172   114  |
+| 1547  cinque-zero                   |    98    67  |    98    65  |
+| 1558  Homage to Pono 2              |   102    57  |    97    57  |
+| 1585  sei-sei                       |    80    67  |    79    67  |
+| 1586  sei-sette                     |    46    70  |    42    69  |
+| 1613  Laser anti-tank 2             |   415   247  |   337   210  |
+| 1614  sette-uno                     |    67    78  |    65    78  |
+| 1615  sette-due                     |   281   186  |   158   197  |
+| 1617  sette-quattro                 |    93   102  |    85   112  |
+| 1618  sette-cinque                  |   126   106  |   120    99  |
+| 1621  sette-otto                    |   152   123  |   136   136  |
+| 1669  Posting Bermuda 2             |   393   166  |   389   173  |
+| 1706  Lasertest 21                  |   534   289  |   466   255  |
+| 1723  undici-sette                  |   257   113  |   249   113  |
+| 1726  dodici-zero                   |   206   194  |   173   167  |
+| 1854  Elementary 4                  |   607   226  |   602   208  |
+| 1991  Reductio ad Vexillum II       |  1230   515  |  1184   539  |
+ ===================================================================
+ ===================================================================
+| Levels Collection                   | Current GHS  | Author's HS  |
+| Challenge-V       [ 90 levels ]     | MOVES  SHOTS | MOVES  SHOTS |
+|-------------------------------------|--------------|--------------|
+| 0033  Reductio ad Vexillum III      |  1460   561  |  1346   598  |
+| 0193  Laser Antitank 11             |  3673  1014  |  3259   822  |
+| 0207  Automated Lockdown            |   539   214  |   533   221  |
+| 0219  without trance                |   213    59  |   181    61  |
+| 0220  Espejito, Espejito2453        |   138   104  |    43    25  |
+| 0346  Rescue the block              |  2926  1210  |  1994   637  |
+| 0352  Serpentine                    |  2379   655  |  1789   490  |
+| 0353  Serpentine 2                  |  1665   511  |  1660   586  |
+| 0386  Ode to Joy                    |   469   186  |   351   165  |
+| 0405  smart maneures #53            |    43    15  |    32     3  |
+| 0412  Parterre                      |  1852   428  |  1421   440  |
+| 0427  Surfer : version 999          |   680   290  |   303   261  |
+| 0428  Echo Base                     |   688   143  |   487   126  |
+| 0432  Ash Seduction                 |   441   260  |   410   279  |
+| 0438  LaserAntitank 14              |   597   146  |   353   103  |
+| 0441  Elementary 2017               |   642   187  |   489   155  |
+| 0450  Soloban XI                    |   617   161  |   599   161  |
+| 0454  LT on ice 2018                |  1339   502  |  1210   393  |
+| 0456  Elementary 2018               |  1893   709  |  1532   604  |
+| 0460  Bermuda Boi                   |   238   126  |   236   122  |
+| 0464  Blue Square Fill-in           |  1047   447  |   905   424  |
+| 0487  bucolic jangle                |   742   618  |   689   654  |
+| 0490  Through Hardening 2           |   206    83  |   199    77  |
+| 0492  Through Caressing 2           |   469   181  |   455   176  |
+| 0543  Through Addressing 2          |   147   192  |   141   174  |
+| 0556  Squirrel Maze                 |   354   167  |   336   164  |
+| 0569  Without Danger 2              |   567   138  |   522   136  |
+| 0570  Through Spattering 3          |  1196   708  |   760   486  |
+| 0571  bucolic waver III             |   919   348  |   897   498  |
+| 0590  Futomono 4                    |   912   516  |   888   546  |
+| 0591  Mukozuke 5                    |   682   152  |   548   151  |
+| 0618  Spin Logic                    |     1   262  |     1   257  |
+| 0622  Celtic Cross                  |   971   299  |   935   299  |
+| 0623  Wallflowers                   |   307   196  |   270   193  |
+| 0626  Playing Chess on Red Carpet   |  1323   149  |  1245   142  |
+| 0639  E pur si muove! (tutti)       |    77   216  |    75   216  |
+| 0647  bucolic scream 2              |   350   161  |   342   187  |
+| 0653  All you need is a bridge      |  1111   400  |  1071   399  |
+| 0663  Dangerous Railway =_=         |   124    99  |   116    99  |
+| 0671  Anomala corpulenta            |  1818   286  |  1467   297  |
+| 0698  Coral fish                    |  2217   307  |  2144   305  |
+| 0714  Lasertank on  ice 2021        |  1848   661  |   942   317  |
+| 0749  Taquin 15                     |   554   447  |   502   371  |
+| 0750  Après moult réflexions        |   620   588  |   546   434  |
+| 0751  Trouvez les 7 différences !   |   572   487  |   524   387  |
+| 0752  Seven Errors Game & Fun       |   584   526  |   510   435  |
+| 0753  himitsu-bako 41 stp yosegi    |   512   529  |   446   459  |
+| 0764  bucolic sample 2              |   235   257  |   233   208  |
+| 0769  Edgy 2                        |   388   195  |   374   188  |
+| 0770  Bridge Builder 3              |  1036   290  |   824   291  |
+| 0802  Anise star                    |   827   388  |   820   375  |
+| 0803  The naughty monkey            |   812   243  |   789   206  |
+| 0807  Sisyphus 2                    |   811   221  |   674   240  |
+| 0812  Levels from the past          |   374   107  |   293   108  |
+| 0813  Triple-locked Vault           |   974   266  |   950   216  |
+| 0815  Penrose Stairs II             |   293   145  |   226   158  |
+| 0816  Nexus IV                      |   555   230  |   526   240  |
+| 0818  Spiral Path                   |   412   224  |   405   229  |
+| 0819  Six Tiny Houses               |   566   155  |   475   160  |
+| 0831  Without Warble 2              |    92    94  |    90    93  |
+| 0833  Maze of Terror 2              |   353   162  |   318   145  |
+| 0834  Wigan Pier 2                  |   550   200  |   371   186  |
+| 0835  Go Figure 2                   |   456   226  |   391   214  |
+| 0836  Igor Li Bay 2                 |   640   217  |   484   209  |
+| 0837  Shooting Through Glass 2      |   806   315  |   529   268  |
+| 0843  The church interior 2         |   613   268  |   515   182  |
+| 0849  There and Back Again V        |   560   250  |   532   245  |
+| 0851  Africa - In the Waterhole 2   |   145    49  |   135    49  |
+| 0852  Africa - Sahara Desert 2      |   357   148  |   275   126  |
+| 0855  Three Blocks and a Mirror 2   |   432   176  |   419   191  |
+| 0859  Japan - The Local Jail 2      |   363   209  |   271   210  |
+| 0860  Taiwan - Professor's Hut 2    |   231   132  |   226   162  |
+| 0861  Russia - Nuclear Factory 2    |   419   263  |   384   272  |
+| 0862  These Crystal Blocks 2        |   445   154  |   404   147  |
+| 0863  Hook 2                        |   380   126  |   325   145  |
+| 0867  Heracles: Nemean Lion         |   279   162  |   247   148  |
+| 0868  Heracles: Lernaean Hydra      |   636   256  |   578   266  |
+| 0870  Heracles: Stymphalian Birds   |   134    55  |   128    54  |
+| 0871  Heracles: Cattle of Geryon    |  1822   635  |  1133   611  |
+| 0873  Flooded Castle                |   127    56  |    81    33  |
+| 0874  By Your Own Bootstraps        |   177    67  |   173    71  |
+| 0891  Einz 2                        |   571   226  |   538   223  |
+| 0893  Bucolic Warner 2              |   726   187  |   618   174  |
+| 0897  Gridlake                      |   146    92  |    98    57  |
+| 0902  Cross Rivers                  |   117    71  |   100    64  |
+| 0903  Block Gates                   |   794   335  |   678   326  |
+| 0906  Le Bunker 2                   |   620   198  |   488   215  |
+| 0909  Obteniendo Ayuda 2            |    85    95  |    81    95  |
+| 0911  Deadly Run 2                  |   300   159  |   264   153  |
+| 0913  Swimming Pool 2-B             |  1109   395  |   934   375  |
+ ===================================================================
+ ===================================================================
+| Levels Collection                   | Current GHS  | Author's HS  |
+| Sokoban-II        [ 51 levels ]     | MOVES  SHOTS | MOVES  SHOTS |
+|-------------------------------------|--------------|--------------|
+| 0283  Le fou du roi                 |   331   123  |   285   125  |
+| 0426  Le Sans Souci                 |    99    81  |    83    78  |
+| 0428  Tchou tchou                   |   630   165  |   395   135  |
+| 0434  Double X-bar                  |   594   245  |   522   251  |
+| 0436  Sans Le Sou                   |   194   110  |   183   116  |
+| 0828  Romário                       |  1046   448  |  1030   448  |
+| 0884  without extract               |   730   395  |   728   393  |
+| 0918  !!!!Don't worry, be happy!!!! |   159   104  |   139   105  |
+| 0947  Level Variation 42            |   139    89  |   113    75  |
+| 0948  Level Variation 43            |   363   225  |   210   206  |
+| 1061  bucolic dagger 2              |   235   287  |   226   245  |
+| 1109  4 solutions impossibles       |   369   152  |   335   154  |
+| 1289  Petit Tableau 150             |   162   188  |   158   174  |
+| 1292  UNINVOLVED in PEACE           |   329   185  |   307   162  |
+| 1387  bucolic starter               |   223    69  |   210    63  |
+| 1400  à la Gary-XI                  |   325    88  |   219    90  |
+| 1402  Les souks d'Alep              |  1455   253  |  1052   239  |
+| 1413  Closing ceremony              |   202    91  |   178    94  |
+| 1427  through terracing 2           |   878   473  |   798   475  |
+| 1454  bucolic raven                 |   857   339  |   708   311  |
+| 1459  Chaenomeles japonica          |   752   238  |   721   201  |
+| 1461  kelvinator party              |   156    56  |   113    52  |
+| 1462  M14 block is not in crystal ! |  1172   286  |  1172   278  |
+| 1531  Colic Bermuda 2               |   433   200  |   289   189  |
+| 1579  through annexing              |   424   324  |   344   283  |
+| 1582  bucolic gleam                 |   740   290  |   646   281  |
+| 1583  DroppingBermuda               |  1258   461  |  1064   486  |
+| 1595  Arrêt dans l'état initial     |   598   256  |   542   242  |
+| 1598  Autofahrerin                  |   187   313  |   162   277  |
+| 1599  Baumwollkleid                 |   414   341  |   328   264  |
+| 1604  bucolic stagger               |   368   327  |   330   313  |
+| 1613  Amazing Moves v2              |  1029   301  |   999   410  |
+| 1616  engage le jeu que je le gagne |   415   171  |   325   163  |
+| 1623  without arrest                |   572   362  |   361   333  |
+| 1632  bucolic manner 3              |   379   351  |   343   320  |
+| 1633  Playground of the Damned      |  1824   631  |  1290   511  |
+| 1639  through retarding 2           |   484   243  |   471   305  |
+| 1661  Hypnos Mod Mod                | 11433  1526  | 10393   976  |
+| 1663  Fear No Evil 4                |  1545   583  |  1172   580  |
+| 1665  Soko2: Blocks on Water 2      |   702   312  |   682   294  |
+| 1666  A Chinese character 3         |   789   221  |   681   233  |
+| 1667  -            CC            -  |   982   275  |   956   256  |
+| 1669  A. G. Bell                    |  2200   762  |  1998   794  |
+| 1675  à la Gary-XIV                 |   399   126  |   339   130  |
+| 1678  SlipBridge-894 grand format   |   526   228  |   495   211  |
+| 1679  Bridge-906 : zoom in          |   931   239  |   859   241  |
+| 1680  La patinoire piégée           |   299    98  |   275   101  |
+| 1681  Carré papal                   |   595   163  |   547   170  |
+| 1683  Cowly Bermuda                 |   392   288  |   381   292  |
+| 1717  Marsupilami                   |  1066   494  |   856   467  |
+| 1738  bucolic garter 2              |   815   286  |   635   282  |
+ ===================================================================
