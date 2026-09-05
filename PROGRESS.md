@@ -5,190 +5,112 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ---
 
+## Start here after a context clear
+
+**Where the project is:** Phases 1-3 complete, Phase 4 (the solver) complete through layer 4,
+Phase 5 (presentation) not started. The rest of this file is the reasoning behind each of those,
+kept because the reasoning *is* the handoff. This block is the ninety-second version.
+
+**What is built.** A C reference oracle (`oracle/`), a C# transliteration of the engine that traces
+byte-identically to it (`src/LaserTank.Core/`), a differential fuzzer (`tools/fuzz.py`), and a
+five-layer solver (`src/LaserTank.Solver/`). No Godot yet — that is Phase 5.
+
+**Build, then check nothing rotted** (about three minutes all in):
+
+```bash
+bash oracle/build.sh && bash src/build.sh      # -> build/lasertank-{core,solve}.exe
+python tools/replay_all.py                     # 187 replayed, 181 win, 6 documented non-win
+python tools/test_difftrace.py                 # 29 passed
+python tools/sweep.py                          # 2,347/2,347 identical
+python tools/test_fuzz.py                      # 25 passed  (slow: injects faults and rebuilds)
+```
+
+Those four are the fidelity gates and must be green before anything else is believed. The fifth,
+`tools/verify_solutions.py`, needs solver output to check and so runs after a campaign.
+`test_fuzz.py` patches `Engine.cs` and restores it — a green run leaves the tree byte-clean, and if
+it ever does not, read the line-ending trap in *Environment notes* before anything else.
+
+**Solve one level and watch it:**
+
+```bash
+build/lasertank-solve.exe --levels data/levels/Beginner-I.lvl --level 44 --verbose \
+  --out build/try --nodes 400000
+python tools/verify_solutions.py build/try      # both engines, byte-identical, or it did not happen
+```
+
+**The whole shipped chain** — a layer-0 campaign, then three passes that each attack only what the
+previous one failed. `STRIDE=5` gives the 4,185-level sample every number in Phase 4 is quoted
+against; each of the three passes over ~3,700 failures measured 6-8 minutes at 14 jobs, and the
+campaign itself is the longer half. `STRIDE=1` is the whole 20,914-level corpus and is hours —
+budget it as such rather than trusting an extrapolation:
+
+```bash
+STRIDE=5 NODES=150000 tools/campaign.sh solutions/l0 build/reports/l0.jsonl --no-macro
+tools/second_pass.sh build/reports/l0.jsonl  solutions/l34 build/reports/l3n.jsonl \
+                     --no-ida --no-beam --subgoal
+tools/second_pass.sh build/reports/l3n.jsonl solutions/l34 build/reports/l34.jsonl \
+                     --no-ida --no-beam --subgoal --sg-eval learned
+tools/second_pass.sh build/reports/l34.jsonl solutions/l34 build/reports/l34pass4.jsonl \
+                     --no-ida --no-beam --macro --macro-first
+python tools/verify_solutions.py build/solutions/l0     # layer 0's own solutions
+python tools/verify_solutions.py build/solutions/l34    # everything the three passes added
+```
+
+`report_stats.py` reads any of those reports (`--diff` compares two layers); the composite is the
+*union* of the four, which is why the two verify runs are separate. A level solved by an earlier
+pass is skipped by a later one, so no `.lpb` is ever written twice.
+
+**Three rules the last four sessions each paid to learn**, and they are the reason the numbers in
+this file can be trusted:
+
+- **Bench on the corpus, not on a filtered population.** `build/reports/bench-levels.txt` is levels
+  layer 0 failed. It flattered layer 1, flattered layer 2, overstated layer 3's budget scaling and
+  *understated* layer 4. A bench picks parameters; only a campaign decides what ships.
+- **Govern by `--nodes`, never wall clock.** A node is one `Engine.ApplyKey`. Seconds are not
+  reproducible on a machine that is also running the gates.
+- **Instrument before theorising.** `--sg-trace` killed two of layer 2's designs and one of layer
+  3's; layer 4's `tools/rankdump.py` decided whether that layer was worth building at all. A new
+  layer should report a distribution before it reports a solved count.
+
+**What is deliberately frozen.** `original/` is a read-only historical artifact.
+`src/LaserTank.Core/Engine.cs` is the transliteration and differs from a literal one by the single
+word `partial`; `Engine.Search.cs` has not changed since layer 0, and layers 1-4 all kept it that
+way. If a solver change seems to need an engine change, that is the signal to stop and re-read.
+
+**Artifacts live under `build/`, which is gitignored** — they survive a context clear but not a
+`git clean`. The one thing that does not need regenerating is layer 4's weight vector: it is
+compiled into `src/LaserTank.Solver/Weights.cs`, so the solver is fully functional from a fresh
+clone. Everything else in `build/reports/` is a measurement that can be re-run.
+
+---
+
 ## Status
 
-**Phase:** 4 — **layers 0, 1, 2, 3 and 4 built and measured; the whole corpus has been run
-through the shipped chain and every solution verified.** The chain is
-`campaign.sh` (layer 0) -> `second_pass.sh` three times (layer 3's subgoal beam with restarts,
-layer 4's learned ranking, layer 1's macro beam): **472 of the 4,185-level stride sample, 11.3%**,
-against layer 3's 444. Phase 3's harness is green and its first campaign
-found nothing. Phases 1 and 2 are complete. The C reference oracle replays the
-whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
-with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
-handoff; if you only need the current state, read the step 5 block and "What is still not ported".
-**Result:** `python tools/replay_all.py` is green — **187 replayed, 181 win, 6 documented
-non-winners, 0 unexpected**, exit 0. 112/112 `Tutor-with-Playbacks` match their bundled `.ghs` move
-*and* shot targets exactly. **54,162 replayed keypresses, zero wasted.**
-The 6 non-winners are recordings their own authors describe as incomplete, pinned in
-`EXPECTED_NON_WIN` with the numbers they must reproduce; the suite fails if any of them changes in
-either direction (fault-injection tested).
-**Phase 2, step 0 — complete.** `tools/difftrace.py` exists and is proven. It reports the first
-diverging tick, the first field to move (sub-field resolution: `S.moves`, `SlO.dy`, `T.dir`) and,
-for `PF`/`PF2`, the individual cells decoded to object names. Given two *directories* it pairs
-traces by filename, which is the Phase 2 exit criterion in one command.
-`python tools/test_difftrace.py` is green — **29 cases**, and every one of 7 fault injections into
-the differ was caught. Whole-corpus check: `replay_all.py --traces … --field --bmf` run twice gives
-**187/187 identical** (327 MB per side, ~1 s to diff), and poking a single playfield cell in one of
-the 187 is found and localised.
+**Phases 1-3 complete. Phase 4 complete through layer 4. Phase 5 not started.**
 
-**Phase 2, step 1 — complete.** .NET SDK 10 and Godot 4.7.2 Mono are installed. `src/` holds
-`LaserTank.Core` (the transliteration, pure C#) and `LaserTank.Cli` (the oracle's command line,
-the oracle's trace format), building to `build/lasertank-core.exe` via `bash src/build.sh`.
-Ported in step 1: `BuildBMField`, `PutLevel`, `GameOn`, `Animate`, the logic-carrying half of
-`LoadNextLevel`, the whole `Tick()` frame and the `SendMessage`/`PostMessage` death split.
-Everything else throws `NotPortedException` rather than no-opping.
-**Empty-keystream equivalence holds on 2,347 levels** — all 2030 of the flagship collection and
-all 317 quirk-pack levels — byte-identical with `--field` and `--bmf`.
+| | state |
+|---|---|
+| C reference oracle | replays the whole corpus; ground truth, never refactored |
+| C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
+| Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
+| Solver | five layers; **472 of the 4,185-level stride sample (11.3%)**, all verified |
+| Presentation (Godot) | not started — see Phase 5 |
 
-**Phase 2, step 2 — complete.** `CheckLoc` and `MoveObj` are transliterated, and with them the
-dependency closure `MoveObj` drags in: `TranslateTunnel`, `UpDateTankPos`, `UpdateUndo` and
-`ResetUndoBuffer` (which `LoadLevel` was missing — `LoadNextLevel` calls it at `LTANK2.C:1033`).
-The empty-keystream sweep still gives **2,347/2,347 byte-identical** with `--field --bmf`, so
-nothing regressed; see below for why that is the *only* trace signal these two functions can
-produce yet.
+**The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
+non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
+moves *and* shots. `test_difftrace.py` 29 passed. `test_fuzz.py` 25 passed. `sweep.py` 2,347/2,347
+identical. `verify_solutions.py` over `build/solutions/` — every solver `.lpb` wins on both engines
+with byte-identical traces.
 
-**Phase 2, step 3 — complete.** `MoveTank` *and* `AntiTank` are transliterated, and together they
-turn the recorded corpus back into a gate. `MoveTank` alone could not: `Tick()` calls `AntiTank()`
-after every consumed key, so a `MoveTank`-only engine still stopped at tick 1 on all 16
-`game-objects` recordings — the earlier "MoveTank is what turns the corpus back into a gate" was
-wrong on that point and is corrected here. `AntiTank` is portable ahead of `FireLaser` because its
-four scans need only `CheckLoc` and every `FireLaser` call sits behind a match, so a recording with
-no aligned anti-tank runs to whatever stops it next.
+**What is still not ported: `MouseOperation`, and only that.** The mouse buffer is empty headless
+(`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it —
+measured, not assumed: the fuzz campaign reached it zero times. It **throws** rather than no-ops, so
+if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
+logic.
 
-**Result: 187 compared, 1 identical, 186 `DIVERGE length mismatch`, and not one field divergence.**
-Every recording is byte-identical with `--field --bmf` up to the tick where the port stops, and
-`Game-Objects-in-LT_0001` (pure movement, no shot) now replays end to end and wins.
-1,041 of 156,504 corpus tick-lines are reproduced. Where the 186 stop:
-`FireLaser` 161, `IceMoveT` 20, `ConvMoveTank` 5 — every one a function that still throws.
-`AntiTank`'s scans are genuinely exercised, not merely compiled: `_0007` ("Covering the
-anti-tanks") replays 52 ticks of pure movement and then stops in `FireLaser` *called from
-`AntiTank`*, having consumed no fire key at all.
-Empty-keystream spot sweep (202 levels across `LaserTank.lvl`) still byte-identical — neither new
-function is reachable without a consumed key, so nothing there could regress, and nothing did.
-
-**Phase 2, step 4 — complete.** The whole laser subsystem: `FireLaser`, `MoveLaser`, `CheckLLoc`,
-`KillAtank`, the logic half of `UpDateLaserBounce`, `TestIfConvCanMoveTank`, and the six
-`SlideO`/`SlideMem` stack helpers `CheckLLoc` drags in (`Mem_to_SlideO`, `SlideO_to_Mem`,
-`add_SlideO_to_Mem`, `sub_SlideO_from_Mem`, `del_SlideO_from_Mem`).
-
-**Result: 187 compared, 41 identical, 146 `DIVERGE length mismatch`, still zero field
-divergences.** **53.2% of the corpus is now reproduced** — 83,219 of 156,504 tick-lines, up from
-1,041 — and every one of them is byte-identical with `--field --bmf`. The remaining stops are
-`ConvMoveTank` 59, `IceMoveT` 55, `IceMoveO` 32; `FireLaser`, `MoveLaser` and `CheckLLoc` have
-disappeared from that list entirely. 41 recordings now replay end to end and win.
-
-**A real bug was hiding behind the exception.** The step-1 tick frame called
-`FireLaser(..., 0)` where the oracle passes `S_Fire` (`driver.c:193`). That is not a sound-only
-argument: `FireLaser` ends with `laser.Good = (sf == 2)`, which is how the engine tells the tank's
-own shot from an anti-tank's (`S_Anti2` = 9). It was invisible for three steps because `FireLaser`
-threw before reading it. Fixed with the constant, not the literal. **This is the argument for
-`NotPortedException` over a no-op, stated concretely:** a stub would have run this call happily and
-the divergence would have surfaced hundreds of ticks later as a wrong `laser.Good`.
-
-**Hazard #1 is transliterated but NOT yet exercised — do not treat it as verified.**
-*(Superseded by step 5 below: it is exercised and verified now. Kept because the probe technique
-is reusable and because "written" vs. "reached" is a distinction worth keeping visible.)* Probed
-directly: temporarily replacing `LaserBounceOnIce = true` inside `UpDateLaserBounce` with a throw
-and re-running all 187 recordings fires it **zero times**. It needs a mirror that is *actively
-sliding* at the moment the beam deflects off it, and the sliding is `IceMoveO`'s job, which still
-throws. So the `goto LaserMoveJump` second-step path gets its first real test in step 5, not here.
-
-**Phase 2, step 5 — complete, and with it PHASE 2 ITSELF.** `ConvMoveTank`, `IceMoveT` and
-`IceMoveO` are transliterated. The exit criterion is met:
-
-> **`python tools/difftrace.py build/t-oracle build/t-csharp` — 187 compared, 187 identical,
-> 0 cosmetic-only, 0 diverged, 0 unusable. Exit 0.**
-
-With `--field --bmf`, so that is every playfield cell, both layers, both bitmap layers, the tank
-pose, the laser, both slide records, the whole slide stack and the scores, on every tick of all
-187 recordings — 156,504 tick-lines, not one byte different. Even the cosmetic `BMF` tripwire holds
-(0 cosmetic-only), which was allowed to differ and does not.
-
-Driven independently, the C# core also reproduces the oracle's replay result exactly:
-**187 replayed, 181 win, 6 documented non-winners, 0 unexpected, 112/112 `.ghs` move+shot targets
-exact** — the same numbers Phase 1 pinned for the oracle, now produced by the port.
-The empty-keystream sweep is still **2,347/2,347 byte-identical**.
-
-**Hazard #1 is now genuinely exercised.** The step-4 probe (swap `LaserBounceOnIce = true` for a
-throw, replay all 187) fired *zero* times; re-run after `IceMoveO`, it fires on
-**`Tutor-with-Playbacks_0093` at tick 527 and `_0094` at tick 206**. Level 93 is "One suicidal
-anti-tank", and its own hint spells the mechanism out: *"The laser is deflected by three mirrors at
-K8 (**sliding mirror**), K10, N10, and N8."* A paint routine's side effect, driving a second beam
-step inside one tick, on a level built to depend on it — reproduced exactly. Hazard #1 is the one
-that justified compiling `LTANK2.C` verbatim in the oracle, and it is now verified in the port too.
-
-**Phase 3, first campaign — complete, and the harness is proven.** `tools/fuzz.py` exists:
-random keystreams, both engines, diff, and — the part that matters — **shrink any divergence to a
-minimal repro**. `tools/sweep.py` lifts the empty-keystream sweep out of scratch, and
-`tools/engines.py` is the two-engine plumbing both share.
-
-**The fuzzer has gone red on purpose before being trusted green.** `python tools/test_fuzz.py`
-injects two known faults into `Engine.cs`, rebuilds, and fails unless the fuzzer finds *and*
-shrinks each one. **25 passed, 0 failed**, with a green control run before and after:
-
-| injected fault | found in | shrunk to |
-|---|---|---|
-| `AntiTank`'s four scans reordered | 93 cases, 4 s | **2 keys** — level 765, `dd` → `L.x` at tick 8 |
-| `MoveTank`'s `SlideT` write moved inside the `if` | 2 cases, 2 s | **2 keys** — level 1314, `rr` → `SlT.dx` at tick 2 |
-
-Both minimal repros are re-verified independently of the shrinker: they still diverge, and
-deleting any single remaining key stops the divergence.
-
-**First campaign: 20,626 cases, 0 divergences.** Six keystream shapes over all 2,030 flagship
-levels plus every quirk pack — **3,751,638 tick-lines compared, 24× the whole recorded corpus**
-(156,504). 890,690 of 1,630,624 generated keys were actually consumed (55%); 141 runs won their
-level by accident, 10,758 killed the tank, 9,727 ran out of keys. `MouseOperation` was never
-reached (`NOTPORTED` 0), which is the expected answer and now a measured one.
-
-**Phase 4, layer 0 — complete.** The solver's foundation, not the solver. `Engine.cs` gained one
-word (`partial`); `Engine.Search.cs` adds snapshot/restore, `ApplyKey` (one keypress, then tick to
-quiescence) and `StateHash`. `build/lasertank-solve.exe` batch-solves levels with a beam + IDA*
-portfolio and writes each solution as a **`.lpb`** — a real recording, playable in the 2010 binary.
-`tools/verify_solutions.py` replays every one through the *unmodified* oracle and the core.
-
-**First numbers.** 150 cheapest-by-`.ghs` flagship levels: 110 solved in 20 s (Kids 81.5%, Easy
-60.7%). `Beginner-I`'s 400 cheapest: **384 solved in 12 s**. Every solution verified —
-**494/494 byte-identical on both engines, 405 matching the `.ghs` record exactly**, median 1.6× the
-record's keypresses. See the Phase 4 section for the measured bar, the layer plan above this one,
-and the two bugs the self-check caught.
-
-**Phase 4, layer 1 — built, measured, and the measurement is the deliverable.** Macro-actions:
-`Goto` + `Shoot` instead of raw keys, with `Goto` a breadth-first closure *over `Engine.ApplyKey`*
-rather than a grid A*, so ice, conveyors, tunnels, pushes and anti-tank turns are resolved by being
-executed and the repo still holds exactly one implementation of the game.
-
-**It wins where the raw beam fails and loses over the corpus, and no ordering or share fixes
-that.** On 60 levels layer 0 could not solve it goes 18→28, 23→31, 33→38 (at 150k / 400k / 1M
-nodes). Over 4,185 levels of the real corpus, as a portfolio member it *loses*: 395 → 381 run
-first, 395 → 354 run last. Most solvable levels are ones the raw beam gets easily, and every node
-the macro beam spends is one taken from it. **So it ships as a second pass, not a portfolio
-member** (`tools/second_pass.sh`, `RunMacro` off by default): layer 0 runs, then the macro beam
-re-attacks only its failures. Composite **395 → 416 of 4,185 (9.4% → 9.9%)**, nothing lost.
-
-**The whole corpus has been run through both layers, and every solution verified.** 1-in-5 stride,
-all 13 collections, 150,000 `ApplyKey` calls per level. **416/416 composite solutions and 381/381
-layer-1 solutions replay byte-identically through the unmodified C oracle and the C# core with
-`--field --bmf`** — 797 solver-produced winning recordings, zero divergences, 280 of the composite
-matching the `.ghs` record exactly, median 1.6×. 95.9% of the unsolved stopped on **budget**, not
-on a dead end: the binding constraint is depth, not correctness.
-
-**Campaigns are governed by nodes, not by wall clock.** The session's first campaign was
-wall-clock-budgeted and was thrown away — the gates and benches were running beside it, so its
-budget bought a varying amount of work. `tools/campaign.sh` takes `--nodes` (equal work,
-load-independent, comparable between layers) and demotes `--budget-ms` to a backstop;
-`tools/report_stats.py` reads a report and `--diff`s two.
-
-**Next action:** layer 3 — portfolio and restarts. Layer 2's campaign says where the budget now
-goes: 81% of its unsolved levels stop on budget but **19% stop at `subgoal-dead-end`**, a frontier
-that emptied rather than a search that ran out of time, and no width or share fixes that (measured).
-That is a restart problem — NRPA / nested Monte-Carlo, or a randomised re-run of the same beam —
-not a heuristic one. Keep fuzzing in parallel — new seeds, the other 12 collections, longer
-keystreams. **Blocked on:** nothing.
-
-**What is still not ported:** `MouseOperation` only. The mouse buffer is empty headless
-(`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it.
-It still throws rather than no-opping, so if that premise ever breaks the run stops loudly. It is
-Phase 5 work — it is a UI entry point, not game logic.
+**Next action:** Phase 5, and its section below is a plan rather than a wish list. Phase 3's
+fuzzer can also keep running in parallel on new seeds and the 12 collections its first campaign
+never touched. **Blocked on:** nothing.
 
 ---
 
@@ -393,7 +315,7 @@ The field name *is* the localisation — `S.moves` sends you to `ScoreMove`, `Sl
 `P` to the key-consume test at `LTANK.C:613`. The summary at the end counts how many ticks each
 field diverges on, which separates "one wrong cell" from "everything after tick 90".
 
-### Phase 3 — Differential fuzzing  ◐ (harness done and proven; campaign ongoing)
+### Phase 3 — Differential fuzzing  ◐ (harness done and proven; more campaigns welcome)
 This is what finds the remaining divergences. Random keystreams (weight toward fire/turn), both
 engines, diff traces, shrink any divergence to a minimal repro. Run across all 20,914 levels.
 Cheap, unlimited, needs no solutions.
@@ -474,7 +396,7 @@ half, and `fuzz.py` reports both.
   Phase 4's solver being the *other* kind of coverage rather than a nice-to-have: a solved level is
   a long, legal, non-random path through the engine.
 
-### Phase 4 — Solver  ◐ (layers 0-3 done; whole corpus run and verified)
+### Phase 4 — Solver  ☑ (layers 0-4; whole corpus run and every solution verified)
 
 **The bar, measured before building anything.** Best-known solution cost from the 13 `.ghs` files,
 by the difficulty rating in each level record:
@@ -1276,9 +1198,95 @@ layer 0 — four layers now. Everything above is
 and a `Rank()` call in place of two `WorkDistance` calls in `Subgoal.cs`.
 
 ### Phase 5 — Presentation & features  ☐
-Rendering (`Game.BMP` sprite sheet + `Mask.BMP`; `.ltg` packs in `data/graphics/` — format at
-`LTANK2.C:688`), the 16 WAVs in `original/src/Sounds/`, three zoom levels (`SetGameSize`), level editor, undo,
-record/playback UI, high scores, `language.dat` i18n, and read/write compat for community files.
+
+**This is the first phase where the deliverable is the game rather than a measurement, and the
+discipline that got the project here still applies: the presentation layer must not become a second
+implementation of the rules.** Everything in `LaserTank.Core` stays untouched — a Godot node reads
+`Game.PF` and `Game.BMF` and draws them; it never decides anything. That is the same contract the
+solver kept for four layers (`Engine.Search.cs` unchanged since layer 0), and it is why the fidelity
+gates keep working while this phase is built.
+
+**The head start, which is larger than it looks.** The renderer's input is already computed and
+already ported. `BuildBMField` maintains `Game.BMF[x][y]` — the *bitmap number* per cell, not the
+object id — `Animate()` cycles it, and `Obj.GetOBM()` is the object→bitmap table
+(`LTANK2.C:77`). So drawing a frame is: for each cell, look up `BMF`, index the sprite atlas, blit.
+Hazard #2 is what makes this safe (no bitmap ever feeds a decision) and hazard #1 is what makes it
+dangerous (`UpDateLaserBounce` is a *paint* function that mutates game state): **the core already
+calls it inside the tick — the renderer must not call it, skip it, or reimplement it.**
+
+#### The steps, each with an exit criterion
+
+**Step 0 — the Godot project, and the board on screen.** A `LaserTank.Game` Godot project
+referencing `LaserTank.Core` as a plain library (it has no Godot dependency, which is what makes
+this a reference rather than a rewrite). Load a level and draw the 16×16 board.
+
+**The atlas geometry, decoded and verified against all three packs**, because getting it wrong is a
+silent off-by-one: the sheet is **always 320×192 — a 10×6 grid of 32×32 sprites** — and `BMA[]` is
+filled row-major from **i = 1**, ten per row (`GFXInit`, `LTANK2.C:782`). So sprite index `i` is
+atlas cell `((i-1) % 10, (i-1) / 10)`. `MaxBitMaps` is 58 (`LTANK.H:92`) and the highest index the
+object table yields is 57, so the last row is partly unused.
+
+**Read `Game.BMF`, never re-derive it from `PF`.** `BuildBMField` is not simply `GetOBM(PF)`: a
+tunnel is 55, the tank's own cell is 1 *and its `PF` is zeroed*, and `Animate()` then cycles `BMF`
+for animated objects. Every one of those is a place a re-derivation drifts.
+*Exit:* a headless test over all 2,347 corpus levels — every `BMF` value at load is in 1..57 and
+maps to a cell inside the 10×6 grid. Cheap, no rendering, runs beside the other gates.
+
+**Step 1 — the tick loop, and the gate that matters.** A fixed 20 Hz tick (`GameDelay = 50` ms,
+`LTANK.H:96`) decoupled from rendering, driving `Engine.Tick()`; keyboard input appended to
+`RecBuffer` exactly as `AddKBuff` does; visuals interpolated between ticks. **Never drive logic
+from `_process`** (hazard #10).
+*Exit — and this is Phase 5's real gate:* play a level in Godot, win it, save the keystream with
+the existing `LevelFile.WritePlayback`, and **that `.lpb` must replay byte-identically through the
+unmodified C oracle** (`tools/verify_solutions.py` already does exactly this, unchanged). A human
+playthrough that survives the oracle is the same proof the solver's 472 solutions gave.
+
+**Step 2 — graphics packs and zoom.** `.ltg` is a 324-byte `TLTGREC` header (`Name[40]`,
+`Author[30]`, `Info[245]`, `ID[5]` = `"LTG1"`, `MaskOffset` DWORD) followed by two ordinary Windows
+BMPs: the game bitmap from the end of the header to `MaskOffset`, the mask from there to EOF
+(`LoadLTG`, `LTANK2.C:688`). Verified against the three shipped packs: the game bitmap is 320×192
+at 24bpp (`Warcraft_II` is 8bpp) and the mask is 320×192 at **1bpp**. The original blits
+mask-`SRCAND` then bitmap-`SRCPAINT` — 1-bit transparency — so the load step is "fold the mask into
+an alpha channel" and the draw step is then an ordinary textured quad.
+
+Zoom is 24/32/40 px (`SetGameSize`, `LTANK2.C:1729`), and the original implements it by
+`StretchBlt`-ing the whole 320×192 sheet up or down at load. **Do not copy that.** Godot should
+keep the atlas at native 32×32 and scale at draw time, which is the same picture without the
+resample — the sprite size is a presentation choice and no logic reads it.
+*Exit:* all three packs in `data/graphics/` load and render; switching zoom changes nothing but
+pixels. Note hazard #11 lives in this function — `if (GFXOn) GFXKill;` is missing its parens and
+must stay missing.
+
+**Step 3 — sound.** The 16 WAVs in `original/src/Sounds/`. The tick already computes *which* sound
+fires: `FireLaser`'s `sf` argument is the sound id and is load-bearing for logic
+(`laser.Good = (sf == 2)`), so sound ids are read from the engine, never re-derived.
+*Exit:* the gates stay green — i.e. adding audio changed no trace.
+
+**Step 4 — the game around the game.** Level picker, high scores (`.hs`/`.ghs`, already read by
+`LevelFile`), undo, and record/playback UI. Undo needs less than it looks: `UpdateUndo` /
+`ResetUndoBuffer` and the whole `UndoBuffer` are already ported and maintained — only `UndoStep`,
+the reader, is missing, because nothing headless ever called it.
+*Exit:* a recorded game round-trips — record in Godot, replay in Godot, replay in the oracle, all
+three agree.
+
+**Step 5 — the level editor.** This is where `MouseOperation`, the one unported function, finally
+gets written; it is a UI entry point rather than game logic, which is why it was left throwing.
+*Exit:* an edited level saves as a `.lvl` the 2010 binary opens, and constraint 2 (community
+formats stay readable *and* writable) is demonstrated rather than asserted.
+
+**Step 6 — i18n.** `language.dat` via `LANGUAGE.C`.
+
+#### What to be careful about
+
+- **Do not "fix" anything on the way past.** Hazards #9 and #11 are both real bugs in the original
+  that must survive, and #11 is inside `SetGameSize` — a function this phase has to touch.
+- **The 20 Hz tick is not a rendering rate.** Interpolate sprites between ticks; a 144 Hz display
+  must not consume 144 keys a second.
+- **`.lpb` compatibility is bidirectional.** The 2010 binary must be able to play what Godot
+  records. `LevelFile.WritePlayback` already writes the real 66-byte header format, and the
+  solver's 472 recordings are the existing evidence that it round-trips.
+- **Godot 4.7.2 Mono** is installed but has no `godot` alias (needs admin) — call the `.exe` by
+  path; see *Environment notes*.
 
 ---
 
@@ -1359,6 +1367,11 @@ Key codes: `37`=Left `38`=Up `39`=Right `40`=Down `32`=Fire.
 
 ## Quirk hazards — every one is load-bearing
 
+**The rule these generalise to**, learned twice in Phase 2 and worth holding while reading any of
+them: *in this program a function's name tells you nothing about whether it mutates state.*
+`UpDateTank()` clears `TankDirty` (`LTANK2.C:537`) and `Animate()` ends by setting it
+(`LTANK2.C:1161`) — both were nearly missed because they are named like paint calls.
+
 1. **Rendering mutates game state.** `UpDateLaserBounce()` (`LTANK2.C:565`) is a *paint* function
    that sets `LaserBounceOnIce`, making `MoveLaser` `goto LaserMoveJump` and take a second step in
    the same tick (`LTANK2.C:1631`). Stub drawing naively → laser-on-sliding-mirror behaviour changes.
@@ -1392,6 +1405,9 @@ Key codes: `37`=Left `38`=Up `39`=Right `40`=Down `32`=Fire.
    because of the 2003 sanitization above it, but do not "fix" it silently.
 10. Godot must run logic on a **fixed 20 Hz tick decoupled from rendering**, interpolating visuals.
     Never drive logic from `_process`.
+11. **`LTANK2.C:1738` reads `if (GFXOn) GFXKill;`** — a missing `()`, so the call never happens.
+    A real bug in the original, in `SetGameSize`, and cosmetic. Same species as #9: **do not
+    "fix" it.** It is Phase 5 territory, which is the phase most likely to want to.
 
 ---
 
@@ -1466,6 +1482,11 @@ See `README.md` and `data/SOURCES.md` for provenance.
 
 ## Test corpus
 
+**A trap for the day a `.lpb` will not replay:** `data/levels/LaserTank-2016-snapshot.zip` is a
+third vintage of the flagship collection, **59 of its 2,030 levels differing** from the current
+one. A recording made against one vintage cannot replay against another, so before debugging the
+engine, check the level bytes.
+
 **Tier 1 — `data/quirks/`, 317 quirk-focused levels, 187 recorded playbacks.**
 Upstream deliberately withholds `.lpb` for the main collections; these help-section packs are the
 only recorded human solutions in existence.
@@ -1537,6 +1558,18 @@ place despite not winning.
   skips everything else. `--keys 38,38,32` therefore yields an *empty* keystream and an idle run
   that looks like it worked. The C# CLI matches this behaviour deliberately (same parser, same
   skipping) — if you fix one, fix both and re-run the corpus.
+- **`bash` invoked from Python is WSL's `System32\bash.exe`**, not Git Bash — different
+  filesystem, no gcc, no dotnet, and it fails with an unreadable `execvpe` error.
+  `tools/engines.py`'s `find_bash()` skips System32 and falls back to the Git for Windows paths;
+  `$LT_BASH` overrides. Any new tool that shells out should use it rather than bare `bash`.
+- **Rewriting a source file from Python in text mode rewrites every line ending.** `src/` is LF,
+  Python's text mode makes it CRLF, and `core.autocrlf=true` then makes `git diff` show *nothing*
+  while every line on disk has changed. Patch and restore in **bytes**, or pass `newline=''`.
+  `tools/test_fuzz.py` does, and a green self-test leaves the tree byte-clean.
+- **The quirk packs mix `.lvl` and `.LVL`**, and the four that ship uppercase are the four biggest.
+  A `glob("*.lvl")` is case-insensitive on Windows and silently drops them on Linux — it already
+  cost one campaign four packs with no warning. Match on `suffix.lower()`, as `replay_all.py`,
+  `sweep.py` and `verify_solutions.py` all now do.
 - laser-tank.com is behind Cloudflare: `WebFetch` returns 403. Use `curl` with a browser
   User-Agent. The site is a frameset — real content is in `menu.html`, `help.html`, `levels.html`.
 - Original build was lcc-win32 (`original/src/_How to compile LTank.txt`, `LTank.prj`). Its dependencies are
@@ -1564,684 +1597,73 @@ The oracle is the only authority.
 
 ## Session log
 
-### 2026-09-05
-- Read the full source; mapped logic to `LTANK2.C` + the `WM_TIMER` loop in `LTANK.C`.
-- Decoded `.lvl`, `.ghs`, `.lpb` formats against the real files; confirmed 2030 levels and
-  2030 non-zero global high scores.
-- Established the determinism insight (keystream-driven 20 Hz tick) and its consequence for
-  validation strategy.
-- Catalogued the 10 quirk hazards above with file:line references.
-- Downloaded and inventoried the 10-pack quirk corpus (now `data/quirks/`).
-- Settled architecture: C oracle + C# Godot core + presentation layer.
-- Reorganized the repo (`original/` frozen, `data/` corpus, `oracle/`+`tools/` for the build);
-  wrote `.gitignore`, `README.md`, `data/SOURCES.md`.
-- Corpus is much larger than first thought: **20,914 levels across 13 collections**, all with
-  `.ghs` targets, plus 317 quirk levels and **186** `.lpb` solutions (was 128).
-- Verified and removed duplicates: `Updates.zip` was byte-identical to the extracted level files;
-  root `Tutor.*` and `.ltg` copies duplicated the packs and `original/src/Setups/Files/`.
-- Logged an open question: which of the two `lasertank.exe` builds is the behavioural reference.
-- Dropped the redundant archive: all 202 quirk-pack zip entries verified byte-identical to
-  `data/quirks/` before removal. Kept the one genuinely unique file as
-  `data/levels/LaserTank-2016-snapshot.zip` — a third vintage of the flagship collection,
-  59 of 2030 levels differing from the current one. Relevant if a `.lpb` ever fails to replay.
-- Committed as `3ce1efa init` and pushed. **No code written yet — Phase 1 starts clean.**
-
-### 2026-09-05 (session 2) — Phase 1 done
-- Installed MinGW-w64 (WinLibs gcc 16.1 UCRT) via winget; the box had no C compiler at all.
-- Built the oracle. The load-bearing decision: **stub only the Win32 API, compile `LTANK2.C`
-  verbatim.** Hazard #1 (`UpDateLaserBounce` mutating `LaserBounceOnIce`) then needs no special
-  handling — it survives because only `Rectangle`/`SelectObject` are stubbed out from under it.
-  Hazard #8 needed a real message pump: `SendMessage` re-enters the window proc, `PostMessage`
-  queues for after the tick.
-- Measured the external surface first (`nm -u` on `LTANK2.C` built against real headers): 49 Win32
-  calls and ~12 globals. That made the stub a bounded job rather than an open-ended one.
-- `LT_Tick()` in `oracle/driver.c` is a line-by-line transliteration of `WM_TIMER` (`LTANK.C:579`).
-  `LTANK.C`/`LTANK_D.C` are not compiled — they are window and dialog code.
-- **Replayed all recordings: 181 reach the flag, 54,162 keypresses, 0 bumps.** All 112
-  `Tutor-with-Playbacks` match their bundled `.ghs` on both moves and shots.
-- Decoded level 21's playback out of its Text-Converter `.txt` wrapper and added it to the corpus
-  (187 now). Taught `replay_all.py` which recordings are documented non-winners and what numbers
-  they must reproduce, so the suite exits 0 when correct and 1 on any change — verified by fault
-  injection in both directions. Before that it was permanently red and so useless as a gate.
-- Established that the 5 non-winners are incomplete recordings, corroborated by two level hints
-  quoting the exact stopping points we reproduce, and by the level-21 `148/257` confirmation.
-- **Corrected hazard #2**: `Game.BMF` is cosmetic — no bitmap feeds a decision anywhere in the
-  program. This removes an animation-phase dependency that would have made replays non-deterministic
-  across level loads.
-- Also noticed but left alone: `LTANK2.C:1738` reads `if (GFXOn) GFXKill;` — a missing `()`, so the
-  call never happens. Real bug in the original, in `SetGameSize`, cosmetic. Do not "fix" it.
-- Open: which `lasertank.exe` is the behavioural reference is still unresolved, but the oracle now
-  agrees with 132/132 quirk-pack recordings that carry independent score targets, so the question is
-  much less urgent than it looked.
-
-### 2026-09-05 (session 3) — Phase 2 steps 0 and 1
-
-**Step 0 — the differ.**
-- Wrote `tools/difftrace.py`: first diverging tick, first field, sub-field resolution
-  (`T.dir`, `S.moves`, `SlO.dy`, `M1.dy`), per-cell `PF`/`PF2` diffs decoded to object names
-  including the tunnel encoding, a context window, and a whole-file summary counting how many
-  ticks each field moves on. Directory mode pairs two trace trees by filename.
-- Cosmetic fields (`A`, `BMF`, `BMF2`) get their own exit code, **3**, so the Phase 2 exit
-  criterion's "cosmetic is a tripwire, not a failure" is expressed in the tool rather than in a
-  convention someone has to remember. `--strict` collapses it back to a failure.
-- Proved it before trusting it, which was the point of doing this first:
-  `tools/test_difftrace.py`, **29 cases**. Two are real oracle runs of the same level differing by
-  one keypress (index 60, a shot turned into a left turn), which must be reported at tick 90 as
-  `T.dir 1 -> 4`; the rest are synthetic mutations of a real trace, which is the only way to pin
-  the exact wording — a changed keypress moves half the fields at once.
-- Fault-injected the differ 7 ways (emptied the cosmetic set, swapped the `S`/`T` ranking, disabled
-  grid decoding, disabled first-divergence capture, disabled cell decoding, dropped absent-field
-  handling, dropped length-mismatch detection). **All 7 caught.** Green again after restoring.
-- Corpus scale: `replay_all.py --traces … --field --bmf` twice → **187/187 identical**, 327 MB a
-  side, ~1 s to diff. Poking one playfield cell in one of the 187 is found and localised.
-- Taught `replay_all.py` `--field`/`--bmf` (it wrote hash-only traces before, which Phase 2 cannot
-  bite on) and `--engine EXE`.
-
-**Step 1 — the C# core stood up.**
-- Installed .NET SDK 10.0.400 and Godot 4.7.2 Mono. Godot is *not* needed for Phase 2: the core is
-  a plain class library and the driver is a console app, so the whole trace-diff loop is
-  `dotnet` only.
-- `src/LaserTank.Core` + `src/LaserTank.Cli` → `build/lasertank-core.exe`, taking the oracle's
-  command line and writing the oracle's trace format byte for byte.
-- Ported: `BuildBMField`, `PutLevel`, `GameOn`, `Animate`, the logic-carrying half of
-  `LoadNextLevel`, the `Tick()` frame, and the `SendMessage`/`PostMessage` death split.
-- Two state writes hiding in "paint" functions, both nearly missed and both now carried:
-  `UpDateTank()` clears `TankDirty` (`LTANK2.C:537`) and **`Animate()` ends with
-  `TankDirty = TRUE`** (`LTANK2.C:1161`). Hazard #1's lesson generalises: in this program a
-  function's name tells you nothing about whether it mutates state.
-- Unported functions **throw `NotPortedException`** instead of no-opping. Verified:
-  `replay_all.py --engine build/lasertank-core.exe` stops at the first `MoveTank` with a stack
-  trace rather than emitting a plausible wrong trace.
-- Empty-keystream milestone reached, and then widened: `--keys ""` on **2,347 levels** — all 2030
-  of `data/levels/LaserTank.lvl` plus all 317 quirk-pack levels — is **byte-identical on every
-  one**, with `--field` and `--bmf`, and no `NotPortedException` anywhere (no level in the corpus
-  leaves the tank on water or a conveyor at load). Level 1 was also checked independently of
-  `difftrace.py` with a raw `diff` of everything after line 1: LF-only on both sides, and the only
-  size difference is line 1 itself.
-
-  The sweep is a shell loop, not a tool — Phase 3's fuzzer will generalise it:
-
-  ```bash
-  for i in $(seq 1 2030); do
-    ./oracle/build/oracle.exe  --levels "$L" --level $i --keys "" --trace i0/$i.trace --field --bmf -q
-    ./build/lasertank-core.exe --levels "$L" --level $i --keys "" --trace i1/$i.trace --field --bmf -q
-  done
-  python tools/difftrace.py i0 i1 -q
-  ```
-
-### 2026-09-05 (session 4) — Phase 2 step 2: `CheckLoc` and `MoveObj`
-
-- **`CheckLoc`** (`LTANK2.C:1278`) with `CheckArray` (`:78`), and `wasIce` as a field rather than an
-  `out` parameter. The reason is behavioural, not stylistic: `CheckLoc` returns early on an
-  off-board coordinate **without writing `wasIce`**, so a move blocked at the edge of the board
-  leaves the previous call's value for `MoveTank`'s `if (wasIce)` to read. An `out` parameter
-  cannot express "sometimes I don't write this".
-- **`MoveObj`** (`:1287`) and the closure it drags in — `TranslateTunnel` (`:1164`),
-  `UpDateTankPos` (`:1216`), `UpdateUndo` (`:423`), `ResetUndoBuffer` (`:402`). Quirk #7 is intact:
-  `Game.ScoreMove--` / `UpDateTankPos(0,0)` / `UndoP--` bracket to a net zero, and only because all
-  three are present.
-- **Found a gap in the load path:** `LoadLevel` never called `ResetUndoBuffer`, which
-  `LoadNextLevel` does at `LTANK2.C:1033`. Invisible until now because nothing touched `UndoP`;
-  `MoveObj` decrements it, so it would have started drifting from the second level onward.
-- `WaitToTrans` and `BlackHole` stay globals because the *staleness* is load-bearing:
-  `UpDateTankPos` and `ConvMoveTank` read `WaitToTrans` after a move that was not into a tunnel,
-  where nobody assigned it this tick. `MoveObj` is the only caller that clears it (`else
-  WaitToTrans = FALSE`).
-
-**The honest state of the verification.** The recorded corpus cannot reach either function yet.
-`CheckLoc` is called from `MoveTank`, `IceMoveT`, `IceMoveO`, `CheckLLoc` and the conveyor arm of
-the tick; `MoveObj` only from `CheckLLoc` and `IceMoveO`. All of those are still unported, and no
-corpus level starts the tank on a conveyor, so a `.lpb` replay still stops on tick 1 at the first
-`MoveTank` and `difftrace` reports a 1-tick prefix on all 16 of `game-objects`. **Step 2 is
-verified as "nothing regressed", not as "the new code is right"** — that arrives with `MoveTank`
-in step 3, which is the first thing that makes 54,162 recorded keypresses run through `CheckLoc`.
-What was actually checked:
-
-- Empty-keystream sweep, **2,347/2,347 byte-identical** with `--field --bmf` (2030 flagship + 317
-  quirk levels), so the changed load path and the new code cost nothing on the idle tick.
-- `tools/test_difftrace.py` 29/29, and the oracle corpus still 187 replayed / 181 win / 0
-  unexpected / 112 `.ghs` exact.
-- A mechanical transliteration check over all six functions: strip comments, normalise the
-  substitutions the port is allowed to make, and diff the token streams against `LTANK2.C`. Every
-  remaining difference is accounted for — `private`, return types, `TRUE`/`FALSE`, the `byte` casts
-  C# needs, `ref` unpacking for `TranslateTunnel`'s `int *`, `PF[x][y]` → `PF[x,y]`, two unused C
-  locals (`i` in `TranslateTunnel` and `MoveObj`), and the two unreachable `GlobalReAlloc == NULL`
-  branches. Nothing unexplained. It is a reading aid, not a proof; the trace is the proof.
-- Harness: the CLI now flushes the trace before dying on `NotPortedException` (`# result=NOTPORTED`,
-  exit 4). Before this, a partly-ported engine wrote *nothing* and `difftrace` said `UNUSABLE` —
-  the prefix, which is the whole point of porting one function at a time, was being thrown away.
-
-### 2026-09-05 (session 5) — Phase 2 step 3: `MoveTank`, `AntiTank`
-
-**The corpus is a gate again.** Step 2 closed saying step 3 would be the moment 54,162 recorded
-keypresses start running through `CheckLoc`. That is what happened, but it took two functions, not
-one, and the handoff note was wrong about which:
-
-- `MoveTank` alone moved nothing. `Tick()` runs `AntiTank()` immediately after every consumed key
-  (`LTANK.C:617`), so the very first keypress still ended in `NotPortedException` and all 16
-  `game-objects` recordings stayed at a 1-tick prefix — identical to the step-2 baseline, with only
-  the `keys=` counter moving from 0 to 1. Ported in isolation it is unverifiable.
-- `AntiTank` is portable *before* `FireLaser` because its four scans need nothing but `CheckLoc`,
-  and every `FireLaser` call in it sits behind a match. A recording with no anti-tank lined up on
-  the tank therefore runs straight through it. That is what makes the pair, rather than the whole
-  laser subsystem, the smallest thing that unlocks the corpus.
-
-**Result — 187 recordings, `--field --bmf`: 1 identical, 186 `DIVERGE length mismatch`, zero field
-divergences.** Not one playfield cell, score, tank pose or `BMF` byte differs anywhere in the
-1,041 tick-lines the port now reproduces (of 156,504). Every divergence is the port stopping, and
-every stop is a function that still throws: `FireLaser` 161, `IceMoveT` 20, `ConvMoveTank` 5.
-`Game-Objects-in-LT_0001` — pure movement, no shot — replays end to end and wins.
-
-**`AntiTank` is exercised, not just compiled.** `game-objects/_0007` ("Covering the anti-tanks")
-replays 52 ticks of pure movement and then stops inside `FireLaser` *reached from `AntiTank`*,
-having consumed no fire key at all: the scans found a live anti-tank and tried to shoot. Levels
-13/14 (Ice, Thin ice) stop in `IceMoveT`, which means `MoveTank`'s `if (wasIce)` arm ran and set
-`SlideT` — the two halves of the function are both on the tested path.
-
-Kept verbatim, and worth not "cleaning up" later:
-
-- **`MoveTank` turns without moving.** A key whose direction differs from the tank's sets
-  `Tank.Dir` and returns, spending the keypress and leaving `SlideT` untouched. Only a repeat of
-  the facing direction attempts a move.
-- **`SlideT.dx`/`dy` are written on both arms of every `if`.** A move blocked by a wall still
-  records the direction it was blocked in, and `IceMoveT` reads it later, so a bump is not a no-op.
-- **Quirk #5 is `AntiTank`'s shape**, not a comment on it: right → left → down → up, first match
-  returns. Two anti-tanks on the same row/column and only one fires, chosen by scan order rather
-  than by distance. Tutor level 42 is a level built to test exactly this. The four scans are not a
-  loop over four directions and must not become one.
-- **`AntiTank` writes `wasIce` without ever naming it.** Its scans are `while (CheckLoc(...))`
-  loops, so whichever ran last leaves its final probe in the flag, and `MoveTank`, `IceMoveT`,
-  `IceMoveO` and `ConvMoveTank` all read `wasIce` after their own `CheckLoc`. Quirk #3 reaches
-  further than the three callers hazard #3 lists — noted in "What the C# side looks like now"
-  because it is a trap for step 4 and beyond.
-- The bound checks in `AntiTank` are `x < 16` / `x >= 0`, not a `CheckLoc` result, so a scan that
-  walked off the board is rejected before the `Game.PF` read. `Game.Tank.X != x` rejects the tank
-  standing on the anti-tank's own cell.
-
-Also checked: empty-keystream spot sweep over 202 levels of `LaserTank.lvl` still byte-identical
-with `--field --bmf`. Neither new function is reachable without a consumed key, so this could not
-have regressed — it is a guard against a stray edit, not evidence about the new code.
-
-**Next:** `FireLaser` (161 of the 186 stops), then its closure `CheckLLoc` → `MoveLaser`. Hazard #1
-lands there: `UpDateLaserBounce` is a *paint* routine that sets `LaserBounceOnIce` and makes
-`MoveLaser` `goto LaserMoveJump` for a second step in the same tick (`LTANK2.C:1631`). The oracle
-gets that for free by compiling the original; the C# port will not.
-
-### 2026-09-05 (session 6) — Phase 2 step 4: the laser subsystem
-
-Ported `FireLaser`, `MoveLaser`, `CheckLLoc` and everything they drag in: `KillAtank`, the logic
-half of `UpDateLaserBounce`, `TestIfConvCanMoveTank`, and the six `SlideO`/`SlideMem` stack
-helpers (`Mem_to_SlideO`, `SlideO_to_Mem`, `add_SlideO_to_Mem`, `sub_SlideO_from_Mem`,
-`del_SlideO_from_Mem`). Trace diff after each of the three stages, as the protocol requires:
-
-| after | game-objects (16) | stops in |
-|---|---|---|
-| step 3 | 1 identical, 15 diverge | `FireLaser` |
-| `FireLaser` | 1 identical, 15 diverge — *no tick gain* | `MoveLaser` |
-| `+ CheckLLoc` + helpers | 1 identical, 15 diverge — *no tick gain* | `MoveLaser` |
-| `+ MoveLaser` | **12 identical**, 4 diverge | ice / conveyor |
-
-The first two stages moving nothing is the same shape as step 3's `MoveTank`: `FireLaser` ends by
-calling `MoveLaser`, and `CheckLLoc` is only reachable *from* `MoveLaser`, so neither is
-independently observable. Port them anyway, in that order, and check — a stage that fails to move
-the number is information, and a stage that moves it *unexpectedly* would be a bug.
-
-**Whole corpus: 41 identical, 146 `DIVERGE length mismatch`, zero field divergences.**
-**53.2% of the corpus now replays byte-identically** — 83,219 of 156,504 tick-lines, up from 1,041
-after step 3. Remaining stops: `ConvMoveTank` 59, `IceMoveT` 55, `IceMoveO` 32.
-
-**The `S_Fire` bug — the case for `NotPortedException`, made concrete.** Reading `FireLaser`
-turned up that the step-1 tick frame passes `0` where the oracle passes `S_Fire` (`driver.c:193`,
-`LTANK.C:631`). That argument is not sound-only: `FireLaser` ends with `laser.Good = (sf == 2)`,
-which is how the engine distinguishes the tank's own shot from an anti-tank's (`S_Anti2` = 9).
-The literal `0` had been sitting in the port for three steps and could not be caught, because
-`FireLaser` threw before reading it. A no-op stub would have accepted the call, and the divergence
-would have surfaced much later and much further from its cause. Fixed to the named constant.
-
-**Hazard #1 is written but NOT verified. Do not tick it off.** `UpDateLaserBounce`'s slide scan is
-transliterated and `MoveLaser` keeps the `goto LaserMoveJump`, but the path is provably not
-exercised yet: temporarily swapping `LaserBounceOnIce = true` for a throw and re-running all 187
-recordings fires it **zero times**. It needs a mirror *actively sliding* when the beam deflects off
-it, and the sliding is `IceMoveO`'s, which still throws. Step 5 is where the second-step-in-one-tick
-behaviour gets its first real test — expect it to be the interesting failure, and re-run this probe
-afterwards to confirm the path is genuinely hit rather than merely compiled.
-
-Shapes kept verbatim, worth not tidying later:
-
-- **`CheckLLoc`'s `wasIce` is not about the cell that was hit.** It is set FALSE on entry, then the
-  push arms call `CheckLoc(x+dx, y+dy)` which sets it from the cell the object is being pushed
-  *into*. That is the entire mechanism by which a laser starts an object sliding, and it only reads
-  that way if the `wasIce = FALSE` and the tail `if (wasIce)` stay where they are.
-- **An anti-tank dies only when shot in the face** (`dy == 1` for a down-travelling beam vs. an
-  up-facing A-T, and so on). Shot in the side or the back it is *pushed*, like a block. And it dies
-  into `Obj_Solid`, not dirt — `KillAtank` sets `PF = 4`, so the wreck still blocks the square.
-- **The laser death is `SendMessage`** (quirk #8) — immediate, mid-tick — so a shot can kill the
-  tank in the same tick it was fired, unlike drowning, which is posted.
-- **`del_SlideO_from_Mem`'s trailing `SlideO.s = (count > 0)` runs only when nothing matched.**
-  The `return` inside the loop skips it, leaving `SlideO` holding whatever `sub_SlideO_from_Mem`'s
-  shuffle left there. `sub_SlideO_from_Mem` shuffles *through* `SlideO`, so it clobbers it too —
-  which is why `IceMoveO` reloads from the stack every iteration.
-- **`MoveLaser`'s dead-shot arm carries three separate pieces of tick behaviour**: clearing
-  `Game.Tank.Firing` (what lets the next tick consume a key), `AntiTank()` (an A-T can answer a
-  shot the instant it expires), and `TestIfConvCanMoveTank() -> ConvMoving = TRUE`, MGY's 2002
-  speed-bug handling, which blocks the key consume for one more tick.
-- `MoveLaser`'s `goto` is kept as a `goto`. The label is also where `LaserBounceOnIce` is cleared;
-  a `while` would have to reproduce that ordering anyway.
-- `TestIfConvCanMoveTank` is another `wasIce` writer — four `CheckLoc` calls on the conveyor cases,
-  and none on the default. Same trap as `AntiTank`, noted in step 3.
-
-**Next:** `IceMoveO` / `IceMoveT` (87 of the 146 stops), then `ConvMoveTank` (59). `IceMoveO` is
-where quirk #6 lands — the stack is walked top-down *while being mutated*, and the 16-entry cap is
-silent — and where hazard #1 finally becomes testable.
-
-### 2026-09-05 (session 7) — Phase 2 step 5, and Phase 2 complete
-
-Ported `ConvMoveTank`, then `IceMoveT`, then `IceMoveO`, diffing after each:
-
-| after | game-objects (16) | whole corpus |
-|---|---|---|
-| step 4 | 12 identical | 41 identical, 146 stops |
-| `ConvMoveTank` | 13 identical | — |
-| `+ IceMoveT` | 14 identical | — |
-| `+ IceMoveO` | **16 identical** | **187 identical, 0 diverged** |
-
-**`difftrace.py build/t-oracle build/t-csharp` → 187 compared, 187 identical, 0 cosmetic-only,
-0 diverged, 0 unusable. Exit 0.** With `--field --bmf`: every playfield cell on both layers, both
-bitmap layers, tank pose, laser, both slide records, the whole slide stack and the scores, on all
-156,504 tick-lines. The cosmetic `BMF` tripwire — which the exit criterion *permits* to differ —
-does not differ either.
-
-Independently, driving the C# core through `replay_all.py` reproduces Phase 1's pinned numbers:
-**187 replayed, 181 win, 6 documented non-winners, 0 unexpected, 112/112 `.ghs` exact.** Both the
-6 non-winners and the `.ghs` targets are asserted, so this is a real gate, not a tautology of the
-trace comparison. `test_difftrace.py` 29/29 first, as the harness section requires. Empty-keystream
-sweep still 2,347/2,347.
-
-**Hazard #1 is verified, not just written.** The step-4 probe fired zero times; re-run now it fires
-exactly twice — `Tutor-with-Playbacks_0093` tick 527 and `_0094` tick 206. Level 93 ("One suicidal
-anti-tank") documents the mechanism in its own hint: *"The laser is deflected by three mirrors at
-K8 (**sliding mirror**), K10, N10, and N8."* A paint routine's side effect driving a second beam
-step inside a single tick, on levels built to depend on it. The probe is now written into hazard #1
-as the way to re-check it after any change to the laser or ice code: **it must fire exactly twice.**
-
-Shapes kept verbatim in this step:
-
-- **`ConvMoveTank` is `UpDateTankPos` minus the accounting.** Same move, same tunnel translation,
-  but no `UpdateUndo`, no `ScoreMove++`, no `S_Move` — a tank *carried* by ice or a conveyor does
-  not spend a move. It also never clears `Tank.Good` first (`UpDateTankPos` does), so a tunnel wait
-  survives a ride, and it sets `ConvMoving = TRUE`, which costs the player a tick at the key
-  consume. Two functions that look mergeable and are not.
-- **`savei` in both `IceMoveT` and `IceMoveO` captures `wasIce` before the call that clobbers it.**
-  `ConvMoveTank` ends in `AntiTank()`, and `MoveObj`+`AntiTank` do the same in `IceMoveO`; both
-  overwrite `wasIce` via their `CheckLoc` scans. Read the flag after the call instead of saving it
-  and the slide ends on whatever the anti-tank scan last probed. `savei` is what makes a slide
-  terminate correctly — quirk #3 biting exactly where step 3 predicted it would.
-- **The melt writes different layers in the two functions.** `IceMoveT` turns `PF` to water (the
-  tank has nothing under it); `IceMoveO` turns `PF2` to water (the ice is *under* the sliding
-  object). Irreversible either way — Phase 4's pruning depends on it.
-- **Quirk #6, `IceMoveO`'s loop.** Top-down from `SlideMem.count`, and both arms can call
-  `sub_SlideO_from_Mem`, which decrements `count` and shuffles entries down: the collection is
-  mutated while iterated. Walking top-down is what makes that survive, and MGY's
-  `if (iSlideObj <= SlideMem.count)` guard — comment: *"just in case ..."* — is the seatbelt. Do
-  not rewrite as a filtered list; which object moves next is observable.
-- **`SlideO_to_Mem(i)` immediately followed by `sub_SlideO_from_Mem(i)`** writes a slot the shuffle
-  then overwrites — dead for every `i < count`, live only at `i == count`. Kept.
-- **`IceMoveO`'s tail clears `SlideO` when the stack empties.** `Mem_to_SlideO(0)` passes its own
-  `0 <= count` guard and copies slot 0, which nothing ever writes, so it is still zeroed. Depends
-  on `TICEMEM.Objects` starting zeroed and `LoadLevel` resetting only `count` — which is exactly
-  what the C global does.
-- **`IceMoveO` tests the tank's square separately from `CheckLoc`**, because `CheckLoc` does not
-  know where the tank is; without that test an object slides into the tank.
-
-**Phase 2 is done. `MouseOperation` is the only unported function** — the mouse buffer is empty
-headless (`MB_TOS == MB_SP`), so no keystream reaches it. It still throws. It is a UI entry point,
-Phase 5 work, not game logic.
-
-**Next: Phase 3, differential fuzzing.** 187 recordings are 187 paths; the flagship collection
-alone is 2,030 levels the corpus never touches, and 20,914 across all 13. Random keystreams
-weighted toward fire/turn, both engines, diff, shrink any divergence to a minimal repro. Two things
-worth building into it from the start: the trace comparison is already the oracle, and
-`NotPortedException` proved twice this phase that a loud stop beats a plausible answer — keep
-`MouseOperation` throwing rather than teaching the fuzzer to avoid it.
-
-### 2026-09-05 (session 8) — Phase 3: the fuzzer, and proving it works
-
-Three new tools plus a self-test; nothing in `src/` or `oracle/` changed, and `Engine.cs` is
-byte-identical to where it started.
-
-- **`tools/engines.py`** — run both engines on one input, compare, classify. It *imports*
-  `difftrace.py` rather than reimplementing the comparison, so a sweep verdict and a
-  `difftrace.py` verdict cannot drift apart. Returns a `Div` whose `sig` is the first field that
-  moved, values stripped: `T.dir`, `PF`, `S.moves`, `length`, `NOTPORTED`. That signature is the
-  dedup key *and* what the shrinker holds fixed.
-- **`tools/sweep.py`** — the empty-keystream sweep, out of scratch and into a tool. Bare, it is
-  the documented check: **2,347/2,347 identical** with `--field --bmf`, 49 s.
-- **`tools/fuzz.py`** — the phase. Weighted random keystreams (`--p-fire`, `--p-repeat`), both
-  engines, diff, shrink, one directory per finding.
-- **`tools/test_fuzz.py`** — the reason to believe any of it. **25 passed, 0 failed.**
-
-**Fault injection, and it works.** The two faults the plan named, both caught:
-
-| fault | found | shrunk |
-|---|---|---|
-| `AntiTank` scans reordered | 93 cases, 4 s | 48 → **2** keys: level 765 `dd`, `L.x` at tick 8 |
-| `MoveTank` `SlideT` write moved into the `if` | 2 cases, 2 s | 48 → **2** keys: level 1314 `rr`, `SlT.dx` at tick 2 |
-
-Level 765 is worth looking at, because it is the shape of report the shrinker is for: the tank at
-(4,9) has an anti-tank aligned to its right *and* one aligned above it, so the reorder changes
-which one fires — oracle laser at `5,9 dir 4`, injected core at `4,1 dir 3`. The tank dies either
-way; only the trace tells them apart. Two keys, and the level's ASCII is in the report.
-Level 1314 catches the other fault at the *board edge*: `rr` turns then bumps into the wall at
-x=15, and `CheckLoc` returns off-board without writing `wasIce`, which is quirk #3's exact shape.
-
-**Three things this session got wrong first and fixed, all worth not repeating:**
-
-- **`bash` from Python is WSL's `System32\bash.exe`**, not Git Bash — different filesystem, no
-  gcc, no dotnet, and the failure is an `execvpe` error rather than anything readable.
-  `engines.find_bash()` skips System32 and falls back to the Git for Windows paths; `$LT_BASH`
-  overrides.
-- **Restoring a patched source file with `write_text` rewrites every line ending.** Engine.cs is
-  LF; Python's text mode made it CRLF; `core.autocrlf` made `git diff` show nothing while the
-  file on disk had all 1,362 lines changed. `test_fuzz.py` now patches and restores in bytes, and
-  a green self-test leaves the tree byte-clean.
-- **The quirk packs mix `.lvl` and `.LVL`.** The first campaign's shell glob silently skipped
-  `tutor`, `tutor-with-playbacks`, `rotary-mirrors` and `game-objects` — the four biggest packs,
-  no warning. `sweep.py` had the same latent bug (`glob("*.lvl")` is case-insensitive on Windows
-  and would have dropped four packs on Linux). Both fixed to match `replay_all.py`'s
-  `suffix.lower()`.
-
-**Campaign: 20,626 cases, 3,751,638 tick-lines, 0 divergences** — 24× the recorded corpus's
-156,504 tick-lines. Six keystream shapes over all 2,030 flagship levels and all ten quirk packs.
-141 random keystreams won their level; 10,758 killed the tank.
-
-`fuzz.py` reports **keys consumed, not keys generated** (55%: 890,690 of 1,630,624). The gap is
-the honest limit of this technique: random play is wide but shallow, over half the runs end
-`DEAD`, and level 1 alone needs 149 keypresses to win. That is the case for Phase 4's solver as
-the *complementary* kind of coverage — a solved level is a long, legal, non-random path.
-
-`MouseOperation` still throws and was never reached (`NOTPORTED` 0). Reaching it stays a finding,
-not an obstacle: `engines.compare` classifies a `NOTPORTED` footer as its own signature, and
-`test_fuzz.py` asserts that classification.
-
-Gates at the end of the session, all green: `test_difftrace.py` 29/29, `test_fuzz.py` 25/25,
-`sweep.py` 2,347/2,347, `replay_all.py` on *both* engines 187 replayed / 181 win / 6 documented
-non-winners / 0 unexpected / 112/112 `.ghs` exact.
-
-**Next: more fuzzing (new seeds, the other 12 collections — 18,884 levels the campaign has not
-touched, longer keystreams), and Phase 4.**
-
-### 2026-09-05 (session 9) — Phase 4, layer 0: the search API and the harness
-
-Not the solver — the thing the solver stands on, plus the gate that makes its claims mean
-something. `Engine.cs` changed by exactly one word (`partial`); everything else is new files.
-
-**Measured the bar before building.** The `.ghs` targets say the median level needs 126
-moves+shots and even the median *Kids* level needs 46; only 1,771 of 20,914 are ≤20 total. And
-`ScoreMove` counts moves, not keypresses — `MoveTank` spends a key on a turn and scores nothing
-(`Engine.cs:491`) — so the real search depth is worse than `.ghs` suggests. That killed the
-original "IDA* over keypresses" plan as a whole-corpus strategy on the spot, and is why the Phase 4
-section is now a layer plan.
-
-**Two findings that changed the design, both from reading rather than guessing:**
-
-- **The wait exists, and no human ever used it.** `LTANK.C:616`'s switch has no `default` and
-  `RecP++` runs regardless, so any byte outside the five keys is a legal one-tick wait that still
-  gives the anti-tanks their turn. Histogrammed all 187 `.lpb` — 54,162 bytes, every one of the
-  five keys, zero waits. The "wait" in the tutor hints is free non-quiescent time (conveyor, ice),
-  which needs no byte. Action set is therefore the five keys. While checking this, found that
-  PROGRESS's own "Tick order" section listed `AntiTank()` as an unconditional step 5; it is inside
-  the key-consume `if`. Fixed — that section is labelled "this *is* the spec".
-- **The technique library already exists, curated.** `data/quirks/tutor` is 92 levels with one
-  named trick each ("Moving a dead anti-tank", "Tank-Mover Entry", "Collisions - Tunnel Exit").
-  That is layer 2's operator list, pre-isolated by humans. Conversely, hint-mining is *small*:
-  only 175 of 20,914 hints are recipe-grade, though they concentrate on the hard tiers.
-
-**Two bugs the harness found on itself.** Both are in the Phase 4 section in full; the short form:
-a macro-step is not bounded by anything cheap (level 1491 takes **3,652 ticks for one keypress**,
-riding a conveyor circuit — so `ApplyKey` detects cycles rather than capping ticks), and `Restore`
-rewinding `RecP` while `RecBuffer` stays shared silently corrupted every breadth-first answer
-(IDA* was green the whole time; only the beam's solutions failed to replay). The second was caught
-solely because the harness replays each solution before writing the `.lpb` — a self-check that
-looked redundant when it was written.
-
-**Result: 150 cheapest-by-`.ghs` flagship levels, 110 solved in 20 s wall, 110/110 verified
-through both engines with `--field --bmf`, 73 matching the `.ghs` record exactly.** Kids 81.5%,
-Easy 60.7%, median 1.6× the record. The 40 unsolved: 30 on budget, 5 beam dead-end, 5 IDA* depth —
-which argues for layer 1 (macro-actions), not for a bigger budget.
-
-Gates re-run and green after the change: `replay_all.py` on **both** engines 187/181/6/0 with
-112/112 `.ghs` exact, `test_difftrace.py` 29/29, `sweep.py` 2,347/2,347 identical.
-
-**Next: run the campaign over the real collections, then layer 1.**
-
-### 2026-09-05 (session 10) — the campaign, and Phase 4 layer 1
-
-Layer 1 is built, the whole corpus has been through both layers, and the useful output of the
-session is a negative result with a fix attached.
-
-**The campaign methodology changed first, and that is its own finding.** The first run was
-wall-clock-budgeted (4 s a level) and was thrown away: the gates and the tuning benches were
-running beside it on the same 16 cores, so its budget bought a varying amount of work and its
-per-tier rates were not reproducible. Campaigns are now governed by **`--nodes`, an `ApplyKey`
-count** — equal work, load-independent, comparable between layers — with `--budget-ms` demoted to
-a backstop, and they take a **`--stride`** sample (the corpus at a real budget is ~6 h per layer,
-and the question was per-tier rates, not banked solutions). New: `tools/campaign.sh`,
-`tools/second_pass.sh`, `tools/report_stats.py`.
-
-**Layer 1: `Goto` + `Shoot`, with `Goto` a closure over the engine rather than a grid A*.** That
-choice is the one to keep: a hand-written A* would have to re-derive `MoveTank`'s turn-costs-a-key
-rule, `IceMoveT`, `ConvMoveTank` and `TranslateTunnel`, i.e. become a second implementation of the
-game after four phases spent ensuring there is one. Ice, conveyors, tunnels, pushes and anti-tank
-turns are resolved by being *executed*.
-
-**Three measurements, and the first two were misleading — this is the session's real content.**
-
-- On 60 levels layer 0 failed, layer 1 wins big and stably: 18→28, 23→31, 33→38 at 150k/400k/1M.
-- On 50 deep levels it does not win at all: 12 vs 13, 13 vs 13, and 8–9 for the macro beam alone
-  at *every* parameter setting tried. Parameters are not the lever.
-- On 4,185 real corpus levels it **loses**: 395 → 381 as a first probe, 395 → 354 run last.
-
-The first bench measured a population where the raw beam is 0% by construction, so anything the
-macro beam added was free. The corpus is not that population. **Both portfolio orderings fail for
-the same reason: every node the macro beam spends is a node taken from the beam, and on most
-solvable levels the beam wanted it.** The fix is not a share or an ordering — it is to stop making
-the bet in advance. Layer 1 now ships as a **second pass** over the first campaign's failures
-(`RunMacro` off by default, `--macro` to enable). Composite: **395 → 416, nothing lost.**
-
-**Two things that look like bugs and are not, both measured before being kept.** The beams close a
-state at *generation*, so the width trim is permanent — "fixing" that costs 33→27 on the raw beam
-and 36→30 on the portfolio, because the budget is nodes and over-pruning buys depth. And layer 1's
-large `macro-dead-end` count is a symptom of that policy, not a leak. Both are now `--closed
-generate|expand` with the measured default and the reasoning in `Search.cs`.
-
-**Verification is the strongest artefact here.** 416/416 composite and 381/381 layer-1 solutions
-replay byte-identically through the *unmodified* C oracle and the C# core with `--field --bmf` —
-**797 solver-produced winning recordings, zero divergences**, 280 matching the `.ghs` record
-exactly. Long legal winning paths are coverage random keystreams cannot reach.
-
-Gates green after every change: `replay_all.py` on both engines 187/181/6/0 with 112/112 `.ghs`
-exact, `test_difftrace.py` 29/29, `sweep.py` 2,347/2,347 identical.
-
-`Engine.cs` and `Engine.Search.cs` are **untouched** — `git diff src/LaserTank.Core/` is empty.
-
-**Next: layer 2.** The shape of layer 1's failure is the argument for it. Inside a `Goto` movement
-is exhausted rather than searched, so the beam ranks *board changes* and `WorkDistance` is thin at
-those — a shot beam has to guess which of two hundred available shots matters. The reason to fire
-has to be **derived** (this brick is on the only path), not scored.
-
-### 2026-09-05 (session 11) — Phase 4, layer 2: subgoal decomposition
-
-**Built layer 2 and measured it three ways. It is worth twice layer 1 as a second pass (+40 against
-+21, composite 435 of 4,185) and, like layer 1, it is a net loss as a portfolio member (387 against
-395). The composite that ships runs both passes: 441 (10.5%), 46/46 new solutions verified through
-the unmodified oracle and the core.** All three gates green — `replay_all.py` 187/187 exit 0,
-`test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` and `Engine.Search.cs`
-are untouched; every line of this session is in `src/LaserTank.Solver/`.
-
-**The derivation was wrong the first time, and finding that out is the session's main content.**
-The obvious reading of "relax the world, find what blocks the flag" is: run the priced Dijkstra
-`WorkDistance` already runs, keep the predecessor chain, and call the expensive cells on the
-tank→flag route the obstacles. Built it, added `--sg-trace`, and looked: **62% of expansions derived
-no obstacle at all.** The price list said the flag was a short cheap walk away on levels where the
-tank obviously could not get there. What a price list cannot know is exactly what stops a tank on a
-hard level — an anti-tank covering the cell, thin ice already spent, which mouth a tunnel pairs
-with. So the reachable set stopped being modelled: the movement closure runs first and *records the
-cells it stood on*, and the obstacles are what lies between that executed set and the flag. Same
-idiom as layer 1's Goto, one level up. Obstacle-free expansions: 62% → 23%.
-
-**Then the search had the opposite problem, and the trace found that too.** Accepting only
-successors that advanced a derived obstacle, it died with 95% of the budget unspent — 44 of 50 deep
-levels at `subgoal-dead-end`, 20,810 nodes of 400,000. The cause is structural rather than a tuning
-miss: a subgoal is often two moves away (rotate the mirror, *then* shoot the brick) and the first
-move advances nothing. Hence **slack** — each expansion keeps its best few board-changing
-non-advancing successors as Tier 1 nodes, which the width trim takes only after every real
-advance. Deep bench 6 → 9, budget fully spent, dead-ends 44 → 4.
-
-**Four measured negatives, all kept as flags with their numbers** (deep bench, subgoal beam alone,
-shipped config = 10): `--sg-aim` 2, `--sg-strict` 3, `--sg-closed generate` 6, `--sg-width 12` 8.
-Two of them are worth remembering. The aim filter (cast the tank's ray, fire only when it meets a
-target, a mirror or an anti-tank) is a superset of the shots that *hit a target* and not of the
-shots worth firing — rearranging a non-target block is how the next step becomes possible. And the
-closed-set policy is **not a fact about the game, it is a property of the search**: layer 0's
-600-wide beam gains from closing on generate (33 against 27, session 10), layer 2's 4-wide beam is
-killed by it (10 against 6). So `--sg-closed` exists and defaults to the opposite of `--closed`.
-
-**The process rules from session 10 paid for themselves again.** The bench-1 population (levels
-layer 0 failed) put layer 2 at 29 against layer 1's 28 — indistinguishable. The corpus separated
-them cleanly, in both directions: as a portfolio member layer 2 loses less than layer 1 (387/365
-against 381/354) and still loses; as a second pass it nearly doubles it (+40 against +21). Node
-governance also let the verification gate run *concurrently* with a campaign without invalidating
-it, which wall-clock budgeting would not have.
-
-**What layer 3 is for, from the numbers rather than from the plan.** Layer 0's unsolved levels stop
-on budget 95.9% of the time; layer 2's stop on budget 80.8% and at `subgoal-dead-end` 19.1%. A
-frontier that empties is a different failure from a clock that runs out, and it is the one restarts
-address.
-
-### 2026-09-05 (session 12) — Phase 4, layer 3: restarts
-
-**Instrumented before building, and the instrument chose the design.** Layer 2's brief for this
-layer was a *failure mode*: 19.1% of its failures were `subgoal-dead-end` rather than `budget`.
-Pricing that first, from `l2pass.jsonl`: **717 levels, median 84% of the node budget unspent**, 507
-of them below a third of it — about 90M forfeited `ApplyKey` calls. Then `--sg-trace` over six of
-those levels, which is what stopped the obvious build: their movement closures are **8–18 states**,
-nowhere near the 400 cap, so randomising a truncated closure — the diversifier a restart scheme
-would normally reach for — has nothing to act on. `added = 0` on 81–99% of expansions said the
-search was running almost entirely on slack nodes, so the ranking of *slack* is the arbitrary
-choice, and that is where the jitter went.
-
-**Built:** `src/LaserTank.Solver/Restart.cs` — `SubgoalSearch`, a driver that re-runs the subgoal
-beam while it keeps dying at `subgoal-dead-end` with budget in hand, doubling width and slack each
-time (`--sg-grow`), jittering the ranking key after acceptance (`--sg-noise`), optionally re-seeding
-from the nodes the width trim discarded (`--sg-reuse reserve`). Attempt 0 is layer 2 exactly, so the
-layer is **strictly additive** — checked, not assumed: `--sg-restarts 0` reproduces both benches to
-the level and to the stop breakdown.
-
-**The finding is the table where the same width wins and loses depending on when it is bought.**
-Deep bench: width 4 solves 10, width 8 solves 8, width 16 solves 6 — width up front is a loss.
-Width bought *after* the narrow search has reported failure: 11, and 24 → 28 on bench 1. That is
-the argument for restarts stated as a measurement rather than as a principle.
-
-**The corpus, at layer 2's budget over layer 2's population:** 3,790 levels, 150k nodes. Layer 2
-40, layer 3 **44**, none lost, and `subgoal-dead-end` 717 → 9. The chain that ships is
-l0 → layer 3's subgoal pass (+44) → layer 1's macro pass (+5) = **444 of 4,185 (10.6%)**, against
-the layer-2 chain's 441; +3 levels, 0 lost. **49/49 verified through both engines**, byte-identical.
-
-**The negative result is the more useful half and is written up as such.** The mechanism worked —
-717 levels restarted, the waste is gone — and it bought four levels. Converting an emptied frontier
-into a spent budget mostly does not convert it into a solution: the levels that dead-end are, with
-four exceptions, the same levels that fail on budget. Depth is still the binding constraint. That is
-also the argument recorded against building NRPA here: a policy that learns which successor to pick
-has nothing to learn on expansions that offer none, and layer 4 should be about depth.
-
-**Two designs refuted, both kept as flags with numbers.** Restarting from the discarded-node reserve
-(cheaper, inherits the beam's commitments) loses 43 to 44 on the corpus and 27 to 28 on bench 1.
-Width up front loses as above. And one caveat recorded rather than hidden: `--sg-noise` is
-bench-only evidence (+2 on bench 1, 0 on deep, never separated on the corpus).
-
-**Bench 1 flattered this layer too, for the third time.** It says the win grows with budget
-(+4/+4/+6 at 150k/400k/1M); an unbiased 1-in-3 sample of the pass population at 400k says it holds
-at its 150k relative size (26 → 28). Both agree on the thing that does grow: layer 2's dead-end
-waste, 19.1% of failures at 150k and 26.7% at 400k.
-
-**Gates green:** `replay_all.py` 187 replayed / 181 win / 6 documented non-winners / 0 unexpected,
-`test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` still differs from the
-transliteration by the single word `partial`; `Engine.Search.cs` untouched since layer 0.
-
-### 2026-09-06 (session 13) — Phase 4, layer 4: a learned evaluation
-
-**Instrumented before building, again, and this time the instrument justified the layer instead of
-redesigning it.** The question a learned ranker has to answer before it is worth fitting is not
-"can a model be fit" but "is ranking where the levels are being lost". So the first thing built was
-`RankDump`: replay a winning `.lpb` one key at a time through `Engine.ApplyKey`, run the **shipped**
-`ExpandSubgoal` from each of its shot boundaries, and record every candidate it offers together with
-whether the winner went through it. The recorder is a hook inside `Offer()` (`_collect`), not a
-second copy of the expansion — the `--sg-trace` argument: a look-alike would be free to drift and
-the distribution would then describe the look-alike. It found the six documented non-winners on its
-own, which is the cheapest available check that it replays what it claims to.
-
-**652 recordings → 20,148 groups → 5.9M candidates, and three numbers:** the successor the winner
-used is in the group **97.6%** of the time; `WorkDistance` ranks it **100th of a median 395**; and
-**62.4%** of the time the search calls it *slack* rather than progress. Coverage is therefore not
-the constraint — the closure reaches the right state and the acceptance test admits it — and
-everything is lost in the sort. The beam keeps 4, so it is still on the winner's line one step later
-**10.0%** of the time, and **4.1%** on the human recordings. That third number is the one that ties
-back to layer 3: layer 3 measured that the search *runs* on slack and randomised the pick; this
-says the pick is usually wrong, which is what makes it worth learning rather than jittering.
-
-**Built:** `src/LaserTank.Solver/Learn.cs` — `Feat` (17 board-only features), `Eval` (a fixed-point
-linear score), `Rank()` in place of the two `WorkDistance` calls that were the subgoal beam's sort
-key, and `RankDump`. Plus `Weights.cs` (generated), three published fields on `Heuristic` so the
-features cost no extra Dijkstra, `tools/rankdump.py` and `tools/fit_eval.py`.
-
-**The layer is a ranking change and nothing else, enforced not intended.** `Rank()` is consulted
-only after `Offer()` has decided a successor advanced, so acceptance stays layer 2's board test and
-a model can never admit a state the search refused. Checked the way layer 3 checked itself: the
-seed vector `{work: 1, work_far: 1000, far_man: 1}` **is** `WorkDistance` in these features, and
-`--sg-eval learned` with it reproduces layer 3 with identical keystreams, node counts and stop
-reasons on all 50 deep-bench levels. The `far_man` feature exists only to make that exact.
-
-**Fit as a ranking problem, not a regression, and that is the design decision.** Every state on a
-winning trajectory is a good state, so a cost-to-go fit never sees a bad one. The datum is a
-*group*: one expansion, all its successors, which one was right. Loss is a softmax within the group
-— the metric itself, not a proxy — because the beam keeps four of 395 and what is worth fitting is
-which four. Held out **by recording** (groups from one recording share a board), groups weighted by
-1/(groups from that recording) because two quirk packs supply 16,599 of the 20,148. Held-out top-4:
-13.6% → **18.2%** overall, 5.7% → **10.4%** on human recordings.
-
-**The benches barely moved and were wrong.** Deep 10 → 11, bench 1 28 → 29. The corpus: same 3,790
-layer-0 failures, same 150k nodes, layer 3's pass 44 → layer 4's **69**. Fourth time a bench on
-levels layer 0 failed has misreported a layer, and the first time in the *pessimistic* direction.
-
-**A re-ranking is not additive, unlike a restart, and the chain grew by one pass because of it.**
-Layer 4 run in place of layer 3 solves 69 but loses 3 that layer 3 found — a restart only ever
-spends forfeited budget, a re-ranking is a different search from the first expansion. So layer 4
-follows layer 3 instead of replacing it: l0 (395) → layer 3 (+44) → **layer 4 (+30)** → layer 1's
-macro (+3) = **472 of 4,185, 11.3%**, against 444, **none lost**. **107/107 verified through both
-engines** (74 for the replacement chain, 33 for the shipped one), byte-identical, median 2.1×; one
-`Special-I` solution is 0.2× — five times shorter than the recorded best.
-
-**The feedback half of the plan was run and is a negative result.** Re-dumping with the 74 new
-solutions included (726 trajectories) and refitting takes the pass 69 → 72 — and takes the levels it
-solved *without having seen their solution* from **28 to 14**, while both benches move down. A
-self-trained ranker learns the levels it was fed rather than the game. Round 1 ships; the refit is
-kept as `eval-weights2.txt` with its numbers. The same split is the honest reading of the headline:
-41 of layer 4's 69 are levels whose keystream was in the training set (they are mostly what layers 1
-and 3 had already banked), so **28 is the size of the generalisation** — and the composite gains
-exactly 28.
-
-**Where the ceiling is, measured.** After fitting, the winner's successor is inside the width of 4
-only 10.4% of the time on held-out human recordings. The headroom is not coverage (97.6%) and not
-acceptance; it is all in the sort, and four fifths of it is untouched. That is the brief for
-anything above this layer, stated as a number rather than a hope.
-
-**Not built, deliberately:** hints-as-landmarks (175 of 20,914 hints are recipe-grade — a tail tool
-against a 3,700-level tail) and the restart driver for layer 1's macro pass (still 649
-`macro-dead-end` failures; layer 3's result prices what converting those is worth at about four
-levels).
-
-**Gates green:** `replay_all.py` 187 replayed / 181 win / 6 documented non-winners / 0 unexpected,
-`test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` still differs from the
-transliteration by the single word `partial`; `Engine.Search.cs` untouched since layer 0 — four
-layers now. `build/solutions/l3A` was left in place: the delete was declined by the shell's
-permission layer, and it holds 35 solutions that all exist elsewhere.
+The reasoning behind each phase lives in that phase's section above; this is the changelog, kept
+short on purpose. Where a session's finding is still load-bearing it has been moved to where it
+belongs — traps to *Environment notes*, engine hazards to *Quirk hazards*, measured negatives to
+the layer that measured them — so that nothing here needs reading to work on the project.
+
+**2026-09-05, sessions 1-2 — Phase 1.** Read the source, decoded `.lvl`/`.ghs`/`.lpb` against the
+real files, catalogued the quirk hazards, settled the three-engine architecture, reorganised the
+repo. Then built the oracle on the load-bearing decision that made everything after it possible:
+**stub only the Win32 API and compile `LTANK2.C` verbatim.** Measuring the external surface first
+(`nm -u`, 49 calls and ~12 globals) is what turned it into a bounded job. Result: all 187
+recordings replay, 181 win, 54,162 keypresses, 0 bumps, and 112/112 `Tutor-with-Playbacks` match
+their bundled `.ghs`. Hazard #2 was *corrected* here rather than confirmed — animation is cosmetic
+— which is what makes replays independent of the animation phase at load.
+
+**2026-09-05, sessions 3-7 — Phase 2, the transliteration.** Six steps, each gated on the corpus:
+the differ (`difftrace.py`, self-tested 29 cases, fault-injected 7 ways), then the core stood up,
+then `CheckLoc`/`MoveObj`, then `MoveTank`/`AntiTank`, then the whole laser subsystem, then the ice
+and conveyor movers. Ended **byte-identical to the oracle on all 187 recordings** with
+`--field --bmf`. Two decisions earned their keep repeatedly: unported functions **throw** rather
+than no-op (a stub would have hidden the `FireLaser(..., S_Fire)` bug for three more steps), and
+the exit criterion was always the corpus rather than a spot check.
+
+**2026-09-05, session 8 — Phase 3, the fuzzer.** `engines.py`, `sweep.py`, `fuzz.py` and
+`test_fuzz.py`, with both planned faults injected and caught and shrunk to two keys each. Campaign:
+**20,626 cases, 3,751,638 tick-lines, 0 divergences** — 24x the recorded corpus. The honest limit
+is recorded with it: only 55% of generated keys are ever *consumed*, because random play is wide
+and shallow, which is the argument for Phase 4's solver as the complementary coverage.
+
+**2026-09-05, session 9 — Phase 4, layer 0.** The search API (`Engine.Search.cs`: snapshot/restore,
+`ApplyKey`, `StateHash`), the batch harness, and `verify_solutions.py`. The harness caught two bugs
+in itself, both worth not re-discovering, and both are written up in the layer 0 section: a
+macro-step is not bounded by anything cheap (3,652 ticks for one keypress on a conveyor circuit),
+and `Restore` rewinds `RecP` while `RecBuffer` is one shared array.
+
+**2026-09-05, session 10 — the campaign, and layer 1.** Threw away a wall-clock-budgeted campaign
+and re-ran it node-governed, which is where that rule comes from. Layer 1's macro-actions win on
+levels layer 0 fails and *lose* over the corpus in both orderings, so they ship as a second pass
+rather than a portfolio member — the finding that shaped every layer after it. 395 -> 416.
+
+**2026-09-05, session 11 — layer 2, subgoal decomposition.** Derive what is in the way from the
+*executed* movement closure rather than from the price list; accept on a board test, rank on a
+position test. The modelled first version found no obstacle on 62% of expansions and is kept in the
+write-up as the thing that `--sg-trace` killed. 416 -> 441.
+
+**2026-09-05, session 12 — layer 3, restarts.** Priced the dead-end failure mode before designing
+for it (717 levels, 84% of budget unspent), then found that what recovers a dead-end is *width
+bought after narrow has failed*, not randomness. Strictly additive by construction and checked to
+be. The negative half is the larger half: dead-ends 717 -> 9 bought four levels. 441 -> 444.
+
+**2026-09-06, session 13 — layer 4, a learned evaluation.** Built the instrument first
+(`rankdump.py`), and it authorised the layer rather than redesigning it: the winner's successor is
+in the expansion's output **97.6%** of the time and `WorkDistance` ranks it **100th of 395**, so
+the loss was entirely in the sort. Fit as a ranking problem within a group, not a cost-to-go
+regression. **444 -> 472, none lost.** Two results kept because they are the useful kind: a
+re-ranking is *not* additive the way a restart is (so the chain grew a pass instead of swapping
+one), and feeding the newly solved levels back in **halves what the model discovers** while
+raising its score.
+
+**2026-09-06, session 14 — the handoff itself.** No code. Added the *Start here* block (build,
+gates, one level, the whole chain — every command in it run and verified), turned Phase 5 from a
+seven-line wish list into a plan with exit criteria, and **pruned the file from 2,342 lines to
+~1,650**. What was cut was narrative of completed, verified work whose outcome is stated in its
+phase section — the old Status block was 187 lines duplicating Phases 2-4, and the session log was
+680. What was *kept* is anything a future session could waste time re-discovering, and four such
+facts that lived only in the session log were rehomed first: the WSL-`bash` trap, the
+text-mode line-ending trap and the `.lvl`/`.LVL` case trap to *Environment notes*, the
+`GFXKill` missing parens to *Quirk hazards* as #11, and the 2016-snapshot warning to *Test corpus*.
+Decoded the sprite atlas properly while writing Phase 5 (320×192, a 10×6 grid of 32×32, `BMA`
+row-major from i=1) and verified the `.ltg` header against all three packs, which corrected two
+claims the plan would otherwise have shipped wrong.
