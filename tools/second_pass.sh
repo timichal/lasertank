@@ -5,15 +5,25 @@
 #   tools/second_pass.sh <first-report.jsonl> <out-subdir> <report.jsonl> [args...]
 #
 #   tools/campaign.sh     solutions/l0 build/reports/l0.jsonl --no-macro
-#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l3n \
+#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l34 \
 #                         build/reports/l3n.jsonl --no-ida --no-beam --subgoal
-#   tools/second_pass.sh  build/reports/l3n.jsonl solutions/l3n \
-#                         build/reports/l3pass3.jsonl --no-ida --no-beam --macro --macro-first
+#   tools/second_pass.sh  build/reports/l3n.jsonl solutions/l34 \
+#                         build/reports/l34.jsonl --no-ida --no-beam --subgoal --sg-eval learned
+#   tools/second_pass.sh  build/reports/l34.jsonl solutions/l34 \
+#                         build/reports/l34pass4.jsonl --no-ida --no-beam --macro --macro-first
+#
+# **Three passes now, and the middle one is why the first is still there.**
+# Layer 4 is layer 3 with a learned ranking key, so replacing layer 3's pass
+# with it scores the same 469 -- but it *loses* three levels layer 3 found,
+# because a different ranking is not a strictly better one.  Appending instead
+# costs one more pass over what is left and loses nothing: 444 -> 472.  A
+# restart was additive by construction (Restart.cs); a re-ranking is only
+# additive if you keep the run it re-ranks.
 #
 # --subgoal now carries layer 3 with it: the subgoal beam restarts when it dies
 # of an empty frontier with budget still in hand (--sg-restarts 0 turns that off
-# and gives layer 2 exactly).  That is why the chain is still two passes -- layer
-# 3 *is* layer 2 plus restarts, so it replaces that pass rather than following it.
+# and gives layer 2 exactly).  Layer 3 *is* layer 2 plus restarts, so it replaced
+# that pass rather than following it.  Layer 4 is a different case -- see above.
 #
 # **Why this exists rather than a bigger portfolio.**  Both specialists win
 # decisively on levels the raw beam cannot solve and lose over the corpus as a
@@ -25,10 +35,12 @@
 # and neither pays for the other.
 #
 # Chain them in that order.  Over layer 0's 3,790 failures the subgoal beam with
-# restarts adds 44 and the macro beam then adds 5 more, so the composite is 444
-# of 4,185.  Without restarts those are 40 and 6, composite 441.  See PROGRESS.md,
-# Phase 4 layer 3 -- including why the four levels restarts buy are a smaller
-# result than the 717 dead-ends they eliminate would suggest.
+# restarts adds 44, the same beam ranked by the learned evaluation adds 30 more,
+# and the macro beam then adds 3, so the composite is 472 of 4,185.  Without
+# layer 4 those are 44 and 5, composite 444; without restarts, 40 and 6, 441.
+# See PROGRESS.md, Phase 4 layers 3 and 4 -- including why the four levels
+# restarts buy are a smaller result than the 717 dead-ends they eliminate would
+# suggest, and why 41 of layer 4's 69 are levels its own training set had.
 #
 # Writes into the *same* solutions directory by design -- a level solved by
 # either pass is one solution -- so verify_solutions.py sees the union and the

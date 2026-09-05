@@ -118,6 +118,20 @@ namespace LaserTank.Solver
 "    --sg-reserve N       discarded nodes held for a restart, default 64\n" +
 "    --sg-reserve-depth N ...and how many one depth may add, default 2\n" +
 "\n" +
+"  layer 4 -- a learned evaluation (Learn.cs).  A ranking change and nothing\n" +
+"  else: acceptance stays layer 2's board test and only the order of what\n" +
+"  survived is learned, so a model can never admit a state the search refused\n" +
+"    --sg-eval work|learned   ranking key for the subgoal beam, default work\n" +
+"                         (= layer 3).  The seed weight vector is WorkDistance\n" +
+"                         exactly, so `learned` with it reproduces layer 3\n" +
+"    --eval-weights FILE  one weight per line, in place of the built-in vector\n" +
+"    --rank-dump FILE     instrument, not a solve: replay winning .lpb one key\n" +
+"                         at a time, run the shipped subgoal expansion from\n" +
+"                         each shot boundary, and write one row per candidate\n" +
+"                         with its features and whether the winner went through\n" +
+"                         it.  Needs --lpb-list; --levels names the collection\n" +
+"    --lpb-list FILE      one .lpb path per line, for --rank-dump\n" +
+"\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
 "    --author NAME        .lpb author field, default \"LTSolver\"\n" +
@@ -135,6 +149,7 @@ namespace LaserTank.Solver
             public int Stride = 1;
             public readonly HashSet<int> Difficulty = new HashSet<int>();
             public HashSet<int> Only;      // --levels-list, null when unused
+            public string RankDump, LpbList;
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
@@ -200,6 +215,10 @@ namespace LaserTank.Solver
                         case "--sg-reserve": a.Opt.SgReserve = int.Parse(V()); break;
                         case "--sg-reserve-depth": a.Opt.SgReservePerDepth = int.Parse(V()); break;
                         case "--sg-grow": a.Opt.SgGrow = true; break;
+                        case "--sg-eval": a.Opt.SgLearned = V() == "learned"; break;
+                        case "--eval-weights": a.Opt.Eval = Eval.Load(V()); break;
+                        case "--rank-dump": a.RankDump = V(); break;
+                        case "--lpb-list": a.LpbList = V(); break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
@@ -229,6 +248,8 @@ namespace LaserTank.Solver
                 Console.Error.WriteLine("lasertank-solve: need an existing --levels FILE.lvl");
                 return 2;
             }
+
+            if (a.RankDump != null) return RankDumpAll(a);
 
             string ghsPath = Path.ChangeExtension(a.Levels, ".ghs");
             string collection = Path.GetFileNameWithoutExtension(a.Levels);
@@ -463,6 +484,67 @@ namespace LaserTank.Solver
             return o;
         }
 
+        // ---- layer 4's instrument -------------------------------------------
+
+        /// Replay every .lpb in --lpb-list and dump the ranking groups.
+        ///
+        /// Not a solve, so it shares none of the batch harness: no budget, no
+        /// .lpb written, no report row.  What it produces is a TSV that
+        /// tools/fit_eval.py reads twice -- once for the distribution that says
+        /// whether ranking is the lever at all, and once to fit weights if it is.
+        ///
+        /// The level number comes from the .lpb header, so the pairing is the
+        /// recording's own claim about which level it plays rather than
+        /// something inferred from a filename.
+        private static int RankDumpAll(Args a)
+        {
+            if (a.LpbList == null || !File.Exists(a.LpbList))
+            {
+                Console.Error.WriteLine("lasertank-solve: --rank-dump needs --lpb-list FILE");
+                return 2;
+            }
+            List<string> files = new List<string>();
+            foreach (string line in File.ReadAllLines(a.LpbList))
+            {
+                string t = line.Trim();
+                if (t.Length > 0 && t[0] != '#') files.Add(t);
+            }
+
+            string collection = Path.GetFileNameWithoutExtension(a.Levels);
+            object gate = new object();
+            using StreamWriter w = new StreamWriter(a.RankDump, append: true,
+                                                    new UTF8Encoding(false));
+            int groups = 0, done = 0, skipped = 0;
+
+            Parallel.ForEach(files, new ParallelOptions { MaxDegreeOfParallelism = a.Jobs },
+                             path =>
+            {
+                StringWriter buf = new StringWriter();
+                int g = 0;
+                string err = null;
+                try
+                {
+                    TRECORDREC rec = LevelFile.ReadPlayback(path, out byte[] keys);
+                    Solver s = new Solver(a.Levels, Clone(a.Opt));
+                    g = s.RankDump(rec.Level, keys, buf, collection);
+                }
+                catch (Exception ex) { err = ex.GetType().Name + ": " + ex.Message; }
+
+                lock (gate)
+                {
+                    done++;
+                    groups += g;
+                    if (g == 0) skipped++;
+                    if (err != null) Console.Error.WriteLine(path + ": " + err);
+                    else w.Write(buf.ToString());
+                }
+            });
+
+            Console.WriteLine("{0}: {1} recordings, {2} with no win, {3} groups",
+                              collection, done, skipped, groups);
+            return 0;
+        }
+
         private static SolveOptions Clone(SolveOptions s) => new SolveOptions
         {
             MaxKeys = s.MaxKeys,
@@ -504,6 +586,8 @@ namespace LaserTank.Solver
             SgReserve = s.SgReserve,
             SgReservePerDepth = s.SgReservePerDepth,
             SgGrow = s.SgGrow,
+            SgLearned = s.SgLearned,
+            Eval = s.Eval,
         };
     }
 }

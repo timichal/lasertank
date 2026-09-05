@@ -152,6 +152,23 @@ namespace LaserTank.Solver
         // grown beam wants to re-take those decisions wider.  Over layer 0's
         // 3,790 failures: root 44, reserve 43; on bench-1, 28 against 27.  Off,
         // so nothing is harvested and no snapshots are held.
+        // ---- layer 4: a learned evaluation (Learn.cs) ---------------------
+        //
+        // A ranking change and nothing else.  Acceptance stays layer 2's board
+        // test; Rank() is consulted only after Offer() has settled whether a
+        // successor advanced, so a model can reorder the frontier and can never
+        // admit a state the shipped search refused.  Off is layer 3 exactly --
+        // and so is *on* with the seed weight vector, which is WorkDistance
+        // written in these features: verified, identical keystreams, node
+        // counts and stop reasons on all 50 deep-bench levels.
+        //
+        // Why it is worth the arithmetic: measured against 646 winning
+        // trajectories, the successor the winner used is in the expansion's
+        // group 97.6% of the time and WorkDistance ranks it 100th of a median
+        // 395.  The constraint was never coverage.  See Learn.cs.
+        public bool SgLearned = false;     // rank by the learned evaluation
+        public Eval Eval;                  // null -> Weights.Default
+
         public bool SgReuse = false;       // restart from discarded nodes
         public int SgReserve = 64;         // discarded nodes held for a restart
         public int SgReservePerDepth = 2;  // ...and how many one depth may add
@@ -213,6 +230,7 @@ namespace LaserTank.Solver
         {
             _lvlPath = lvlPath;
             _opt = opt;
+            if (opt.SgLearned) _eval = opt.Eval ?? Eval.Default();
         }
 
         public TLEVEL Level => _e.CurRecData;

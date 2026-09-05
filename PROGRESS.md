@@ -7,8 +7,11 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 4 — **layers 0, 1, 2 and 3 built and measured; the whole corpus has been run through all
-four and every solution verified.** Phase 3's harness is green and its first campaign
+**Phase:** 4 — **layers 0, 1, 2, 3 and 4 built and measured; the whole corpus has been run
+through the shipped chain and every solution verified.** The chain is
+`campaign.sh` (layer 0) -> `second_pass.sh` three times (layer 3's subgoal beam with restarts,
+layer 4's learned ranking, layer 1's macro beam): **472 of the 4,185-level stride sample, 11.3%**,
+against layer 3's 444. Phase 3's harness is green and its first campaign
 found nothing. Phases 1 and 2 are complete. The C reference oracle replays the
 whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
 with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
@@ -510,11 +513,17 @@ nothing else, which is why the plan is layered.
   spends budget that was already forfeit — so it needs no portfolio bet. It is also the smallest
   win: **+4 on the pass, 441 -> 444 composite**, and the section below has the negative result that
   is worth more than the number.
-- **Layer 4 — learning.** The 187 recordings are labelled winning trajectories: fit a small
-  evaluation function over board features and use it to order the beam, then feed every newly
-  solved level back in. Hints as landmarks belongs here too, but it is a *tail* tool and the size
-  is measured: only **175 of 20,914** hints are recipe-grade (≥2 grid references or numbered
-  steps), and they concentrate where search fails — 0.4% of Kids, 3.5% of Hard, 7.3% of Deadly.
+- **Layer 4 — learning.** ☑ Built and measured. A learned evaluation over board features,
+  fit to 20,148 ranking groups taken from 652 winning trajectories, replacing `WorkDistance` as
+  the subgoal beam's *ranking key only*. It is the largest win since layer 2: **+30 on the pass,
+  444 -> 472 composite, none lost**. The measurement that authorised it is worth more than the
+  number — the successor the winner used is in the expansion's output **97.6%** of the time and
+  `WorkDistance` ranks it **100th of 395** — and so is the one that killed the second half of the
+  plan: feeding the newly solved levels back in and refitting *halves* what the model discovers.
+  Hints as landmarks was not built; the size was already measured and says not to — only
+  **175 of 20,914** hints are recipe-grade (>=2 grid references or numbered steps), concentrated
+  where search fails (0.4% of Kids, 3.5% of Hard, 7.3% of Deadly), which is a tail tool against a
+  3,700-level tail.
 
 **Be realistic.** No public automated LaserTank solver solves the full set. The deliverable is a
 solved-count-vs-budget curve, Kids-first ordered by `.ghs` cost, not a promise of 20,914.
@@ -597,31 +606,31 @@ ordered cheapest-by-`.ghs` first.** Layer 0 is the raw-keypress portfolio (IDA* 
 budget. The final column is **layer 2's subgoal beam followed by layer 1's macro beam**, which is
 the composite that ships.
 
-| tier | levels | layer 0 | + layer 1 pass | + layer 2 passes | + layer 3 passes | median ratio |
-|---|---:|---:|---:|---:|---:|---:|
-| Kids | 960 | 303 (31.6%) | 319 (33.2%) | 339 (35.3%) | **341 (35.5%)** | 1.6× |
-| Easy | 2,118 | 84 (4.0%) | 89 (4.2%) | 94 (4.4%) | **95 (4.5%)** | 1.7× |
-| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 7 (0.9%) | **7 (0.9%)** | 1.6× |
-| Hard | 257 | 0 | 0 | 0 | **0** | — |
-| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | 1 (1.8%) | **1 (1.8%)** | — |
-| unrated | 10 | 0 | 0 | 0 | **0** | — |
-| **all** | **4,185** | 395 (9.4%) | 416 (9.9%) | 441 (10.5%) | **444 (10.6%)** | **1.6×** |
+| tier | levels | layer 0 | + layer 1 pass | + layer 2 passes | + layer 3 passes | + layer 4 passes | median ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Kids | 960 | 303 (31.6%) | 319 (33.2%) | 339 (35.3%) | 341 (35.5%) | **359 (37.4%)** | 1.6× |
+| Easy | 2,118 | 84 (4.0%) | 89 (4.2%) | 94 (4.4%) | 95 (4.5%) | **104 (4.9%)** | 1.7× |
+| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 7 (0.9%) | 7 (0.9%) | **8 (1.0%)** | 1.6× |
+| Hard | 257 | 0 | 0 | 0 | 0 | **0** | — |
+| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | 1 (1.8%) | 1 (1.8%) | **1 (1.8%)** | — |
+| unrated | 10 | 0 | 0 | 0 | 0 | **0** | — |
+| **all** | **4,185** | 395 (9.4%) | 416 (9.9%) | 441 (10.5%) | 444 (10.6%) | **472 (11.3%)** | **1.6×** |
 
-| collection | levels | layer 0 | + layer 1 pass | + layer 2 passes | + layer 3 passes |
-|---|---:|---:|---:|---:|---:|
-| `Beginner-I` | 400 | 143 | 150 | 162 | **164** |
-| `Beginner-II` | 276 | 82 | 86 | 90 | **90** |
-| `Challenge-I` | 400 | 39 | 42 | 44 | **44** |
-| `LaserTank` | 406 | 34 | 35 | 38 | **38** |
-| `Challenge-III` | 400 | 31 | 34 | 36 | **36** |
-| `Special-I` | 105 | 19 | 20 | 20 | **20** |
-| `Challenge-II` | 400 | 17 | 18 | 18 | **19** |
-| `Challenge-IV` | 400 | 14 | 15 | 15 | **15** |
-| `Gary-I` | 400 | 7 | 7 | 8 | **8** |
-| `Sokoban-II` | 348 | 4 | 4 | 5 | **5** |
-| `Sokoban-I` | 400 | 3 | 3 | 3 | **3** |
-| `Challenge-V` | 185 | 1 | 1 | 1 | **1** |
-| `Gary-II` | 65 | 1 | 1 | 1 | **1** |
+| collection | levels | layer 0 | + layer 1 pass | + layer 2 passes | + layer 3 passes | + layer 4 passes |
+|---|---:|---:|---:|---:|---:|---:|
+| `Beginner-I` | 400 | 143 | 150 | 162 | 164 | **172** |
+| `Beginner-II` | 276 | 82 | 86 | 90 | 90 | **95** |
+| `Challenge-I` | 400 | 39 | 42 | 44 | 44 | **48** |
+| `LaserTank` | 406 | 34 | 35 | 38 | 38 | **41** |
+| `Challenge-III` | 400 | 31 | 34 | 36 | 36 | **38** |
+| `Special-I` | 105 | 19 | 20 | 20 | 20 | **20** |
+| `Challenge-II` | 400 | 17 | 18 | 18 | 19 | **22** |
+| `Challenge-IV` | 400 | 14 | 15 | 15 | 15 | **16** |
+| `Gary-I` | 400 | 7 | 7 | 8 | 8 | **10** |
+| `Sokoban-II` | 348 | 4 | 4 | 5 | 5 | **5** |
+| `Sokoban-I` | 400 | 3 | 3 | 3 | 3 | **3** |
+| `Challenge-V` | 185 | 1 | 1 | 1 | 1 | **1** |
+| `Gary-II` | 65 | 1 | 1 | 1 | 1 | **1** |
 
 **The unsolved are unsolved on budget, not on structure: 3,636 of layer 0's 3,790 stopped at
 `budget` (95.9%) and only 154 at a beam dead end.** No errors, no `NOTPORTED`, no crashes in
@@ -658,19 +667,34 @@ a `git clean`):
 | `build/reports/l3pass3.jsonl` | layer 1's macro beam over what layer 3 left (+5) |
 | `build/reports/b3-{off,on}.jsonl` | the 400k budget control, 1-in-3 of the pass population |
 | `build/solutions/l3n/<collection>/NNNNN.lpb` | the 49 layer 3's chain found |
+| `build/reports/rank.tsv` | layer 4's instrument, 20,148 groups / 5.9M candidates (484 MB) |
+| `build/reports/rank2.tsv` | the same with the 74 fed back in — the round that lost |
+| `build/reports/l4-fit.txt`, `l4-fit2.txt` | the two fits, held-out top-k for each |
+| `build/reports/eval-weights.txt` | **the shipped vector** (also baked into `Weights.cs`) |
+| `build/reports/eval-weights2.txt` | the refit; measured worse at discovering, kept with its numbers |
+| `build/reports/w-seed.txt` | the WorkDistance-equivalent control vector |
+| `build/reports/l4.jsonl` | layer 4 *replacing* layer 3's pass over the 3,790 (+69, −3) |
+| `build/reports/l4b.jsonl` | the same after the refit (+72, and half the discovery) |
+| `build/reports/l34.jsonl` | **the shipped one** — layer 4 *after* layer 3, over its 3,746 (+30) |
+| `build/reports/l34pass4.jsonl` | layer 1's macro beam over what that left (+3) |
+| `build/solutions/l34/<collection>/NNNNN.lpb` | the 33 layer 4's chain adds |
 
 Regenerate any of it with `tools/campaign.sh` / `tools/second_pass.sh`; read it with
 `tools/report_stats.py` (`--diff` for two layers). The tuning benches are `tools/bench.sh`, one
 labelled configuration over one of the two banked level lists — and its header repeats the warning
-those lists have earned three times over: a bench picks parameters, a campaign decides what ships.
+those lists have earned four times over: a bench picks parameters, a campaign decides what ships.
 `SAMPLE=N` on `second_pass.sh` takes every Nth failure instead of all of them, which is how the
-400k control (`b3-{off,on}.jsonl`, `SAMPLE=3` → 1,268 levels) was measured.
+400k control (`b3-{off,on}.jsonl`, `SAMPLE=3` → 1,268 levels) was measured. Layer 4's dataset is
+`tools/rankdump.py` (instrument) and `tools/fit_eval.py` (bare: the distribution; `--fit`: the
+weights and a regenerated `Weights.cs`) — rebuild after a fit, the vector is compiled in.
 
 **Where this leaves the deliverable.** The Phase 4 promise was "a solved-count-vs-budget curve,
 Kids-first ordered by `.ghs` cost, not a promise of 20,914". At 150k nodes that curve reads:
 **Kids 35%, Easy 4%, everything else ≈ 0**, and the binding constraint is depth, not correctness.
 Layer 3 moves that to Kids 35.5% / Easy 4.5% and does not change the shape, which is itself the
-result: see below.
+result: see below. Layer 4 moves it to **Kids 37.4% / Easy 4.9%** and does not change the shape
+either — but for the first time the reason it does not is *measured* rather than inferred: the
+winning line is inside the beam's width 10% of the time, and the other 90% is where the curve is.
 
 #### Layer 1 — macro-actions  ☑
 
@@ -1069,6 +1093,188 @@ word `partial`, and `Engine.Search.cs` is unchanged since layer 0. Everything ab
 `src/LaserTank.Solver/Restart.cs` (new) plus a `seed` argument on `SubgoalBeam`, `_sgWidth` /
 `_sgSlack` in place of the two options a restart grows, and a `restarts` field in the report.
 
+#### Layer 4 — a learned evaluation  ☑
+
+**The brief was layer 3's result, and the first job was to find out whether a
+better ranking could even matter.** After restarts the subgoal pass fails on
+budget 99.7% of the time, so there is one failure mode left and it is depth.
+Layer 3 also measured *why* more search does not fix it: `added = 0` on nine
+expansions in ten, so almost every frontier node is a Tier 1 slack node, picked
+as the best `--sg-slack` by `WorkDistance`. Layer 3 randomised that pick and
+bought four levels. This layer asks whether the pick is *wrong*.
+
+**The instrument, and it runs inside the shipped expansion.** A winning `.lpb`
+is a keystream, so replaying it one key at a time through `Engine.ApplyKey`
+gives the exact sequence of states a perfect search would have visited. From
+each of its shot boundaries — the shape of state the subgoal beam actually holds
+in its frontier — the *real* `ExpandSubgoal` is run, and every candidate it
+offers is recorded with its board features and with whether the winner in fact
+went through it. `_collect` is a hook in `Offer()`, not a second copy of the
+expansion: the same argument as `--sg-trace`, because a look-alike written to
+observe the search would be free to drift from it and the distribution would
+then be a fact about the look-alike. Off, it is one null check.
+
+**652 recordings, 20,148 groups, 5.9 million candidates** — 187 human `.lpb`
+plus 465 verified solver ones. The instrument found the six documented
+non-winners on its own (`RankDump` returns 0 groups when the trajectory does not
+win), which is the cheapest possible check that it is replaying what it thinks
+it is.
+
+**The distribution, which decided the layer:**
+
+| | all | human recordings | solver solutions |
+|---|---:|---:|---:|
+| groups | 20,148 | 17,055 | 3,093 |
+| candidates per group, p50 | 395 | 399 | 66 |
+| **the winner's successor is in the group** | **97.6%** | 97.4% | 98.4% |
+| ...and the board test calls it *slack*, not progress | **62.4%** | 68.2% | 30.6% |
+| `WorkDistance` rank of it, p50 | **100** | 128 | 6 |
+| ...inside the beam's width of 4 | **10.0%** | **4.1%** | 41.8% |
+
+Three readings, and the first is the one that authorised the layer:
+
+- **Coverage is not the constraint.** The state the winner went through is in
+  the expansion's output 97.6% of the time. The closure reaches it and the
+  acceptance test admits it. Everything that is lost is lost in the sort.
+- **The sort loses it.** `WorkDistance` ranks it 100th of 395; the beam keeps
+  four. So the shipped search is still on the winner's line one step later 10%
+  of the time overall and **4.1% on the human recordings** — which are the hard
+  population, and the one a solver that fails 99.7% on budget is up against.
+- **The right move is usually one the board test does not call progress.**
+  62.4% of the winners' successors are Tier 1 slack nodes. Layer 3 found that
+  the search *runs* on slack; this says the slack pick is usually wrong. That is
+  what makes it worth learning rather than jittering, and it is why the target is
+  the ranking key and nothing else.
+
+**What is fit, and what is deliberately not.** The datum is a *group*, not a
+state: one expansion, every successor it offered, and which of them was right.
+A cost-to-go regression over trajectory states was the obvious alternative and
+is the wrong shape — every state on a winning trajectory is a good state, so a
+model fit to those alone has never seen a bad one and cannot be asked to tell
+them apart. Here the positives and the negatives come out of the same
+expansion, which is exactly the comparison the beam makes. The loss is a
+softmax within the group — the probability the evaluation puts *some* state the
+winner stood on at the front of the sort — because that is the metric, not a
+proxy for it: the beam keeps four of 395, so what is worth fitting is which
+four, not the order of the 391 it will throw away.
+
+Seventeen features (`Feat`), all functions of the *board* and never of the path
+to it — two routes to the same state must score the same or the closed set and
+the ranking disagree about what a state is, which rules out the obvious-looking
+keys-spent and shots-fired. They cost one BFS and one 256-cell scan on top of
+the Dijkstra the search already ran; measured, the learned pass is *cheaper* per
+node than layer 3's (5.8 vs 8.0 µs on bench 1), so the `--budget-ms` backstop is
+not at risk and the node budget is untouched by construction.
+
+**Layer 4 is a ranking change and nothing else, and that is enforced rather than
+intended.** `Rank()` is consulted only after `Offer()` has settled whether a
+successor advanced — the same contract layer 3's jitter has — so acceptance
+stays layer 2's board test and a model can reorder the frontier but can never
+admit a state the shipped search refused. The check that this is true: the seed
+weight vector `{work: 1, work_far: 1000, far_man: 1}` **is** `WorkDistance`
+written in these features, and `--sg-eval learned` with it reproduces layer 3
+exactly — identical keystreams, node counts and stop reasons on all 50
+deep-bench levels. `far_man` exists only so that equivalence can be exact.
+
+**Held out by recording, never by group** — groups from one recording share a
+board and most of a position, so a group-wise split reports a training score and
+calls it held out. Groups are also weighted by 1/(groups from the same
+recording), because two quirk packs supply 16,599 of the 20,148 and without the
+weight the fit is a fit to `Tutor-with-Playbacks`.
+
+| held out, top-4 | `WorkDistance` | learned |
+|---|---:|---:|
+| all (121 recordings) | 13.6% | **18.2%** |
+| human (33) | 5.7% | **10.4%** |
+| solver (88) | 45.6% | **49.5%** |
+
+**The benches barely move, and this time they are the ones that are wrong.**
+Deep 10 → 11 at 400k, bench 1 28 → 29 at 150k. Both banked lists are levels
+layer 0 failed — the population that flattered layers 1 and 2 — and here the
+same bias runs the other way, because a re-ranking pays off over depth and these
+lists are scored one level at a time.
+
+**The campaign, which is the one that counts.** Same 3,790 layer-0 failures,
+same 150,000-node budget, so it is directly comparable with layer 3's pass:
+
+| pass over layer 0's 3,790 failures | solved | `subgoal-dead-end` |
+|---|---:|---:|
+| layer 3 (`--subgoal`) | 44 | 9 |
+| **layer 4 (`--subgoal --sg-eval learned`)** | **69** | 6 |
+
+**69 against 44 — and it is not a superset.** Three of layer 3's are lost, which
+is the structural difference from layer 3 and worth stating plainly: a *restart*
+is additive by construction because it only spends budget already forfeit, and a
+*re-ranking* is not additive at all — it is a different search from the first
+expansion. So layer 4 does not replace layer 3's pass, it follows it:
+
+| pass | adds | composite |
+|---|---:|---|
+| layer 0's campaign | — | 395 (9.4%) |
+| layer 3's subgoal beam with restarts | 44 | 439 (10.5%) |
+| **layer 4's learned ranking over what that left** | **30** | **469 (11.2%)** |
+| layer 1's macro beam over what that left | 3 | **472 (11.3%)** |
+
+Against layer 3's chain that is **+28 and none lost**, at the cost of one extra
+pass over the failures. Replacing layer 3 instead also reaches 469 in two
+passes, so the extra pass buys exactly the three levels a different ranking
+gives up.
+
+| tier | levels | layer 3 chain | layer 4 chain |
+|---|---:|---:|---:|
+| Kids | 960 | 341 (35.5%) | **359 (37.4%)** |
+| Easy | 2,118 | 95 (4.5%) | **104 (4.9%)** |
+| Medium | 784 | 7 (0.9%) | **8 (1.0%)** |
+| Hard | 257 | 0 | **0** |
+| Deadly | 56 | 1 | **1** |
+| **all** | **4,185** | 444 (10.6%) | **472 (11.3%)** |
+
+**107/107 verified through both engines** — the 74 of the replacement chain and
+the 33 of the shipped one — byte-identical traces, WIN on both, median 2.1× the
+`.ghs` record. One `Special-I` solution is 0.2× the record, i.e. five times
+*shorter* than the recorded best.
+
+**Feeding the newly solved levels back in makes it worse, and the way it is
+worse is the interesting part.** That was the other half of the plan, so it was
+run: re-dump with the 74 new solutions included (726 trajectories), refit, and
+re-measure the pass over the same 3,790.
+
+| | pass | levels whose own solution was in the training set | levels it had never seen |
+|---|---:|---:|---:|
+| round 1 — fit on 187 human + 465 solver | 69 | 41 of 49 | **28** |
+| round 2 — fit on 187 human + 539 solver | 72 | 58 of 77 | **14** |
+
+The pass goes up by 3 and the *discovery* halves. Round 2 recalls more of what
+it was shown and generalises less, and both benches move the other way (11 → 10,
+29 → 28). **A self-trained ranker learns the levels it was fed rather than the
+game**, and the total is a worse summary of it than the split is. Round 1 ships;
+the refit is kept as `build/reports/eval-weights2.txt` with its numbers.
+
+Note what that table also says about the leakage in the headline: 41 of layer
+4's 69 are levels whose winning keystream was in the training set — they are
+mostly the ones layer 3 and layer 1's passes had already banked — so **28 is the
+size of the generalisation**, and the composite gains 28 exactly.
+
+**Why linear, and where the ceiling is.** A 17-feature linear model over a
+softmax-in-group loss converges in seconds and moves held-out top-4 from 13.6%
+to 18.2%. It is still wrong four times in five: even after fitting, the winner's
+successor is inside the width of 4 only 10.4% of the time on held-out human
+recordings. The instrument says the headroom is not coverage (97.6%) and not the
+acceptance test — it is entirely in the sort, and 80% of it is still on the
+table. That is the brief for anything above this layer, and it is a measurement
+rather than a hope.
+
+**Hints as landmarks was not built**, and the arithmetic that says not to is in
+the layer-4 plan above: 175 of 20,914 hints are recipe-grade. That is a tail
+tool, and this layer's tail is 3,700 levels wide.
+
+**Layer 4 does not touch the engine either.** `Engine.cs` still differs from
+layer 0 by the single word `partial`, and `Engine.Search.cs` is unchanged since
+layer 0 — four layers now. Everything above is
+`src/LaserTank.Solver/Learn.cs` (new: `Feat`, `Eval`, `RankRow`, `Rank()`,
+`RankDump`), `Weights.cs` (generated), three published fields on `Heuristic`,
+and a `Rank()` call in place of two `WorkDistance` calls in `Subgoal.cs`.
+
 ### Phase 5 — Presentation & features  ☐
 Rendering (`Game.BMP` sprite sheet + `Mask.BMP`; `.ltg` packs in `data/graphics/` — format at
 `LTANK2.C:688`), the 16 WAVs in `original/src/Sounds/`, three zoom levels (`SetGameSize`), level editor, undo,
@@ -1214,6 +1420,11 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    + Shoot, so search depth is shots rather than keypresses
                    Subgoal.cs — layer 2: the obstacles between the closure and
                    the flag, derived; a successor is kept because it cleared one
+                   Restart.cs — layer 3: re-run the subgoal beam when it dies of
+                   an empty frontier with budget in hand, growing width each time
+                   Learn.cs, Weights.cs — layer 4: board features, the learned
+                   evaluation that orders the beam, and the instrument that
+                   dumps one ranking group per shot of a winning recording
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
@@ -1239,6 +1450,13 @@ tools/
                       searcher, into the same solutions dir  <- where layer 1 ships
   report_stats.py   read a campaign .jsonl: per-tier solved rates, per-collection
                       rates, stop-reason breakdown.  --diff compares two layers
+  rankdump.py       layer 4's instrument: replay every winning .lpb and dump the
+                      group of successors the shipped subgoal expansion offered
+                      at each shot boundary, labelled with what the winner did
+  fit_eval.py       read that dump.  Bare, it reports the distribution (is the
+                      right successor even in the group, and where does
+                      WorkDistance rank it); --fit fits the evaluation and
+                      regenerates Weights.cs
   bump_rate.py      classify consumed keys; bumps = desync signature
   dump_level.py     print a .lvl level as ASCII with its hint
   unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1949,3 +2167,81 @@ waste, 19.1% of failures at 150k and 26.7% at 400k.
 **Gates green:** `replay_all.py` 187 replayed / 181 win / 6 documented non-winners / 0 unexpected,
 `test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` still differs from the
 transliteration by the single word `partial`; `Engine.Search.cs` untouched since layer 0.
+
+### 2026-09-06 (session 13) — Phase 4, layer 4: a learned evaluation
+
+**Instrumented before building, again, and this time the instrument justified the layer instead of
+redesigning it.** The question a learned ranker has to answer before it is worth fitting is not
+"can a model be fit" but "is ranking where the levels are being lost". So the first thing built was
+`RankDump`: replay a winning `.lpb` one key at a time through `Engine.ApplyKey`, run the **shipped**
+`ExpandSubgoal` from each of its shot boundaries, and record every candidate it offers together with
+whether the winner went through it. The recorder is a hook inside `Offer()` (`_collect`), not a
+second copy of the expansion — the `--sg-trace` argument: a look-alike would be free to drift and
+the distribution would then describe the look-alike. It found the six documented non-winners on its
+own, which is the cheapest available check that it replays what it claims to.
+
+**652 recordings → 20,148 groups → 5.9M candidates, and three numbers:** the successor the winner
+used is in the group **97.6%** of the time; `WorkDistance` ranks it **100th of a median 395**; and
+**62.4%** of the time the search calls it *slack* rather than progress. Coverage is therefore not
+the constraint — the closure reaches the right state and the acceptance test admits it — and
+everything is lost in the sort. The beam keeps 4, so it is still on the winner's line one step later
+**10.0%** of the time, and **4.1%** on the human recordings. That third number is the one that ties
+back to layer 3: layer 3 measured that the search *runs* on slack and randomised the pick; this
+says the pick is usually wrong, which is what makes it worth learning rather than jittering.
+
+**Built:** `src/LaserTank.Solver/Learn.cs` — `Feat` (17 board-only features), `Eval` (a fixed-point
+linear score), `Rank()` in place of the two `WorkDistance` calls that were the subgoal beam's sort
+key, and `RankDump`. Plus `Weights.cs` (generated), three published fields on `Heuristic` so the
+features cost no extra Dijkstra, `tools/rankdump.py` and `tools/fit_eval.py`.
+
+**The layer is a ranking change and nothing else, enforced not intended.** `Rank()` is consulted
+only after `Offer()` has decided a successor advanced, so acceptance stays layer 2's board test and
+a model can never admit a state the search refused. Checked the way layer 3 checked itself: the
+seed vector `{work: 1, work_far: 1000, far_man: 1}` **is** `WorkDistance` in these features, and
+`--sg-eval learned` with it reproduces layer 3 with identical keystreams, node counts and stop
+reasons on all 50 deep-bench levels. The `far_man` feature exists only to make that exact.
+
+**Fit as a ranking problem, not a regression, and that is the design decision.** Every state on a
+winning trajectory is a good state, so a cost-to-go fit never sees a bad one. The datum is a
+*group*: one expansion, all its successors, which one was right. Loss is a softmax within the group
+— the metric itself, not a proxy — because the beam keeps four of 395 and what is worth fitting is
+which four. Held out **by recording** (groups from one recording share a board), groups weighted by
+1/(groups from that recording) because two quirk packs supply 16,599 of the 20,148. Held-out top-4:
+13.6% → **18.2%** overall, 5.7% → **10.4%** on human recordings.
+
+**The benches barely moved and were wrong.** Deep 10 → 11, bench 1 28 → 29. The corpus: same 3,790
+layer-0 failures, same 150k nodes, layer 3's pass 44 → layer 4's **69**. Fourth time a bench on
+levels layer 0 failed has misreported a layer, and the first time in the *pessimistic* direction.
+
+**A re-ranking is not additive, unlike a restart, and the chain grew by one pass because of it.**
+Layer 4 run in place of layer 3 solves 69 but loses 3 that layer 3 found — a restart only ever
+spends forfeited budget, a re-ranking is a different search from the first expansion. So layer 4
+follows layer 3 instead of replacing it: l0 (395) → layer 3 (+44) → **layer 4 (+30)** → layer 1's
+macro (+3) = **472 of 4,185, 11.3%**, against 444, **none lost**. **107/107 verified through both
+engines** (74 for the replacement chain, 33 for the shipped one), byte-identical, median 2.1×; one
+`Special-I` solution is 0.2× — five times shorter than the recorded best.
+
+**The feedback half of the plan was run and is a negative result.** Re-dumping with the 74 new
+solutions included (726 trajectories) and refitting takes the pass 69 → 72 — and takes the levels it
+solved *without having seen their solution* from **28 to 14**, while both benches move down. A
+self-trained ranker learns the levels it was fed rather than the game. Round 1 ships; the refit is
+kept as `eval-weights2.txt` with its numbers. The same split is the honest reading of the headline:
+41 of layer 4's 69 are levels whose keystream was in the training set (they are mostly what layers 1
+and 3 had already banked), so **28 is the size of the generalisation** — and the composite gains
+exactly 28.
+
+**Where the ceiling is, measured.** After fitting, the winner's successor is inside the width of 4
+only 10.4% of the time on held-out human recordings. The headroom is not coverage (97.6%) and not
+acceptance; it is all in the sort, and four fifths of it is untouched. That is the brief for
+anything above this layer, stated as a number rather than a hope.
+
+**Not built, deliberately:** hints-as-landmarks (175 of 20,914 hints are recipe-grade — a tail tool
+against a 3,700-level tail) and the restart driver for layer 1's macro pass (still 649
+`macro-dead-end` failures; layer 3's result prices what converting those is worth at about four
+levels).
+
+**Gates green:** `replay_all.py` 187 replayed / 181 win / 6 documented non-winners / 0 unexpected,
+`test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` still differs from the
+transliteration by the single word `partial`; `Engine.Search.cs` untouched since layer 0 — four
+layers now. `build/solutions/l3A` was left in place: the delete was declined by the shell's
+permission layer, and it holds 35 solutions that all exist elsewhere.

@@ -13,12 +13,17 @@
 #                      --no-ida --no-beam --subgoal --sg-restarts 0
 #   tools/bench.sh l3  build/reports/deep-levels.txt 400000 \
 #                      --no-ida --no-beam --subgoal
+#   tools/bench.sh l4  build/reports/deep-levels.txt 400000 \
+#                      --no-ida --no-beam --subgoal --sg-eval learned
 #
 # **Read the result knowing what the population is.**  Both lists are levels
 # layer 0 could not solve, which is the population that flattered layer 1 (28
-# against 24 on bench 1, and a corpus loss), flattered layer 2, and overstated
-# layer 3's budget scaling.  A bench here picks *parameters*; only a campaign
-# over the corpus decides whether a layer ships.  See PROGRESS.md, Phase 4.
+# against 24 on bench 1, and a corpus loss), flattered layer 2, overstated layer
+# 3's budget scaling, and *understated* layer 4 -- the learned evaluation is
+# worth +1 here and +30 on the corpus, and the refit that lost a level on both
+# benches gained three on the corpus.  A bench here picks *parameters*; only a
+# campaign over the corpus decides whether a layer ships.  See PROGRESS.md,
+# Phase 4.
 #
 # Node-governed like everything else, so two labels are comparable even if the
 # machine was busy for one of them.  LEVELS overrides the collection.

@@ -36,6 +36,20 @@ namespace LaserTank.Solver
     {
         public const int Unreachable = 1000;
 
+        // ---- layer 4: what the passes below already know ------------------
+        //
+        // A learned evaluation wants more than the one scalar these return, and
+        // re-running the Dijkstra to get it would double the cost of the one
+        // thing the subgoal beam calls once per surviving successor.  So the
+        // numbers that fall out of the existing passes are published instead,
+        // set by the call that produced them and valid until the next call on
+        // this instance.  An instance is per-Solver and a Solver is one level
+        // on one thread, so there is no sharing to get wrong.
+        public int RouteObstacles;      // cells on the WorkDistance route priced
+                                        // above an empty step; -1 if no route
+        public int Component;           // cells in the flag's passable component
+        public bool FlagReachable;      // ...and whether the tank is one of them
+
         private readonly int[] _dist = new int[256];
         private readonly int[] _queue = new int[256];
         private readonly int[] _cost = new int[256];
@@ -71,6 +85,8 @@ namespace LaserTank.Solver
                     if (e.Game.PF[x, y] == Obj.Flag) { fx = x; fy = y; break; }
 
             int tx = e.Game.Tank.X, ty = e.Game.Tank.Y;
+            Component = 0;
+            FlagReachable = true;
             if (fx < 0) return 0;                       // no flag: nothing to steer by
             if (tx == fx && ty == fy) return 0;
 
@@ -97,7 +113,12 @@ namespace LaserTank.Solver
                 }
             }
 
+            int comp = 0;
+            for (int i = 0; i < 256; i++) if (dist[i] >= 0) comp++;
+            Component = comp;
+
             int at = dist[tx * 16 + ty];
+            FlagReachable = at >= 0;
             if (at >= 0) return at;
 
             int man = (tx > fx ? tx - fx : fx - tx) + (ty > fy ? ty - fy : fy - ty);
@@ -157,8 +178,10 @@ namespace LaserTank.Solver
                     if (e.Game.PF[x, y] == Obj.Flag) { fx = x; fy = y; break; }
 
             int tx = e.Game.Tank.X, ty = e.Game.Tank.Y;
+            RouteObstacles = 0;
             if (fx < 0) return 0;
             if (tx == fx && ty == fy) return 0;
+            RouteObstacles = -1;                        // no route, until one settles
 
             int[] cost = _cost;
             for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
@@ -182,7 +205,7 @@ namespace LaserTank.Solver
                 int top = Pop(ref n);
                 int d = top >> 8, c = top & 0xFF;
                 if (d > cost[c]) continue;                  // a stale duplicate
-                if (c == tx * 16 + ty) return d;
+                if (c == tx * 16 + ty) { RouteObstacles = CountOnRoute(e, c); return d; }
 
                 int cx = c >> 4, cy = c & 15;
                 for (int k = 0; k < 4; k++)
@@ -329,6 +352,20 @@ namespace LaserTank.Solver
                 }
             }
             return used;
+        }
+
+        /// How many cells on the settled route cost more than an empty step.
+        ///
+        /// The scalar WorkDistance returns folds "far" and "obstructed" into one
+        /// number -- five bricks in a wall and a forty-step walk both read as
+        /// 20 -- and those are not the same board.  Splitting them is free here
+        /// because the pred chain is already built.
+        private int CountOnRoute(Engine e, int at)
+        {
+            int n = 0;
+            for (int c = at; c >= 0; c = _pred[c])
+                if (Price(e.Game.PF[c >> 4, c & 15]) > 1) n++;
+            return n;
         }
 
         /// The price list, for a caller that needs to ask whether a cell got

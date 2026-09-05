@@ -129,7 +129,7 @@ namespace LaserTank.Solver
                 seen.Add(_e.StateHash());
                 frontier = new List<Node>
                 {
-                    new Node { S = CopyOf(root), G = 0, H = _h.WorkDistance(_e) },
+                    new Node { S = CopyOf(root), G = 0, H = Rank(_h.WorkDistance(_e)) },
                 };
             }
             List<Node> next = new List<Node>();
@@ -202,7 +202,13 @@ namespace LaserTank.Solver
                     _e.Restore(s);
                     _nodes++;
                     StepResult step = _e.ApplyKey(key, _opt.TickCap);
-                    if (step == StepResult.Win) { DrainStep(closure); return true; }
+                    if (step == StepResult.Win)
+                    {
+                        // Layer 4's instrument wants the whole group, and a win
+                        // is the one candidate whose label is not in doubt.
+                        if (Collecting) { CollectRow(0, 0, _e.StateHash()); continue; }
+                        DrainStep(closure); return true;
+                    }
                     if (step != StepResult.Ok) continue;            // dead or spinning
                     if (_e.Game.RecP >= (uint)_opt.MaxKeys) continue;
                     if (!local.Add(_e.StateHash())) continue;
@@ -248,7 +254,11 @@ namespace LaserTank.Solver
                 ulong before = _e.StateHash();
                 _nodes++;
                 StepResult step = _e.ApplyKey(Fire, _opt.TickCap);
-                if (step == StepResult.Win) { DrainStep(closure); return true; }
+                if (step == StepResult.Win)
+                {
+                    if (Collecting) { CollectRow(0, 0, _e.StateHash()); continue; }
+                    DrainStep(closure); return true;
+                }
                 if (step != StepResult.Ok) continue;
                 if (_e.Game.RecP >= (uint)_opt.MaxKeys) continue;
 
@@ -336,6 +346,15 @@ namespace LaserTank.Solver
         {
             int work = cleared || nt == 0 ? -1 : _h.WorkDistance(_e);
             bool advanced = cleared || nt == 0 || (!_opt.SgStrict && work < baseWork);
+            // Layer 4's instrument, and the reason it is a hook here rather
+            // than a second copy of this method: the distribution it reports
+            // has to be a fact about the search that ships, not about a
+            // look-alike free to drift from it.  Off, this is one null check.
+            if (Collecting)
+            {
+                if (work < 0) work = _h.WorkDistance(_e);
+                CollectRow(work, advanced ? 0 : 1, hash);
+            }
             if (!advanced && _sgSlack <= 0) return false;
             if (!Fresh(hash, seen, layer, !_opt.SgCloseOnExpand)) return false;
             if (work < 0) work = _h.WorkDistance(_e);
@@ -347,8 +366,12 @@ namespace LaserTank.Solver
                 // The ranking key, and the jitter goes *here* rather than into
                 // `work` above: `advanced` has already been decided from the
                 // true distance, so layer 3's noise can only ever reorder the
-                // frontier, never change what is admitted to it.
-                H = work + Jitter(),
+                // frontier, never change what is admitted to it.  Layer 4
+                // replaces the key itself the same way and for the same reason
+                // -- Rank() is only ever consulted after `advanced` is settled,
+                // so a learned evaluation can reorder the frontier and can
+                // never widen or narrow what is admitted to it.
+                H = Rank(work) + Jitter(),
                 Hash = hash,
                 Tier = advanced ? 0 : 1,
             };
@@ -450,11 +473,12 @@ namespace LaserTank.Solver
                 EngineSnapshot s = closure[bestAt[i]];
                 _e.Restore(s);
                 ulong h = _e.StateHash();
+                if (Collecting) CollectRow(_h.WorkDistance(_e), 2, h);
                 if (!Fresh(h, seen, layer, !_opt.SgCloseOnExpand)) continue;
                 next.Add(new Node
                 {
                     S = _e.Snapshot(Take()), G = s.KeyLen,
-                    H = _h.WorkDistance(_e) + Jitter(), Hash = h,
+                    H = Rank(_h.WorkDistance(_e)) + Jitter(), Hash = h,
                 });
             }
         }
