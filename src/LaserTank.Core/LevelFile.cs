@@ -77,6 +77,40 @@ namespace LaserTank.Core
             return r;
         }
 
+        /// Write a .lpb: the same 66-byte header, then raw VK bytes.
+        ///
+        /// Byte-for-byte the shape ReadPlayback expects and the shape the 2010
+        /// binary loads, so a solver's output is not a special file format --
+        /// it is a recording, indistinguishable from a human one, replayable by
+        /// the original game and by tools/replay_all.py.  Size is a u16 in the
+        /// header (LTANK.H:105 caps a recording at RecMax = 65500 anyway), so a
+        /// longer keystream is refused here rather than silently truncated.
+        public static void WritePlayback(string path, string levelName, string author,
+                                         int level, byte[] keys)
+        {
+            if (keys.Length > 65500)
+                throw new ArgumentException(
+                    "keystream of " + keys.Length + " exceeds RecMax (65500)", nameof(keys));
+
+            byte[] buf = new byte[TRECORDREC.Size + keys.Length];
+            Fixed(buf, 0, 31, levelName);
+            Fixed(buf, 31, 31, author);
+            buf[62] = (byte)(level & 0xFF); buf[63] = (byte)((level >> 8) & 0xFF);
+            buf[64] = (byte)(keys.Length & 0xFF); buf[65] = (byte)((keys.Length >> 8) & 0xFF);
+            Array.Copy(keys, 0, buf, TRECORDREC.Size, keys.Length);
+            File.WriteAllBytes(path, buf);
+        }
+
+        /// A fixed-width latin-1 field, NUL-padded and NUL-terminated -- one
+        /// byte of the width is reserved for the terminator, as the original's
+        /// char[31] fields are used.
+        private static void Fixed(byte[] into, int off, int len, string s)
+        {
+            byte[] b = Latin1.GetBytes(s ?? "");
+            int n = Math.Min(b.Length, len - 1);
+            Array.Copy(b, 0, into, off, n);
+        }
+
         /// Read a .ghs / .hs: 10-byte records indexed by level - 1.
         public static bool ReadHighScore(string path, int level, out ushort moves, out ushort shots)
         {

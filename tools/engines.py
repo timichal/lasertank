@@ -47,6 +47,10 @@ LEVEL_REC = 576                     # bytes per level record in a .lvl
 RC_WIN, RC_NOTWIN, RC_USAGE, RC_NAME, RC_NOTPORTED = 0, 1, 2, 3, 4
 
 Case = namedtuple("Case", "levels level keys")
+# A recorded/produced playback instead of a literal keystream.  Both engines
+# take --lpb and read the level number out of its 66-byte header, so this is
+# the shape tools/verify_solutions.py needs.
+LpbCase = namedtuple("LpbCase", "levels lpb")
 Run = namedtuple("Run", "rc stdout stderr trace")
 
 # kind: tick | length | result | exit | engine
@@ -102,9 +106,14 @@ def require_engines(oracle=ORACLE, core=CORE):
 def command(exe, case, trace, field=False, bmf=False, max_ticks=None):
     """The exact argv, so a repro can quote something that actually runs."""
     cmd = [str(exe), "--levels", str(case.levels)]
-    if case.level:
-        cmd += ["--level", str(case.level)]
-    cmd += ["--keys", case.keys, "--trace", str(trace)]
+    lpb = getattr(case, "lpb", None)
+    if lpb is not None:
+        cmd += ["--lpb", str(lpb)]
+    else:
+        if case.level:
+            cmd += ["--level", str(case.level)]
+        cmd += ["--keys", case.keys]
+    cmd += ["--trace", str(trace)]
     if field:
         cmd.append("--field")
     if bmf:

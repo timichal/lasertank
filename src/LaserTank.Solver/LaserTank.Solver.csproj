@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Phase 4's solver.  Batch-solves levels in-process and writes each
+       solution as a .lpb; tools/verify_solutions.py then replays every one of
+       them through the *unmodified* oracle and the core, so nothing in here is
+       trusted on its own word. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>lasertank-solve</AssemblyName>
+    <RootNamespace>LaserTank.Solver</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LaserTank.Core\LaserTank.Core.csproj" />
+  </ItemGroup>
+
+</Project>

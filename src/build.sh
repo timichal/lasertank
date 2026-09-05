@@ -3,6 +3,7 @@
 #
 #   src/LaserTank.Core/   the transliteration -- pure C#, no Godot
 #   src/LaserTank.Cli/    the oracle-compatible driver -> build/lasertank-core.exe
+#   src/LaserTank.Solver/ Phase 4's batch solver      -> build/lasertank-solve.exe
 #
 # The .NET SDK is installed machine-wide but is not on this shell's PATH (the
 # winget install updated the machine PATH after the shell started), so find it
@@ -23,4 +24,6 @@ command -v dotnet >/dev/null || { echo "dotnet not found; install Microsoft.DotN
 dotnet publish "$here/LaserTank.Cli/LaserTank.Cli.csproj" \
   -c Release -o "$out" --nologo "$@"
 
-echo "built $out/lasertank-core.exe"
+dotnet publish "$here/LaserTank.Solver/LaserTank.Solver.csproj" -c Release -o "$out" --nologo "$@"
+
+echo "built $out/lasertank-core.exe and $out/lasertank-solve.exe"

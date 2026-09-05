@@ -2,5 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/LaserTank.Cli/LaserTank.Cli.csproj" />
     <Project Path="src/LaserTank.Core/LaserTank.Core.csproj" />
+    <Project Path="src/LaserTank.Solver/LaserTank.Solver.csproj" />
   </Folder>
 </Solution>

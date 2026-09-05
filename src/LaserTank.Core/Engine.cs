@@ -37,7 +37,7 @@ namespace LaserTank.Core
             : base(what + " is not transliterated yet (Phase 2, step 1..n)") { }
     }
 
-    public sealed class Engine
+    public sealed partial class Engine
     {
         // Virtual-key codes the tick loop switches on (LTANK.C:615).
         public const int VK_SPACE = 32, VK_LEFT = 37, VK_UP = 38, VK_RIGHT = 39, VK_DOWN = 40;

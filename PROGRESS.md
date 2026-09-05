@@ -7,7 +7,8 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 3 — **under way and green.** Phases 1 and 2 are complete. The C reference oracle replays the
+**Phase:** 4 — **layer 0 done and verified.** Phase 3's harness is green and its first campaign
+found nothing. Phases 1 and 2 are complete. The C reference oracle replays the
 whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
 with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
 handoff; if you only need the current state, read the step 5 block and "What is still not ported".
@@ -135,9 +136,21 @@ levels plus every quirk pack — **3,751,638 tick-lines compared, 24× the whole
 level by accident, 10,758 killed the tank, 9,727 ran out of keys. `MouseOperation` was never
 reached (`NOTPORTED` 0), which is the expected answer and now a measured one.
 
-**Next action:** keep fuzzing — new seeds, the other 12 collections (18,884 more levels), longer
-keystreams — and start Phase 4. The campaign below is one afternoon; the surface is unbounded and
-free.
+**Phase 4, layer 0 — complete.** The solver's foundation, not the solver. `Engine.cs` gained one
+word (`partial`); `Engine.Search.cs` adds snapshot/restore, `ApplyKey` (one keypress, then tick to
+quiescence) and `StateHash`. `build/lasertank-solve.exe` batch-solves levels with a beam + IDA*
+portfolio and writes each solution as a **`.lpb`** — a real recording, playable in the 2010 binary.
+`tools/verify_solutions.py` replays every one through the *unmodified* oracle and the core.
+
+**First numbers.** 150 cheapest-by-`.ghs` flagship levels: 110 solved in 20 s (Kids 81.5%, Easy
+60.7%). `Beginner-I`'s 400 cheapest: **384 solved in 12 s**. Every solution verified —
+**494/494 byte-identical on both engines, 405 matching the `.ghs` record exactly**, median 1.6× the
+record's keypresses. See the Phase 4 section for the measured bar, the layer plan above this one,
+and the two bugs the self-check caught.
+
+**Next action:** run the campaign over the real collections (`lasertank-solve.exe` is resumable —
+it skips a level whose `.lpb` exists), then build layer 1 (macro-actions: `Goto` + `Shoot` instead
+of raw keys). Keep fuzzing in parallel — new seeds, the other 12 collections, longer keystreams.
 **Blocked on:** nothing.
 
 **What is still not ported:** `MouseOperation` only. The mouse buffer is empty headless
@@ -429,16 +442,95 @@ half, and `fuzz.py` reports both.
   Phase 4's solver being the *other* kind of coverage rather than a nice-to-have: a solved level is
   a long, legal, non-random path through the engine.
 
-### Phase 4 — Solver  ☐
-Search over **macro-steps**: one keypress, then tick until quiescent (condition at `LTANK.C:613`).
-Deterministic, branching factor 5.
-Canonical state = `PF` + `PF2` + tank pose + slide stack. Ice melt and brick destruction are
-irreversible → strong pruning. IDA* with distance-to-flag heuristic.
+### Phase 4 — Solver  ◐ (layer 0 done: search API, batch harness, two-engine verification)
 
-**Be realistic:** level 1's global best is 103 moves + 46 shots = 149 keypresses. Exhaustive search
-will not reach that. Expect the short levels to fall and the long ones to time out — likely a few
-hundred of 20,914, not all. Every solved level gets cross-run through the oracle *and* compared to
-its `.ghs` target.
+**The bar, measured before building anything.** Best-known solution cost from the 13 `.ghs` files,
+by the difficulty rating in each level record:
+
+| tier | levels | `.ghs` moves+shots p10 / p50 / p90 | median pushables |
+|---|---:|---|---:|
+| Kids | 4,720 | 7 / **46** / 215 | 12 |
+| Easy | 10,572 | 34 / **122** / 607 | 19 |
+| Medium | 4,058 | 68 / 265 / 1204 | 22 |
+| Hard | 1,233 | 124 / 403 / 1353 | 20 |
+| Deadly | 289 | 225 / 610 / 2169 | 21 |
+
+Only 1,771 of 20,914 levels have a best-known total ≤20, and 4,750 ≤50. Eleven levels in the whole
+corpus contain no block, ice, mirror, conveyor, anti-tank or tunnel. **Kids is not a shallow tier,
+it is a small-branching one.** And keypresses are *worse* than these numbers: `ScoreMove` only
+increments in `UpDateTankPos` (`Engine.cs:495`) while `MoveTank` spends a whole keypress on a turn
+without scoring (`Engine.cs:491`), so "103 moves + 46 shots = 149 keypresses" is a lower bound —
+add one key per direction change. A keypress-level exhaustive search reaches the ≤20 bucket and
+nothing else, which is why the plan is layered.
+
+**The plan.** Layer 0 is built (below). Above it:
+
+- **Layer 1 — macro-actions.** `Goto(x,y,dir)` by A* over tank movement plus `Shoot`, instead of
+  raw keys. Depth drops 3–5×; branching rises to "reachable firing poses".
+- **Layer 2 — subgoal decomposition.** Relax the world, find what blocks the flag, ask per obstacle
+  how it is removed (shoot the brick, push the block into water, redirect via mirror). Each subgoal
+  is a *shallow* search, which is how a 400-key solution becomes reachable. The operator library is
+  already curated and does not have to be mined: **`data/quirks/tutor` is 92 levels, one named
+  technique each** — "Climbing on things", "Moving a dead anti-tank", "Tank-Mover Entry" (the first
+  square is skipped), "Collisions - Tunnel Exit", "Pass the anti-tanks". The pack this port already
+  uses as its quirk spec is also its technique spec.
+- **Layer 3 — portfolio and restarts.** Beam and IDA* already; NRPA / nested Monte-Carlo for the
+  levels beam gets stuck on.
+- **Layer 4 — learning.** The 187 recordings are labelled winning trajectories: fit a small
+  evaluation function over board features and use it to order the beam, then feed every newly
+  solved level back in. Hints as landmarks belongs here too, but it is a *tail* tool and the size
+  is measured: only **175 of 20,914** hints are recipe-grade (≥2 grid references or numbered
+  steps), and they concentrate where search fails — 0.4% of Kids, 3.5% of Hard, 7.3% of Deadly.
+
+**Be realistic.** No public automated LaserTank solver solves the full set. The deliverable is a
+solved-count-vs-budget curve, Kids-first ordered by `.ghs` cost, not a promise of 20,914.
+
+#### Layer 0 — the search API and the harness  ☑
+
+`Engine.cs` gained exactly one word (`partial`). Everything else is additive:
+
+- **`src/LaserTank.Core/Engine.Search.cs`** — `Snapshot`/`Restore` of the whole mutable engine,
+  `ApplyKey` (one keypress, then tick to quiescence), `StateHash` for a transposition table, and
+  `ActionKeys`. The rule is **restore everything, hash a subset**: staleness is load-bearing here
+  (`wasIce`, quirk #3; `WaitToTrans`), so the hash keeps them while dropping `BMF`, the counters
+  and the path.
+- **`src/LaserTank.Solver/`** → `build/lasertank-solve.exe`. Weighted beam + IDA* over macro-steps,
+  a flag-distance heuristic, the trimmer, and a parallel batch harness that writes each solution as
+  a **`.lpb`** — a real recording, playable in the 2010 binary, not a private format.
+- **`tools/verify_solutions.py`** — replays every produced `.lpb` through the *unmodified* oracle
+  and the core with `--field --bmf` and requires WIN on both plus byte-identical traces.
+
+Two bugs the harness found on itself, both worth not re-discovering:
+
+- **A macro-step is not bounded by anything cheap.** Level 1491 ("Grand Prix 2", hint: *"get on the
+  conveyor and watch"*) takes **3,652 ticks for one keypress** — the tank rides a closed conveyor
+  circuit around the whole board. A 512-tick cap called that a hang and threw the level away.
+  `ApplyKey` now detects *cycles* (sampled state hashes, started only after 256 ticks so the common
+  case pays nothing) and keeps the tick cap only as a backstop. Genuine eternal cycles exist and
+  must stay reportable: Tutor 43 is literally "Smallest eternal cycle".
+- **`Restore` rewinds `RecP` but the keystream is one shared array.** A breadth-first search then
+  silently corrupts its own answers: siblings overwrite each other's keys and the winning node
+  reports whichever prefix was written last. A depth-first search never notices — IDA* was green
+  while every beam solution failed to replay. The snapshot now carries its key prefix. Caught only
+  because the harness replays each solution before writing it; that self-check earns its place.
+
+**First numbers** (the 150 cheapest-by-`.ghs` levels of `LaserTank.lvl`, 3 s and 400k macro-steps
+per level, 8 workers, 20 s wall):
+
+| tier | attempted | solved | median keypresses / record |
+|---|---:|---:|---:|
+| Kids | 81 | 66 (81.5%) | 1.6× |
+| Easy | 61 | 37 (60.7%) | 1.6× |
+| Medium | 8 | 7 | 1.6× |
+
+**110/110 verified through both engines**, byte-identical traces, and **73 of them match the
+`.ghs` record exactly**. The 40 unsolved stopped on budget (30), a beam dead end (5) or the IDA*
+depth cap (5) — that breakdown is the argument for layer 1 rather than for a bigger budget.
+
+A second, larger sample on the easiest collection: **`Beginner-I.lvl`, 400 cheapest levels, 2.5 s
+each, 12 workers — 384 solved in 12 s wall, 384/384 verified, 332 matching the record exactly**,
+median 1.6×, exactly one solution over 10× (10.4×, and the trimmer could not shorten it). Verifying
+all 384 through both engines takes 11 s, so the gate is cheap enough to run on every campaign.
 
 ### Phase 5 — Presentation & features  ☐
 Rendering (`Game.BMP` sprite sheet + `Mask.BMP`; `.ltg` packs in `data/graphics/` — format at
@@ -463,11 +555,25 @@ record/playback UI, high scores, `language.dat` i18n, and read/write compat for 
 2. `MoveLaser()` if `Game.Tank.Firing`
 3. Playback pacing / `PBHold`
 4. Consume **one** key from `RecBuffer` if `!(Firing || ConvMoving || SlideO.s || SlideT.s || PBHold)`
-5. `AntiTank()`
-6. `IceMoveO()` then `IceMoveT()`
-7. `ConvMoving = FALSE`, then conveyor / flag / water check on tank's cell
-8. Mouse buffer
-9. Repaint tank
+   — **and, inside that same `if`, `AntiTank()`.** Anti-tanks act only on ticks where a key was
+   consumed; on a tick with no key they do not play. (Earlier revisions of this list showed
+   `AntiTank()` as an unconditional step 5, which is wrong and matters for the solver: it is why a
+   "wait" is not free. `Engine.cs:1309` and `oracle/driver.c` both have it right.)
+5. `IceMoveO()` then `IceMoveT()`
+6. `ConvMoving = FALSE`, then conveyor / flag / water check on tank's cell
+7. Mouse buffer
+8. Repaint tank
+
+**The wait.** The switch at `LTANK.C:616` has no `default`, and `Game.RecP++` runs regardless — so
+any recorded byte outside {32, 37, 38, 39, 40} is a legal one-tick **wait** that still gives the
+anti-tanks their turn, and `AddKBuff` (`LTANK2.C:256`) filters nothing, so a human pressing any
+other key records one. **No human ever did:** all 54,162 bytes of all 187 `.lpb` are those five
+keys, zero exceptions. The "wait" the tutor hints describe (level 4 *"Move up, wait"*, level 14
+*"Wait 11 seconds"*) is a different thing — it is *free* time while the world is non-quiescent
+(riding a conveyor, sliding on ice), during which no key is consumed and no byte is needed. So the
+solver's action set is the five keys, matching the recordings. Note that neither engine's `--keys`
+parser can express a wait anyway (both accept only `u d l r f`); if that ever changes, both change
+together and the corpus gets re-run.
 
 ---
 
@@ -561,9 +667,12 @@ oracle/     the C reference oracle — see oracle/README.md
   win32_stub.c  real memory/files/messages, no-op GDI
   driver.c    LTANK.C globals + window proc + the WM_TIMER tick loop + tracing
   build.sh    gcc -x c -I stub -I original/src
-src/        the C# port                       build.sh -> build/lasertank-core.exe
+src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank-solve.exe
   LaserTank.Core/  Objects.cs GameState.cs LevelFile.cs Engine.cs  (no Godot here)
+                   Engine.Search.cs — snapshot/restore, ApplyKey, StateHash (Phase 4)
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
+  LaserTank.Solver/ Search.cs Heuristic.cs Trim.cs Report.cs Program.cs — the batch
+                   solver; writes .lpb, never trusted without verify_solutions.py
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
@@ -579,6 +688,8 @@ tools/
                       to level + shortest keystream   <- the Phase 3 gate
   test_fuzz.py      self-test for fuzz.py: injects known faults into the C# core,
                       rebuilds, and fails unless the fuzzer finds and shrinks them
+  verify_solutions.py replay every solver .lpb through BOTH engines: WIN on each,
+                      byte-identical traces, and the ratio to the .ghs record
   bump_rate.py      classify consumed keys; bumps = desync signature
   dump_level.py     print a .lvl level as ASCII with its hint
   unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1091,3 +1202,47 @@ non-winners / 0 unexpected / 112/112 `.ghs` exact.
 
 **Next: more fuzzing (new seeds, the other 12 collections — 18,884 levels the campaign has not
 touched, longer keystreams), and Phase 4.**
+
+### 2026-09-05 (session 9) — Phase 4, layer 0: the search API and the harness
+
+Not the solver — the thing the solver stands on, plus the gate that makes its claims mean
+something. `Engine.cs` changed by exactly one word (`partial`); everything else is new files.
+
+**Measured the bar before building.** The `.ghs` targets say the median level needs 126
+moves+shots and even the median *Kids* level needs 46; only 1,771 of 20,914 are ≤20 total. And
+`ScoreMove` counts moves, not keypresses — `MoveTank` spends a key on a turn and scores nothing
+(`Engine.cs:491`) — so the real search depth is worse than `.ghs` suggests. That killed the
+original "IDA* over keypresses" plan as a whole-corpus strategy on the spot, and is why the Phase 4
+section is now a layer plan.
+
+**Two findings that changed the design, both from reading rather than guessing:**
+
+- **The wait exists, and no human ever used it.** `LTANK.C:616`'s switch has no `default` and
+  `RecP++` runs regardless, so any byte outside the five keys is a legal one-tick wait that still
+  gives the anti-tanks their turn. Histogrammed all 187 `.lpb` — 54,162 bytes, every one of the
+  five keys, zero waits. The "wait" in the tutor hints is free non-quiescent time (conveyor, ice),
+  which needs no byte. Action set is therefore the five keys. While checking this, found that
+  PROGRESS's own "Tick order" section listed `AntiTank()` as an unconditional step 5; it is inside
+  the key-consume `if`. Fixed — that section is labelled "this *is* the spec".
+- **The technique library already exists, curated.** `data/quirks/tutor` is 92 levels with one
+  named trick each ("Moving a dead anti-tank", "Tank-Mover Entry", "Collisions - Tunnel Exit").
+  That is layer 2's operator list, pre-isolated by humans. Conversely, hint-mining is *small*:
+  only 175 of 20,914 hints are recipe-grade, though they concentrate on the hard tiers.
+
+**Two bugs the harness found on itself.** Both are in the Phase 4 section in full; the short form:
+a macro-step is not bounded by anything cheap (level 1491 takes **3,652 ticks for one keypress**,
+riding a conveyor circuit — so `ApplyKey` detects cycles rather than capping ticks), and `Restore`
+rewinding `RecP` while `RecBuffer` stays shared silently corrupted every breadth-first answer
+(IDA* was green the whole time; only the beam's solutions failed to replay). The second was caught
+solely because the harness replays each solution before writing the `.lpb` — a self-check that
+looked redundant when it was written.
+
+**Result: 150 cheapest-by-`.ghs` flagship levels, 110 solved in 20 s wall, 110/110 verified
+through both engines with `--field --bmf`, 73 matching the `.ghs` record exactly.** Kids 81.5%,
+Easy 60.7%, median 1.6× the record. The 40 unsolved: 30 on budget, 5 beam dead-end, 5 IDA* depth —
+which argues for layer 1 (macro-actions), not for a bigger budget.
+
+Gates re-run and green after the change: `replay_all.py` on **both** engines 187/181/6/0 with
+112/112 `.ghs` exact, `test_difftrace.py` 29/29, `sweep.py` 2,347/2,347 identical.
+
+**Next: run the campaign over the real collections, then layer 1.**
