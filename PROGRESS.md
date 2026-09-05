@@ -7,8 +7,8 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Status
 
-**Phase:** 4 — **layer 1 built and measured; the whole corpus has been run through both
-layers and every solution verified.** Phase 3's harness is green and its first campaign
+**Phase:** 4 — **layers 0, 1 and 2 built and measured; the whole corpus has been run through all
+three and every solution verified.** Phase 3's harness is green and its first campaign
 found nothing. Phases 1 and 2 are complete. The C reference oracle replays the
 whole recorded corpus, and the C# core now traces **byte-identically to it on all 187 recordings**
 with `--field --bmf`. The step-by-step history below is kept because each step's reasoning is the
@@ -175,10 +175,12 @@ budget bought a varying amount of work. `tools/campaign.sh` takes `--nodes` (equ
 load-independent, comparable between layers) and demotes `--budget-ms` to a backstop;
 `tools/report_stats.py` reads a report and `--diff`s two.
 
-**Next action:** layer 2 — subgoal decomposition, which is what layer 1's measurement argues for
-(the reason to fire has to be derived, not scored). `data/quirks/tutor` is the operator library,
-92 levels with one named technique each. Keep fuzzing in parallel — new seeds, the other 12
-collections, longer keystreams. **Blocked on:** nothing.
+**Next action:** layer 3 — portfolio and restarts. Layer 2's campaign says where the budget now
+goes: 81% of its unsolved levels stop on budget but **19% stop at `subgoal-dead-end`**, a frontier
+that emptied rather than a search that ran out of time, and no width or share fixes that (measured).
+That is a restart problem — NRPA / nested Monte-Carlo, or a randomised re-run of the same beam —
+not a heuristic one. Keep fuzzing in parallel — new seeds, the other 12 collections, longer
+keystreams. **Blocked on:** nothing.
 
 **What is still not ported:** `MouseOperation` only. The mouse buffer is empty headless
 (`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it.
@@ -469,7 +471,7 @@ half, and `fuzz.py` reports both.
   Phase 4's solver being the *other* kind of coverage rather than a nice-to-have: a solved level is
   a long, legal, non-random path through the engine.
 
-### Phase 4 — Solver  ◐ (layers 0 and 1 done; whole corpus run and verified)
+### Phase 4 — Solver  ◐ (layers 0, 1 and 2 done; whole corpus run and verified)
 
 **The bar, measured before building anything.** Best-known solution cost from the 13 `.ghs` files,
 by the difficulty rating in each level record:
@@ -496,13 +498,12 @@ nothing else, which is why the plan is layered.
   the engine*, not a grid A* — plus `Shoot`, so depth becomes the shot count. It wins on shallow
   branchy levels and loses on deep ones; the numbers and the reason are below, and the reason is
   the argument for layer 2.
-- **Layer 2 — subgoal decomposition.** Relax the world, find what blocks the flag, ask per obstacle
-  how it is removed (shoot the brick, push the block into water, redirect via mirror). Each subgoal
-  is a *shallow* search, which is how a 400-key solution becomes reachable. The operator library is
-  already curated and does not have to be mined: **`data/quirks/tutor` is 92 levels, one named
-  technique each** — "Climbing on things", "Moving a dead anti-tank", "Tank-Mover Entry" (the first
-  square is skipped), "Collisions - Tunnel Exit", "Pass the anti-tanks". The pack this port already
-  uses as its quirk spec is also its technique spec.
+- **Layer 2 — subgoal decomposition.** ☑ Built and measured. Find what blocks the flag, and accept
+  a move because it removed one of those things rather than because a heuristic went down. The
+  obstacles are derived from the *executed* movement closure, not from a model — the section below
+  has the version that used a model instead, and the measurement that killed it. **As a second pass
+  it is worth roughly twice layer 1: +40 against +21**, and the two are complementary (441 together).
+  As a portfolio member it loses, for the same structural reason layer 1 does.
 - **Layer 3 — portfolio and restarts.** Beam and IDA* already; NRPA / nested Monte-Carlo for the
   levels beam gets stuck on.
 - **Layer 4 — learning.** The 187 recordings are labelled winning trajectories: fit a small
@@ -586,36 +587,37 @@ level where the unbiased stride sample reports **16 shots against 27 moves, with
 shot at all**. A truncated cheapest-first run is not a sample of the collection, and any number
 taken from one is wrong in a direction that flatters the solver.
 
-**150,000 `ApplyKey` calls per level, every 5th level of all 13 collections — 4,185 levels — 7
-workers, ordered cheapest-by-`.ghs` first.** Layer 0 is the raw-keypress portfolio (IDA* + beam);
-"+ pass 2" is that campaign followed by `tools/second_pass.sh` re-attacking its 3,790 failures
-with the macro beam at the same budget.
+**150,000 `ApplyKey` calls per level, every 5th level of all 13 collections — 4,185 levels —
+ordered cheapest-by-`.ghs` first.** Layer 0 is the raw-keypress portfolio (IDA* + beam); each
+"+ pass" is `tools/second_pass.sh` re-attacking the levels the previous column failed, at the same
+budget. The final column is **layer 2's subgoal beam followed by layer 1's macro beam**, which is
+the composite that ships.
 
-| tier | levels | layer 0 | + pass 2 | median ratio |
+| tier | levels | layer 0 | + layer 1 pass | + layer 2 passes | median ratio |
+|---|---:|---:|---:|---:|---:|
+| Kids | 960 | 303 (31.6%) | 319 (33.2%) | **339 (35.3%)** | 1.6× |
+| Easy | 2,118 | 84 (4.0%) | 89 (4.2%) | **94 (4.4%)** | 1.7× |
+| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 7 (0.9%) | 1.6× |
+| Hard | 257 | 0 | 0 | 0 | — |
+| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | 1 (1.8%) | — |
+| unrated | 10 | 0 | 0 | 0 | — |
+| **all** | **4,185** | 395 (9.4%) | 416 (9.9%) | **441 (10.5%)** | **1.6×** |
+
+| collection | levels | layer 0 | + layer 1 pass | + layer 2 passes |
 |---|---:|---:|---:|---:|
-| Kids | 960 | 303 (31.6%) | **319 (33.2%)** | 1.6× |
-| Easy | 2,118 | 84 (4.0%) | **89 (4.2%)** | 1.6× |
-| Medium | 784 | 7 (0.9%) | 7 (0.9%) | 1.6× |
-| Hard | 257 | 0 | 0 | — |
-| Deadly | 56 | 1 (1.8%) | 1 (1.8%) | — |
-| unrated | 10 | 0 | 0 | — |
-| **all** | **4,185** | 395 (9.4%) | **416 (9.9%)** | **1.6×** |
-
-| collection | levels | layer 0 | + pass 2 |
-|---|---:|---:|---:|
-| `Beginner-I` | 400 | 143 (35.8%) | **150 (37.5%)** |
-| `Beginner-II` | 276 | 82 (29.7%) | **86 (31.2%)** |
-| `Special-I` | 105 | 19 (18.1%) | **20 (19.0%)** |
-| `Challenge-I` | 400 | 39 (9.8%) | **42 (10.5%)** |
-| `LaserTank` | 406 | 34 (8.4%) | **35 (8.6%)** |
-| `Challenge-III` | 400 | 31 (7.8%) | **34 (8.5%)** |
-| `Challenge-II` | 400 | 17 (4.2%) | **18 (4.5%)** |
-| `Challenge-IV` | 400 | 14 (3.5%) | **15 (3.8%)** |
-| `Gary-I` | 400 | 7 (1.8%) | 7 (1.8%) |
-| `Sokoban-II` | 348 | 4 (1.1%) | 4 (1.1%) |
-| `Sokoban-I` | 400 | 3 (0.8%) | 3 (0.8%) |
-| `Gary-II` | 65 | 1 (1.5%) | 1 (1.5%) |
-| `Challenge-V` | 185 | 1 (0.5%) | 1 (0.5%) |
+| `Beginner-I` | 400 | 143 | 150 | **162** |
+| `Beginner-II` | 276 | 82 | 86 | **90** |
+| `Challenge-I` | 400 | 39 | 42 | **44** |
+| `LaserTank` | 406 | 34 | 35 | **38** |
+| `Challenge-III` | 400 | 31 | 34 | **36** |
+| `Special-I` | 105 | 19 | 20 | **20** |
+| `Challenge-II` | 400 | 17 | 18 | **18** |
+| `Challenge-IV` | 400 | 14 | 15 | **15** |
+| `Gary-I` | 400 | 7 | 7 | **8** |
+| `Sokoban-II` | 348 | 4 | 4 | **5** |
+| `Sokoban-I` | 400 | 3 | 3 | **3** |
+| `Challenge-V` | 185 | 1 | 1 | **1** |
+| `Gary-II` | 65 | 1 | 1 | **1** |
 
 **The unsolved are unsolved on budget, not on structure: 3,636 of layer 0's 3,790 stopped at
 `budget` (95.9%) and only 154 at a beam dead end.** No errors, no `NOTPORTED`, no crashes in
@@ -624,15 +626,36 @@ failing to find a route, it is the search never getting near the end of one.
 
 **Every solution verified through both engines** — `tools/verify_solutions.py` replays each `.lpb`
 through the *unmodified* C oracle and the C# core with `--field --bmf` and requires WIN on both
-plus byte-identical traces. **416/416 verified, 280 matching the `.ghs` record exactly**, median
-1.6× and worst 5.0×. The separate all-layer-1 run verified 381/381 the same way. That is 797
-solver-produced recordings replayed tick-for-tick through the 25-year-old C, with zero
-divergences — and none of it random: these are long, legal, *winning* paths, which is the coverage
-a fuzzer cannot reach.
+plus byte-identical traces. **416/416 verified** for the layer-1 composite, 280 matching the `.ghs`
+record exactly, median 1.6× and worst 5.0×; the separate all-layer-1 run verified 381/381 the same
+way; layer 2's two passes verified **46/46**. That is 843 solver-produced recordings replayed
+tick-for-tick through the 25-year-old C, with zero divergences — and none of it random: these are
+long, legal, *winning* paths, which is the coverage a fuzzer cannot reach.
+
+**Where the artifacts are** (under `build/`, gitignored, so they survive a context clear but not
+a `git clean`):
+
+| path | what |
+|---|---|
+| `build/reports/l0.jsonl` | the layer-0 campaign, 4,185 rows |
+| `build/reports/pass2.jsonl` | the second pass over its 3,790 failures |
+| `build/reports/l1.jsonl`, `l1b.jsonl` | layer 1 as a portfolio member, macro first / macro last |
+| `build/reports/bench-budget.txt` | bench 1 and 2, the three-budget sweep |
+| `build/reports/bench-portfolio.txt` | the share sweep both level sets |
+| `build/reports/verify-composite.txt` | 416/416 through both engines |
+| `build/solutions/l0/<collection>/NNNNN.lpb` | the 416 composite solutions |
+| `build/reports/{deep,bench}-levels.txt` | the two bench level lists, so the benches are repeatable |
+| `build/reports/l2pass.jsonl` | layer 2's pass over layer 0's 3,790 failures (+40) |
+| `build/reports/pass3.jsonl` | layer 1's macro beam over what that left (+6) |
+| `build/reports/l2first.jsonl`, `l2last.jsonl` | layer 2 as a portfolio member, both orderings |
+| `build/solutions/l2pass/<collection>/NNNNN.lpb` | the 46 those two passes found |
+
+Regenerate any of it with `tools/campaign.sh` / `tools/second_pass.sh`; read it with
+`tools/report_stats.py` (`--diff` for two layers).
 
 **Where this leaves the deliverable.** The Phase 4 promise was "a solved-count-vs-budget curve,
 Kids-first ordered by `.ghs` cost, not a promise of 20,914". At 150k nodes that curve reads:
-**Kids 33%, Easy 4%, everything else ≈ 0**, and the binding constraint is depth, not correctness.
+**Kids 35%, Easy 4%, everything else ≈ 0**, and the binding constraint is depth, not correctness.
 
 #### Layer 1 — macro-actions  ☑
 
@@ -762,6 +785,128 @@ from 33 to 27 and the macro portfolio from 36 to 30. Over-pruning wins, because 
 nodes and the greedy policy spends them on depth instead of on re-deriving positions it has
 already rejected. Kept as `--closed generate|expand` with the measured default, and the reasoning
 sits in `Search.cs` so it does not get "fixed" again.
+
+#### Layer 2 — subgoal decomposition  ☑
+
+**The brief was layer 1's result.** The macro beam made depth the shot count and still lost on deep
+levels at every width, closure cap and share tried, because inside a Goto movement is *exhausted*
+rather than searched: the beam never ranks a movement, it ranks board changes, and it ranks them
+with `WorkDistance` — a number that also moves when the tank merely walks. A 1,500-state closure
+offers ~1,500 shots, almost all of which change *something* and almost none of which change the
+route, so they score alike and the beam keeps whichever twenty-four sorted first. The conclusion
+recorded there was that the reason to fire has to be **derived**, not scored. This layer derives it.
+
+**The derivation — and the first version of it was wrong, which is the part worth reading.**
+
+*Version 1, from a model.* Run the priced Dijkstra `WorkDistance` already runs, keep its
+predecessor chain, walk the route from the tank to the flag, and call every cell on it that costs
+more than an empty step an obstacle. `--sg-trace` over 384 expansions on the 60 bench-1 levels:
+**240 of them — 62% — derived no obstacle at all.** The price list said the flag was five cheap
+steps away while the tank plainly could not get there. `Beginner-I` 101 ("BE the RABBIT") is the
+clean case: the flag is walled in by bricks and reached through a tunnel, so a model that joins
+tunnel mouths at zero cost reports a clear five-step run. A price list knows what a cell costs to
+*enter*. It does not know the cell is covered by an anti-tank, that the thin ice on the way has
+already been used, or which mouth a tunnel actually pairs with — and those are precisely what stops
+a tank on the levels a solver fails.
+
+*Version 2, from the engine.* The movement closure runs **first**, and the cells it stood on are
+recorded. That set is an executed answer to "where can the tank get to", with death, spent thin
+ice, conveyors and tunnel pairing all resolved by having happened. The Dijkstra then runs from the
+flag and stops at the first of those cells it settles; what lies between the two is what is in the
+way. Same idiom as layer 1's Goto: **the model proposes the ordering, the engine supplies every
+claim about what the tank can do.** Expansions that derive no obstacle at all fell from
+62% to 23%.
+
+Two kinds of cell come back and the difference is the interesting half. A cell that costs something
+to enter — brick, block, mirror, water — is its own subgoal: make it cheaper. A cell that costs
+*nothing* to enter and is still not reached is one the tank died in, so there is nothing at the cell
+to shoot; the anti-tanks aligned with it become the targets instead. That is Tutor 75, "Pass the
+anti-tanks", derived rather than recognised.
+
+**Acceptance is a board test; ranking is a position test.** A successor survives because a derived
+obstacle got cheaper — not because a number went down. `WorkDistance` is still used, but only to
+*order* what already survived. That separation is the whole point: clearing a brick usually leaves
+the tank somewhere awkward, so the two tests disagree constantly, and layer 1 could not see past
+their sum.
+
+**Slack, and why a search that only accepts progress gets stuck.** A derived subgoal is often two
+moves away, not one — rotate the mirror so the laser turns, *then* shoot the brick — and the first
+of those clears nothing and shortens no route. Accepting only progress therefore dies: measured, 44
+of 50 deep levels ended at `subgoal-dead-end` having spent **20,810 of 400,000 nodes**. So each
+expansion keeps its best `--sg-slack` (default 4) board-changing successors as **Tier 1** nodes,
+which `Cut()` takes only after every successor that actually advanced: slack fills the width that
+progress left empty and never displaces it. That one change takes the deep bench from 6 to 9, puts
+the whole budget to work (median 400,000 nodes), and drops the dead-ends from 44 to 4.
+
+**Four things measured that did *not* work**, kept as flags with their numbers so they are not
+re-invented, all on the 50 deep levels at 400k nodes, subgoal beam alone:
+
+| | solved |
+|---|---:|
+| shipped defaults | **10** |
+| `--sg-aim` (fire only from poses whose ray meets a target, mirror or anti-tank) | 2 |
+| `--sg-strict` (accept only on a cleared obstacle, never on a shorter route) | 3 |
+| `--sg-closed generate` (layer 0's measured default) | 6 |
+| `--sg-width 12` instead of 4 | 8 |
+
+`--sg-aim` is the instructive one: the ray *is* a superset of the shots that hit a target, and it is
+not a superset of the shots worth firing. Rearranging a brick or block that is not itself a target
+is how the next step becomes possible, and a shot whose only effect is to make an anti-tank turn is
+sometimes the whole trick. The closed-set result is the other one: **over-pruning is not a universal
+truth about this game, it is a property of the search.** Layer 0's 600-wide beam wants it (33
+against 27, recorded above); layer 2's 4-wide beam is killed by it (10 against 6). Hence
+`--sg-closed`, defaulting to `expand`, the opposite of `--closed`.
+
+**Benched two ways before the campaign, and neither bench decides anything** — bench 1 is levels
+layer 0 already failed, which is the population that flattered layer 1:
+
+| | bench 1 — 60 levels, 150k | deep — 50 levels, 400k |
+|---|---:|---:|
+| layer 0 portfolio | 18 | 13 |
+| layer 1's macro beam alone | 20 | 3 |
+| layer 2's subgoal beam alone | **24** | **10** |
+| portfolio with layer 1 | 28 | 12 |
+| portfolio with layer 2 | **29** | 12 |
+
+**The campaign, which is the one that counts.** Every 5th level of all 13 collections, 4,185
+levels, 150,000 nodes each. As a portfolio member layer 2 is a **smaller loss than layer 1 and
+still a loss**, in both orderings:
+
+| portfolio | solved | vs layer 0 |
+|---|---:|---|
+| layer 0 alone (`--no-macro`) | **395** | — |
+| layer 1 first, a tenth of the budget | 381 | +21, −35 |
+| layer 1 last, raw beam capped at 0.6 | 354 | +23, −64 |
+| layer 2 first, a tenth of the budget | 387 | +23, −31 |
+| layer 2 last, raw beam capped at 0.6 | 365 | +30, −60 |
+
+That is the same finding as layer 1's, confirmed on a second specialist: **a portfolio has to make
+its bet on every level in advance, and most solvable levels are ones the raw beam gets easily.** No
+share or ordering wins it, and the reason is arithmetic rather than tuning.
+
+**As a second pass it is worth about twice layer 1.** Same 3,790 failures, same 150,000-node budget:
+
+| pass over layer 0's 3,790 failures | adds | composite |
+|---|---:|---|
+| layer 1's macro beam (`--macro-first --no-ida --no-beam`) | 21 | 416 (9.9%) |
+| layer 2's subgoal beam (`--subgoal --no-ida --no-beam`) | **40** | **435 (10.4%)** |
+| layer 2, then layer 1 over what it left | **46** | **441 (10.5%)** |
+
+The two overlap on 15 levels, so they are complementary rather than one superseding the other: the
+6 levels layer 1's pass finds that layer 2's does not are *exactly* the 6 a third pass recovers.
+**46/46 verified through both engines**, byte-identical traces, 11 matching the `.ghs` record
+exactly. Two solutions are over 10× the record and the trimmer could not shorten them.
+
+**Where the budget goes now, which is the brief for layer 3.** Layer 0's unsolved levels stop on
+budget 95.9% of the time — the search never gets near the end of a route. Layer 2's stop on budget
+80.8% of the time and at **`subgoal-dead-end` 19.1%**: a frontier that emptied, not a clock that ran
+out. Those are two different failures and they want two different fixes. The dead-ends are what
+restarts are for.
+
+**Layer 2 does not touch the engine.** `Engine.cs` still differs from layer 0 by the single word
+`partial`, and `Engine.Search.cs` is unchanged since layer 0. Everything above is in
+`src/LaserTank.Solver/`: `Subgoal.cs` (new), `Heuristic.FrontierObstacles` (new), plus `Node.Tier`
+and a width argument on `Cut()`.
 
 ### Phase 5 — Presentation & features  ☐
 Rendering (`Game.BMP` sprite sheet + `Mask.BMP`; `.ltg` packs in `data/graphics/` — format at
@@ -906,6 +1051,8 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    solver; writes .lpb, never trusted without verify_solutions.py
                    Macro.cs — layer 1: Goto (a movement closure over ApplyKey)
                    + Shoot, so search depth is shots rather than keypresses
+                   Subgoal.cs — layer 2: the obstacles between the closure and
+                   the flag, derived; a successor is kept because it cleared one
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
@@ -1542,3 +1689,52 @@ exact, `test_difftrace.py` 29/29, `sweep.py` 2,347/2,347 identical.
 is exhausted rather than searched, so the beam ranks *board changes* and `WorkDistance` is thin at
 those — a shot beam has to guess which of two hundred available shots matters. The reason to fire
 has to be **derived** (this brick is on the only path), not scored.
+
+### 2026-09-05 (session 11) — Phase 4, layer 2: subgoal decomposition
+
+**Built layer 2 and measured it three ways. It is worth twice layer 1 as a second pass (+40 against
++21, composite 435 of 4,185) and, like layer 1, it is a net loss as a portfolio member (387 against
+395). The composite that ships runs both passes: 441 (10.5%), 46/46 new solutions verified through
+the unmodified oracle and the core.** All three gates green — `replay_all.py` 187/187 exit 0,
+`test_difftrace.py` 29 passed, `sweep.py` 2,347/2,347 identical. `Engine.cs` and `Engine.Search.cs`
+are untouched; every line of this session is in `src/LaserTank.Solver/`.
+
+**The derivation was wrong the first time, and finding that out is the session's main content.**
+The obvious reading of "relax the world, find what blocks the flag" is: run the priced Dijkstra
+`WorkDistance` already runs, keep the predecessor chain, and call the expensive cells on the
+tank→flag route the obstacles. Built it, added `--sg-trace`, and looked: **62% of expansions derived
+no obstacle at all.** The price list said the flag was a short cheap walk away on levels where the
+tank obviously could not get there. What a price list cannot know is exactly what stops a tank on a
+hard level — an anti-tank covering the cell, thin ice already spent, which mouth a tunnel pairs
+with. So the reachable set stopped being modelled: the movement closure runs first and *records the
+cells it stood on*, and the obstacles are what lies between that executed set and the flag. Same
+idiom as layer 1's Goto, one level up. Obstacle-free expansions: 62% → 23%.
+
+**Then the search had the opposite problem, and the trace found that too.** Accepting only
+successors that advanced a derived obstacle, it died with 95% of the budget unspent — 44 of 50 deep
+levels at `subgoal-dead-end`, 20,810 nodes of 400,000. The cause is structural rather than a tuning
+miss: a subgoal is often two moves away (rotate the mirror, *then* shoot the brick) and the first
+move advances nothing. Hence **slack** — each expansion keeps its best few board-changing
+non-advancing successors as Tier 1 nodes, which the width trim takes only after every real
+advance. Deep bench 6 → 9, budget fully spent, dead-ends 44 → 4.
+
+**Four measured negatives, all kept as flags with their numbers** (deep bench, subgoal beam alone,
+shipped config = 10): `--sg-aim` 2, `--sg-strict` 3, `--sg-closed generate` 6, `--sg-width 12` 8.
+Two of them are worth remembering. The aim filter (cast the tank's ray, fire only when it meets a
+target, a mirror or an anti-tank) is a superset of the shots that *hit a target* and not of the
+shots worth firing — rearranging a non-target block is how the next step becomes possible. And the
+closed-set policy is **not a fact about the game, it is a property of the search**: layer 0's
+600-wide beam gains from closing on generate (33 against 27, session 10), layer 2's 4-wide beam is
+killed by it (10 against 6). So `--sg-closed` exists and defaults to the opposite of `--closed`.
+
+**The process rules from session 10 paid for themselves again.** The bench-1 population (levels
+layer 0 failed) put layer 2 at 29 against layer 1's 28 — indistinguishable. The corpus separated
+them cleanly, in both directions: as a portfolio member layer 2 loses less than layer 1 (387/365
+against 381/354) and still loses; as a second pass it nearly doubles it (+40 against +21). Node
+governance also let the verification gate run *concurrently* with a campaign without invalidating
+it, which wall-clock budgeting would not have.
+
+**What layer 3 is for, from the numbers rather than from the plan.** Layer 0's unsolved levels stop
+on budget 95.9% of the time; layer 2's stop on budget 80.8% and at `subgoal-dead-end` 19.1%. A
+frontier that empties is a different failure from a clock that runs out, and it is the one restarts
+address.

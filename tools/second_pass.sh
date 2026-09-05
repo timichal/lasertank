@@ -5,17 +5,23 @@
 #   tools/second_pass.sh <first-report.jsonl> <out-subdir> <report.jsonl> [args...]
 #
 #   tools/campaign.sh     solutions/l0 build/reports/l0.jsonl --no-macro
-#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l0 \
-#                         build/reports/pass2.jsonl --no-ida --no-beam
+#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l2pass \
+#                         build/reports/l2pass.jsonl --no-ida --no-beam --subgoal
+#   tools/second_pass.sh  build/reports/l2pass.jsonl solutions/l2pass \
+#                         build/reports/pass3.jsonl --no-ida --no-beam --macro --macro-first
 #
-# **Why this exists rather than a bigger portfolio.**  Layer 1's macro beam wins
-# decisively on levels the raw beam cannot solve (18 -> 28, 23 -> 31, 33 -> 38
-# of 60, at three budgets) and loses over the corpus as a whole (395 -> 381 run
-# first, 354 run last), because most solvable levels are ones the raw beam gets
-# easily and every node the macro beam spends there is a node taken from it.
-# A portfolio has to make that trade on every level in advance.  A second pass
-# does not: the first pass identifies the population, the second attacks only
-# it, and neither one pays for the other.  See PROGRESS.md, Phase 4 layer 1.
+# **Why this exists rather than a bigger portfolio.**  Both specialists win
+# decisively on levels the raw beam cannot solve and lose over the corpus as a
+# whole -- layer 1's macro beam 395 -> 381 run first and 354 run last, layer 2's
+# subgoal beam 387 and 365 -- because most solvable levels are ones the raw beam
+# gets easily and every node a specialist spends there is a node taken from it.
+# A portfolio has to make that trade on every level in advance.  A pass does
+# not: the previous pass identifies the population, this one attacks only it,
+# and neither pays for the other.
+#
+# Chain them in that order.  Over layer 0's 3,790 failures the subgoal beam adds
+# 40 and the macro beam adds 21; they overlap on 15, so subgoal-then-macro banks
+# 46 and the composite is 441 of 4,185.  See PROGRESS.md, Phase 4 layer 2.
 #
 # Writes into the *same* solutions directory by design -- a level solved by
 # either pass is one solution -- so verify_solutions.py sees the union and the

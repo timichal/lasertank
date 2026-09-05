@@ -42,6 +42,7 @@ namespace LaserTank.Solver
         private int[] _heap = new int[1024];
         private readonly int[] _tunnelHead = new int[8];
         private readonly int[] _tunnelNext = new int[256];
+        private readonly int[] _pred = new int[256];
 
         private static readonly int[] Enterable =
         {
@@ -160,7 +161,7 @@ namespace LaserTank.Solver
             if (tx == fx && ty == fy) return 0;
 
             int[] cost = _cost;
-            for (int i = 0; i < 256; i++) cost[i] = int.MaxValue;
+            for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
             for (int i = 0; i < 8; i++) _tunnelHead[i] = -1;
             for (int c = 0; c < 256; c++)
             {
@@ -189,25 +190,158 @@ namespace LaserTank.Solver
                     int nx = cx + (k == 1 ? 1 : k == 3 ? -1 : 0);
                     int ny = cy + (k == 0 ? -1 : k == 2 ? 1 : 0);
                     if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
-                    Relax(ref n, d, nx * 16 + ny, Price(e.Game.PF[nx, ny]), cost);
+                    Relax(ref n, d, c, nx * 16 + ny, Price(e.Game.PF[nx, ny]), cost);
                 }
 
                 byte here = e.Game.PF[cx, cy];
                 if (!Obj.IsTunnel(here)) continue;
                 for (int t = _tunnelHead[Obj.GetTunnelID(here) & 7]; t >= 0; t = _tunnelNext[t])
-                    if (t != c) Relax(ref n, d, t, 0, cost);
+                    if (t != c) Relax(ref n, d, c, t, 0, cost);
             }
 
             int man = (tx > fx ? tx - fx : fx - tx) + (ty > fy ? ty - fy : fy - ty);
             return Unreachable + man;
         }
 
-        private void Relax(ref int n, int d, int to, int price, int[] cost)
+
+        // ---- layer 2: the obstacles between here and the flag --------------
+
+        /// The cells that stand between where the tank has *demonstrably* got
+        /// to and the flag, nearest first.  `reached` is the movement closure's
+        /// answer to "where can the tank go", one bool per cell; `into` is
+        /// filled with the obstacle cells and its used length returned.
+        ///
+        /// This is layer 2's whole premise, and the first version of it was
+        /// wrong in a way worth recording.  That version derived the obstacles
+        /// from the *priced route*: run the Dijkstra from the flag to the tank
+        /// and call every cell on it that costs more than an empty step an
+        /// obstacle.  Traced over 384 expansions on levels layer 0 had failed,
+        /// **240 of them -- 62% -- found no obstacle at all**: the price list
+        /// said the flag was five cheap steps away while the tank plainly could
+        /// not get there.  A price list only knows what a cell costs to enter.
+        /// It does not know that the cell is covered by an anti-tank, that the
+        /// thin ice on the way has already been used, or which mouth a tunnel
+        /// actually pairs with -- and those are precisely what stops a tank on
+        /// the levels a solver fails.
+        ///
+        /// So the reachable set is not modelled, it is *executed*: `reached` is
+        /// the set of cells the Goto closure actually stood on, with death,
+        /// ice, conveyors and tunnels resolved by having happened.  The
+        /// Dijkstra then runs from the flag and stops at the first reached cell
+        /// it settles, and the cells on the path between the two are what is in
+        /// the way.  The model proposes only the *ordering*; every claim about
+        /// what the tank can do came from the engine.
+        ///
+        /// Two kinds of cell come back, and the difference is the interesting
+        /// half:
+        ///
+        ///   A cell that costs something to enter -- a brick, a block, a mirror,
+        ///   water -- is its own subgoal: make it cheaper.
+        ///
+        ///   A cell that costs nothing to enter and is still not reached is a
+        ///   cell the tank *died* in, or one an anti-tank covers.  There is
+        ///   nothing to shoot at the cell itself, so the anti-tanks aligned with
+        ///   it become the targets instead.  That is Tutor 75, "Pass the
+        ///   anti-tanks", derived rather than recognised.
+        public int FrontierObstacles(Engine e, bool[] reached, int[] into)
+        {
+            int fx = -1, fy = -1;
+            for (int x = 0; x < 16 && fx < 0; x++)
+                for (int y = 0; y < 16; y++)
+                    if (e.Game.PF[x, y] == Obj.Flag) { fx = x; fy = y; break; }
+            if (fx < 0) return 0;
+
+            int[] cost = _cost;
+            for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
+            for (int i = 0; i < 8; i++) _tunnelHead[i] = -1;
+            for (int c = 0; c < 256; c++)
+            {
+                byte cell = e.Game.PF[c >> 4, c & 15];
+                if (!Obj.IsTunnel(cell)) { _tunnelNext[c] = -1; continue; }
+                int id = Obj.GetTunnelID(cell) & 7;
+                _tunnelNext[c] = _tunnelHead[id];
+                _tunnelHead[id] = c;
+            }
+
+            int n = 0, start = fx * 16 + fy, hit = -1;
+            cost[start] = 0;
+            Push(ref n, 0, start);
+
+            while (n > 0)
+            {
+                int top = Pop(ref n);
+                int d = top >> 8, c = top & 0xFF;
+                if (d > cost[c]) continue;                      // a stale duplicate
+                if (reached[c] && c != start) { hit = c; break; }
+
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    int nx = cx + (k == 1 ? 1 : k == 3 ? -1 : 0);
+                    int ny = cy + (k == 0 ? -1 : k == 2 ? 1 : 0);
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    Relax(ref n, d, c, nx * 16 + ny, Price(e.Game.PF[nx, ny]), cost);
+                }
+
+                byte here = e.Game.PF[cx, cy];
+                if (!Obj.IsTunnel(here)) continue;
+                for (int t = _tunnelHead[Obj.GetTunnelID(here) & 7]; t >= 0; t = _tunnelNext[t])
+                    if (t != c) Relax(ref n, d, c, t, 0, cost);
+            }
+
+            if (hit < 0) return 0;                              // the flag is walled off
+
+            // Walk back toward the flag.  `hit` is reached, everything after it
+            // on the chain is not (a cheaper reached cell would have settled
+            // first), so the chain is the obstacle list already in order.
+            int used = 0;
+            for (int c = _pred[hit]; c >= 0 && used < into.Length; c = _pred[c])
+            {
+                if (Price(e.Game.PF[c >> 4, c & 15]) > 1) into[used++] = c;
+                else used = Threats(e, c, into, used);
+                if (_pred[c] < 0) break;
+            }
+            return used;
+        }
+
+        /// The anti-tanks that can see `cell`, appended to `into`.  Scanned
+        /// along the four rays and stopped only by Solid, so this is a superset:
+        /// it can name an anti-tank that would not in fact have the shot, which
+        /// costs a wasted target and never loses one.
+        private static int Threats(Engine e, int cell, int[] into, int used)
+        {
+            int ox = cell >> 4, oy = cell & 15;
+            for (int k = 0; k < 4 && used < into.Length; k++)
+            {
+                int dx = k == 1 ? 1 : k == 3 ? -1 : 0;
+                int dy = k == 0 ? -1 : k == 2 ? 1 : 0;
+                for (int x = ox + dx, y = oy + dy;
+                     x >= 0 && x < 16 && y >= 0 && y < 16;
+                     x += dx, y += dy)
+                {
+                    byte c = e.Game.PF[x, y];
+                    if (c == Obj.Solid) break;
+                    if (c >= Obj.AntiTankUp && c <= Obj.AntiTankLeft)
+                    {
+                        into[used++] = x * 16 + y;
+                        break;
+                    }
+                }
+            }
+            return used;
+        }
+
+        /// The price list, for a caller that needs to ask whether a cell got
+        /// cheaper -- which is layer 2's subgoal test.
+        public static int PriceOf(byte cell) => Price(cell);
+
+        private void Relax(ref int n, int d, int from, int to, int price, int[] cost)
         {
             if (price < 0) return;                          // permanently blocked
             int nd = d + price;
             if (nd >= cost[to] || nd > 0xFFFF) return;
             cost[to] = nd;
+            _pred[to] = from;
             Push(ref n, nd, to);
         }
 

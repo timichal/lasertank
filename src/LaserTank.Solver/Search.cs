@@ -78,6 +78,46 @@ namespace LaserTank.Solver
         public int ClosureDepth = 40;      // movement keys in one Goto
         public int MoveOnlyK = 6;          // pure-Goto successors kept per node
 
+        // ---- layer 2: subgoal decomposition (Subgoal.cs) ------------------
+        //
+        // Same shape of decision as layer 1's: off by default, and the campaign
+        // measures it as a second pass as well as a portfolio member.  What is
+        // different is where the leverage comes from -- not a bigger action set
+        // but a *derived* one: the priced route's obstacles are the subgoals,
+        // and a successor is kept because it made one of them cheaper.
+        public bool RunSubgoal = false;
+        public int SgWidth = 4;            // subgoal-steps kept per depth
+        public int SgDepth = 400;          // subgoal steps; a backstop, since the
+                                           // node budget binds long before this
+        public int SgClosureNodes = 400;   // states in one movement closure
+        public int SgClosureDepth = 32;    // movement keys in one closure
+        public int SgCandidates = 64;      // frontier obstacles treated as targets
+        public int SgFallbackK = 2;        // pure-Goto states kept when a
+                                           // truncated closure advanced nothing
+        public int SgSlack = 4;            // board-changing successors kept per
+                                           // expansion when nothing advanced
+        public bool SgStrict = false;      // accept only on a cleared target
+
+        // Off, and measured that way.  The idea is a superset -- cast the
+        // tank's facing ray and fire only when it meets a target, a mirror or
+        // an anti-tank -- but on 50 deep levels it takes the subgoal beam from
+        // 6 solved to 2.  It is not in fact a superset of the *useful* shots:
+        // firing at a brick or block that is not itself a target rearranges the
+        // board in ways the next step needs, and a shot that only makes an
+        // anti-tank turn is sometimes the whole trick.  Kept as a flag with the
+        // number attached so it is not re-invented.
+        public bool SgAim = false;         // fire only from plausibly-aiming poses
+
+        /// Close a subgoal-beam state only when it is expanded, rather than
+        /// when it is generated.  The opposite of layer 0's measured default,
+        /// and measured separately here because the two searches are not alike:
+        /// layer 0's beam is 600 wide and over-pruning buys it depth, while the
+        /// subgoal beam is 4 wide and dies of an empty frontier.
+        public bool SgCloseOnExpand = true;
+        public bool SgTrace = false;       // per-expansion diagnostics to stderr
+        public double SubgoalShare = 0.9;
+        public bool SubgoalLast = true;
+
         // Where each stage must stop, as a *cumulative* fraction of the
         // level's budget -- IDA* until 0.2 of it, the macro beam until 0.3, the
         // raw beam to the end.  Without them one stage eats the level: IDA* on
@@ -203,9 +243,20 @@ namespace LaserTank.Solver
                     r = m;
                 }
             }
+            if (_opt.RunSubgoal && !_opt.SubgoalLast)
+            {
+                Stage(_opt.SubgoalShare);
+                if (!OutOfBudget)
+                {
+                    SolveResult g = SubgoalBeam(root);
+                    if (g.Solved) return Finish(g, "subgoal");
+                    r = g;
+                }
+            }
             if (_opt.RunBeam)
             {
-                Stage(_opt.RunMacro && _opt.MacroLast ? _opt.BeamShare : 1.0);
+                Stage((_opt.RunMacro && _opt.MacroLast) || (_opt.RunSubgoal && _opt.SubgoalLast)
+                      ? _opt.BeamShare : 1.0);
                 if (!OutOfBudget)
                 {
                     SolveResult b = Beam(root);
@@ -215,12 +266,22 @@ namespace LaserTank.Solver
             }
             if (_opt.RunMacro && _opt.MacroLast)
             {
-                Stage(1.0);
+                Stage(_opt.RunSubgoal && _opt.SubgoalLast ? _opt.SubgoalShare : 1.0);
                 if (!OutOfBudget)
                 {
                     SolveResult m = MacroBeam(root);
                     if (m.Solved) return Finish(m, "macro");
                     r = m;
+                }
+            }
+            if (_opt.RunSubgoal && _opt.SubgoalLast)
+            {
+                Stage(1.0);
+                if (!OutOfBudget)
+                {
+                    SolveResult g = SubgoalBeam(root);
+                    if (g.Solved) return Finish(g, "subgoal");
+                    r = g;
                 }
             }
             r.Nodes = _nodes;
@@ -245,6 +306,14 @@ namespace LaserTank.Solver
             public int G;                  // keypresses spent
             public int H;
             public ulong Hash;             // StateHash(S), for the closed set
+
+            /// 0 for a successor that advanced, 1 for one that is only there so
+            /// the search has somewhere to go (layer 2's slack -- see
+            /// Subgoal.cs).  Cut() sorts on it first, so slack never displaces
+            /// progress; it only fills the width that progress left empty.
+            /// Layer 0's beam and layer 1's macro beam leave it at 0 and are
+            /// unaffected.
+            public int Tier;
         }
 
         /// When a beam closes a state -- and it is a policy, not a bug, which
@@ -271,7 +340,11 @@ namespace LaserTank.Solver
         /// the default is the measured winner, and the `macro-dead-end` count
         /// is a *symptom of the policy*, not evidence of a leak.
         private bool Fresh(ulong h, HashSet<ulong> seen, HashSet<ulong> layer) =>
-            _opt.CloseOnGenerate ? seen.Add(h) : !seen.Contains(h) && layer.Add(h);
+            Fresh(h, seen, layer, _opt.CloseOnGenerate);
+
+        private static bool Fresh(ulong h, HashSet<ulong> seen, HashSet<ulong> layer,
+                                  bool closeOnGenerate) =>
+            closeOnGenerate ? seen.Add(h) : !seen.Contains(h) && layer.Add(h);
 
         private static void Close(List<Node> frontier, HashSet<ulong> seen)
         {

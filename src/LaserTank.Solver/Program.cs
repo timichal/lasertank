@@ -67,6 +67,37 @@ namespace LaserTank.Solver
 "    --beam-share R       budget fraction the raw beam runs until when the\n" +
 "                         macro beam is last, default 0.6\n" +
 "\n" +
+"  layer 2 -- subgoal decomposition (Subgoal.cs).  OFF by default, same reason,\n" +
+"  and it belongs in the same second pass: the movement closure runs first, the\n" +
+"  obstacles between where the tank actually got to and the flag are derived\n" +
+"  from it, and a successor is kept because it made one of those cheaper --\n" +
+"  not because a heuristic went down.  --subgoal enables it\n" +
+"    --sg-width N         subgoal-steps kept per depth, default 4 (narrow and\n" +
+"                         deep is the point; 12 measured worse)\n" +
+"    --sg-depth N         subgoal steps, default 400 -- a backstop, the node\n" +
+"                         budget binds long before it\n" +
+"    --sg-closure N       states in one movement closure, default 400\n" +
+"    --sg-closure-depth N movement keys in one closure, default 32\n" +
+"    --sg-candidates N    derived obstacles treated as targets, default 64\n" +
+"    --sg-slack N         board-changing successors kept per expansion when\n" +
+"                         nothing advanced, default 4 -- what lets a two-move\n" +
+"                         manoeuvre (turn the mirror, then shoot) be found\n" +
+"    --sg-fallback N      pure-Goto states kept when nothing was derived or\n" +
+"                         nothing advanced, default 2\n" +
+"    --sg-closed generate|expand   default expand, the *opposite* of --closed:\n" +
+"                         a 600-wide beam gains from over-pruning and a 4-wide\n" +
+"                         one dies of it (both measured)\n" +
+"    --sg-strict          accept only on a cleared obstacle, never on a shorter\n" +
+"                         route.  Measured worse (3 against 10 on the deep bench)\n" +
+"    --sg-aim             fire only from poses whose ray meets a target, mirror\n" +
+"                         or anti-tank.  Measured much worse (2 against 10): it\n" +
+"                         is a superset of the shots that hit a target and not\n" +
+"                         of the shots worth firing\n" +
+"    --sg-trace           per-expansion diagnostics to stderr -- obstacles\n" +
+"                         derived, closure size, successors kept.  This is what\n" +
+"                         found both of layer 2's wrong turns; keep it working\n" +
+"    --subgoal-first      run it before the raw beam    --subgoal-share R (0.9)\n" +
+"\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
 "    --author NAME        .lpb author field, default \"LTSolver\"\n" +
@@ -129,6 +160,20 @@ namespace LaserTank.Solver
                         case "--macro-first": a.Opt.MacroLast = false; break;
                         case "--beam-share": a.Opt.BeamShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--closed": a.Opt.CloseOnGenerate = V() != "expand"; break;
+                        case "--subgoal": a.Opt.RunSubgoal = true; break;
+                        case "--subgoal-first": a.Opt.SubgoalLast = false; break;
+                        case "--subgoal-share": a.Opt.SubgoalShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
+                        case "--sg-width": a.Opt.SgWidth = int.Parse(V()); break;
+                        case "--sg-depth": a.Opt.SgDepth = int.Parse(V()); break;
+                        case "--sg-closure": a.Opt.SgClosureNodes = int.Parse(V()); break;
+                        case "--sg-closure-depth": a.Opt.SgClosureDepth = int.Parse(V()); break;
+                        case "--sg-candidates": a.Opt.SgCandidates = int.Parse(V()); break;
+                        case "--sg-fallback": a.Opt.SgFallbackK = int.Parse(V()); break;
+                        case "--sg-slack": a.Opt.SgSlack = int.Parse(V()); break;
+                        case "--sg-strict": a.Opt.SgStrict = true; break;
+                        case "--sg-closed": a.Opt.SgCloseOnExpand = V() != "generate"; break;
+                        case "--sg-aim": a.Opt.SgAim = true; break;
+                        case "--sg-trace": a.Opt.SgTrace = true; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
                         case "--closure-nodes": a.Opt.ClosureNodes = int.Parse(V()); break;
@@ -410,6 +455,20 @@ namespace LaserTank.Solver
             IdaMaxDepth = s.IdaMaxDepth,
             RunIda = s.RunIda,
             RunBeam = s.RunBeam,
+            RunSubgoal = s.RunSubgoal,
+            SgWidth = s.SgWidth,
+            SgDepth = s.SgDepth,
+            SgClosureNodes = s.SgClosureNodes,
+            SgClosureDepth = s.SgClosureDepth,
+            SgCandidates = s.SgCandidates,
+            SgFallbackK = s.SgFallbackK,
+            SgSlack = s.SgSlack,
+            SgStrict = s.SgStrict,
+            SgCloseOnExpand = s.SgCloseOnExpand,
+            SgAim = s.SgAim,
+            SgTrace = s.SgTrace,
+            SubgoalShare = s.SubgoalShare,
+            SubgoalLast = s.SubgoalLast,
         };
     }
 }

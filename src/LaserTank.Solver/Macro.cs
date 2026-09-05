@@ -119,10 +119,10 @@ namespace LaserTank.Solver
                     // once -- tens of thousands, times --jobs workers.  Trim as
                     // we go instead: later parents still compete against the
                     // survivors, and the live set stays O(beam).
-                    if (next.Count > 4 * _opt.MacroBeamWidth) Cut(next);
+                    if (next.Count > 4 * _opt.MacroBeamWidth) Cut(next, _opt.MacroBeamWidth);
                 }
 
-                Cut(next);
+                Cut(next, _opt.MacroBeamWidth);
 
                 foreach (Node n in frontier) Give(n.S);
                 frontier.Clear();
@@ -138,12 +138,13 @@ namespace LaserTank.Solver
         /// Rank by work-to-flag, then by the cheaper keystream, and keep the
         /// best MacroBeamWidth.  Same contract as the layer-0 beam: this is a
         /// beam, so there is no optimality claim to lose.
-        private void Cut(List<Node> next)
+        private void Cut(List<Node> next, int width)
         {
-            if (next.Count <= _opt.MacroBeamWidth) return;
-            next.Sort(static (a, b) => a.H != b.H ? a.H - b.H : a.G - b.G);
-            for (int i = _opt.MacroBeamWidth; i < next.Count; i++) Give(next[i].S);
-            next.RemoveRange(_opt.MacroBeamWidth, next.Count - _opt.MacroBeamWidth);
+            if (next.Count <= width) return;
+            next.Sort(static (a, b) => a.Tier != b.Tier ? a.Tier - b.Tier
+                                     : a.H != b.H ? a.H - b.H : a.G - b.G);
+            for (int i = width; i < next.Count; i++) Give(next[i].S);
+            next.RemoveRange(width, next.Count - width);
         }
 
         // ---- one macro-expansion: the Goto closure, then a shot from each --
