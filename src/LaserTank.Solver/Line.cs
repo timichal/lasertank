@@ -60,6 +60,21 @@ namespace LaserTank.Solver
         /// still being followed.
         private int _lineLostAt = -1;
 
+        /// How far along the line the frontier has actually got -- an index
+        /// into _lineHash, not a beam depth, and the two are not the same.
+        ///
+        /// A depth-indexed report was right while every successor was one board
+        /// change, and PushRun already bent that: a k-cell ferry is emitted as
+        /// k successors of *one* expansion, so a frontier can be four board
+        /// changes along at depth one.  --push-shot-run makes that the normal
+        /// case rather than the exception -- on LaserTank.lvl 2 the line's next
+        /// six changes are all one expansion away -- and a report that keeps
+        /// asking for index d at depth d then calls a line it is following
+        /// perfectly "STALE", because the hash it wants was generated and
+        /// closed two depths ago.  So the target is "one past the furthest the
+        /// frontier has reached", and the row prints both numbers.
+        private int _lineAt;
+
         /// The deepest depth the report actually reached.  Without it a run
         /// that spent its budget at depth 3 is indistinguishable from one that
         /// followed the line to the end -- which is exactly the wrong thing for
@@ -161,13 +176,14 @@ namespace LaserTank.Solver
             _lineH = hs;
             _lineLostAt = -1;
             _lineReached = 0;
+            _lineAt = 0;
         }
 
         /// Called from PushBeam at the top of every depth.
         private void LineBegin(int depth)
         {
             if (_lineHash == null) return;
-            int at = depth + 1;
+            int at = _lineAt + 1;
             _lineTarget = at < _lineHash.Length ? _lineHash[at] : 0UL;
             _lineGen = _lineStale = false;
         }
@@ -185,7 +201,7 @@ namespace LaserTank.Solver
         private void LineBefore(int depth, List<Node> next, int width)
         {
             if (_lineHash == null) return;
-            int at = depth + 1;
+            int at = _lineAt + 1;
             if (at >= _lineHash.Length) { _lineWant = 0; return; }
 
             _lineWant = _lineHash[at];
@@ -234,7 +250,7 @@ namespace LaserTank.Solver
         private void LineAfter(int depth, List<Node> next)
         {
             if (_lineHash == null || _lineWant == 0) return;
-            int at = depth + 1;
+            int at = _lineAt + 1;
 
             bool state = false;
             int boards = 0;
@@ -244,20 +260,34 @@ namespace LaserTank.Solver
                 if (SamePF(n.S.PF, _linePF[at])) boards++;
             }
 
-            _lineReached = at;
-            if (_lineLostAt < 0 && boards == 0) _lineLostAt = at;
+            // How far along the line this frontier actually is.  A run emits
+            // several of the line's changes at once, so the answer can be well
+            // past `at`; it can never go backwards, because a frontier that has
+            // lost every board from _lineAt on has lost the line.
+            int reach = -1;
+            for (int i = _lineHash.Length - 1; i >= _lineAt; i--)
+            {
+                bool here = false;
+                foreach (Node n in next) if (SamePF(n.S.PF, _linePF[i])) { here = true; break; }
+                if (here) { reach = i; break; }
+            }
 
             string how = state ? "kept"
+                       : reach > _lineAt ? "ahead"
                        : _lineRank >= 0 ? "CUT"
                        : _lineStale ? "STALE"
                        : _lineGen ? "cut-early"
                        : "absent";
             Console.Error.WriteLine(
-                "  line d={0,3} {1,-9} rank={2,6}/{3,-6} line-h={4,5} tier={5,2} "
-                + "best-h={6,5} cut-h={7,5} boards {8}->{9}{10}",
-                at, how, _lineRank, _lineOffered, _lineH[at], _lineTier,
+                "  line d={0,3} at={1,3} {2,-9} rank={3,6}/{4,-6} line-h={5,5} tier={6,2} "
+                + "best-h={7,5} cut-h={8,5} boards {9}->{10}{11}",
+                depth, at, how, _lineRank, _lineOffered, _lineH[at], _lineTier,
                 _lineBestH, _lineCutH, _lineBoardsBefore, boards,
-                boards == 0 && _lineLostAt == at ? "  <- board lost" : "");
+                reach < 0 && _lineLostAt < 0 ? "  <- line lost" : "");
+
+            if (reach >= 0) _lineAt = reach;
+            _lineReached = _lineAt;
+            if (_lineLostAt < 0 && reach < 0) _lineLostAt = at;
         }
 
         private static bool Better(Node a, Node b) =>

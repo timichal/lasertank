@@ -75,6 +75,36 @@ namespace LaserTank.Solver
         /// made; this only orders the ones already generated.
         public int RouteFerry;
 
+        /// The RIDE analogue of RouteFerry, and read the same way: valid only
+        /// straight after WorkDistance, which is what publishes it.
+        ///
+        /// A ferry level's route crosses water, and the term that makes the
+        /// search carry a block towards it is "how far is the nearest block
+        /// from the hole".  A RIDE level's route crosses a *conveyor*, which
+        /// is not an obstacle -- the price list charges 1 for it and the
+        /// Dijkstra walks straight over it -- and yet the tank cannot follow
+        /// the route, because arriving on a conveyor cell it is carried off it
+        /// again.  Nothing in WorkDistance moves when a block gets nearer the
+        /// cell that would stop that ride, so the whole manoeuvre is a plateau,
+        /// exactly as a ferry is without RouteFerry.
+        ///
+        /// So: walk the route the tank has to travel, and for every conveyor
+        /// cell on it that carries the tank somewhere *other* than the next
+        /// cell of the route, price the block that would stop it -- the cell
+        /// the conveyor discharges into, which has to stop being enterable.
+        ///
+        /// On LaserTank.lvl 2 "Easy Level Conveyor" that names (13,1) and
+        /// (13,2), which are the two cells the hand recording spends 32 board
+        /// changes filling, and it names them from the *root*.
+        ///
+        /// It is an estimate and it over-asks, deliberately: a conveyor that
+        /// carries the tank off the priced route may still carry it somewhere
+        /// useful by a longer way round -- level 2's own ride up column 15 does
+        /// exactly that -- and this counts that as a cell needing a block.  Like
+        /// RouteFerry it only orders states the expansion already produced, so
+        /// over-asking costs search order and can never admit anything.
+        public int RouteStop;
+
         private readonly int[] _dist = new int[256];
         private readonly int[] _queue = new int[256];
         private readonly int[] _cost = new int[256];
@@ -167,7 +197,16 @@ namespace LaserTank.Solver
             int tx = e.Game.Tank.X, ty = e.Game.Tank.Y;
             Component = 0;
             FlagReachable = true;
-            if (fx < 0) return 0;                       // no flag: nothing to steer by
+            // No flag on the board.  This used to return 0 -- the *best*
+            // score any state can have -- on the reading "nothing to steer by".
+            // A flag leaves PF for exactly one reason: something has been
+            // pushed on top of it, which on most boards makes the level
+            // unwinnable and on none of them makes it won.  Layer 5 with
+            // --push-shot-run walks straight into it: on LaserTank.lvl 2 a
+            // block goes up column 14 in one laser run and lands on the flag,
+            // and at width 128 every board in the frontier was that board,
+            // scoring 4 against the winning line's 11.
+            if (fx < 0) { FlagReachable = false; return Unreachable; }
             if (tx == fx && ty == fy) return 0;
 
             int[] dist = _dist, queue = _queue;
@@ -260,10 +299,12 @@ namespace LaserTank.Solver
             int tx = e.Game.Tank.X, ty = e.Game.Tank.Y;
             RouteObstacles = 0;
             RouteFerry = 0;
-            if (fx < 0) return 0;
+            RouteStop = 0;
+            if (fx < 0) return Unreachable;             // buried; see FlagDistance
             if (tx == fx && ty == fy) return 0;
             RouteObstacles = -1;                        // no route, until one settles
             RouteFerry = -1;
+            RouteStop = WantStop ? StopPrice(e, fx * 16 + fy) : 0;
 
             int[] cost = _cost;
             for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
@@ -354,7 +395,7 @@ namespace LaserTank.Solver
             for (int x = 0; x < 16 && fx < 0; x++)
                 for (int y = 0; y < 16; y++)
                     if (e.Game.PF[x, y] == Obj.Flag) { fx = x; fy = y; break; }
-            if (fx < 0) return 0;
+            if (fx < 0) return 0;                       // this one returns a *count*
 
             int[] cost = _cost;
             for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
@@ -475,6 +516,354 @@ namespace LaserTank.Solver
                     if (d < best) best = d;
                 }
             return best == int.MaxValue ? 0 : best;
+        }
+
+        /// How many cells the nearest block has to travel to reach `target`,
+        /// or Unreachable when none can get there at all.
+        ///
+        /// ToNearestBlock's Manhattan is what RouteFerry uses and it says so:
+        /// whether the block can *actually* be pushed there is a question about
+        /// MoveObj, ice and where the tank can stand.  For a ferry that
+        /// approximation is harmless -- water is usually open on several sides.
+        /// For a stop cell it is not, and LaserTank.lvl 2 is the counterexample
+        /// that forced this: the stop cell is (13,1) and the block sitting at
+        /// (15,14) reaches (15,1) in one laser run, two cells away by Manhattan
+        /// and *infinitely* far by push, because moving it left again needs the
+        /// tank at x=16.  The whole width went into that ferry and stayed there.
+        ///
+        /// So: a backward BFS over block positions.  A block goes from A to
+        /// A+d when A+d is enterable and A-d is enterable -- the cell whatever
+        /// pushes it has to come from, which is the same approximation Macro.cs
+        /// makes and, unlike Manhattan, gets column 15 right.  It over-counts a
+        /// push a mirror could make and under-counts nothing, and like every
+        /// other number in this file it only orders states the expansion
+        /// already produced.
+        private int PushDistanceToBlock(Engine e, int target)
+        {
+            int[] dist = _dist, queue = _queue;
+            for (int i = 0; i < 256; i++) dist[i] = -1;
+            int head = 0, tail = 0, best = Unreachable;
+            BuildRays(e);
+
+            dist[target] = 0;
+            queue[tail++] = target;
+            if (e.Game.PF[target >> 4, target & 15] == Obj.Block) return 0;
+
+            while (head < tail)
+            {
+                int c = queue[head++];
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    int dx = k == 1 ? 1 : k == 3 ? -1 : 0;
+                    int dy = k == 0 ? -1 : k == 2 ? 1 : 0;
+                    // The block was at `from` and was pushed to `c`; whatever
+                    // pushed it stood at `behind`.
+                    int fx = cx - dx, fy = cy - dy;
+                    if (fx < 0 || fx > 15 || fy < 0 || fy > 15) continue;
+                    int from = fx * 16 + fy;
+                    if (!_rayOk[k][from]) continue;      // nothing can push it that way
+                    if (dist[from] >= 0) continue;
+                    byte cell = e.Game.PF[fx, fy];
+                    if (cell == Obj.Block)
+                    {
+                        dist[from] = dist[c] + 1;
+                        // A block already paying for another requirement is a
+                        // wall here, not a candidate: spending it twice is what
+                        // made a dead board score better than a winning one.
+                        bool taken = false;
+                        for (int r = 0; r < _stopResLen; r++)
+                            if (_stopReserved[r] == from) { taken = true; break; }
+                        if (!taken && dist[from] < best) best = dist[from];
+                        continue;                       // a block is not walked through
+                    }
+                    if (!Passable(cell)) continue;
+                    dist[from] = dist[c] + 1;
+                    queue[tail++] = from;
+                }
+            }
+            return best;
+        }
+
+        /// What it costs that the tank cannot *stop* where it has to stop.
+        ///
+        /// The first version of this priced every conveyor on the route and was
+        /// junk: the priced route walks straight across a conveyor field, most
+        /// of its cells discharge somewhere off it, and the term came out ~20
+        /// requirements deep and *rose* along the hand recording of level 2 --
+        /// 13 -> 36 -> 107 -- because placing a block reroutes the Dijkstra
+        /// through fresh conveyors faster than it satisfies old ones.  Being
+        /// carried off the priced route is not a failure; the ride usually
+        /// arrives somewhere useful by a longer way round, which is what a
+        /// conveyor level *is*.
+        ///
+        /// What the route cannot dodge is the last step.  The tank enters the
+        /// flag by driving into it, and a drive is a key consumed while the
+        /// world is quiescent -- so on the cell it drives from, it has to be
+        /// standing still.  If that cell is a conveyor, the cell it discharges
+        /// into has to stop being enterable, and no other term in this file
+        /// moves when a block gets nearer that cell.
+        ///
+        /// Then the same question again, because stopping somewhere is not the
+        /// same as getting there: a cell no conveyor feeds has to be *driven*
+        /// into, from a neighbour the tank must in turn be able to stop on.  So
+        /// this is a short backward chain, and on LaserTank.lvl 2 it is the
+        /// whole level -- (13,1) so the tank can stop at (14,1) next to the
+        /// flag, then (13,2) so it can stop at (14,2) to drive up from.  Two
+        /// cells, named from the root, which is what the hand recording spends
+        /// 32 board changes filling.
+        ///
+        /// Depth-capped at StopChain, and every branch is priced with the cells
+        /// already on the chain excluded, so it can never ask for a block on a
+        /// square it has just said the tank must stand on.
+        private const int StopChain = 3;
+
+        /// A chain branch with no way to arrive at all.  Not Unreachable: this
+        /// is compared against sibling branches and then thrown away, never
+        /// added to a score, so it only has to be bigger than any real chain.
+        private const int StopImpossible = 1 << 20;
+
+        /// What a requirement costs when no block on the board can reach the
+        /// cell at all.  Bounded, unlike Unreachable: this is a number the beam
+        /// sorts on, so it has to rank such a board last without opening a
+        /// thousand-point crevasse that every other term then falls into.
+        private const int StopNoWay = 64;
+
+        private readonly int[] _stopPath = new int[16];
+        private int _stopLen;
+
+        /// Cells the chain has already found a block sitting on, i.e. a
+        /// requirement that is *paid*.  A relaxation that forgets these prices
+        /// one block against two requirements and calls the answer cheap, and
+        /// on level 2 that is not a rounding error, it is the wrong plan: with
+        /// a block on (13,2) the requirement for (13,1) costs one push -- push
+        /// that very block up -- and (13,2) is then empty again.  The beam
+        /// found that board, scored it better than a win and sat on it.
+        ///
+        /// Reservations accumulate across sibling branches of one chain rather
+        /// than being unwound per branch.  That can over-reserve, which makes a
+        /// state look dearer than it is; the opposite mistake is the one that
+        /// cost a session.
+        private readonly int[] _stopReserved = new int[64];
+        private int _stopResLen;
+
+        /// Whether RouteStop is wanted at all.  It costs a BFS per requirement
+        /// and every other caller of WorkDistance predates it, so it is off
+        /// unless the searcher using it says otherwise -- which also keeps
+        /// every measurement taken before it byte-for-byte reproducible.
+        public bool WantStop;
+
+        /// _rayOk[d][c]: somewhere strictly behind `c` in direction `d` there is
+        /// a cell the tank can *stand* on, with nothing in between.
+        ///
+        /// The legality test for "this block can be pushed one cell that way".
+        /// Passable is not that test and level 2 says so twice: a block on
+        /// (14,1) is one cell from (13,1) and can never get there, because the
+        /// only square behind it is (15,1) -- a conveyor, which the tank can
+        /// pass over and cannot stop on, so it can neither drive the block nor
+        /// stand still long enough to shoot it.  The beam parked on that board
+        /// for the same reason it parked on the last one: the term said two.
+        ///
+        /// One sweep per line per direction, so 4x256 for the whole board, and
+        /// the edge test in the BFS is then a lookup.
+        private readonly bool[][] _rayOk =
+            { new bool[256], new bool[256], new bool[256], new bool[256] };
+
+        /// Can the tank come to rest here?  Not the same as Passable: a
+        /// conveyor, ice or a tunnel mouth all pass the tank through and none
+        /// of them let it stop, which is the entire subject of this term.
+        private static bool CanStand(byte cell) =>
+            Passable(cell) && !Obj.IsTunnel(cell)
+            && cell != Obj.ConveyorUp && cell != Obj.ConveyorRight
+            && cell != Obj.ConveyorDown && cell != Obj.ConveyorLeft
+            && cell != Obj.Ice && cell != Obj.ThinIce;
+
+        private void BuildRays(Engine e)
+        {
+            for (int k = 0; k < 4; k++)
+            {
+                Step(k, out int dx, out int dy);
+                bool[] ok = _rayOk[k];
+                // Walk each line *along* d, so what has been seen so far is
+                // exactly what lies behind the cell being written.
+                for (int i = 0; i < 16; i++)
+                {
+                    int x = dx == 0 ? i : dx > 0 ? 0 : 15;
+                    int y = dy == 0 ? i : dy > 0 ? 0 : 15;
+                    bool seen = false;
+                    for (int step = 0; step < 16; step++)
+                    {
+                        int cx = x + dx * step, cy = y + dy * step;
+                        if (cx < 0 || cx > 15 || cy < 0 || cy > 15) break;
+                        byte cell = e.Game.PF[cx, cy];
+                        ok[cx * 16 + cy] = seen;
+                        // A block is transparent here, and deliberately.  This
+                        // sweep prices where a block *could* be pushed, and the
+                        // block whose route is being priced is itself standing
+                        // on the line: counting it as a wall made the term
+                        // report a cell as unreachable exactly when a block was
+                        // halfway to it, which read as a 1,000-point cliff in
+                        // the middle of the winning line.
+                        if (cell == Obj.Block) continue;
+                        if (!Passable(cell)) seen = false;
+                        else if (CanStand(cell)) seen = true;
+                    }
+                }
+            }
+        }
+
+        private bool OnPath(int c)
+        {
+            for (int i = 0; i < _stopLen; i++) if (_stopPath[i] == c) return true;
+            return false;
+        }
+
+        private static bool ConveyorDir(byte cell, out int dx, out int dy)
+        {
+            switch (cell)
+            {
+                case Obj.ConveyorUp:    dx =  0; dy = -1; return true;
+                case Obj.ConveyorRight: dx =  1; dy =  0; return true;
+                case Obj.ConveyorDown:  dx =  0; dy =  1; return true;
+                case Obj.ConveyorLeft:  dx = -1; dy =  0; return true;
+                default: dx = dy = 0; return false;
+            }
+        }
+
+        private static int Step(int k, out int dx, out int dy)
+        {
+            dx = k == 1 ? 1 : k == 3 ? -1 : 0;
+            dy = k == 0 ? -1 : k == 2 ? 1 : 0;
+            return 0;
+        }
+
+        private int StopPrice(Engine e, int flag)
+        {
+            _stopLen = 0;
+            _stopResLen = 0;
+            _stopPath[_stopLen++] = flag;
+            int fx = flag >> 4, fy = flag & 15, best = -1;
+            for (int k = 0; k < 4; k++)
+            {
+                Step(k, out int dx, out int dy);
+                int nx = fx + dx, ny = fy + dy;
+                if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                byte cell = e.Game.PF[nx, ny];
+                int extra = 0;
+                if (cell == Obj.Block)
+                {
+                    // A block parked on the one cell the tank has to stand on
+                    // is not "nothing needed", and reading it that way is how
+                    // the beam found a board it liked better than a win: the
+                    // term went silent, so the state scored on WorkDistance
+                    // alone and beat every state where the term could still
+                    // see something to do.  It has to be pushed off -- one
+                    // board change -- and then whatever is underneath still has
+                    // to be stoppable, which PF2 is exactly what for.
+                    extra = 1;
+                    cell = e.Game.PF2[nx, ny];
+                }
+                else if (!Passable(cell)) continue;
+                int v = StopNeedCell(e, nx, ny, cell, 0);
+                if (v >= StopImpossible) continue;
+                v += extra;
+                if (best < 0 || v < best) best = v;
+            }
+            _stopLen = 0;
+            // Every way in came back impossible, which means this model cannot
+            // see the level rather than that the level cannot be played.  Say
+            // nothing: a constant the size of StopImpossible added to every
+            // sibling alike would only drown the terms that do know something.
+            return best < 0 || best >= StopImpossible ? 0 : best;
+        }
+
+        /// What it costs for the tank to be able to occupy (x,y).
+        private int StopNeed(Engine e, int x, int y, int depth) =>
+            StopNeedCell(e, x, y, e.Game.PF[x, y], depth);
+
+        /// ...reading the cell as `cell` rather than as whatever PF says, so a
+        /// caller that has just decided a block is coming off it can ask about
+        /// the terrain underneath.
+        private int StopNeedCell(Engine e, int x, int y, byte cell, int depth)
+        {
+            int c = x * 16 + y;
+            if (!ConveyorDir(cell, out int dx, out int dy))
+                return 0;                                   // it can simply stand there
+
+            // What the conveyor discharges into, and whether a block has to go
+            // there.  The *price* waits until the rest of the chain has been
+            // walked, because the walk is what discovers which blocks are
+            // already spoken for.
+            int into = -1;
+            int ix = x + dx, iy = y + dy;
+            if (ix >= 0 && ix <= 15 && iy >= 0 && iy <= 15 && !OnPath(ix * 16 + iy))
+            {
+                byte icell = e.Game.PF[ix, iy];
+                if (icell == Obj.Block) _stopReserved[_stopResLen++] = ix * 16 + iy;
+                else if (Passable(icell)) into = ix * 16 + iy;
+                // anything else already stops the tank here, for free
+            }
+
+            int arrive = 0;
+            if (!Fed(e, x, y) && depth < StopChain)
+            {
+                // Nothing delivers the tank here, so it has to drive in from a
+                // neighbour it can stop on -- the same question, one cell out.
+                _stopPath[_stopLen++] = c;
+                arrive = -1;
+                for (int k = 0; k < 4; k++)
+                {
+                    Step(k, out int ex, out int ey);
+                    ex += x; ey += y;
+                    if (ex < 0 || ex > 15 || ey < 0 || ey > 15) continue;
+                    if (OnPath(ex * 16 + ey)) continue;
+                    if (!Passable(e.Game.PF[ex, ey])) continue;
+                    int v = StopNeed(e, ex, ey, depth + 1);
+                    if (arrive < 0 || v < arrive) arrive = v;
+                }
+                _stopLen--;
+                // No conveyor delivers the tank here and no neighbour it could
+                // drive in from is even passable -- so this is not a route that
+                // costs a lot, it is not a route.
+                if (arrive < 0 || arrive >= StopImpossible) return StopImpossible;
+            }
+
+            int cost = 0;
+            if (into >= 0)
+            {
+                int p = PushDistanceToBlock(e, into);
+                cost = p >= Unreachable ? StopNoWay : 1 + p;
+            }
+            return cost + arrive;
+        }
+
+        /// Does a ride deliver the tank to (x,y)?
+        ///
+        /// A conveyor pointing into it, which is itself fed by a conveyor
+        /// pointing into *that* -- the second half matters and level 2 is why.
+        /// (15,1) points straight at (14,1), the cell next to the flag, and
+        /// would answer this yes on the one-step test; nothing anywhere on the
+        /// board points into (15,1), so no ride ever puts the tank there and
+        /// the chain has to keep going.
+        private static bool Fed(Engine e, int x, int y)
+        {
+            for (int k = 0; k < 4; k++)
+            {
+                Step(k, out int dx, out int dy);
+                int ex = x + dx, ey = y + dy;
+                if (ex < 0 || ex > 15 || ey < 0 || ey > 15) continue;
+                if (!ConveyorDir(e.Game.PF[ex, ey], out int cx, out int cy)) continue;
+                if (ex + cx != x || ey + cy != y) continue;
+                for (int j = 0; j < 4; j++)
+                {
+                    Step(j, out int gx, out int gy);
+                    int fx2 = ex + gx, fy2 = ey + gy;
+                    if (fx2 < 0 || fx2 > 15 || fy2 < 0 || fy2 > 15) continue;
+                    if (!ConveyorDir(e.Game.PF[fx2, fy2], out int ax, out int ay)) continue;
+                    if (fx2 + ax == ex && fy2 + ay == ey) return true;
+                }
+            }
+            return false;
         }
 
         /// The price list, for a caller that needs to ask whether a cell got

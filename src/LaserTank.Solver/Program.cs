@@ -202,6 +202,13 @@ namespace LaserTank.Solver
 "                         pose count, so truncation means something is odd\n" +
 "    --push-closure-depth N  movement keys to reach one, default 64\n" +
 "    --push-run N         cells one ferry may push in a row, default 8\n" +
+"    --push-shot-run N    cells one *shot* may push in a row, default 1 (off).\n" +
+"                         PushRun for the laser: the tank does not travel with\n" +
+"                         what it shoots, so firing again from the same pose\n" +
+"                         pushes the same block one cell further.  Without it a\n" +
+"                         k-cell laser ferry is k depths of the beam, each\n" +
+"                         paying for its own closure and each ranked by a key\n" +
+"                         that does not move while a block is in transit\n" +
 "    --push-move-only N   pure-movement successors kept, and only when the\n" +
 "                         closure truncated, default 4\n" +
 "    --push-eval work|learned  the ranking key, default learned (layer 4's);\n" +
@@ -209,6 +216,19 @@ namespace LaserTank.Solver
 "                         the human recording of LaserTank 1 the winning line's\n" +
 "                         longest uphill stretch is 16 board changes ranked by\n" +
 "                         work, 12 with the ferry term and 6 by the learned one\n" +
+"    --push-stop N        weight on the stop term, default 0 (off).  The\n" +
+"                         question the ferry term asks, for a route that\n" +
+"                         crosses a conveyor rather than water: a conveyor is\n" +
+"                         priced 1 and the route walks over it, but the tank\n" +
+"                         arriving there is carried off again.  To drive into\n" +
+"                         the flag it has to be standing still on the cell\n" +
+"                         next to it, so if that cell is a conveyor the cell\n" +
+"                         it discharges into needs a block -- and then the\n" +
+"                         same question again about getting there.  See\n" +
+"                         Heuristic.RouteStop.  Off by default and 18/50 on\n" +
+"                         both banked benches against 19 and 21, but with\n" +
+"                         --push-shot-run 16 and --push-beam 128 it solves\n" +
+"                         LaserTank.lvl 2, which nothing else does\n" +
 "    --push-ferry N       weight on the ferry term, default 1, 0 is off:\n" +
 "                         how far the nearest block still is from the water\n" +
 "                         on the route.  WorkDistance does not move while a\n" +
@@ -236,6 +256,10 @@ namespace LaserTank.Solver
 "    --push-trace         per-depth diagnostics to stderr.  Read `boards=`\n" +
 "                         against `front=`: they are equal when the width is\n" +
 "                         being spent on positions rather than on tank poses\n" +
+"    --push-trace-board   ...and print the best node's playfield each depth.\n" +
+"                         `best=` says a ranking key has gone flat; it does\n" +
+"                         not say what the beam is looking at, and on a flat\n" +
+"                         key that is usually the whole finding\n" +
 "    --push-line FILE.lpb instrument, not a solve: replay a winning recording,\n" +
 "                         keep its state at every board change -- one per push\n" +
 "                         depth -- then run the beam and report, per depth,\n" +
@@ -320,6 +344,9 @@ namespace LaserTank.Solver
                         case "--push-closure": a.Opt.PushClosureNodes = int.Parse(V()); break;
                         case "--push-closure-depth": a.Opt.PushClosureDepth = int.Parse(V()); break;
                         case "--push-run": a.Opt.PushRun = int.Parse(V()); break;
+                        case "--push-shot-run": a.Opt.PushShotRun = int.Parse(V()); break;
+                        case "--push-stop": a.Opt.PushStop = int.Parse(V()); break;
+                        case "--push-trace-board": a.Opt.PushTrace = true; a.Opt.PushTraceBoard = true; break;
                         case "--push-move-only": a.Opt.PushMoveOnlyK = int.Parse(V()); break;
                         case "--push-eval": a.Opt.PushLearned = V() == "learned"; break;
                         case "--push-restarts": a.Opt.PushRestarts = int.Parse(V()); break;
@@ -1028,6 +1055,9 @@ namespace LaserTank.Solver
             PushClosureNodes = s.PushClosureNodes,
             PushClosureDepth = s.PushClosureDepth,
             PushRun = s.PushRun,
+            PushShotRun = s.PushShotRun,
+            PushStop = s.PushStop,
+            PushTraceBoard = s.PushTraceBoard,
             PushMoveOnlyK = s.PushMoveOnlyK,
             PushLearned = s.PushLearned,
             PushTrace = s.PushTrace,

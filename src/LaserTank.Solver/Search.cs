@@ -265,6 +265,9 @@ namespace LaserTank.Solver
         public int PushClosureNodes = 4000;// poses in one PF-preserving closure
         public int PushClosureDepth = 64;  // movement keys to reach one
         public int PushRun = 8;            // cells one ferry may push in a row
+        public int PushShotRun = 1;        // cells one *shot* may push in a row; 1 is off
+        public int PushStop = 0;           // weight on Heuristic.RouteStop; 0 is off
+        public bool PushTraceBoard;        // --push-trace: also print the best board
         public int PushMoveOnlyK = 4;      // pure-movement successors, and only
                                            // when the closure truncated
         /// Rank by layer 4's learned evaluation rather than WorkDistance.

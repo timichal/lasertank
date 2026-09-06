@@ -132,10 +132,13 @@ namespace LaserTank.Solver
         /// Subgoal.cs's Rank() has, for the same reason.
         private int PushH()
         {
+            _h.WantStop = _opt.PushStop > 0;
             int work = _h.WorkDistance(_e);
             int ferry = _opt.PushFerry > 0 && _h.RouteFerry > 0
                       ? _opt.PushFerry * _h.RouteFerry : 0;
-            return _opt.PushLearned ? Rank(work) + ferry : work + ferry;
+            int stop = _opt.PushStop > 0 && _h.RouteStop > 0
+                     ? _opt.PushStop * _h.RouteStop : 0;
+            return (_opt.PushLearned ? Rank(work) : work) + ferry + stop;
         }
 
         // ---- restarts ------------------------------------------------------
@@ -244,6 +247,7 @@ namespace LaserTank.Solver
                         depth, next.Count, DistinctBoards(next),
                         next.Count > 0 ? next[0].H : -1,
                         _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes);
+                    if (_opt.PushTraceBoard && next.Count > 0) TraceBoard(next[0]);
                     if (_opt.PushRead)
                         Console.Error.WriteLine(
                             "        read: {0}/{1} successors advanced ({2}%), "
@@ -350,6 +354,16 @@ namespace LaserTank.Solver
 
                 ulong after = _e.StateHash();
                 if (after == before) continue;
+
+                // The board moved, so the *same* shot fired again from this
+                // same pose may well push the same block one cell further --
+                // the drive push's run, for the laser.  See ShotRun.
+                if (_opt.PushShotRun > 1 && !BoardIs(board))
+                {
+                    if (ShotRun(seen, layer, next)) { Drain(closure); return true; }
+                    continue;
+                }
+
                 if (!PushFresh(after, seen, layer)) continue;
                 next.Add(new Node
                 {
@@ -423,6 +437,29 @@ namespace LaserTank.Solver
             next.RemoveRange(keep, next.Count - keep);
         }
 
+        /// The best node's playfield, printed the way tools/dump_level.py prints
+        /// one.  --push-trace says a depth's best score; on a level whose
+        /// ranking key has gone flat that is exactly the number that does not
+        /// tell you what the beam is looking at.
+        private static void TraceBoard(Node n)
+        {
+            const string Name = ".TF~#Bb^>v<mnopURDLCqwerIi";
+            System.Text.StringBuilder b = new System.Text.StringBuilder();
+            for (int y = 0; y < 16; y++)
+            {
+                b.Append("        ");
+                for (int x = 0; x < 16; x++)
+                {
+                    byte c = n.S.PF[x * 16 + y];
+                    b.Append(c < Name.Length ? Name[c] : '?');
+                }
+                if (y == 0) b.Append("   tank ").Append(n.S.Tank.X).Append(',').Append(n.S.Tank.Y);
+                if (y == 1) b.Append("   h=").Append(n.H);
+                b.Append(Environment.NewLine);
+            }
+            Console.Error.Write(b.ToString());
+        }
+
         /// How many *distinct playfields* a frontier holds.
         ///
         /// The number this layer turned out to live or die by.  A successor is
@@ -473,6 +510,54 @@ namespace LaserTank.Solver
 
                 _nodes++;
                 StepResult step = _e.ApplyKey(key, _opt.TickCap);
+                if (step == StepResult.Win) return true;
+                if (step != StepResult.Ok) return false;
+                if (_e.Game.RecP >= (uint)_opt.MaxKeys) return false;
+                if (BoardIs(_boardPrev)) return false;          // the push ended
+                Buffer.BlockCopy(_boardNow, 0, _boardPrev, 0, 256);
+            }
+        }
+
+        /// The engine has just made a board change by *firing*.  Emit it, then
+        /// keep firing from the same pose while the board keeps changing.
+        ///
+        /// PushRun for the laser, and the asymmetry between the two is what
+        /// `LaserTank.lvl` level 2 "Easy Level Conveyor" is made of.  A drive
+        /// push carries the tank along with the block, so pressing the same key
+        /// again continues it and PushRun collapses a k-cell ferry into k
+        /// successors of *one* expansion.  A shot leaves the tank where it is,
+        /// so pushing a block k cells by laser was k separate depths of the
+        /// beam, each paying for its own closure and each ranked by a key that
+        /// does not move while a block is in transit.  Level 2's human line
+        /// pushes four blocks 4, 2, 8+8 and 6+4 cells: **32 board changes, of
+        /// which 26 are a repeat of the shot before them**, on a WorkDistance
+        /// that goes 13 -> 11 over the whole level.  At depth-per-cell that is a
+        /// 32-deep breadth-first search on a flat ranking key; run-compressed it
+        /// is six.
+        ///
+        /// The stopping rule is PushRun's, for PushRun's reason: the run ends
+        /// the moment a shot changes nothing, because the block has hit
+        /// something that will not move and every continuation is some other
+        /// pose's business.  A roto-mirror cycles rather than stopping, so the
+        /// PushRun cap bounds this as it bounds that.
+        private bool ShotRun(HashSet<ulong> seen, HashSet<ulong> layer, List<Node> next)
+        {
+            // BoardIs() has just left the post-shot board in _boardNow.
+            Buffer.BlockCopy(_boardNow, 0, _boardPrev, 0, 256);
+            for (int k = 1; ; k++)
+            {
+                ulong h = _e.StateHash();
+                if (PushFresh(h, seen, layer))
+                    next.Add(new Node
+                    {
+                        S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
+                    });
+
+                if (k >= _opt.PushShotRun) return false;
+                if (OutOfBudget) return false;
+
+                _nodes++;
+                StepResult step = _e.ApplyKey(Fire, _opt.TickCap);
                 if (step == StepResult.Win) return true;
                 if (step != StepResult.Ok) return false;
                 if (_e.Game.RecP >= (uint)_opt.MaxKeys) return false;

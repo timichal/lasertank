@@ -180,6 +180,44 @@ namespace LaserTank.Solver
                 if (r >= 3) o.PushBeamWidth = 48;
                 o.PushRestarts += 6 * r;
             }),
+            // The conveyor rung: the laser ferry compressed, the stop cell
+            // named, and the width to hold both.  It exists because
+            // `LaserTank.lvl` 2 "Easy Level Conveyor" does, and the three
+            // things it turns on are not three preferences -- level 2 is
+            // unsolved at 60M nodes with any one of them off, and solved in
+            // **2.03M nodes and 44 s** with all three:
+            //
+            //   * `--push-shot-run 16`.  PushRun for the laser.  The tank does
+            //     not travel with what it shoots, so pushing a block k cells by
+            //     laser was k depths of the beam; level 2's hand recording is
+            //     32 board changes of which 26 are a repeat of the shot before
+            //     them, on a ranking key that goes 13 -> 11 over the whole
+            //     level.  Run-compressed it is six.
+            //   * `--push-stop 1`.  Heuristic.RouteStop: to drive into the flag
+            //     the tank has to be standing still on the cell next to it, so
+            //     if that cell is a conveyor, the cell it discharges into needs
+            //     a block -- and then the same question again about getting
+            //     there.  On level 2 that names (13,1) and (13,2) from the root.
+            //   * width 128.  Level 2 is unsolved at 64 and solved at 128 and
+            //     256; a stop cell has one plan and the beam has to hold it
+            //     alongside everything the free derivations are still ranking.
+            //
+            // **Its own rung, and the bench says why.**  Solo it is 18/50 on
+            // the ferry bench and 18/50 on the deep one, against the plain push
+            // rung's 19 and 21 -- a loss, read solo.  As a portfolio member,
+            // which is the only honest way to read it, it adds **3 ferry levels
+            // and 5 deep ones** to that rung's own solved set (union 22 and
+            // 26).  Same shape as push-enables above, same conclusion: a
+            // specialist costs a core, not a share of somebody's budget.
+            ("push-stop", static (o, r) =>
+            {
+                o.RunPush = true;
+                o.PushRead = true;
+                o.PushStop = 1;
+                o.PushShotRun = 16;
+                o.PushBeamWidth = 128;
+                o.PushRestarts += 6 * r;
+            }),
         };
 
         // What the keypress and Ctrl+C set.  Static because the Ctrl+C handler
@@ -430,12 +468,21 @@ namespace LaserTank.Solver
             _live = null;
 
             Program.Outcome win = null;
-            foreach (Task<Program.Outcome> t in tasks)
+            for (int i = 0; i < tasks.Length; i++)
             {
-                Program.Outcome o = t.Result;
+                Program.Outcome o = tasks[i].Result;
                 if (o.Error != null && !o.Solved)
                     Console.WriteLine("  {0} {1}", Ansi.Red("error"), o.Error);
-                if (win == null && o.Solved) { win = o; continue; }
+                if (win == null && o.Solved)
+                {
+                    // The searcher names itself after its *layer*, so three
+                    // rungs now report "push" and the result line stops saying
+                    // which configuration actually did it -- which is the one
+                    // thing a reader of this line wants when a level falls.
+                    if (o.Method != Ladder[i].Name) o.Method = Ladder[i].Name;
+                    win = o;
+                    continue;
+                }
                 File.Delete(o.J.LpbPath);          // loser, or a duplicate win
             }
             return win;

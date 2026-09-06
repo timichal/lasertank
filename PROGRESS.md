@@ -40,6 +40,19 @@ build/lasertank-solve.exe --levels data/levels/Beginner-I.lvl --level 44 --verbo
 python tools/verify_solutions.py build/try      # both engines, byte-identical, or it did not happen
 ```
 
+*(Session 20: **level 2 is solved too**, and by the same route — a new derivation, not a bigger
+budget. `--from 2 --to 2` takes 65 s with no flags. What it needed is in* Phase 4 — layer 7, the
+stop cell*; the two flags behind it, `--push-stop` and `--push-shot-run`, are off in the batch
+solver and on in the `push-stop` rung. Read that section before adding a term to `PushH()`: it
+went in wrong five separate ways and the beam found every one, which is the most transferable thing
+in this file about writing a relaxation.)*
+
+**Look at the board the beam settled on, not only at its score.** `--push-trace-board` prints the
+best node's playfield each depth under `--push-trace`. `best=10` says the ranking key has gone flat
+and says nothing about *what* the beam is looking at — and on a flat key the answer is usually that
+it has found something the key likes and a player would not. It is what caught a beam that had
+buried the flag under a block and scored it better than a win.
+
 **Ask why a level is hard, before asking the solver to try harder.** This is the newest tool and
 the one the last two sessions turned on most often: replay a *winning* recording — a solver's or a
 human's — and print what the searchers' ranking keys do along it.
@@ -77,10 +90,19 @@ ranking key placed it, and whether the width trim kept it:
 
 ```bash
 build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 1 \
-    --push-line data/demos/LaserTank/00001.lpb --nodes 20000000 --jobs 1
+    --push-line data/demos/LaserTank/00001.lpb --nodes 20000000 --budget-ms 600000 --jobs 1
 ```
 
-Read the last line (*followed to depth N of M, lost at K*) and then the row at K. This is what found
+*(`--budget-ms` matters here and its default of 4 s will bite you: without it the instrument stops
+after a quarter of a million nodes and reports the line lost at depth 2 when nothing of the sort
+happened.)*
+
+Each row now carries **two** numbers, `d=` (beam depth) and `at=` (how far along the *line* the
+frontier is), and they are not the same: a run emits several of the line's board changes at once, so
+a frontier can be four changes along at depth one. The report was depth-indexed until session 20,
+which meant that under `--push-shot-run` it called a line it was following perfectly `STALE` —
+the hash it wanted had been generated and closed two depths earlier. Read the last line
+(*followed to depth N of M, lost at K*) and then the row at K. This is what found
 the layer-5 bug that was costing forty-eight closures a depth — see *The width was being spent on
 tank poses*, below — and it is the first thing to reach for when a level with a recording will not
 fall. It is also what found session 19's derivation: when the row at K is a *setup* move, one that
@@ -138,6 +160,13 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 
 **Phases 1-3 complete. Phase 4 complete through layer 4. Phase 5 not started.**
 
+*One number in this table moved for a reason worth reading before trusting the rest: the ferry
+bench is **19/50** where every earlier session banked 20/50. That is the buried-flag fix (session
+20) and it is attributed rather than assumed — reverting it alone reproduces 20/50 exactly, so
+every other change since is inert at default flags, and the level it costs (`Beginner-I` 1581)
+never buries a flag on its own line. A correct ranking that costs one level is still the correct
+ranking; the number to compare future runs against is 19.*
+
 | | state |
 |---|---|
 | C reference oracle | replays the whole corpus; ground truth, never refactored |
@@ -148,6 +177,8 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 | Solver, layer 6 | the read: shipped inside layer 5 and still carrying its weight there (15/50 against 9/50 without it) |
 | Solver, layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`, off in the batch solver, and its **own rung in the interactive driver**, where it adds 4 ferry / 5 deep levels to the rung beside it and **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 5 over the corpus | **15 of 255 (5.9%) of the levels the whole chain fails**, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
+| Solver, layer 7, the stop cell | *what has to be blocked before the tank can stand next to the flag?* — `Heuristic.RouteStop`, the ferry term for a route that crosses a conveyor rather than water. Off in the batch solver, its **own rung in the interactive driver** with `--push-shot-run` and width 128, where it adds 3 ferry / 5 deep levels to the plain push rung and **solves `LaserTank.lvl` 2 in 65 s with no flags** |
+| Solver, `--push-shot-run` | PushRun for the laser: a k-cell laser ferry is k successors of one expansion, not k depths. Off by default (ferry 15/50, deep 23/50 solo — a wash), on in the layer-7 rung, where level 2 needs it |
 | Presentation (Godot) | not started — see Phase 5 |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
@@ -174,6 +205,13 @@ thousands.
 derivation is a level or two worse on both banked benches at 4M nodes and it solves `LaserTank.lvl`
 1, which nothing else does, so the population it is worth spending on is exactly what this pass
 measures and nothing smaller can decide it.*
+
+*Session 20 adds a **third** arm to the same pass, for the same reason and at the same price:
+`--push-stop 1 --push-shot-run 16 --push-beam 128`. It is 18/50 on both banked benches against the
+plain rung's 19 and 21, adds 3 ferry and 5 deep levels as a union, and solves `LaserTank.lvl` 2
+which nothing else does — which is the whole of what is known about it. Layer 7 is the only layer
+here that has never seen the corpus, so that arm is not a nice-to-have on this pass, it is the
+measurement the layer is missing. Run all three arms and compare unions, not solo counts.*
 
 ```bash
 # the whole population the chain fails, not a 1-in-15 sample of it, at 40M nodes
@@ -2175,6 +2213,111 @@ next?* — and it is the only one that says anything at all during pure setup. I
 honestly, a net loss of one to two levels on both populations that were banked before it existed,
 which is the argument for the flag and against the default.
 
+### Phase 4 — layer 7, the stop cell  ☑ (built, measured, its own rung)
+
+**The trigger.** *"The solver is still stuck on level 2. From a human perspective this level is
+trivial: I instantly see that I have to shoot the boxes to block the conveyor belt."*
+
+`LaserTank.lvl` 2 "Easy Level Conveyor" is a single conveyor loop with the flag at (14,0) in the
+top wall and the tank penned into the bottom two rows — 30 cells, 348 poses, and every way out is a
+ride that never stops. `--analyze` calls it **RIDE**, which is 312 of the 4,185-level stride sample
+(7.5%) and the second-best-solved shape at 19.6%, so the shape was never the problem. Three things
+were, and each was found by an instrument rather than guessed.
+
+**One: a laser ferry cost a depth per cell.** `PushRun` compresses a *drive* push — the tank
+travels with the block, so pressing the same key again continues it, and a k-cell ferry is k
+successors of **one** expansion. A shot leaves the tank where it is, so nothing compressed it: the
+fire pass fired once per pose and the next cell of the same ferry was a whole beam depth away.
+Level 2's hand recording is **32 board changes of which 26 are a repeat of the shot before them**,
+on a WorkDistance that goes 13 -> 11 across the entire level. That is a 32-deep breadth-first
+search on a flat key. `--push-shot-run N` is PushRun for the laser and makes it six.
+
+**Two: `--push-line` was counting the wrong thing.** It asked for line index *d* at beam depth *d*,
+which was right while every successor was one board change. `PushRun` already bent that and a shot
+run breaks it: the instrument reported a line it was following perfectly as `STALE`, because the
+hash it wanted had been generated and closed two depths earlier. It now tracks **how far along the
+line the frontier actually is** and prints both numbers (`d=` and `at=`). Nothing about a search
+changed; a measurement that lied stopped lying.
+
+**Three, and this is the layer: no ranking key in the project moves when a block gets nearer the
+cell that would stop the ride.** A ferry level's route crosses water and `RouteFerry` prices "how
+far is the nearest block from the hole". A RIDE level's route crosses a *conveyor*, which the price
+list charges 1 for and the Dijkstra walks straight over — and the tank still cannot follow it.
+
+`Heuristic.RouteStop` is that term, and getting it right took **five wrong versions, every one of
+which the beam found and sat on**. They are worth listing because each is a different way for a
+relaxation to lie:
+
+1. **Price every conveyor on the route.** Junk: ~20 requirements deep, and it *rose* along the
+   winning line, 13 -> 36 -> 107, because placing a block reroutes the Dijkstra through fresh
+   conveyors faster than it satisfies old ones. Being carried off the priced route is not a
+   failure — the ride usually arrives somewhere useful the long way round, which is what a conveyor
+   level *is*. What the route cannot dodge is the **last step**: a drive is a key consumed while the
+   world is quiescent, so on the cell it drives into the flag from, the tank has to be standing
+   still. Scoped to that one cell, the winning line became a descent: 25 -> 12.
+2. **Manhattan to the nearest block.** The beam shoved a block up column 15 to (15,1), two cells
+   from the target and infinitely far by push, because moving it left again needs the tank at
+   x=16. Replaced by a backward BFS over block positions.
+3. **A dead-end branch of the chain returning "free".** Stopping next to the flag is not the same
+   as *getting* there, so the term regresses: a cell no conveyor feeds has to be driven into, from a
+   neighbour the tank must in turn stop on. A branch with nowhere to arrive from returned 0, and the
+   beam parked on a board whose two spare blocks were both stuck in row 2 with every way in priced
+   at nothing.
+4. **Spending one block on two requirements.** With a block on (13,2) the requirement for (13,1)
+   costs one push — push *that* block up — and (13,2) is empty again. A block already paying for a
+   requirement is now reserved, and is a wall to the BFS rather than a candidate.
+5. **`Passable` standing in for "the tank can stop here".** A block on (14,1) is one cell from
+   (13,1) and can never get there: the only square behind it is (15,1), a conveyor. The push test
+   now needs a cell on the ray behind that the tank can actually **stand** on, precomputed as one
+   sweep per line per direction.
+
+**And a bug that was not mine, found because a shot run walks straight into it.** `WorkDistance`
+and `FlagDistance` returned **0** — the best score any state can have — when there is no flag on
+the board, on the reading "nothing to steer by". A flag leaves PF for exactly one reason: something
+has been pushed on top of it. With `--push-shot-run` a block goes up column 14 in **one** laser run
+and lands on the flag, and at width 128 *every one of the 128 boards in the frontier was that
+board*, scoring 4 against the winning line's 11. It now returns `Unreachable`. See *Status* for what
+that costs and how it was attributed.
+
+**What it takes, measured as an ablation at 60M nodes on level 2:**
+
+| configuration | result |
+|---|---|
+| width 128, `--push-stop 1`, `--push-shot-run 16` | **solved, 2.03M nodes, 44 s, 90 keys** |
+| ...without the shot run | unsolved at 60M |
+| ...without the stop term | unsolved at 60M |
+| ...at width 8 | unsolved at 60M |
+| ...at width 64 | unsolved at 60M |
+| ...at width 256 | solved, 4.11M nodes |
+
+All three, and the width. Nothing here is a preference.
+
+**It is a specialist and the bench says so.** Solo at 4M nodes it is **18/50 ferry and 18/50 deep**
+against the plain push rung's 19 and 21 — a loss, read solo. As a portfolio member, which is the
+only honest way to read one, it **adds 3 ferry levels and 5 deep ones** to that rung's own solved
+set (union 22 and 26). Same shape and same conclusion as layer 6's fourth derivation: a specialist
+costs a *core*, not a share of somebody's budget. So `--push-stop` is off in the batch solver and
+has its own rung, `push-stop`, in the interactive driver — and
+`build/lasertank-solve.exe data/levels/LaserTank.lvl --from 2 --to 2` solves it at **round 2 in
+65 seconds with no flags**, 90 keys against the record's 72, **1.2x**, verified through both
+engines. `--from 1 --to 1` is unchanged at 72 s.
+
+`--push-shot-run` is off by default for its own measured reason rather than by association: solo on
+the shipped push configuration it is **ferry 15/50 (from 19) and deep 23/50 (from 21)**. That is a
+wash, not a win, so it lives in the rung that needs it.
+
+**New instrument: `--push-trace-board`**, which prints the best node's playfield under
+`--push-trace`. Three of the five wrong versions above were diagnosed by *looking at the board the
+beam had settled on*; `best=10` on its own says a key has gone flat and says nothing about what the
+beam is looking at. It is what found the buried flag.
+
+**What is left undone here.** The chain is conveyors only. `--analyze`'s RIDE verdict says "a
+conveyor, a slide or a tunnel", and ice is the same shape — you slide until you hit something —
+but the direction of travel on ice depends on how the tank entered, which is a second question.
+`StopChain` is capped at 3 and the reservation list is not unwound per branch (over-reserving makes
+a state look dearer, which is the safe direction). And the layer has never been run over the
+corpus: the ablation and the two benches are all that is behind it.
+
 ### Phase 4 addendum — polishing a solution so it reads like a person played it  ☑
 
 **The complaint, and it is not about length.** *"Get rid of repeated turns in place (like facing
@@ -3038,3 +3181,57 @@ seconds at round 3**, verified through both engines and banked to `data/solution
 All four fidelity gates green (187 replayed / 181 win / 6 documented, 29 difftrace, 2,347 sweep
 identical, 25 fuzz). `Analyze.cs`, `Push.cs`, `Search.cs`, `Program.cs` and `Auto.cs` only -
 `Engine.cs` still differs from layer 0 by one word and `Engine.Search.cs` is unchanged.
+
+**2026-09-06, session 20 - level 2 is solved, and one old bug was scoring a destroyed board as
+perfect.** Opening complaint, the sequel to four sessions of the same about level 1: *"the solver is
+still stuck on level 2 - from a human perspective this level is trivial, I instantly see that I have
+to shoot the boxes to block the conveyor belt."* Michal also named the design out loud - *"you can
+solve the levels by game state changes ... the solution is basically a series of state changes with
+walking in between"* - which is layer 5 exactly, and the useful thing about hearing it back is that
+it puts the question where it belongs: not *is the action set right* but *why is this action set
+blind here*. Three answers, all in the new **layer 7** section above.
+
+The short version. A **laser** ferry cost the beam a depth per cell where a **drive** ferry costs
+one for the whole run, so level 2's 32 board changes - 26 of them a repeat of the shot before - were
+a 32-deep breadth-first search on a key that moves 13 -> 11 all level (`--push-shot-run`). No
+ranking key in the project moves when a block gets nearer the cell that would stop a *ride*, which
+is what `RouteFerry` does for water and `Heuristic.RouteStop` now does for a conveyor
+(`--push-stop`). And `--push-line`'s report was depth-indexed, so under run compression it called a
+line it was following perfectly `STALE`; it now tracks how far along the line the frontier is.
+
+**The part worth remembering is how the term was got right, because it was wrong five times and the
+beam found every one.** Price the whole route -> it *rose* along the winning line, 13 -> 36 -> 107.
+Manhattan to the nearest block -> the beam shoved one up column 15 to a cell it could never be
+pushed out of. A chain branch with nowhere to arrive from returning "free" -> the beam parked on a
+board with two blocks stuck in row 2 and every way in priced at nothing. One block paying for two
+requirements -> it parked on the *dead* ordering, (13,2) before (13,1), which walls off column 13.
+`Passable` standing in for "the tank can stop here" -> a block on (14,1) priced as one push from
+(13,1) when the only square behind it is a conveyor. Each was found by `--push-trace-board`, a new
+instrument that prints the board the beam has settled on: `best=10` says a key has gone flat and
+says nothing about *what* the beam is looking at.
+
+**And a bug nobody put there this session.** `WorkDistance`/`FlagDistance` returned **0** - the best
+score there is - when no flag is on the board, "nothing to steer by". A flag leaves PF only because
+something was pushed onto it. With a shot run a block goes up column 14 in one run and lands on the
+flag, and at width 128 all 128 boards in the frontier were that board, scoring 4 against the winning
+line's 11. Fixed to `Unreachable`. It costs **one ferry-bench level** and that is attributed rather
+than assumed: reverting it alone reproduces the banked 20/50 exactly, so everything else added this
+session is inert at default flags, and the level lost (`Beginner-I` 1581) never buries a flag on its
+own line. The ferry number to compare against from now on is **19/50**; the deep bench is unmoved at
+21/50.
+
+**Level 2 falls in 2.03M nodes and 44 s**, and the ablation says all three ingredients are load
+bearing - without the shot run, without the stop term, at width 8 or at width 64, it is unsolved at
+**60M**. Solo the configuration is 18/50 on both benches against 19 and 21, and as a portfolio
+member it adds **3 ferry and 5 deep** levels, so it went in the way session 19's derivation did: its
+own rung. `build/lasertank-solve.exe data/levels/LaserTank.lvl --from 2 --to 2` solves it at round 2
+in **65 s with no flags**, 90 keys against the record's 72 (**1.2x**, better than level 1's 1.97x),
+verified through both engines and banked at `data/solutions/LaserTank/00002.lpb`. Level 1 is
+unchanged at 72 s. The driver also stopped lying about which rung won: three rungs now report
+`push`, so the result line names the *rung*, and level 2 reads `push-stop`.
+
+All four fidelity gates green (187 replayed / 181 win / 6 documented, 29 difftrace, 2,347 sweep
+identical, 25 fuzz). `Heuristic.cs`, `Push.cs`, `Line.cs`, `Search.cs`, `Program.cs` and `Auto.cs`
+only - `Engine.cs` still differs from layer 0 by one word and `Engine.Search.cs` is unchanged.
+Seven layers now, and the one thing layer 7 has *not* had is a corpus pass: two benches and one
+ablation is all that is behind it.
