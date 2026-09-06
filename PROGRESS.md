@@ -7,13 +7,15 @@ Update the *Status* block and *Session log* at the end of every working session.
 
 ## Start here after a context clear
 
-**Where the project is:** Phases 1-3 complete, Phase 4 (the solver) complete through layer 4,
-Phase 5 (presentation) not started. The rest of this file is the reasoning behind each of those,
-kept because the reasoning *is* the handoff. This block is the ninety-second version.
+**Where the project is:** Phases 1-3 complete, Phase 4 (the solver) complete through layer 4 with
+layer 5 built but not shipping, Phase 5 (presentation) not started. The rest of this file is the
+reasoning behind each of those, kept because the reasoning *is* the handoff. This block is the
+ninety-second version.
 
 **What is built.** A C reference oracle (`oracle/`), a C# transliteration of the engine that traces
 byte-identically to it (`src/LaserTank.Core/`), a differential fuzzer (`tools/fuzz.py`), and a
-five-layer solver (`src/LaserTank.Solver/`). No Godot yet — that is Phase 5.
+solver of five layers, four of which ship (`src/LaserTank.Solver/`). No Godot yet — that is
+Phase 5.
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -37,6 +39,26 @@ build/lasertank-solve.exe --levels data/levels/Beginner-I.lvl --level 44 --verbo
   --out build/try --nodes 400000
 python tools/verify_solutions.py build/try      # both engines, byte-identical, or it did not happen
 ```
+
+**Ask why a level is hard, before asking the solver to try harder.** This is the newest tool and
+the one the last two sessions turned on most often: replay a *winning* recording — a solver's or a
+human's — and print what the searchers' ranking keys do along it.
+
+```bash
+ls data/demos/LaserTank/*.lpb > build/demos.txt
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl \
+    --lpb-list build/demos.txt --profile build/prof.tsv
+python tools/basin.py build/prof.tsv --per-level            # in keypresses
+python tools/basin.py build/prof.tsv --per-level --events   # in board changes
+```
+
+The number to read is the **longest stretch that stays at or above the best heuristic value seen so
+far**. A beam follows a descent for free and an ascent only while the ascent's whole cross-section
+fits in its width, so that number, not the budget, is what says whether a level is reachable at all.
+Over the 402 recordings the solver has produced it is p50 6 / p90 21 keypresses. `LaserTank.lvl`
+level 1 is **68**. That is the difference between "needs more nodes" and "needs a different move
+set", and it is why four rounds of the interactive driver do not touch level 1 and a fifth would
+not either.
 
 **The whole shipped chain** — a layer-0 campaign, then three passes that each attack only what the
 previous one failed. `STRIDE=5` gives the 4,185-level sample every number in Phase 4 is quoted
@@ -93,7 +115,9 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 | C reference oracle | replays the whole corpus; ground truth, never refactored |
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
-| Solver | five layers; **472 of the 4,185-level stride sample (11.3%)**, all verified |
+| Solver | four shipped layers; **472 of the 4,185-level stride sample (11.3%)**, all verified |
+| Solver, layer 5 | push macros: built, measured, **does not yet pay** — see its section |
+| Solver, layer 6 | the read: built, measured, and wired into layer 5 — **+7 of 50 on a ferry bench, not yet run over the corpus** |
 | Presentation (Godot) | not started — see Phase 5 |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
@@ -108,9 +132,61 @@ measured, not assumed: the fuzz campaign reached it zero times. It **throws** ra
 if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
 logic.
 
-**Next action:** Phase 5, and its section below is a plan rather than a wish list. Phase 3's
-fuzzer can also keep running in parallel on new seeds and the 12 collections its first campaign
-never touched. **Blocked on:** nothing.
+**Next action: the decision pass for layer 6, which is the one measurement this session did not
+finish.** Everything else about layer 6 is measured; what is missing is whether it adds levels to
+the shipped chain. The run is written and was started twice and killed twice (both times to free
+the binary for a rebuild), so just run it:
+
+```bash
+python - <<'EOF'          # rebuild build/reports/chain.jsonl if it is gone
+import json
+rows={}
+for f in ["l0.jsonl","l3n.jsonl","l34.jsonl","l34pass4.jsonl"]:
+    for line in open("build/reports/"+f,encoding="utf-8"):
+        if line.strip():
+            r=json.loads(line); rows[(r["collection"],r["level"])]=r.get("solved",False)
+with open("build/reports/chain.jsonl","w",encoding="utf-8") as w:
+    for (c,l),sv in sorted(rows.items()):
+        w.write(json.dumps({"collection":c,"level":l,"solved":sv})+"
+")
+EOF
+
+# arm A -- layer 5 at the corrected width, no read
+SAMPLE=15 NODES=4000000 BUDGET_MS=900000 JOBS=14 bash tools/second_pass.sh   build/reports/chain.jsonl solutions/l6a build/reports/l6a.jsonl   --no-ida --no-beam --push --push-beam 48
+# arm B -- the same plus the read
+SAMPLE=15 NODES=4000000 BUDGET_MS=900000 JOBS=14 bash tools/second_pass.sh   build/reports/chain.jsonl solutions/l6b build/reports/l6b.jsonl   --no-ida --no-beam --push --push-beam 48 --push-read
+python tools/report_stats.py build/reports/l6a.jsonl --diff build/reports/l6b.jsonl
+```
+
+About 250 levels an arm (`SAMPLE=15` of the 3,713 the chain fails), roughly half an hour each.
+**Read it knowing what it is**: a 4M-node pass is 27x the campaign budget, so a win here is an
+argument for a fourth pass at a high budget, not for changing the chain. And run the benches again
+only as a check - `bench.sh` on `build/reports/ferry-levels.txt` should still give 4/50 plain and
+11/50 with `--push-read` at width 48.
+
+**Two smaller things that are ready and unmeasured.** Layer 5's width of 300 is wrong and 48 is
+better on both banked benches (deep 7 -> 13); that is a one-line default change nobody has run a
+campaign on. And `Trim.Polish` now removes 47% of a subgoal solution's keypresses, so **every banked
+`.lpb` under `build/solutions/` is longer than it needs to be** - `--polish DIR` over each of them
+would refresh the corpus that layer 4 is fit on and `--profile` measures, which is not nothing:
+shorter trajectories change the ascent statistics the whole layer-5 argument rests on.
+
+**Still worth doing, and no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
+harvester.** It was session 16's agreed next action because the ferry population was n=2; it is
+n=20 now, hand-recorded, so the harvester is a way to make that 200 rather than a prerequisite for
+measuring anything. See *Open questions* for what a post contains and the feasibility check on two
+downloaded images. Sequence, roughly: scrape post URL + collection + level + image URLs; decode a
+16x16 board from a screenshot by template matching, bootstrapping the codebook from the *start*
+images, whose true contents are already known from the `.lvl`; bank `(collection, level, goal PF,
+moves, shots)`; then a `--goal-board` mode that ranks by cells-still-differing. **Solutions found
+that way are hint-assisted and never enter the solver's headline rate.** The blog runs in level
+order from `LaserTank.lvl` 1 (`/2016/06/1-boot-camp.html`), which makes the index trivial for the
+one collection the demos cover.
+
+Phase 5 (Godot) is untouched and its section below is a plan rather than a wish list; Phase 3's
+fuzzer can keep running in parallel on new seeds and the 12 collections its first campaign never
+touched.
+**Blocked on:** nothing.
 
 ---
 
@@ -600,6 +676,11 @@ a `git clean`):
 | `build/reports/l34.jsonl` | **the shipped one** — layer 4 *after* layer 3, over its 3,746 (+30) |
 | `build/reports/l34pass4.jsonl` | layer 1's macro beam over what that left (+3) |
 | `build/solutions/l34/<collection>/NNNNN.lpb` | the 33 layer 4's chain adds |
+| `build/reports/read-corpus.tsv` | layer 6's read over the same 4,185 stride sample, one row a level |
+| `build/reports/read-demos.tsv` | layer 6's `--read-dump`, 391 board changes of the nine hand recordings |
+| `build/reports/prof-demos.tsv` | `--profile` over the hand recordings; `tools/basin.py` reads it |
+| `build/reports/ferry-levels.txt` | 50 `Beginner-I` FERRY/SOKOBAN levels the shipped chain fails - **the bench the read is measured on**, banked because the two older lists contain almost no ferry |
+| `build/reports/chain.jsonl` | the shipped chain's final per-level state (4,185 rows, 472 solved), so `second_pass.sh` can be pointed at everything it still fails |
 
 Regenerate any of it with `tools/campaign.sh` / `tools/second_pass.sh`; read it with
 `tools/report_stats.py` (`--diff` for two layers). The tuning benches are `tools/bench.sh`, one
@@ -1232,6 +1313,524 @@ python is a startup error, not a discovery made six levels in.
 at the end of a stage, and the searchers publish their node counts back through
 it for the live line. `Engine.Search.cs` is still unchanged since layer 0.
 
+### Phase 4 addendum — why the search fails, measured on one level  ☑ (instrument), ☐ (layer 5)
+
+**The trigger.** `LaserTank.lvl` level 1, "Boot Camp", survives four rounds of the interactive
+driver. That is a fair thing to be annoyed by and a bad thing to reason about from the level
+number, so it was measured instead. Three findings, in the order they were found.
+
+**1. "Level 1" is a name, not a difficulty.** Its `.ghs` record is 103 moves + 46 shots = 149,
+which is the **66th percentile of `LaserTank.lvl`** and the **75th percentile of the Easy tier
+inside it**. Of the 677 winning rows across every campaign report the median record is 19; only 13
+are >=100 and 8 are >=149. Level 1 is longer than roughly 99% of everything the solver has ever
+solved. Nothing about it being first makes it small.
+
+**2. Layer 0's beam ranks this level by a heuristic that is constant on it.** `FlagDistance`
+returns `Unreachable + manhattan` when the flag is not reachable over currently-passable cells
+(`Heuristic.cs:125`) — and here the flag at (0,0) sits in a water pocket, so it stays unreachable
+until the last three pushes of the level. The whole search therefore ranks by Manhattan distance:
+a depth trace of the beam shows the tank walking to (0,8), `bestH` pinned at 1008 for **220
+consecutive depths**, and the search dying of an empty frontier at 708k nodes with the tank never
+having left that spot. Swapping the beam's ranking key to `WorkDistance` — which prices water at 9
+and blocks at 6 and so keeps a gradient across an unreachable flag — changes the picture
+completely: `bestH` falls 59 -> 28 and the tank reaches (4,0), one water bridge from the flag.
+
+**It still does not solve the level, and on the bench it is not a win: 12/50 against 13/50 on
+`deep-levels.txt` at 400k nodes.** So it is not shipped, and it is written down here because the
+*trace* is the finding, not the swap. The experiment is two lines against `Search.Beam` and was
+reverted.
+
+**3. The real obstacle is that the winning line goes uphill, and by how much is now measurable.**
+Michal recorded `data/demos/LaserTank/00001.lpb` by hand: 264 keypresses, 125 moves + 49 shots,
+**verified through both engines**, 1.8x the record. Replaying it through `--profile` (`Profile.cs`)
+and reading it with `tools/basin.py`:
+
+| | keypresses | board-changing keypresses |
+|---|---:|---:|
+| length of the human solution | 264 | 50 |
+| longest stretch at-or-above the best `WorkDistance` so far | **68** | **16** |
+| deepest rise above it | +16 | +8 |
+
+and the same measurement over the **402 recordings the solver itself produced**:
+
+| | p50 | p90 | max |
+|---|---:|---:|---:|
+| longest uphill stretch, keypresses | 6 | 21 | 457 |
+| longest uphill stretch, board-changing keypresses | 1 | 8 | 227 |
+
+**A greedy beam follows a descending line for free and an ascending one only while the whole
+cross-section of the ascent fits in the width.** Level 1's ascent is 68 keypresses where the solved
+population's 90th percentile is 21. No width a machine holds covers the states reachable in 68
+keypresses, so this is not a budget problem and no number of rounds fixes it — the four rounds were
+never close, and a fifth would not be either. That is the honest answer to "why can it not solve
+the first level".
+
+**What the level actually asks for** is visible in the trajectory: the tank ferries blocks one at a
+time from around (5,4)/(6,5) up the (6,3)->(6,0) corridor and into the water at (3,0), (2,0), (1,0).
+Each ferry is 20-50 keypresses of pure setup during which every ranking key the solver has gets
+*worse*, and only the final push improves it. It is a Sokoban endgame wearing a boot-camp costume.
+
+**Which is the case for layer 5 — push macros.** The same trajectory measured in board-changing
+keypresses is 50 events with a 16-event ascent, against a solved-population p90 of 8. A search
+whose move is `Push(block -> cell)` rather than one keypress compresses the level 5.3x and moves it
+from *3.2x beyond anything ever solved* to *2x the p90* — which is the range width and restarts
+already reach. That is a measured argument for the layer rather than an intuition about it, and it
+is the first thing to build. Layer 1's `Goto + Shoot` is the near miss: a push happens only as a
+side effect of a `Goto`, and `--closure-depth` caps one `Goto` at 40 movement keys.
+
+**The second demonstration says the shape generalises past the ferry.** `LaserTank.lvl` level 2,
+"Easy Level Conveyor" (record 10 moves + 62 shots), recorded by hand as
+`data/demos/LaserTank/00002.lpb` — 119 keypresses, verified through both engines, 1.7x the record.
+It is a *different* structure: a conveyor ring with blocks to be shot onto it, no water anywhere, so
+the ferry term is exactly inert on it and `work` and `work+ferry` are the same column.
+
+| | keys | events | longest ascent (keys) | uphill | longest ascent (events) | uphill |
+|---|---:|---:|---:|---:|---:|---:|
+| level 1, block ferry | 264 | 50 | 68 | +16 | 16 | +8 |
+| level 2, conveyor | 119 | 32 | 35 | +11 | 13 | +9 |
+| *solved population* | — | — | *p50 6 / p90 21* | — | *p50 1 / p90 8* | — |
+
+Level 2 is the milder case of the same disease — 1.7x the solved p90 in keypresses, 1.6x in events
+— and it is unsolved by everything: the raw beam dies at `beam-dead-end` after 1.6M nodes, and the
+learned subgoal beam and layer 5 both spend a full 40M without a win. **Two levels, two structures,
+one failure mode.** That was the first evidence that the ascent length is a property of long levels
+rather than of level 1, and it was n=2.
+
+**n is now 20, and the shape held.** Michal hand-recorded `LaserTank.lvl` 1-19 across
+sessions 15-17 (`data/demos/LaserTank/`), **20/20 verified through both engines**, median 1.7x the
+`.ghs` record. Nineteen of the twenty spend longer above their own best `WorkDistance` than the
+90th percentile of the 402 levels the solver has actually solved, and fifteen do in board changes:
+
+| all 20 recordings | p50 | p90 | max |
+|---|---:|---:|---:|
+| longest ascent, keypresses | **50** | 200 | 297 |
+| longest ascent, board changes | **15** | 33 | 33 |
+| *solved population, keypresses* | *6* | *21* | *457* |
+| *solved population, board changes* | *1* | *8* | *227* |
+
+The first nine level by level, which is the table the layer-5 argument was built on:
+
+| | keys | events | ascent (keys) | ascent (events) | verdict (layer 6, below) |
+|---|---:|---:|---:|---:|---|
+| 1 Boot Camp | 264 | 50 | 68 | 16 | FERRY x4 |
+| 2 Easy Level Conveyor | 119 | 32 | 35 | 13 | RIDE |
+| 3 Building A Bridge | 75 | 10 | 20 | 4 | FERRY x2 |
+| 4 The River Nile | 76 | 17 | 37 | 15 | FERRY x1 |
+| 5 Dodge the Gun | 90 | 22 | 63 | 15 | FERRY x2 |
+| 6 Cascade | 904 | 168 | 152 | 33 | SOKOBAN x6 |
+| 7 Jim's Wild Ride | 132 | 13 | 47 | 8 | FERRY x1 |
+| 8 castle siege | 386 | 52 | 297 | 31 | FERRY x3 |
+| 9 Grid Lock | 126 | 27 | 38 | 7 | GAUNTLET |
+| **those nine** | | | **p50 47** | **p50 15** | |
+| *solved population* | | | *p50 6 / p90 21* | *p50 1 / p90 8* | |
+
+**Twenty levels, six structures, one failure mode** — ferry, sokoban, conveyor ring, anti-tank
+gauntlet, mirror routing and a mixed siege all fail the same way, and none of them is close to the
+band a beam can walk. The median recording here is 2.4x the solved p90 in keypresses and 1.9x
+in board changes. The ascent belongs to *long levels*, not to level 1 and not to ferrying.
+
+**And it is the case for more hand recordings.** Twenty demonstrations produced the tables above; the
+instrument now exists, so each further one is another row. Two distinct uses, worth separating:
+
+- **As instrument.** ~20 hand playthroughs of *long* levels (record >=100), spread across the
+  structures — block-into-water, mirror ferrying, conveyor timing, ice — would say whether 68 is
+  typical of the unsolved tail or particular to this level, and whether push macros flatten the
+  ascent everywhere or only here. That is what decides layer 5's shape before it is written.
+- **As training data.** Layer 4's evaluation was fit on 652 *solver* trajectories, median record
+  19, and the refit that fed its own new wins back in **halves what it discovers** — the
+  self-reinforcement trap recorded in the layer 4 section. Human recordings of long levels are the
+  one available sample that is off that distribution in exactly the direction the solver fails.
+  Their value per level is small; their value as a *different* distribution is the whole point.
+
+Short recordings are not wanted: the solver already wins those, and they would push the fit further
+toward what it already knows.
+
+### Phase 4 — layer 5, push macros  ◐ (built, measured, does not yet pay)
+
+**Built on the addendum's argument and measured against it.** `Push.cs`, `--push`, off by default.
+The action set is: one **PF-preserving movement closure** — everything the tank can do without
+changing the playfield, so it is the set of *poses*, at most 16x16x4 of them — and then every board
+change reachable from any pose in it, as a first-class successor. Fire from a pose (layer 1's rule
+and its lossless prune, kept whole), or drive into something and keep driving while the board keeps
+changing, one successor per changed cell. Search depth is therefore the board-change count, which
+is the unit `tools/basin.py` measures in.
+
+**What is confirmed.** Closures never truncate — `--push-trace` reports `trunc=0` on every
+expansion of every run made so far, which is the layer's structural bet checked rather than
+assumed. Layer 1's closure mixes movement with pushes and enumerates block configurations; this one
+terminates on the pose count, well inside its cap. On level 1 the search runs at depth 50 where the
+raw beam runs at depth 264, and its ranking key descends 92 -> 49 by depth 14 instead of pinning at
+1008 for 220 depths. Solutions are real: a 40-level smoke over `Beginner-I` solved 14, **14/14
+verified through both engines, 11 matching the `.ghs` record exactly**.
+
+**What it costs, which is the number that decides the layer.** One expansion is a whole closure —
+about **4,500 `ApplyKey` calls** against layer 0's five per keypress. At an equal node budget that
+is two orders of magnitude fewer steps, and the bench says so plainly, on the 50 banked deep levels:
+
+| budget | layer 0 beam | layer 3 subgoal | layer 5 push |
+|---|---:|---:|---:|
+| 400k | 13/50 | 10/50 | 3/50 |
+| 4M | 13/50 | 11/50 | 7/50 |
+
+It closes as the budget grows and it has not caught up. **So layer 5 does not ship in the chain
+yet**, and the honest statement of where it stands is that it buys the right *shape* and has not
+yet bought a level.
+
+**The ferry term, and it is the part worth keeping.** WorkDistance prices a water cell at 9 and
+does not move at all while a block is being carried towards it: the whole ferry — fetch, turn,
+push, twenty to fifty keypresses — scores the same as standing still, and only the final push that
+fills the cell scores anything. `Heuristic.RouteFerry` is the fix: summed over the water cells on
+the settled route, how far the nearest movable block still is from each. Manhattan, deliberately,
+because "can this block actually be pushed there" is a question about `MoveObj`, ice and where the
+tank can stand, i.e. a second implementation of the game that this project does not have.
+
+Measured on the human recording with `--profile` + `tools/basin.py --ferry-weight`, it is a real
+but partial win, and the weight is picked from the sweep rather than guessed:
+
+| weight | longest ascent, keypresses | uphill | longest ascent, events | uphill |
+|---:|---:|---:|---:|---:|
+| 0 (off) | 68 | +16 | 16 | +8 |
+| **1** | **49** | **+16** | **12** | **+8** |
+| 2 | 45 | +16 | 12 | +10 |
+| 3 | 41 | +27 | 11 | +21 |
+
+Past 2 the ascent gets shorter and *deeper*, which is the term overpowering the thing it is
+supposed to be correcting; 1 is the default. **And it is inert where it is not needed** — over the
+402 recordings the solver has produced it changes the excursion distribution not at all (p50 6,
+p90 21, max 457, identical at weight 0, 1 and 2), even though 100 of those 416 trajectories touch
+it at some point. A targeted term that cannot cost anything on the population already solved is
+the right kind of heuristic to add; it is also why the deep bench cannot measure it — those levels
+have no water crossing, and layer 5 scores 7/50 with the term on, off, or replaced by layer 4's
+learned evaluation.
+
+**Where that leaves level 1.** Still unsolved, and now for a reason one step further in: the beam
+reaches the flag's doorstep and has to cross an ascent that is 12 board-changes long even with the
+ferry term, at a width where 300 states per depth all tie on the ranking key and `Cut` breaks the
+tie by *cheapest keystream* — which during a ferry favours the state that has not started one. That
+tiebreak is the next thing to look at, and it wants a population to measure on: the deep bench
+contains no ferry at all, so a change made against level 1 alone would be a change made against
+n=1. **This is the point at which more long-level demonstrations stop being nice to have and become
+the blocker** — see the addendum above for what to record.
+
+**Restarts, carried over from layer 3 for a failure with the same shape.** Ranked by the learned
+evaluation with the ferry term, level 1 reaches board-change depth **66** and a WorkDistance of
+**15** — one ferry from the end — and then dies of an empty frontier with **556M of its 600M nodes
+unspent**. That is layer 3's measurement again (dead-ends died with a median 84% of their budget in
+hand), so it gets layer 3's answer: `--push-restarts`, default 6, re-running the beam with double
+the width on `push-dead-end` only, capped at 9,600. Attempt 0 is the plain beam exactly and a
+restart spends only budget the dead-end had already forfeit, so it is strictly additive by
+construction — the same argument Restart.cs makes, and the reason this one is on by default while
+the layer as a whole is not.
+
+**Knobs** (all in `--help`): `--push-beam` 300, `--push-restarts` 6, `--push-depth` 400,
+`--push-closure` 4000, `--push-closure-depth` 64, `--push-run` 8, `--push-move-only` 4,
+`--push-ferry` 1, `--push-eval learned`, `--push-closed generate|expand`, `--push-trace`,
+`--push-share`.
+
+**`--push-closed` defaults to `expand`, the opposite of layer 0, and that one is measured too.**
+Closing on generate binned level 1's frontier entirely: `push-dead-end` at 21M nodes at width 300
+and 78M at width 1200, everything reachable marked and thrown away. Layer 0 spends five `ApplyKey`
+calls on a successor and can afford to; this layer spends a closure.
+
+### Phase 4 — layer 6, the read  ◐ (instrument built and measured; not yet in a search)
+
+**The brief was Michal's, and it is worth quoting because it is the design.** *"Level 4 is a great
+example of a very easy level: as a player, I immediately see I have to make a bridge somehow, I see
+the block, I know I have to use the mirrors and avoid the ATs — and I see the conveyor belt is there
+only for me to save steps. Or level 6: no antitanks, only blocks and water, I instantly know there
+will be long sokoban shit. This kind of analysis is what we need over like an application of five
+different Knuth algorithms."*
+
+Every layer so far ranks states. Layer 4 measured how far that goes and the answer was *not much
+further*: the winner's successor is in the expansion 97.6% of the time, the sort loses it, and a
+fitted linear model over seventeen features is still wrong four times in five. What a player does
+in two seconds is not a better sort of two hundred successors. It is a derivation of **which
+successors exist for a reason**, done before the search starts.
+
+**The two halves, and the discipline is layer 2's.** Layer 2 learned the hard way that a model of
+what the tank can do is a second implementation of the game — its first obstacle derivation priced
+cells with a Dijkstra and found *no obstacle at all* on 62% of expansions, because a price list does
+not know a cell is covered by an anti-tank. Version 2 ran the movement closure first and asked the
+engine. This is that split one step further out:
+
+- **What must change** is a model: the priced Dijkstra from the flag, stopped at the cells the tank
+  demonstrably stands in — layer 2's `FrontierObstacles`, unchanged.
+- **What can change it** is not a model at all. Every board change the tank can make right now is
+  enumerated by *making* it: a PF-preserving pose closure, then all five keys from every pose, and
+  whatever `Game.PF` comes back different is an **effect**, carrying the pose and key that produced
+  it as its witness.
+
+Nothing in `Analyze.cs` knows that a laser bounces off a mirror, that a block sinks in water, that
+shooting a movable block shoves it one square, or that a conveyor carries the tank. **Level 4's
+mirror route is discovered because firing left from (7,15) was tried and the block at (2,2) moved** —
+the beam goes left along row 15 into the mirror at (0,15), up column 0 into the mirror at (0,0),
+right along row 0 into the mirror at (2,0), down into the block. Three reflections, no mirror code,
+and it cannot drift from the engine because it *is* the engine.
+
+**Three derivations of "this change advances", and the third is the one that generalises.**
+
+| | what it is | derived from |
+|---|---|---|
+| `on the barrier` | the change lands on a cell the Dijkstra named | cell intersection |
+| `toward` | it moves a block nearer a water cell the route crosses | block delta + manhattan |
+| `opens` | **after it, the tank can stand somewhere it could not stand before** | a second pose closure |
+
+`opens` needs no theory of the obstacle at all. Stopping a conveyor ride by shooting a block onto
+it, killing the anti-tank that owns a corridor, blowing a brick out of a doorway — the read has no
+name for any of those and does not need one, because all three come back as *somewhere new to be*.
+It costs one closure per effect, which is why it is capped (`--read-opens` 64): the median expansion
+offers four effects, so the usual bill is four closures, and past the cap the question is simply not
+asked, so a missing label is never a wrong one.
+
+**The verdict is a decision list, not a classifier**, and every fact it tests was derived rather
+than pattern-matched — "no shot on this board does anything" is the enumeration coming back with
+zero shot effects, not a scan for bricks. On `LaserTank.lvl` 1–9, the nine levels there are hand
+recordings for:
+
+| lvl | verdict | the read, in one line |
+|---:|---|---|
+| 1 | FERRY x4 | 4 water cells in the way, 5 blocks, nothing available brings one nearer yet |
+| 2 | RIDE | the route is clear and the tank still cannot get there: it runs over cells the tank cannot stop on |
+| 3 | FERRY x2 | 2 water cells, 2 blocks — as many blocks as holes, so every one is needed |
+| 4 | FERRY x1 | 1 water cell, 1 block, **moved by shooting and every shot that moves it is mirror-routed**; 2 anti-tanks named by the route |
+| 5 | FERRY x2 | 2 water cells, 3 blocks, four shots move one nearer |
+| 6 | SOKOBAN x6 | 6 water cells in the way and nothing else, 6 blocks, no anti-tanks |
+| 7 | FERRY x1 | 1 water cell, 1 block, nothing available reaches it yet |
+| 8 | FERRY x3 | 3 water cells, 19 blocks, and one shot available now **fills one of them** |
+| 9 | GAUNTLET | the route crosses nothing that has to be cleared and **28 anti-tanks cover it** |
+
+That is Michal's read of 4 and 6 in the machine's own words, and level 1's is the same conclusion
+the addendum above reached by hand two sessions ago — "a Sokoban endgame wearing a boot-camp
+costume" — derived in 166 ms, process start included.
+
+**What the whole corpus looks like through it.** `--analyze-tsv` over the same 1-in-5 stride sample
+the campaigns use (4,185 levels, 13 collections, **64 seconds** for all of it, serial across the
+collections), joined against the
+shipped chain's solved set:
+
+| verdict | levels | solved | rate | effects offered, p50 |
+|---|---:|---:|---:|---:|
+| FERRY | 2,073 | 104 | 5.0% | 5 |
+| GAUNTLET | 828 | 138 | 16.7% | 5 |
+| DEMOLITION | 360 | 40 | 11.1% | 4 |
+| SETUP | 324 | 30 | 9.3% | 4 |
+| RIDE | 312 | 61 | 19.6% | 6 |
+| SOKOBAN | 161 | 10 | 6.2% | 7 |
+| OPEN | 87 | **84** | **96.6%** | 0 |
+| WALLED | 40 | 5 | 12.5% | 3 |
+| **all** | **4,185** | **472** | **11.3%** | **5** |
+
+Three things fall out of that table:
+
+- **OPEN at 96.6% is the sanity check.** When the flag is already movement-reachable the solver
+  essentially always wins, and the read agrees with the solver about which levels those are.
+- **Half the corpus is a ferry** — FERRY and SOKOBAN together are 2,234 of 4,185 (53%) and the
+  solver gets 114 of them (5.1%). That is where the corpus is and it is the worst-performing
+  non-trivial class.
+- **The number of fills is the difficulty**, and it is the first quantity that predicts the rate
+  monotonically: 1 fill 9.9%, 2 fills 5.7%, 3–4 1.8%, 5–8 1.7%, 9+ **0.7%**. Barrier size says the
+  same thing (0 cells 22.6%, 9+ 3.9%). Depth is still the binding constraint — layer 0's 95.9%
+  measured that in stop reasons; this measures it in the units a player uses.
+
+**The read, measured against the humans, which is the number that decides whether to search by it.**
+`--read-dump` replays each winning recording, stops at every board change, and asks whether the
+change the human made next is one the read named. Between two board changes the tank only *moves*,
+so the next change is by construction reachable from the pose closure of the state the previous one
+left — the question has a yes-or-no answer. 391 board changes over the nine recordings:
+
+| | 9 recordings | **20 recordings** |
+|---|---:|---:|
+| board changes | 391 | **800** |
+| the human's change was in the enumeration at all | 391 | **800/800 = 100%** |
+| `on the barrier` or `toward` named it (set size p50 **1**) | 210 | 286 |
+| else `opens` named it (set size p50 4) | 142 | 380 |
+| neither | 39 | 134 |
+| **named by the read** | 90% | **666/800 = 83%** |
+
+Michal kept recording while this was being written, so the right-hand column is the one to quote:
+twenty hand playthroughs of `LaserTank.lvl`, all verified through both engines. The rate fell from
+90% to 83% as the population grew, which is what an honest n=9 was always going to do.
+
+**100% coverage is a check on the enumeration, not a finding** — the enumeration *is* the engine, so
+anything else would have been a bug, and it also says the pose closures never truncated. The finding
+is the 90%, and the shape of it: `opens` alone accounts for 86%, and it is the only one of the three
+that says anything at all on RIDE, GAUNTLET and SETUP levels, where the other two are empty by
+construction (no water on the route, no barrier to land on). Before `opens` the read named 53.7%.
+
+**And the honest half.** Ordering by tier — barrier/ferry first, then `opens`, then the rest,
+uniformly at random inside each tier — against the same beam with no ordering at all:
+
+| beam width | tiered by the read | no ordering |
+|---:|---:|---:|
+| 1 | **36.5%** | 24.2% |
+| 2 | **55.2%** | 45.7% |
+| 4 | **73.6%** | 65.2% |
+| 8 | 88.4% | 83.2% |
+| 16 | 96.1% | 93.2% |
+
+The read wins at every width and **the gap closes as the width grows**, because the candidate lists
+are short to begin with: the median expansion offers six board changes where layer 2's shot
+expansion offers 395. So most of "73.6% inside a width of 4" is bought by the *action set* — layer
+5's board-change move — and the read adds eight points on top of it, twelve at width 1. Stated the
+other way round, and this is the comparison worth keeping: layer 4's beam holds the winner's
+successor inside a width of 4 **4.1% of the time on human recordings**; a board-change beam ordered
+by the read holds it **74%** of the time, on human recordings of exactly the levels that beam cannot
+solve. Those are different units over different populations and the number is not a like-for-like
+improvement — but the two together say plainly where the remaining loss is, and it is no longer in
+the sort.
+
+#### Layer 6 inside layer 5 — the read as the beam's first sort key  ◐
+
+The read enters the search as a **tier**, not a term: `Cut()` sorts on `Tier` before `H`, so the
+read can say "these successors exist for a reason and the rest are filler" without reordering
+anything inside either group and without being able to admit a successor the expansion did not
+already offer. Same contract layer 4's `Rank()` has. A tier rather than a number because the read's
+answer *is* a set — "this shot lands on the brick that is in the way" is not three points better
+than a shot that does not — and layer 5's ferry term is already the version of this that is a
+number, with the measurement (above) saying a weight past 2 makes the ascent shorter and deeper.
+
+`--push-read` turns it on, off by default. Turning it off reproduces layer 5 exactly: the tier
+renumbering is inert, checked rather than asserted — layer 5's recorded 3/50 at 400k and 7/50 at 4M
+on the deep bench both reproduce to the level.
+
+**Two false starts, and the instrument that ended both.** `--push-trace` grew a line reporting what
+fraction of a depth's successors the read promoted, and it read **0%** — 0 of 248 at depth 3.
+
+- The first cause was in the code being measured. `opens` inside a beam cannot afford a pose closure
+  per successor, so it was given a cheap proxy — and the proxy asked whether the *flag's* passable
+  component grew, where the 86% in the table above came from asking whether the *tank* can stand
+  somewhere new. During a ferry those are opposites: the flag's component does not move at all until
+  the last block goes into the water, while the tank's region moves on almost every push, because a
+  block that leaves a square is a square the tank can now stand on. `Heuristic.TankRegion` is the
+  corrected version and its doc comment carries the trap.
+- The second cause was in the instrument. The counter was incremented before the `opens` pass ran,
+  so it was reporting the first two derivations only. **An instrument that measures the wrong moment
+  says the layer does nothing**, which is exactly the conclusion it nearly bought — and it is the
+  same lesson as layer 2's `--sg-trace`, which is why the counting now lives in one function called
+  from every return path.
+
+**What the corrected trace then said, and it is the finding.** The read promotes 5–11% of successors
+at shallow depth and under 1% deep — and the frontier at those depths is 20 to 660 nodes against a
+beam width of **300**. `Cut(next, 300)` on a frontier of 248 does nothing at all. **The read is a
+filter, and layer 5's shipped beam is not filter-limited: it is width-limited at a width that
+already admits everything the read would have selected.** So the read cannot help there, and the
+Dijkstra it costs makes it fractionally worse — which is exactly what the first benches said.
+
+**Which turns it into a width experiment, and both halves of that are worth keeping.** A population
+was banked for it first, because the deep bench cannot decide a ferry question and the read itself
+says so: `build/reports/ferry-levels.txt`, 50 `Beginner-I` levels the shipped chain fails that the
+read calls FERRY or SOKOBAN — against the deep bench, which the read scores at 3 ferries in the 8 of
+its 50 that the stride sample covers, and bench-1, which is GAUNTLET-heavy. All at 4M nodes:
+
+| push beam width | ferry bench, plain | ferry bench, **+read** | deep bench, plain | deep bench, **+read** |
+|---:|---:|---:|---:|---:|
+| 8 | 5/50 | **11/50** | — | — |
+| 16 | 6/50 | 10/50 | — | — |
+| 32 | 5/50 | **11/50** | — | — |
+| 48 | 4/50 | **11/50** | 13/50 | **14/50** |
+| 96 | 3/50 | 9/50 | — | — |
+| 300 *(layer 5 as shipped)* | 4/50 | 5/50 | 7/50 | 6/50 |
+
+Two findings, and they are orthogonal:
+
+- **Layer 5's width was wrong, and that has nothing to do with the read.** 300 → 48 takes the deep
+  bench from **7/50 to 13/50**, which is the first time layer 5 has matched layer 0 (13/50) on that
+  bench. Narrow-and-deep again, exactly as layer 3 measured for the subgoal beam — one push
+  expansion is ~4,500 `ApplyKey` calls, so width is the most expensive thing this layer buys.
+- **The read is worth roughly 2.75x on the population it was built for and nothing elsewhere.** At
+  width 48, 4/50 → **11/50** on ferries and 13/50 → 14/50 on the deep bench. That split is the
+  read's own claim about itself holding up: its three derivations are barrier, ferry and opens, and
+  the deep bench is mostly not a ferry. **11/11 verified through both engines.**
+
+At width 300 the read is worth nothing (4 → 5, 7 → 6) and at width 48 it is worth seven levels on
+ferries. **The filter and the width are the same decision**: a tier that names 5% of successors is
+useless at a width that keeps 100% of them, and a width that keeps 5% of them is useless without
+something to say *which* 5%.
+
+**Knobs.** `--analyze` (the printed read), `--analyze-tsv FILE` (one row per level, for joining
+against a campaign report), `--read-dump FILE` (needs `--lpb-list`), `--read-opens N` (default 64,
+the instrument's cap). In the search: `--push-read`, and `--push-read-opens` — `-1` (default) is the
+cheap `TankRegion` flood on every successor, `N>0` is the executed pose closure on the best N, `0`
+is the two free derivations only. All the instrument flags honour `--from` / `--to` / `--level` /
+`--stride` / `--levels-list` / `--jobs`.
+
+**Layer 6 does not touch the engine either.** `Engine.cs` still differs from layer 0 by the single
+word `partial` and `Engine.Search.cs` is unchanged since layer 0 — five layers now. Everything above
+is `src/LaserTank.Solver/Analyze.cs` (new) plus three flags and one option in `Program.cs`. All four
+fidelity gates re-run green after it: 187 replayed / 181 win / 6 documented, 29 difftrace, 2,347
+sweep identical, 25 fuzz.
+
+### Phase 4 addendum — polishing a solution so it reads like a person played it  ☑
+
+**The complaint, and it is not about length.** *"Get rid of repeated turns in place (like facing
+north, facing west, facing south, moving south) and shooting at nothing. They look very computery
+in the replays."* All three artifacts are free to the search and so it emits them freely:
+`MoveTank` (`Engine.cs:657`) spends a whole keypress turning when the key does not match the way
+the tank already faces and `ScoreMove` only increments in `UpDateTankPos`, so a turn on the spot
+costs the *record* nothing; a shot that hits nothing is one keypress for one node; and `Cut` breaks
+a tie by cheapest keystream, which makes a state the beam has already left exactly as good as one
+it has not — so wandering out and back is free too.
+
+`Trim.Polish` removes all three, and it is separate from `Trim.Shrink` on purpose: Shrink is delta
+debugging, costs thousands of replays and runs only past `--trim-ratio` (default 10x), whereas this
+runs on **every** solution because a 1.6x solution can be just as ugly as a 12x one.
+
+| the artifact | how it is found |
+|---|---|
+| a round trip | `StateHash` after key *j* equals the state after key *i* — so keys *i..j-1* left nothing behind. Longest first |
+| a turn on the spot | a direction key after which the tank did not move and the board did not change, *followed by a different direction key* — which is what keeps the last turn of a run, the one the move needs |
+| a shot at nothing | a space bar after which the whole state hash is unchanged |
+
+**Every deletion is still replayed before it is accepted, and that is not caution.** A wasted turn
+is not a no-op: `AntiTank()` runs inside every key-consuming tick, so a turn on the spot gives every
+gun on the board a move, and there are levels whose solution *is* burning a tick so a gun fires
+early. Measured — on `Beginner-I` 1488 the run `> > < < > > < <` **survives** the polish, because
+those round trips really are the anti-tank timing, while `> v FIRE ^ ^ < FIRE ^ v` collapses to
+`v FIRE < FIRE`.
+
+**And the first version of it reported almost everything as irreducible, because of a bug that is
+the most useful thing in this section.** `Trim` replayed every candidate through *one reused*
+`Engine`. `LoadLevel` resets the playfield, the tank and the slide records — and deliberately does
+**not** reset `wasIce`, `WaitToTrans`, `ConvMoving` or `BlackHole`, because that staleness is quirk
+#3 and the original never reloaded a level into a fresh process either. So the second candidate
+replayed through an engine inherits the first one's leftovers, and **a keystream that wins from cold
+can be reported as losing**. The polisher was therefore declaring solutions minimal that were not.
+
+Michal caught it from the replay rather than from the code — *"step 2 is a useless turn south; step
+3 is visually a noop; step 4 is a useless turn west; steps 5 and 6 are a noop; step 7 is a turn
+north; step 8 is a correct shot. Compare to my manual demo: step 1 same, step 2 turn north, step 3
+the shot."* An identical deletion search on **fresh** engines took that solution from 71 keys to 51
+and 23 shots to 14, and its opening became exactly what he described. Every candidate replay in
+`Trim` now constructs its own `Engine`; the doc comment on `Trim.Wins` carries the trap.
+
+Note what the bug could and could not do: it made the trimmer *miss* deletions, and could in
+principle have made one look acceptable that was not — but nothing reaches a `.lpb` without a
+fresh-engine replay in `Program.SolveOne` and another in `tools/verify_solutions.py`, so no wrong
+solution was ever written. The cost was entirely in reductions not found, and it roughly doubled:
+
+| population, 400k nodes | solutions | keys before | after | removed |
+|---|---:|---:|---:|---:|
+| subgoal beam, 50 deep levels — shared engine | 10 | 1,722 | 1,251 | 27.4% |
+| subgoal beam, 50 deep levels — **fresh engine** | 10 | 1,722 | **908** | **47.3%** |
+| raw beam, 60 bench-1 levels — shared engine | 23 | 860 | 839 | 2.4% |
+
+The split between the two searchers is the other half. The raw beam barely improves, because its
+`Cut` already breaks ties by cheapest keystream and it cannot afford long detours anyway; the
+**subgoal beam loses nearly half its keypresses**, because it searches in shot-space and the
+movement between shots is whatever the closure happened to execute. `Beginner-I` 1488 goes
+**831 → 212 keys**, 1068 goes 171 → 49, 1484 goes 76 → 46. **10/10 verified through both engines**
+after polishing.
+
+On by default; `--no-polish` turns it off. Cost is a handful of replays per solution against a
+150,000-node search, so it is free at campaign scale. The interactive driver gets it too — it goes
+through the same `SolveOne`.
+
+**The interactive driver now writes to `./solutions`, not `build/`.** A campaign's output is
+disposable (regenerated by `tools/campaign.sh`, thousands of files, gitignored `build/`); the
+driver's output is one hand-supervised level at a time, already through the two-engine gate, on
+levels the batch solver could not do. Those are worth committing, so they go where git can see them.
+The scratch directory the verifier stages through stays under `build/`.
+
 ### Phase 5 — Presentation & features  ☐
 
 **This is the first phase where the deliverable is the game rather than a measurement, and the
@@ -1444,6 +2043,16 @@ them: *in this program a function's name tells you nothing about whether it muta
     A real bug in the original, in `SetGameSize`, and cosmetic. Same species as #9: **do not
     "fix" it.** It is Phase 5 territory, which is the phase most likely to want to.
 
+12. **`LoadLevel` does not reset the stale flags, so one `Engine` cannot replay two keystreams.**
+    It resets `PF`, the tank, `RecP` and the slide records; it leaves `wasIce`, `WaitToTrans`,
+    `ConvMoving` and `BlackHole` exactly where the previous game left them — faithfully, because
+    the original never reloaded a level into a fresh process either. The consequence is a rule for
+    *our* code rather than a quirk in the original: **anything that replays candidate keystreams
+    must build a fresh `Engine` for each one.** `Trim` did not, and silently reported winning
+    keystreams as losing — see the polishing addendum in Phase 4 for how it was caught and what it
+    cost. The search itself is unaffected: `Restore()` puts all four flags back, which is exactly
+    why `EngineSnapshot` carries them.
+
 ---
 
 ## Repo layout
@@ -1455,6 +2064,9 @@ original/   the frozen 25-year-old artifact — read-only
 data/       game content = the regression corpus
   levels/     13 collections, 20,914 levels, all with .ghs targets
   quirks/     10 tutorial/trick packs, 317 levels, 187 .lpb recordings
+  demos/      human playthroughs — recorded by hand, cannot be regenerated, and
+              deliberately NOT under build/solutions/ so a hand solution is never
+              mistaken for a solver one
   graphics/   .ltg packs      meta/  changelogs & name indexes
 oracle/     the C reference oracle — see oracle/README.md
   stub/       minimal <windows.h> that shadows the real one
@@ -1479,6 +2091,21 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    Learn.cs, Weights.cs — layer 4: board features, the learned
                    evaluation that orders the beam, and the instrument that
                    dumps one ranking group per shot of a winning recording
+                   Profile.cs — `--profile`: replay a winning recording and print
+                   FlagDistance/WorkDistance/RouteFerry at every keypress.
+                   Measures the *level*, not the search; tools/basin.py reads it
+                   Push.cs — layer 5: a PF-preserving movement closure, then every
+                   board change reachable from it, so depth is the board-change
+                   count rather than the keypress count
+                   Analyze.cs — layer 6, the read: `--analyze` / `--analyze-tsv`
+                   / `--read-dump`.  What is in the way, every board change the
+                   tank can make right now (enumerated by making them), which of
+                   those advance, and a verdict naming the level's shape.  Also
+                   ReadDerive/ReadAdvances/ReadOpens, the same derivations as a
+                   ranking tier for layer 5 (`--push-read`)
+                   Trim.cs — Shrink (delta debugging, past --trim-ratio) and
+                   Polish (every solution: round trips, turns on the spot,
+                   shots at nothing; each deletion replayed before it is taken)
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
@@ -1514,6 +2141,12 @@ tools/
                       WorkDistance rank it); --fit fits the evaluation and
                       regenerates Weights.cs
   bump_rate.py      classify consumed keys; bumps = desync signature
+  basin.py          read a --profile dump: how far *uphill* a winning line goes,
+                      per level, in keypresses and in board-changing keypresses.
+                      The number that separates "needs more nodes" from "needs a
+                      different move set"  <- the layer 5 instrument.
+                      --ferry-weight sweeps layer 5's ferry weight offline,
+                      against a recording, instead of by re-running the solver
   dump_level.py     print a .lvl level as ASCII with its hint
   unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
 ```
@@ -1625,6 +2258,34 @@ place despite not winning.
   The Tutor readme warns: *"made/verified using LaserTank.exe Ver 4.1. The use of earlier versions
   may cause different results."*
 
+- **`lasertanksolutions.blogspot.com` as a source of goal boards — checked far enough to cost, not
+  started.** Michal raised it; what one post actually contains was verified rather than assumed
+  (`Challenge-II-100`, `.../2024/07/challenge-ii-100-no-problemo.html`): a **start screenshot**, one
+  **screenshot per flag showing the board at the moment of reaching it**, and — this is the part
+  that makes it interesting — the game's own **Moves and Shots counters visible in the panel**
+  (56 / 22 for that level). No move list, no keystream, no prose. Roughly 2,000-3,000 posts across
+  2016-2024; the 2024 archive is `Challenge-II`.
+
+  **What it would buy is not solutions, it is a goal.** A final board says which blocks were moved
+  where and which bricks were destroyed, so "reach the flag" becomes "reach *this* board" — a
+  progress measure that decreases with every push in the right direction, which is exactly the
+  gradient layer 5's ferry term is a hand-rolled approximation of. The counters are a second gift:
+  an exact cost target to bound a search by and to check a solution against.
+
+  **Feasibility, measured on two downloaded images.** They are full-window PNGs (609x463, 619x473),
+  not board crops: the 16x16 board sits at a fixed offset at roughly **24px per cell**, i.e. the
+  32x32 sprites scaled down, so this is template matching and not OCR. The codebook does not even
+  have to be built by hand — **for every post we already know the collection and level, so the
+  start screenshot is 256 labelled tiles for free**, and the goal images decode against a codebook
+  bootstrapped from the starts. Unknowns worth checking before committing: whether the window
+  geometry is stable across nine years of posts, and which of the three `.ltg` packs is in use.
+
+  **The honesty condition, and it is not optional.** A level solved with a scraped goal board is
+  *hint-assisted* and must never enter the solver's headline rate. Its value is as a bootstrap:
+  hint-assisted solutions are real recordings, and real recordings are what `--profile` /
+  `tools/basin.py` measure and what layer 4 is fit on — the off-distribution long-level sample the
+  addendum says is the blocker, obtained without anyone playing 20 levels by hand.
+
 ## Cross-references — do not trust for quirk fidelity
 
 - `github.com/tobiasvl/lasertank` — mirror of this same source.
@@ -1707,3 +2368,102 @@ text-mode line-ending trap and the `.lvl`/`.LVL` case trap to *Environment notes
 Decoded the sprite atlas properly while writing Phase 5 (320×192, a 10×6 grid of 32×32, `BMA`
 row-major from i=1) and verified the `.ltg` header against all three packs, which corrected two
 claims the plan would otherwise have shipped wrong.
+
+**2026-09-06, session 15 — why level 1 is unsolved, and the instrument that says so.** Started from
+a complaint ("the solver cannot do the first level") and refused to answer it from the level number.
+Three measurements, each of which changed what the answer was: the record is 149, the 66th
+percentile of its own collection; layer 0's beam ranks this level by Manhattan distance for its
+entire life, because `FlagDistance` degenerates when the flag is unreachable; and — from Michal's
+hand recording, now `data/demos/LaserTank/00001.lpb`, verified through both engines — the winning
+line spends **68 keypresses above its own best `WorkDistance`**, against a p90 of **21** over the
+402 recordings the solver has produced. So it is not a budget problem, and the layer 5 argument
+(push macros: the same ascent is 16 events instead of 68 keypresses) is a measured one. Built
+`--profile` (`Profile.cs`) and `tools/basin.py` to make all of it repeatable, and reverted the
+`WorkDistance`-ranked beam experiment — it transforms this level's trace and loses on the bench,
+12/50 against 13/50, which is exactly the kind of result the benches exist to catch.
+
+**2026-09-06, session 16 — layer 5, push macros.** Built the layer the addendum argued for: a
+PF-preserving movement closure, then every board change reachable from it, so search depth is the
+board-change count. The structural claims hold — closures never truncate, level 1 runs at depth 50
+instead of 264, and a 40-level smoke verified 14/14 through both engines with 11 exact records —
+and **the cost claim decides it for now**: one expansion is ~4,500 `ApplyKey` calls against layer
+0's five, so on the deep bench it is 3/50 at 400k and 7/50 at 4M where layer 0 is 13/50 at both. It
+does not ship in the chain. The keeper is `Heuristic.RouteFerry`, the term that makes *carrying* a
+block score better than not carrying it — measured on the human recording, it shortens the ascent
+from 68 keypresses to 49 (16 events to 12) at weight 1, gets shorter and deeper past weight 2, and
+is exactly inert over the 402 trajectories the solver has already solved. Level 1 is still
+unsolved: the beam now reaches the flag's doorstep and stalls on a 12-event ascent where 300 tied
+states are broken by cheapest-keystream, which favours the state that has not started the ferry.
+Restarts (layer 3's control law, ported) buy the forfeited budget back and change nothing: two
+600M-node runs, three restarts each, still unsolved -- width does not fix a tiebreak.  That
+tiebreak is next, and it needs a population that contains a ferry, which the deep bench does not.
+
+**2026-09-06, session 16 (cont.) — the second demonstration, and what to do next.** Michal recorded
+`LaserTank.lvl` level 2 by hand (`data/demos/LaserTank/00002.lpb`, 119 keypresses, 1.7x the record,
+**2/2 demos verified through both engines**) and it is the useful kind of second data point: a
+conveyor-and-shooting level with no water at all, so the ferry term is provably inert on it, and it
+fails the same way — longest ascent 35 keypresses / 13 board changes against a solved-population p90
+of 21 / 8, unsolved by the raw beam (`beam-dead-end` at 1.6M nodes), by the learned subgoal beam and
+by layer 5 (both a full 40M). **Two levels, two structures, one failure mode**, which is the first
+evidence the ascent length belongs to long levels rather than to level 1 — and it is n=2, which is
+the whole problem. Agreed next action is therefore the blog harvester rather than more solver
+tuning: the `Cut` tiebreak that layer 5 now points at cannot be measured against a population that
+does not exist. *Open questions* carries the feasibility check (full-window PNGs, ~24px cells,
+codebook bootstrapped from the start images whose contents we already know) and the honesty
+condition (hint-assisted solutions never enter the headline rate).
+
+**2026-09-06, session 17 - layer 6 (the read), the polisher, and a trimmer bug worth the session.**
+Michal hand-recorded `LaserTank.lvl` up to 19 (**20/20 verified through both engines**) and asked
+for the thing a player does before searching: *"level 4 - I immediately see I have to make a bridge,
+I see the block, I know I have to use the mirrors and avoid the ATs; or level 6 - no antitanks, only
+blocks and water, I instantly know there will be long sokoban shit. This kind of analysis is what we
+need over an application of five different Knuth algorithms."*
+
+**Layer 6, the read** (`Analyze.cs`). Layer 2's discipline one step further out: *what must change*
+is the priced Dijkstra stopped at the executed pose closure, *what can change it* is enumerated by
+**making** every change. No mirror, conveyor or block-sinking code exists in the file - level 4's
+three-mirror bank shot is found because firing left from (7,15) was tried and the block at (2,2)
+moved. Three derivations of progress (lands on the barrier / moves a block nearer route water /
+`opens`: the tank can stand somewhere new) and a verdict decision list. Measured three ways: over
+the 4,185-level stride sample in 64s (OPEN 96.6% solved as a sanity check; FERRY+SOKOBAN 53% of the
+corpus at 5.1%; the fill count predicts the rate monotonically, 1 fill 9.9% to 9+ fills 0.7%); over
+the 20 recordings, where the human's next board change is in the enumeration **800/800** and named
+by the read **83%**; and as a tiered beam ordering, which beats no ordering at every width and by
+less than the action set does.
+
+**Layer 6 inside layer 5** (`--push-read`). Two false starts, both ended by `--push-trace` reporting
+0% promoted: the cheap `opens` proxy asked whether the *flag's* component grew where the 86% came
+from asking whether the *tank* can stand somewhere new (`Heuristic.TankRegion` is the fix), and then
+the counter itself was incremented before the `opens` pass ran - **an instrument that measures the
+wrong moment says the layer does nothing**. The corrected trace gave the finding: the read promotes
+5-11% of successors into a beam of width **300**, so `Cut` never binds and the read cannot help.
+That turned it into a width experiment on a banked ferry population (`ferry-levels.txt`, built with
+the read itself because the two older benches contain almost no ferry), and both halves are keepers:
+**layer 5's width was simply wrong** - 300 -> 48 takes the deep bench 7 -> 13, matching layer 0 there
+for the first time - and **the read is worth 4/50 -> 11/50 on ferries at width 48** and one level on
+the deep bench, which is its own claim about itself holding up. 11/11 verified. The corpus pass that
+decides whether it ships was started twice and killed twice to free the binary; it is written out in
+*Next action*.
+
+**The polisher** (`Trim.Polish`, on by default, `--no-polish`, plus `--polish PATH` for existing
+`.lpb`). Michal: *"get rid of repeated turns in place and shooting at nothing - they look very
+computery."* Round trips found by `StateHash` recurrence, turns on the spot, shots that change
+nothing, then an exhaustive contiguous-deletion sweep at every width 12 down to 1 - contiguous
+rather than a halving ladder because the run he actually pointed at is *five* keys long, which is
+exactly what 1/2/4/8/16 skips.
+
+**And the bug that made all of it look like a no-op.** `Trim` replayed every candidate through one
+reused `Engine`, and `LoadLevel` deliberately does not reset `wasIce` / `WaitToTrans` / `ConvMoving`
+/ `BlackHole` (quirk #3), so each candidate inherited the previous one's leftovers and **keystreams
+that win from cold were reported as losing**. The polisher was declaring solutions irreducible that
+were not, and said so twice to Michal's face before he pushed back with the replay: *"it really is
+not single-key minimal at 71 - step 2 is a useless turn south, step 3 is visually a noop..."* He was
+right. A fresh engine per candidate takes that solution **71 -> 51 keys and 23 -> 14 shots**, opening
+exactly as he described, and takes the deep bench from 27.4% removed to **47.3%** (`Beginner-I` 1488:
+831 -> 212 keys). Recorded as *Quirk hazards* #12, because the rule generalises past `Trim`: anything
+replaying candidate keystreams must build its own `Engine`. Nothing wrong ever shipped - every
+`.lpb` passes a fresh-engine replay in `SolveOne` and another in `verify_solutions.py` - the cost was
+entirely in reductions not found.
+
+Also: the interactive driver now writes to `./solutions` (committable) rather than gitignored
+`build/`. All four fidelity gates green, and `Engine.cs` still differs from layer 0 by one word.

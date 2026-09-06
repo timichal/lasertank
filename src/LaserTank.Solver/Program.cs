@@ -51,6 +51,15 @@ namespace LaserTank.Solver
 "                         real budget is hours, and a 1-in-N sample of every\n" +
 "                         collection measures the same rates (cf. sweep.py)\n" +
 "    --force              re-solve levels whose .lpb already exists\n" +
+"    --polish PATH        polish existing .lpb files in place (a file or a\n" +
+"                         directory) and report what came out.  Needs\n" +
+"                         --levels; every deletion is replayed first\n" +
+"    --no-polish          keep the turns on the spot and the shots that hit\n" +
+"                         nothing.  Polishing is ON by default: both cost the\n" +
+"                         search nothing to emit and are what makes a replay\n" +
+"                         look machine-made.  Every deletion is replayed\n" +
+"                         before it is accepted -- a wasted turn is not a\n" +
+"                         no-op, it gives the anti-tanks a tick\n" +
 "\n" +
 "  budget (per level)\n" +
 "    --budget-ms N        wall clock, default 4000\n" +
@@ -139,7 +148,57 @@ namespace LaserTank.Solver
 "                         each shot boundary, and write one row per candidate\n" +
 "                         with its features and whether the winner went through\n" +
 "                         it.  Needs --lpb-list; --levels names the collection\n" +
-"    --lpb-list FILE      one .lpb path per line, for --rank-dump\n" +
+"    --lpb-list FILE      one .lpb path per line, for --rank-dump/--profile\n" +
+"    --profile FILE       instrument, not a solve: replay each winning .lpb\n" +
+"                         and write FlagDistance/WorkDistance at every\n" +
+"                         keypress.  tools/basin.py reads it and reports how\n" +
+"                         far *uphill* the winning line goes -- the number\n" +
+"                         that separates a budget problem from a move-set one\n" +
+"\n" +
+"  layer 6 -- the read (Analyze.cs).  Not a solve and not a search: what\n" +
+"  separates the tank from the flag, every board change the tank can make\n" +
+"  right now -- enumerated by *making* them, so mirrors, conveyors and\n" +
+"  sinking blocks need no model -- and which of those advance.\n" +
+"\n" +
+"    --analyze            print the read for each selected level and a\n" +
+"                         verdict table.  Honours --from/--to/--level/\n" +
+"                         --stride/--levels-list/--jobs\n" +
+"    --analyze-tsv FILE   the same, one row per level, for joining against a\n" +
+"                         campaign report: which *shapes* the solver fails on\n" +
+"    --read-dump FILE     the read, measured.  Replay each winning .lpb from\n" +
+"                         --lpb-list, stop at every board change, and record\n" +
+"                         whether the change the human made next is one the\n" +
+"                         read named.  Needs --lpb-list\n" +
+"\n" +
+"  layer 5 -- push macros (Push.cs).  OFF by default, same reason, and\n" +
+"  the same second pass.  The movement closure here is PF-*preserving*, so\n" +
+"  it is the set of poses the tank can stand in rather than layer 1's mix\n" +
+"  of movement and pushes, and every board change reachable from any pose\n" +
+"  in it is a successor -- so search depth is the board-change count.  One\n" +
+"  expansion costs a whole closure (~4,500 ApplyKey calls), so budget this\n" +
+"  in tens of millions of nodes, not hundreds of thousands.  --push enables\n" +
+"    --push-beam N        board-change steps kept per depth, default 300\n" +
+"    --push-restarts N    extra attempts after a dead-end, default 6, each\n" +
+"                         doubling the width; 0 is off.  A dead-end here\n" +
+"                         forfeits its remaining budget, so this is free\n" +
+"    --push-depth N       board changes in a solution, default 400 (a\n" +
+"                         backstop; the node budget binds long before it)\n" +
+"    --push-closure N     poses in one closure, default 4000 -- above the\n" +
+"                         pose count, so truncation means something is odd\n" +
+"    --push-closure-depth N  movement keys to reach one, default 64\n" +
+"    --push-run N         cells one ferry may push in a row, default 8\n" +
+"    --push-move-only N   pure-movement successors kept, and only when the\n" +
+"                         closure truncated, default 4\n" +
+"    --push-eval learned  rank by the learned evaluation (= layer 4's)\n" +
+"    --push-ferry N       weight on the ferry term, default 1, 0 is off:\n" +
+"                         how far the nearest block still is from the water\n" +
+"                         on the route.  WorkDistance does not move while a\n" +
+"                         block is being carried; this does\n" +
+"    --push-closed generate|expand  when a state is closed, default expand\n" +
+"                         -- the opposite of layer 0, and measured: an\n" +
+"                         expansion here is far too dear to bin forever\n" +
+"    --push-trace         per-depth diagnostics to stderr\n" +
+"    --push-share R       budget fraction it may run until, default 1.0\n" +
 "\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
@@ -155,11 +214,14 @@ namespace LaserTank.Solver
             public int Jobs = Environment.ProcessorCount;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
+            public bool Polish = true;
             public bool Auto, NodesGiven, OutGiven;
             public int Stride = 1;
             public readonly HashSet<int> Difficulty = new HashSet<int>();
             public HashSet<int> Only;      // --levels-list, null when unused
-            public string RankDump, LpbList;
+            public string RankDump, LpbList, ProfileOut;
+            public bool DoAnalyze;
+            public string AnalyzeTsv, ReadDumpOut, PolishPath;
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
@@ -206,6 +268,21 @@ namespace LaserTank.Solver
                         case "--macro-first": a.Opt.MacroLast = false; break;
                         case "--beam-share": a.Opt.BeamShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--closed": a.Opt.CloseOnGenerate = V() != "expand"; break;
+                        case "--push": a.Opt.RunPush = true; break;
+                        case "--push-beam": a.Opt.PushBeamWidth = int.Parse(V()); break;
+                        case "--push-depth": a.Opt.PushDepth = int.Parse(V()); break;
+                        case "--push-closure": a.Opt.PushClosureNodes = int.Parse(V()); break;
+                        case "--push-closure-depth": a.Opt.PushClosureDepth = int.Parse(V()); break;
+                        case "--push-run": a.Opt.PushRun = int.Parse(V()); break;
+                        case "--push-move-only": a.Opt.PushMoveOnlyK = int.Parse(V()); break;
+                        case "--push-eval": a.Opt.PushLearned = V() == "learned"; break;
+                        case "--push-restarts": a.Opt.PushRestarts = int.Parse(V()); break;
+                        case "--push-ferry": a.Opt.PushFerry = int.Parse(V()); break;
+                        case "--push-closed": a.Opt.PushCloseOnExpand = V() != "generate"; break;
+                        case "--push-read": a.Opt.PushRead = true; break;
+                        case "--push-read-opens": a.Opt.PushReadOpens = int.Parse(V()); break;
+                        case "--push-trace": a.Opt.PushTrace = true; break;
+                        case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--subgoal": a.Opt.RunSubgoal = true; break;
                         case "--subgoal-first": a.Opt.SubgoalLast = false; break;
                         case "--subgoal-share": a.Opt.SubgoalShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
@@ -230,6 +307,11 @@ namespace LaserTank.Solver
                         case "--eval-weights": a.Opt.Eval = Eval.Load(V()); break;
                         case "--rank-dump": a.RankDump = V(); break;
                         case "--lpb-list": a.LpbList = V(); break;
+                        case "--profile": a.ProfileOut = V(); break;
+                        case "--analyze": a.DoAnalyze = true; break;
+                        case "--analyze-tsv": a.DoAnalyze = true; a.AnalyzeTsv = V(); break;
+                        case "--read-dump": a.ReadDumpOut = V(); break;
+                        case "--read-opens": a.Opt.ReadOpensCap = int.Parse(V()); break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
@@ -242,6 +324,8 @@ namespace LaserTank.Solver
                         case "--difficulty":
                             foreach (string s in V().Split(',')) a.Difficulty.Add(int.Parse(s));
                             break;
+                        case "--no-polish": a.Polish = false; break;
+                        case "--polish": a.PolishPath = V(); break;
                         case "--force": a.Force = true; break;
                         case "--quiet": a.Quiet = true; break;
                         case "--verbose": a.Verbose = true; break;
@@ -270,6 +354,10 @@ namespace LaserTank.Solver
                 return 2;
             }
 
+            if (a.PolishPath != null) return PolishAll(a);
+            if (a.ReadDumpOut != null) return ReadDumpAll(a);
+            if (a.DoAnalyze) return AnalyzeAll(a);
+            if (a.ProfileOut != null) return ProfileAll(a);
             if (a.RankDump != null) return RankDumpAll(a);
             if (a.Auto) return Auto.Run(a);
 
@@ -386,7 +474,7 @@ namespace LaserTank.Solver
         internal sealed class Outcome
         {
             public Job J;
-            public bool Solved, Trimmed;
+            public bool Solved, Trimmed, Polished;
             public int Keys, Moves, Shots, RawKeys, Depth, Restarts;
             public string Method = "-", Stop = "-";
             public long Nodes;
@@ -417,6 +505,7 @@ namespace LaserTank.Solver
                 Target = J.GhsMoves + J.GhsShots >= 65500 ? 0 : J.GhsMoves + J.GhsShots,
                 Solved = Solved,
                 Trimmed = Trimmed,
+                Polished = Polished,
                 Method = Method,
                 Stop = Error != null ? "error" : Stop,
                 Error = Error,
@@ -441,6 +530,7 @@ namespace LaserTank.Solver
                     w.WriteNumber("ghs_shots", J.GhsShots);
                     w.WriteNumber("ratio", Math.Round(Ratio, 3));
                     w.WriteBoolean("trimmed", Trimmed);
+                    w.WriteBoolean("polished", Polished);
                     w.WriteString("method", Method);
                     w.WriteString("stop", Stop);
                     w.WriteNumber("depth", Depth);
@@ -484,6 +574,23 @@ namespace LaserTank.Solver
                     if (shorter.Length < keys.Length) { keys = shorter; o.Trimmed = true; }
                 }
 
+                // Polish every solution, not only the long ones.  Shrink is
+                // about length and runs past --trim-ratio; this is about how the
+                // replay *reads*, and a 1.6x solution full of turns on the spot
+                // and shots at empty air is the case it exists for.  Ordered
+                // after Shrink so it cleans up whatever ddmin left behind.
+                if (a.Polish)
+                {
+                    // Bounded by the solution's own length: the sweep is
+                    // O(keys) replays a round and a replay is O(keys) ticks, so
+                    // an unbounded budget would be quadratic on exactly the long
+                    // solutions that need it most.
+                    int cap = Math.Max(4000, 120 * keys.Length);
+                    byte[] clean = Trim.Polish(a.Levels, job.Level, keys, opt.TickCap,
+                                               cap, out _);
+                    if (clean.Length < keys.Length) { keys = clean; o.Polished = true; }
+                }
+
                 // Never write a .lpb we have not replayed ourselves.
                 Engine check = new Engine();
                 if (!Trim.Wins(check, a.Levels, job.Level, keys, opt.TickCap,
@@ -518,6 +625,213 @@ namespace LaserTank.Solver
         /// The level number comes from the .lpb header, so the pairing is the
         /// recording's own claim about which level it plays rather than
         /// something inferred from a filename.
+        /// --profile: the same --lpb-list, but each recording is replayed once
+        /// and its heuristic profile written, rather than expanded into ranking
+        /// groups.  Serial, because a whole corpus of recordings replayed once
+        /// each is seconds and a lock around the writer would be the only thing
+        /// parallelism bought.
+        /// --analyze: the read, not a solve.  Prints what has to change and
+        /// what can change it, one level at a time, and a verdict table when
+        /// more than one level was asked for.
+        ///
+        /// Serial and cheap -- a few thousand ApplyKey calls a level -- so it
+        /// shares none of the batch harness: no budget, no .lpb, no report row.
+        /// --read-dump: the read, measured against a list of winning .lpb.
+        /// Serial and cheap, like --profile, and the same --lpb-list.
+        /// --polish: run Trim.Polish over .lpb files that already exist.
+        ///
+        /// The batch harness polishes what it writes, but recordings predate
+        /// that -- and a solution that came from somewhere else is exactly the
+        /// one worth cleaning.  In place, because a .lpb that wins is a .lpb
+        /// that wins and the shorter one is strictly better; the level number
+        /// comes from the file's own header, so nothing has to be inferred from
+        /// the filename.
+        private static int PolishAll(Args a)
+        {
+            List<string> files = new List<string>();
+            if (Directory.Exists(a.PolishPath))
+                files.AddRange(Directory.GetFiles(a.PolishPath, "*.lpb",
+                                                  SearchOption.AllDirectories));
+            else if (File.Exists(a.PolishPath)) files.Add(a.PolishPath);
+            else
+            {
+                Console.Error.WriteLine("lasertank-solve: no such .lpb or directory: "
+                                        + a.PolishPath);
+                return 2;
+            }
+            files.Sort(StringComparer.Ordinal);
+
+            int done = 0, changed = 0, failed = 0;
+            long before = 0, after = 0;
+            foreach (string path in files)
+            {
+                try
+                {
+                    TRECORDREC rec = LevelFile.ReadPlayback(path, out byte[] keys);
+                    if (!Trim.Wins(a.Levels, rec.Level, keys, a.Opt.TickCap, out _, out _))
+                    {
+                        // Not an error worth stopping for: the corpus contains
+                        // six recordings that deliberately do not win.
+                        if (a.Verbose)
+                            Console.WriteLine("  {0}  level {1}: does not win, left alone",
+                                              Path.GetFileName(path), rec.Level);
+                        continue;
+                    }
+                    done++;
+                    before += keys.Length;
+
+                    int cap = Math.Max(4000, 120 * keys.Length);
+                    byte[] clean = Trim.Polish(a.Levels, rec.Level, keys, a.Opt.TickCap,
+                                               cap, out int replays);
+                    after += clean.Length;
+                    if (clean.Length >= keys.Length) continue;
+
+                    // Never write one we have not replayed ourselves, the same
+                    // rule the batch harness writes under.
+                    if (!Trim.Wins(a.Levels, rec.Level, clean, a.Opt.TickCap, out _, out _))
+                    {
+                        failed++;
+                        Console.Error.WriteLine("  " + path + ": polished stream failed its "
+                                                + "own replay -- left alone");
+                        after += keys.Length - clean.Length;
+                        continue;
+                    }
+                    LevelFile.WritePlayback(path, rec.LName, rec.Author, rec.Level, clean);
+                    changed++;
+                    Console.WriteLine("  {0,-28} level {1,5}   {2,5} -> {3,5} keys  "
+                                      + "(-{4}, {5} replays)",
+                                      Path.GetFileName(path), rec.Level, keys.Length,
+                                      clean.Length, keys.Length - clean.Length, replays);
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    Console.Error.WriteLine(path + ": " + ex.GetType().Name + ": " + ex.Message);
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("{0} winning recordings, {1} shortened, {2} keys -> {3} ({4:F1}% removed)"
+                              + (failed > 0 ? ", " + failed + " FAILED" : ""),
+                              done, changed, before, after,
+                              before > 0 ? 100.0 * (before - after) / before : 0);
+            return failed > 0 ? 1 : 0;
+        }
+
+        private static int ReadDumpAll(Args a)
+        {
+            if (a.LpbList == null || !File.Exists(a.LpbList))
+            {
+                Console.Error.WriteLine("lasertank-solve: --read-dump needs --lpb-list FILE");
+                return 2;
+            }
+            string collection = Path.GetFileNameWithoutExtension(a.Levels);
+            using StreamWriter w = new StreamWriter(a.ReadDumpOut, append: false,
+                                                    new UTF8Encoding(false));
+            w.Write(Solver.ReadDumpHeader);
+            int done = 0, skipped = 0, rows = 0;
+            foreach (string line in File.ReadAllLines(a.LpbList))
+            {
+                string path = line.Trim();
+                if (path.Length == 0 || path[0] == (char)35) continue;
+                done++;
+                try
+                {
+                    TRECORDREC rec = LevelFile.ReadPlayback(path, out byte[] keys);
+                    Solver s = new Solver(a.Levels, Clone(a.Opt));
+                    int n = s.ReadDump(rec.Level, keys, w, collection);
+                    if (n == 0) skipped++; else rows += n;
+                }
+                catch (Exception ex)
+                {
+                    skipped++;
+                    Console.Error.WriteLine(path + ": " + ex.GetType().Name + ": " + ex.Message);
+                }
+            }
+            Console.WriteLine("{0}: {1} recordings, {2} with no win, {3} board changes read",
+                              collection, done, skipped, rows);
+            return 0;
+        }
+
+        private static int AnalyzeAll(Args a)
+        {
+            string collection = Path.GetFileNameWithoutExtension(a.Levels);
+            int n = LevelFile.CountLevels(a.Levels);
+            int to = Math.Min(a.To, n);
+            List<int> levels = new List<int>();
+            for (int lv = Math.Max(1, a.From); lv <= to; lv++)
+            {
+                if (a.Stride > 1 && (lv - 1) % a.Stride != 0) continue;
+                if (a.Only != null && !a.Only.Contains(lv)) continue;
+                levels.Add(lv);
+            }
+
+            string[] text = new string[levels.Count];
+            string[] tsv = new string[levels.Count];
+            string[] verdicts = new string[levels.Count];
+            Parallel.For(0, levels.Count, new ParallelOptions { MaxDegreeOfParallelism = a.Jobs },
+                         i =>
+            {
+                int lv = levels[i];
+                Solver s = new Solver(a.Levels, Clone(a.Opt));
+                byte[] board = s.StartBoard(lv);
+                Read r = s.Analyze(lv);
+                text[i] = Solver.Format(r, collection, board);
+                tsv[i] = Solver.Tsv(r, collection);
+                verdicts[i] = string.Format("{0,5}  {1,-11} {2}", lv, r.Verdict, r.Why);
+            });
+
+            if (!a.Quiet)
+                foreach (string t in text) Console.Write(t + Environment.NewLine);
+            if (a.AnalyzeTsv != null)
+            {
+                using StreamWriter w = new StreamWriter(a.AnalyzeTsv, append: false,
+                                                        new UTF8Encoding(false));
+                w.Write(Solver.TsvHeader);
+                foreach (string t in tsv) w.Write(t);
+            }
+            if (levels.Count > 1 && !a.Quiet)
+            {
+                Console.WriteLine("  lvl  verdict     why");
+                foreach (string v in verdicts) Console.WriteLine(v);
+            }
+            return 0;
+        }
+
+        private static int ProfileAll(Args a)
+        {
+            if (a.LpbList == null || !File.Exists(a.LpbList))
+            {
+                Console.Error.WriteLine("lasertank-solve: --profile needs --lpb-list FILE");
+                return 2;
+            }
+            string collection = Path.GetFileNameWithoutExtension(a.Levels);
+            using StreamWriter w = new StreamWriter(a.ProfileOut, append: false,
+                                                    new UTF8Encoding(false));
+            int done = 0, skipped = 0, rows = 0;
+            foreach (string line in File.ReadAllLines(a.LpbList))
+            {
+                string path = line.Trim();
+                if (path.Length == 0 || path[0] == '#') continue;
+                done++;
+                try
+                {
+                    TRECORDREC rec = LevelFile.ReadPlayback(path, out byte[] keys);
+                    Solver s = new Solver(a.Levels, Clone(a.Opt));
+                    int n = s.Profile(rec.Level, keys, w, collection);
+                    if (n == 0) skipped++; else rows += n;
+                }
+                catch (Exception ex)
+                {
+                    skipped++;
+                    Console.Error.WriteLine(path + ": " + ex.GetType().Name + ": " + ex.Message);
+                }
+            }
+            Console.WriteLine("{0}: {1} recordings, {2} with no win, {3} keypresses profiled",
+                              collection, done, skipped, rows);
+            return 0;
+        }
+
         private static int RankDumpAll(Args a)
         {
             if (a.LpbList == null || !File.Exists(a.LpbList))
@@ -585,6 +899,9 @@ namespace LaserTank.Solver
             NodeBudget = s.NodeBudget,
             TimeBudgetMs = s.TimeBudgetMs,
             TickCap = s.TickCap,
+            ReadOpensCap = s.ReadOpensCap,
+            PushRead = s.PushRead,
+            PushReadOpens = s.PushReadOpens,
             IdaMaxDepth = s.IdaMaxDepth,
             RunIda = s.RunIda,
             RunBeam = s.RunBeam,
@@ -609,6 +926,19 @@ namespace LaserTank.Solver
             SgReservePerDepth = s.SgReservePerDepth,
             SgGrow = s.SgGrow,
             SgLearned = s.SgLearned,
+            RunPush = s.RunPush,
+            PushBeamWidth = s.PushBeamWidth,
+            PushDepth = s.PushDepth,
+            PushClosureNodes = s.PushClosureNodes,
+            PushClosureDepth = s.PushClosureDepth,
+            PushRun = s.PushRun,
+            PushMoveOnlyK = s.PushMoveOnlyK,
+            PushLearned = s.PushLearned,
+            PushTrace = s.PushTrace,
+            PushCloseOnExpand = s.PushCloseOnExpand,
+            PushFerry = s.PushFerry,
+            PushRestarts = s.PushRestarts,
+            PushShare = s.PushShare,
             Eval = s.Eval,
         };
     }

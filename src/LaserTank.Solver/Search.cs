@@ -65,6 +65,15 @@ namespace LaserTank.Solver
         public long NodeBudget = 2000000;
         public int TimeBudgetMs = 4000;
         public int TickCap = 100000;       // per macro-step backstop; see ApplyKey
+        public int ReadOpensCap = 64;      // layer 6: most effects a read will
+                                           // re-close to test what they open up
+        public bool PushRead;              // layer 6 inside layer 5: tier the push
+                                           // beam by the read.  OFF by default --
+                                           // layer 5 itself does not ship either
+        public int PushReadOpens = -1;     // the read's third derivation: -1 = the
+                                           // cheap flag-component proxy on every
+                                           // successor, N>0 = the executed pose
+                                           // closure on the best N, 0 = off
         public int IdaMaxDepth = 24;
         public bool RunIda = true;
         public bool RunBeam = true;
@@ -191,6 +200,37 @@ namespace LaserTank.Solver
         public bool SgLearned = false;     // rank by the learned evaluation
         public Eval Eval;                  // null -> Weights.Default
 
+        // ---- layer 5: push macros (Push.cs) -------------------------------
+        //
+        // Off by default and for the same reason layers 1 and 2 are: a
+        // specialist that wins on levels the raw beam cannot solve is a tax on
+        // the ones it can, so it belongs in a second pass (tools/second_pass.sh)
+        // or in a thread of its own (Auto.cs), not in a shared budget.
+        //
+        // The defaults are shaped by what this layer searches rather than
+        // copied from layer 1.  Depth counts *board changes*, so 400 is a
+        // backstop several times the longest thing in the corpus rather than a
+        // real bound.  The closure is PF-preserving and therefore bounded by
+        // the pose count -- at most 16x16x4 times whatever slide state -- so
+        // PushClosureNodes is set above that rather than as a budget: when it
+        // binds, the escape hatch has to run and the expansion has stopped
+        // being complete.
+        public bool RunPush = false;
+        public int PushBeamWidth = 300;    // board-change steps kept per depth
+        public int PushDepth = 400;        // board changes; a backstop
+        public int PushClosureNodes = 4000;// poses in one PF-preserving closure
+        public int PushClosureDepth = 64;  // movement keys to reach one
+        public int PushRun = 8;            // cells one ferry may push in a row
+        public int PushMoveOnlyK = 4;      // pure-movement successors, and only
+                                           // when the closure truncated
+        public bool PushLearned = false;   // rank by the learned evaluation
+        public int PushFerry = 1;          // weight on Heuristic.RouteFerry; 0 is off
+        public int PushRestarts = 6;       // extra attempts after a dead-end, each
+                                           // doubling the width; 0 is off
+        public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs
+        public bool PushTrace = false;     // per-depth diagnostics to stderr
+        public double PushShare = 1.0;
+
         public bool SgReuse = false;       // restart from discarded nodes
         public int SgReserve = 64;         // discarded nodes held for a restart
         public int SgReservePerDepth = 2;  // ...and how many one depth may add
@@ -254,7 +294,7 @@ namespace LaserTank.Solver
             _lvlPath = lvlPath;
             _opt = opt;
             _cancel = opt.Cancel;
-            if (opt.SgLearned) _eval = opt.Eval ?? Eval.Default();
+            if (opt.SgLearned || opt.PushLearned) _eval = opt.Eval ?? Eval.Default();
         }
 
         public TLEVEL Level => _e.CurRecData;
@@ -346,6 +386,21 @@ namespace LaserTank.Solver
                     SolveResult g = SubgoalSearch(root);
                     if (g.Solved) return Finish(g, "subgoal");
                     r = g;
+                }
+            }
+            // Layer 5 runs before the raw beam because it is never in a
+            // portfolio with it: RunPush is off unless a second pass or a
+            // ladder rung turned it on, and those turn the beam off.  Placing
+            // it here rather than after leaves the beam's own share arithmetic
+            // below untouched.
+            if (_opt.RunPush)
+            {
+                Stage(_opt.PushShare);
+                if (!OutOfBudget)
+                {
+                    SolveResult p = PushSearch(root);
+                    if (p.Solved) return Finish(p, "push");
+                    r = p;
                 }
             }
             if (_opt.RunBeam)

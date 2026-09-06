@@ -50,6 +50,31 @@ namespace LaserTank.Solver
         public int Component;           // cells in the flag's passable component
         public bool FlagReachable;      // ...and whether the tank is one of them
 
+        /// Layer 5's ferry term: summed over the water cells on the settled
+        /// WorkDistance route, how far the nearest movable block still is from
+        /// each of them.  -1 when no route settled, 0 when the route crosses no
+        /// water or the board has no block left to push into it.
+        ///
+        /// **Why it exists, and it is the one number layer 5 could not do
+        /// without.**  WorkDistance prices a water cell at 9 and does not move
+        /// at all while a block is being carried towards it: the whole ferry --
+        /// twenty to fifty keypresses of fetching and turning and pushing --
+        /// scores exactly the same as standing still, and only the final push
+        /// that fills the cell scores anything.  A beam ranking by it is doing
+        /// breadth-first search across the entire ferry, which is precisely the
+        /// 68-keypress ascent tools/basin.py measured on level 1.  This makes
+        /// the carry itself visible: every push that brings a block one cell
+        /// nearer the water it is destined for lowers the number by one.
+        ///
+        /// Manhattan, not a pushability search, and that is deliberate rather
+        /// than lazy.  Whether a block can actually be pushed along a given
+        /// route is a question about MoveObj, ice, conveyors and where the tank
+        /// can stand behind it -- i.e. a second implementation of the game,
+        /// which this project does not have and is not going to acquire for a
+        /// tie-break.  The engine still decides every push that is actually
+        /// made; this only orders the ones already generated.
+        public int RouteFerry;
+
         private readonly int[] _dist = new int[256];
         private readonly int[] _queue = new int[256];
         private readonly int[] _cost = new int[256];
@@ -72,6 +97,61 @@ namespace LaserTank.Solver
 
         private static bool Passable(byte cell) =>
             Obj.IsTunnel(cell) ? true : (cell <= 25 && Enterable[cell] != 0);
+
+        /// How many cells the tank can walk to over currently-passable cells.
+        ///
+        /// Layer 6 asks one question of a candidate board change that needs no
+        /// theory of what the obstacle was: *can the tank stand somewhere it
+        /// could not stand before?*  Answered properly that is a second
+        /// PF-preserving pose closure -- a few thousand ApplyKey calls -- and
+        /// answered here it is a flood over 256 cells, which is what makes it
+        /// affordable once per successor inside a beam.
+        ///
+        /// **The two are not the same question and the difference is measured.**
+        /// The flood does not know about anti-tank fire, spent thin ice, tunnel
+        /// pairing or a conveyor that carries the tank somewhere it could not
+        /// walk, so it both over- and under-counts against the executed answer.
+        /// It is used only to pick a *tier*: every successor in every tier was
+        /// produced by the engine, so a wrong answer here costs search order and
+        /// can never admit a state the expansion did not offer.  That is the
+        /// line layer 2's first obstacle derivation crossed and this one does
+        /// not -- it modelled *acceptance*, this orders what acceptance already
+        /// passed.
+        ///
+        /// Note what it deliberately is not: the *flag's* component, which is
+        /// what FlagDistance publishes as `Component`.  That number does not
+        /// move at all during a ferry until the last block goes into the water,
+        /// so tiering by it promotes nothing for the whole of the manoeuvre this
+        /// layer exists to search -- measured, 0 of 248 successors at depth 3.
+        /// The tank's own region moves on almost every push, because a block
+        /// that leaves a square is a square the tank can now stand on.
+        public int TankRegion(Engine e)
+        {
+            int tx = e.Game.Tank.X, ty = e.Game.Tank.Y;
+            int[] dist = _dist, queue = _queue;
+            for (int i = 0; i < 256; i++) dist[i] = -1;
+            int head = 0, tail = 0, n = 1;
+
+            dist[tx * 16 + ty] = 0;
+            queue[tail++] = tx * 16 + ty;
+            while (head < tail)
+            {
+                int c = queue[head++];
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    int nx = cx + (k == 1 ? 1 : k == 3 ? -1 : 0);
+                    int ny = cy + (k == 0 ? -1 : k == 2 ? 1 : 0);
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    int m = nx * 16 + ny;
+                    if (dist[m] >= 0 || !Passable(e.Game.PF[nx, ny])) continue;
+                    dist[m] = dist[c] + 1;
+                    queue[tail++] = m;
+                    n++;
+                }
+            }
+            return n;
+        }
 
         /// Shortest tank-step distance from the tank to the flag over currently
         /// passable cells; Unreachable + manhattan when no such path exists, so
@@ -179,9 +259,11 @@ namespace LaserTank.Solver
 
             int tx = e.Game.Tank.X, ty = e.Game.Tank.Y;
             RouteObstacles = 0;
+            RouteFerry = 0;
             if (fx < 0) return 0;
             if (tx == fx && ty == fy) return 0;
             RouteObstacles = -1;                        // no route, until one settles
+            RouteFerry = -1;
 
             int[] cost = _cost;
             for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
@@ -363,9 +445,36 @@ namespace LaserTank.Solver
         private int CountOnRoute(Engine e, int at)
         {
             int n = 0;
+            RouteFerry = 0;
             for (int c = at; c >= 0; c = _pred[c])
-                if (Price(e.Game.PF[c >> 4, c & 15]) > 1) n++;
+            {
+                byte cell = e.Game.PF[c >> 4, c & 15];
+                if (Price(cell) > 1) n++;
+                if (cell == Obj.Water) RouteFerry += ToNearestBlock(e, c);
+            }
             return n;
+        }
+
+        /// Manhattan distance from `cell` to the nearest movable block, or 0
+        /// when the board has none -- a water crossing with nothing left to
+        /// fill it with is not a distance the search can shorten, and scoring
+        /// it as a large constant would only add noise to every sibling alike.
+        ///
+        /// Crystal blocks are not counted: `CheckLLoc` case 19 lets a laser
+        /// straight through one and the price list already treats crystal as
+        /// permanently blocking, so calling one a ferry candidate would promise
+        /// a bridge the rest of the heuristic says cannot be built.
+        private static int ToNearestBlock(Engine e, int cell)
+        {
+            int ox = cell >> 4, oy = cell & 15, best = int.MaxValue;
+            for (int x = 0; x < 16; x++)
+                for (int y = 0; y < 16; y++)
+                {
+                    if (e.Game.PF[x, y] != Obj.Block) continue;
+                    int d = (x > ox ? x - ox : ox - x) + (y > oy ? y - oy : oy - y);
+                    if (d < best) best = d;
+                }
+            return best == int.MaxValue ? 0 : best;
         }
 
         /// The price list, for a caller that needs to ask whether a cell got

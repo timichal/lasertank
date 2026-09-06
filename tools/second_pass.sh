@@ -12,6 +12,16 @@
 #   tools/second_pass.sh  build/reports/l34.jsonl solutions/l34 \
 #                         build/reports/l34pass4.jsonl --no-ida --no-beam --macro --macro-first
 #
+# Layer 5 (--push) is *not* in that chain, and the reason is a number rather
+# than an omission: one push expansion is a whole PF-preserving closure, some
+# 4,500 ApplyKey calls against layer 0's five per keypress, so at the budgets
+# these passes run at it is behind both -- 3/50 at 400k and 7/50 at 4M on the
+# 50 deep bench levels, where layer 0 is 13/50 at both.  Run it as a pass of
+# its own, at a budget in the tens of millions, to see what it does:
+#
+#   NODES=40000000 tools/second_pass.sh  build/reports/l34.jsonl solutions/l5 \
+#                         build/reports/l5.jsonl --no-ida --no-beam --push
+#
 # **Three passes now, and the middle one is why the first is still there.**
 # Layer 4 is layer 3 with a learned ranking key, so replacing layer 3's pass
 # with it scores the same 469 -- but it *loses* three levels layer 3 found,
