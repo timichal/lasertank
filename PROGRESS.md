@@ -245,11 +245,13 @@ and `deep-levels.txt` at 4M nodes with `--no-ida --no-beam --push --push-read` s
 and **21/50**, and adding `--push-beam 48 --push-per-board 0 --push-eval work --push-depth 400` — the
 configuration session 17 shipped — should still give 11/50 and 14/50.
 
-**One smaller thing that is ready and unmeasured.** `Trim.Polish` now removes 47% of a subgoal
-solution's keypresses, so **every banked
+**One smaller thing that is ready and unmeasured.** `Trim.Polish` removes 47% of a subgoal
+solution's keypresses and `Replan.Improve` (session 21) another slice on top, so **every banked
 `.lpb` under `build/solutions/` is longer than it needs to be** - `--polish DIR` over each of them
-would refresh the corpus that layer 4 is fit on and `--profile` measures, which is not nothing:
-shorter trajectories change the ascent statistics the whole layer-5 argument rests on.
+now runs both passes and would refresh the corpus that layer 4 is fit on and `--profile` measures,
+which is not nothing: shorter trajectories change the ascent statistics the whole layer-5 argument
+rests on. Measured on the 416 solutions in `build/solutions/l0`, one such pass is 11,060 -> 10,249
+keypresses in about 150 s.
 
 **Still worth doing, and no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
 harvester.** It was session 16's agreed next action because the ferry population was n=2; it is
@@ -2390,6 +2392,92 @@ levels the batch solver could not do. Those are worth committing, so they go whe
 next to `data/demos/` — the same kind of thing: a recording that cannot be regenerated on demand.
 The scratch directory the verifier stages through stays under `build/`.
 
+### Phase 4 addendum — replanning a solution through the board changes it already made  ☑
+
+**The complaint, and why the polisher is structurally unable to answer it.** *"In the first part
+(first ~40 steps) the tank moves the C4 block to C6 and later back to C4 to move it correctly, which
+is a waste - I'm thinking there could be a step like 'now that we know where the blocks are going to
+end up, what's the least-move way to get them there?'"* On `LaserTank.lvl` 3 the excursion is four
+shots and about seventeen keypresses, and `Trim.Polish` cannot see any of it. It is not a round trip
+(`Decycle` needs two *identical* states, and the board is different afterwards - the other block has
+sunk into the water in between), not a turn on the spot, not a shot at nothing. Every key in it does
+something. They just undo each other. Deletion cannot find that; only re-derivation can.
+
+**The observation the pass is built on, and it is Michal's own from session 20** - *"the solution is
+basically a series of state changes with walking in between"*. If that is what a solution *is*, then
+the playfields it passes through are a **ladder of positions already proved to lead to a win** - the
+solution is the proof. So "what is the least-move way to get the blocks where they end up" has a
+cheap and sound answer: search for the shortest keystream that climbs that ladder, **allowed to skip
+rungs**. Nothing is modelled. A rung is reached because `Engine.ApplyKey` was called and `Game.PF`
+came back equal to a playfield the original run stood on.
+
+`Replan.Improve` (`Replan.cs`) is that search:
+
+| step | what it does |
+|---|---|
+| the ladder | replay the solution, keep every playfield it stood on, in order. A board it stood on twice maps to its *last* rung, so a plain round trip is skipped by the lookup alone |
+| the sweep | one forward pass over the rungs. Every successor is at a strictly higher rung, so the ladder is a DAG and rung order is a topological order: each rung is expanded exactly once |
+| one closure per rung | every state at a rung has the same playfield by construction, so they share one PF-preserving movement closure - a multi-source uniform-cost walk over tank poses, each seeded at the keystream length it arrived with |
+| the runs | a board change is offered to its rung and then the same key is pressed again while the board keeps moving, so a k-cell ferry and a k-shot mirror push are k rungs for k keys. `Solver.PushRun` and `Solver.ShotRun` inside the search, for the same reason |
+
+Level 3 is one skip. With the first block on B7 the original walks off to fiddle with the second one
+and comes back; the replan pushes B7 straight into the water, which lands on the playfield the
+original only reached five board changes later, and the whole excursion goes with it. **80 -> 57
+keys, 15 -> 11 board changes**, and the replay now reads: shoot the gun through the mirror, three
+shots to ferry the first block into B8, walk round to D4, one shot to put the second on B4, walk it
+down column B, cross. Level 7 is the same machine on a different complaint - *"walk/ride circle,
+shoot mirror half into position, walk/ride circle again, shoot mirror into position; could be just
+one circle"* - and the ladder search fires four times from the one square it can be fired from: a
+shot run walking four rungs for four keys. **81 -> 65.**
+
+**The one thing that had to be got right, because the first version got it wrong.** The space bar
+does not belong in the closure. A shot that hits nothing still moves the laser record, so its
+`StateHash` differs from the pose it was fired from, and a walk that treats "new hash" as "new place
+to stand" will fire from *that*, and again, and stop being bounded by the pose count. Measured
+before the split: level 3 spent its entire pose budget at rung 0, on an island of twenty-four cells,
+and found nothing all corpus. The fix is `Solver.ExpandPush`'s own structure - walk on movement
+keys, then fire once from each pose the walk found - and with it level 3 finishes in **25,014
+`ApplyKey` calls**. What that gives up is a shot kept for its *timing* (burn a tick so a gun fires
+early, then walk on); the search layer gives up the same thing in the same place.
+
+**Ordering, and the measurement that fixed it.** The first build ran replan *before* the polish and
+was a net win that **lost keys on two collections** - a re-derived route is a different starting
+point for delta debugging and the deletions it offers are not a superset of the ones the polisher
+had found. So the pipeline (`Program.Clean`, shared by `SolveOne` and `--polish`) is **polish,
+replan, polish again, and keep the replan only when what comes out is shorter**. Polishing first is
+not only safe, it is better: a shorter input lowers the length the replan has to beat and so prunes
+its sweep, and the polish can delete a board change nobody needed, which shortens the ladder itself.
+
+| 416 solutions, `build/solutions/l0` | keys | time |
+|---|---:|---:|
+| as banked | 11,060 | — |
+| polish only | 10,327 | 126 s |
+| replan before polish | 10,249 | 143 s |
+| **polish, replan, polish** | **10,249** | 152 s |
+
+Same total as the losing order, no collection worse than polish alone, **416/416 verified through
+both engines**. The l0 corpus is layer 0's raw beam, whose `Cut` already breaks ties by cheapest
+keystream, so it is the *unfavourable* population; the pass earns its keep on the searchers that
+plan in shot space, where the movement between board changes is whatever the closure happened to
+execute. On the seven hand-supervised `data/solutions/LaserTank/` recordings it is 821 -> 725, with
+levels 3, 4 and 7 at **80 -> 57, 92 -> 61 and 81 -> 65**.
+
+On by default; `--no-replan` turns it off, `--replan-width` (8) bounds the states kept per rung and
+`--replan-nodes` (1.5M) is the backstop. The sweep is bounded by rungs x poses x 5 `ApplyKey` calls
+and normally stops well under the budget - level 5 of `LaserTank.lvl` is the worst in the corpus at
+412,882, which is why the default is not the 400,000 the first build shipped.
+
+**A polisher bug this turned up on the way.** `data/solutions/LaserTank/00007.lpb` was written at 81
+keys with polishing on, and a second `--polish` over the file took it to 68 - one 13-key round trip,
+the second lap of the conveyor circuit, which `Decycle` finds immediately when it is handed the
+file. Nothing about it needed a bigger budget. `Decycle` cuts at most one round trip per round and
+gives up after sixteen, `Polish` called it once, and the width sweep after it tops out at twelve
+keys - so on a raw solution with more than sixteen round trips, every one `Decycle` did not reach
+and the sweep could not span stayed in. `Polish` now repeats its three passes while anything comes
+out (four times at most, and the second pass only runs when the first removed something). It changes
+nothing on the l0 corpus, which had already been polished once, and costs 8% there for the
+convergence check.
+
 ### Phase 5 — Presentation & features  ☐
 
 **This is the first phase where the deliverable is the game rather than a measurement, and the
@@ -2667,6 +2755,9 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    Trim.cs — Shrink (delta debugging, past --trim-ratio) and
                    Polish (every solution: round trips, turns on the spot,
                    shots at nothing; each deletion replayed before it is taken)
+                   Replan.cs — post-solve: the board changes a solution made are
+                   a ladder of positions known to win, so re-derive the shortest
+                   route up it and let it skip the rungs that cancel out
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/
   replay_all.py     replay every .lpb; green/red gate (expected outcomes + .ghs targets)
@@ -3235,3 +3326,59 @@ identical, 25 fuzz). `Heuristic.cs`, `Push.cs`, `Line.cs`, `Search.cs`, `Program
 only - `Engine.cs` still differs from layer 0 by one word and `Engine.Search.cs` is unchanged.
 Seven layers now, and the one thing layer 7 has *not* had is a corpus pass: two benches and one
 ablation is all that is behind it.
+
+**2026-09-06, session 21 - a post-solve pass that re-derives the route instead of deleting from
+it.** Two complaints, one machine. *"In the first part the tank moves the C4 block to C6 and later
+back to C4 to move it correctly, which is a waste - I'm thinking there could be a step like 'now
+that we know where the blocks are going to end up, what's the least-move way to get them there?'"*
+and, on level 7, *"walk/ride circle, shoot mirror half into position, walk/ride circle again, shoot
+mirror into position; could be just one circle."* The whole reasoning is in the new **Phase 4
+addendum - replanning a solution through the board changes it already made**; this is the short
+version.
+
+**The idea is Michal's own from last session** - *"the solution is basically a series of state
+changes with walking in between"*. If that is what a solution is, the playfields it stood on are a
+ladder of positions **already proved to lead to a win**, and the least-move question has a sound and
+cheap answer: find the shortest keystream that climbs the ladder, free to **skip rungs**. Level 3's
+excursion disappears because with the first block on B7 the replan pushes it straight into the water
+and lands on the playfield the original only reached five board changes later. Level 7's second lap
+disappears because a shot run fires four times from the one square it can be fired from. **80 -> 57
+and 81 -> 65**, and the level-3 replay now reads the way a person would play it.
+
+Cheap because the ladder is a DAG - one forward sweep, one PF-preserving closure per rung shared by
+every state at it, no heuristic anywhere. Level 3 costs 25,014 `ApplyKey` calls.
+
+**The bug worth remembering is that the space bar does not belong in a movement closure.** A shot
+that hits nothing still moves the laser record, so its `StateHash` differs from the pose it was
+fired from; a walk that treats a new hash as a new place to stand fires from that, and again, and is
+no longer bounded by the pose count. The first build spent its whole pose budget at rung 0 of level
+3 - an island of twenty-four cells - and found nothing on any level. `Solver.ExpandPush` had the
+answer already and had said so in a comment: walk on movement keys, then fire once from each pose
+the walk found.
+
+**And an ordering that had to be measured rather than argued.** Replan-before-polish was a net win
+over the 416 solutions in `build/solutions/l0` and still **lost keys on two collections**, because a
+re-derived route is a different starting point for delta debugging. The shipped pipeline
+(`Program.Clean`, shared by `SolveOne` and `--polish`) is polish, replan, polish, keep the replan
+only if it is shorter: 11,060 -> 10,327 keys for the polish alone, **-> 10,249** with the replan,
+no collection worse, 416/416 verified through both engines. l0 is layer 0's raw beam, which is the
+*unfavourable* population - on the seven hand-supervised `data/solutions/LaserTank/` recordings the
+same pass is 821 -> 725.
+
+**One old bug fell out of it.** `00007.lpb` was banked at 81 keys with polishing on, and a second
+`--polish` over the file took it to 68 by cutting one 13-key round trip. `Decycle` cuts one round
+trip per round, gives up after sixteen, `Polish` called it once, and the sweep after it tops out at
+twelve keys - so on a raw solution with more than sixteen round trips the long ones nobody reached
+stayed in. `Polish` now repeats while anything comes out. No change on l0 (already polished once),
+8% cost there.
+
+`Replan.cs` is new; `Trim.cs`, `Program.cs` and `Report.cs` changed. **Nothing in `LaserTank.Core`
+was touched** - `Engine.cs` still differs from layer 0 by one word, `Engine.Search.cs` is unchanged
+- and the engine gates confirm it (187 replayed / 181 win / 6 documented, 29 difftrace). The gate
+that matters for this session is `verify_solutions.py`: **416/416 and 7/7**, both engines, every
+tick.
+
+*Left for the next session:* `build/lasertank-solve.exe` was **not** rebuilt - a solver run was
+holding the DLL - so the new binary is at `build/rp/lasertank-solve.exe` and `bash src/build.sh`
+still has to be run. And the corpus refresh in *Start here* is now worth more than it was: every
+banked `.lpb` predates this pass.

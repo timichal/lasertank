@@ -60,6 +60,17 @@ namespace LaserTank.Solver
 "                         look machine-made.  Every deletion is replayed\n" +
 "                         before it is accepted -- a wasted turn is not a\n" +
 "                         no-op, it gives the anti-tanks a tick\n" +
+"    --no-replan          keep the excursions that cancel out.  Replanning is\n" +
+"                         ON by default, between two polishes: it walks the\n" +
+"                         board changes the solution already made and\n" +
+"                         re-derives the shortest route through them, free\n" +
+"                         to skip the ones that undo each other.  Kept only\n" +
+"                         when what comes out is shorter, so the pair is\n" +
+"                         never worse than the polish alone\n" +
+"    --replan-width N     states kept per board change, default 8\n" +
+"    --replan-nodes N     ApplyKey backstop for the replan, default 1.5M --\n" +
+"                         the sweep is bounded by the board changes it is\n" +
+"                         given and usually stops well under it\n" +
 "\n" +
 "  budget (per level)\n" +
 "    --budget-ms N        wall clock, default 4000\n" +
@@ -284,6 +295,9 @@ namespace LaserTank.Solver
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
             public bool Polish = true;
+            public bool DoReplan = true;
+            public int ReplanWidth = 8;
+            public long ReplanNodes = 1500000;
             public bool Auto, NodesGiven, OutGiven;
             public int Stride = 1;
             public readonly HashSet<int> Difficulty = new HashSet<int>();
@@ -402,6 +416,9 @@ namespace LaserTank.Solver
                             foreach (string s in V().Split(',')) a.Difficulty.Add(int.Parse(s));
                             break;
                         case "--no-polish": a.Polish = false; break;
+                        case "--no-replan": a.DoReplan = false; break;
+                        case "--replan-width": a.ReplanWidth = int.Parse(V()); break;
+                        case "--replan-nodes": a.ReplanNodes = long.Parse(V()); break;
                         case "--polish": a.PolishPath = V(); break;
                         case "--force": a.Force = true; break;
                         case "--quiet": a.Quiet = true; break;
@@ -549,10 +566,73 @@ namespace LaserTank.Solver
 
         // ---- one level -----------------------------------------------------
 
+        /// Poses one rung of the replan may walk, and cells one push run may
+        /// climb.  Both are backstops rather than tuning -- a PF-preserving
+        /// closure is bounded by the pose count (16x16x4) and a run by what the
+        /// board lets a block travel -- so the defaults are chosen to be out of
+        /// the way, and --replan-nodes is the knob that actually binds.
+        internal const int ReplanPoses = 8000;
+        internal const int ReplanRun = 16;
+
+        /// The post-solve passes, in the order that never loses: polish,
+        /// replan, polish again.
+        ///
+        /// **Why the polish goes first.**  It makes the replan both cheaper and
+        /// better.  Cheaper, because the replan will not consider a route
+        /// longer than the one it was handed, so a shorter input prunes its
+        /// sweep harder; better, because the polish can delete a board change
+        /// nobody needed, and that shortens the ladder the replan climbs.
+        ///
+        /// **Why the second polish, and why the shortest is kept rather than
+        /// the last.**  A re-derived route is a different starting point for
+        /// delta debugging and the deletions it offers are not a superset of
+        /// the ones the first pass found.  Measured over the 416 solutions in
+        /// `build/solutions/l0`, replan-then-polish beat polish-alone overall
+        /// and still lost keys on two collections -- so the replan is only
+        /// taken when what comes out the far end is actually shorter, which
+        /// makes the whole pipeline no worse than the polish on its own.
+        internal static byte[] Clean(Args a, int level, byte[] keys, int tickCap,
+                                     ref bool polished, ref bool replanned,
+                                     out Replan.Stats rp, out int replays)
+        {
+            rp = null;
+            replays = 0;
+            byte[] best = keys;
+
+            if (a.Polish)
+            {
+                // Bounded by the solution's own length: the sweep is O(keys)
+                // replays a round and a replay is O(keys) ticks, so an unbounded
+                // budget would be quadratic on exactly the long solutions that
+                // need it most.
+                best = Trim.Polish(a.Levels, level, best, tickCap,
+                                   Math.Max(4000, 120 * best.Length), out replays);
+                if (best.Length < keys.Length) polished = true;
+            }
+            if (!a.DoReplan) return best;
+
+            byte[] planned = Replan.Improve(a.Levels, level, best, tickCap, a.ReplanWidth,
+                                            ReplanPoses, ReplanRun, a.ReplanNodes, out rp);
+            if (planned.Length >= best.Length) return best;
+
+            if (a.Polish)
+            {
+                int was = planned.Length;
+                planned = Trim.Polish(a.Levels, level, planned, tickCap,
+                                      Math.Max(4000, 120 * planned.Length), out int more);
+                replays += more;
+                if (planned.Length < was) polished = true;
+            }
+            if (planned.Length >= best.Length) return best;
+
+            replanned = true;
+            return planned;
+        }
+
         internal sealed class Outcome
         {
             public Job J;
-            public bool Solved, Trimmed, Polished;
+            public bool Solved, Trimmed, Polished, Replanned;
             public int Keys, Moves, Shots, RawKeys, Depth, Restarts;
             public string Method = "-", Stop = "-";
             public long Nodes;
@@ -584,6 +664,7 @@ namespace LaserTank.Solver
                 Solved = Solved,
                 Trimmed = Trimmed,
                 Polished = Polished,
+                Replanned = Replanned,
                 Method = Method,
                 Stop = Error != null ? "error" : Stop,
                 Error = Error,
@@ -609,6 +690,7 @@ namespace LaserTank.Solver
                     w.WriteNumber("ratio", Math.Round(Ratio, 3));
                     w.WriteBoolean("trimmed", Trimmed);
                     w.WriteBoolean("polished", Polished);
+                    w.WriteBoolean("replanned", Replanned);
                     w.WriteString("method", Method);
                     w.WriteString("stop", Stop);
                     w.WriteNumber("depth", Depth);
@@ -652,22 +734,13 @@ namespace LaserTank.Solver
                     if (shorter.Length < keys.Length) { keys = shorter; o.Trimmed = true; }
                 }
 
-                // Polish every solution, not only the long ones.  Shrink is
-                // about length and runs past --trim-ratio; this is about how the
-                // replay *reads*, and a 1.6x solution full of turns on the spot
-                // and shots at empty air is the case it exists for.  Ordered
-                // after Shrink so it cleans up whatever ddmin left behind.
-                if (a.Polish)
-                {
-                    // Bounded by the solution's own length: the sweep is
-                    // O(keys) replays a round and a replay is O(keys) ticks, so
-                    // an unbounded budget would be quadratic on exactly the long
-                    // solutions that need it most.
-                    int cap = Math.Max(4000, 120 * keys.Length);
-                    byte[] clean = Trim.Polish(a.Levels, job.Level, keys, opt.TickCap,
-                                               cap, out _);
-                    if (clean.Length < keys.Length) { keys = clean; o.Polished = true; }
-                }
+                // Polish and replan.  Ordered after Shrink so they clean up
+                // whatever ddmin left behind, and both run on *every* solution
+                // rather than only the long ones: a 1.6x solution full of turns
+                // on the spot, shots at empty air and ferries that cancel out
+                // is exactly the case they exist for.
+                keys = Clean(a, job.Level, keys, opt.TickCap,
+                             ref o.Polished, ref o.Replanned, out _, out _);
 
                 // Never write a .lpb we have not replayed ourselves.
                 Engine check = new Engine();
@@ -758,9 +831,16 @@ namespace LaserTank.Solver
                     done++;
                     before += keys.Length;
 
-                    int cap = Math.Max(4000, 120 * keys.Length);
-                    byte[] clean = Trim.Polish(a.Levels, rec.Level, keys, a.Opt.TickCap,
-                                               cap, out int replays);
+                    bool pol = false, rep = false;
+                    byte[] clean = Clean(a, rec.Level, keys, a.Opt.TickCap,
+                                         ref pol, ref rep, out Replan.Stats rp,
+                                         out int replays);
+                    if (a.Verbose && rp != null)
+                        Console.WriteLine("  {0,-28} level {1,5}   replan {2} -> {3} keys, "
+                                          + "{4} -> {5} board changes, {6} nodes, {7}",
+                                          Path.GetFileName(path), rec.Level, rp.Before,
+                                          rp.After, rp.Rungs, rp.RungsAfter, rp.Nodes,
+                                          rp.Why);
                     after += clean.Length;
                     if (clean.Length >= keys.Length) continue;
 
@@ -777,9 +857,13 @@ namespace LaserTank.Solver
                     LevelFile.WritePlayback(path, rec.LName, rec.Author, rec.Level, clean);
                     changed++;
                     Console.WriteLine("  {0,-28} level {1,5}   {2,5} -> {3,5} keys  "
-                                      + "(-{4}, {5} replays)",
+                                      + "(-{4}, {5} replays{6})",
                                       Path.GetFileName(path), rec.Level, keys.Length,
-                                      clean.Length, keys.Length - clean.Length, replays);
+                                      clean.Length, keys.Length - clean.Length, replays,
+                                      rep && rp.Skipped > 0
+                                          ? ", replan dropped " + rp.Skipped + " of "
+                                            + rp.Rungs + " board changes"
+                                          : rep ? ", replanned" : "");
                 }
                 catch (Exception ex)
                 {

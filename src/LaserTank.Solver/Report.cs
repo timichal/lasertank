@@ -139,8 +139,10 @@ namespace LaserTank.Solver
                         + "over 10x: {3}   at or under the record: {4}",
                         Pick(ratios, .5), Pick(ratios, .9), ratios[^1],
                         ratios.Count(v => v > 10), ratios.Count(v => v <= 1.0));
-                Console.WriteLine("    trimmed {0}   polished {1}   by method: {2}",
+                Console.WriteLine("    trimmed {0}   replanned {1}   polished {2}   "
+                    + "by method: {3}",
                     solved.Count(r => r.Trimmed),
+                    solved.Count(r => r.Replanned),
                     solved.Count(r => r.Polished),
                     Tally(solved.Select(r => r.Method)));
                 Console.WriteLine();
@@ -190,7 +192,7 @@ namespace LaserTank.Solver
         public sealed class Row
         {
             public int Level, Difficulty, Keys, Target;
-            public bool Solved, Trimmed, Polished;
+            public bool Solved, Trimmed, Polished, Replanned;
             public string Method = "-", Stop = "-", Error;
         }
     }

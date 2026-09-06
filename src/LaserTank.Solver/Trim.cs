@@ -172,6 +172,37 @@ namespace LaserTank.Solver
             replays = 0;
             byte[] best = keys;
 
+            // The three passes below, repeated while anything comes out.
+            //
+            // **The loop is not belt and braces, it is a bug fix.**  Decycle
+            // cuts at most one round trip per round and gives up after sixteen
+            // of them (a state hash is only a subset of the state, so a cut has
+            // to be replayed, and a pass that kept going would be unbounded).
+            // A raw beam solution can hold far more than sixteen -- and the
+            // sweep in pass 3 tops out at twelve keys, so every round trip
+            // longer than that which Decycle did not reach stayed in.
+            //
+            // `data/solutions/LaserTank/00007.lpb` was written at 81 keys with
+            // polishing on, and a second `--polish` over the file took it to 68
+            // by cutting one 13-key round trip: the tank rides the conveyor
+            // circuit a second time to fire two more shots from the square it
+            // was already standing on.  Nothing about that needed a bigger
+            // budget -- only a second look after the earlier passes had used
+            // theirs up.
+            for (int pass = 0; pass < 4 && replays < maxReplays; pass++)
+            {
+                int was = best.Length;
+                best = PolishOnce(lvlPath, level, best, tickCap, ref replays, maxReplays);
+                if (best.Length == was) break;
+            }
+            return best;
+        }
+
+        private static byte[] PolishOnce(string lvlPath, int level, byte[] keys, int tickCap,
+                                         ref int replays, int maxReplays)
+        {
+            byte[] best = keys;
+
             // 1. Round trips.  Longest first, and eliding one can turn the
             //    keys either side of it into an adjacent pair of turns, so this
             //    goes before the key passes rather than after.
