@@ -70,10 +70,27 @@ namespace LaserTank.Solver
         public bool PushRead;              // layer 6 inside layer 5: tier the push
                                            // beam by the read.  OFF by default --
                                            // layer 5 itself does not ship either
+        public int PushEnables;            // the read's fourth derivation inside the
+                                           // push beam: distinct playfields per
+                                           // expansion that may be asked whether
+                                           // they make a new board change possible.
+                                           // 0 = off; costs a pose closure and an
+                                           // enumeration on each one asked
+        public int PushEnablesPoses = 32;  // poses of the child closure the fourth
+                                           // derivation may look from.  Truncating
+                                           // costs promotions and cannot invent
+                                           // them, which is what makes 32 a safe
+                                           // default: every level solved by this
+                                           // derivation so far was solved at it
         public int PushReadOpens = -1;     // the read's third derivation: -1 = the
                                            // cheap flag-component proxy on every
                                            // successor, N>0 = the executed pose
                                            // closure on the best N, 0 = off
+        public bool ReadEnables;           // layer 6's fourth derivation, instrument
+                                           // only: after this change, is there a
+                                           // board change the tank could not make
+                                           // before?  Costs an effect enumeration
+                                           // per effect on top of the Opens closure
         public int IdaMaxDepth = 24;
         public bool RunIda = true;
         public bool RunBeam = true;

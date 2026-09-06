@@ -85,6 +85,9 @@ namespace LaserTank.Solver
         /// nothing else, so a delta is what the read has to be keyed by.
         public string Sig = "";
 
+        /// `Sig` without the shot/drive flag -- see Effect.DeltaOf.
+        public string Delta = "";
+
         /// The state this effect leaves behind, kept only long enough to ask
         /// whether the tank can stand anywhere new afterwards.  Returned to the
         /// snapshot pool at the end of the read.
@@ -98,9 +101,43 @@ namespace LaserTank.Solver
         /// brick out of a doorway all read the same way, as somewhere new to be.
         public int Opens;
 
+        /// The fourth derivation, and the one the ferry/barrier/opens trio is
+        /// silent about by construction: **after this change the tank can make
+        /// a board change it could not make before.**  A roto rotated to aim a
+        /// laser somewhere new opens nowhere to stand, lands on no barrier and
+        /// moves no block -- but it puts a shot on the board that did not exist
+        /// a moment ago, and five of those in a row is what `LaserTank.lvl` 1
+        /// asks for before its first fill.
+        ///
+        /// Counted over *deltas* rather than over resulting boards: "shoot the
+        /// brick at (4,3)" is the same change whether or not an unrelated roto
+        /// has since turned, so a delta set can overlap between two boards
+        /// where a set of reachable boards never would.
+        public int Enables;
+
+        /// The selective half of the same question: of the changes this one
+        /// newly makes available, how many would the read itself have named --
+        /// they land on the barrier, or move a block nearer the water on the
+        /// route.  `Enables` says "something new became possible"; this says
+        /// "something new became possible *that matters*", which is the version
+        /// a filter can afford to believe.
+        public int EnablesAdv;
+
         public static string SigOf(byte[] before, byte[] after, bool shot)
         {
-            StringBuilder b = new StringBuilder(shot ? "s" : "m");
+            return (shot ? "s" : "m") + DeltaOf(before, after);
+        }
+
+        /// The same change with the shot/drive flag dropped.
+        ///
+        /// `Sig` identifies *the move*, which is what --read-dump matches the
+        /// human's keypress against.  `Enables` is a question about *the board*
+        /// -- "could the tank make this change a moment ago" -- and whether the
+        /// same delta arrives by driving into a block or by shooting it is not
+        /// part of that question, so the fourth derivation compares on this.
+        public static string DeltaOf(byte[] before, byte[] after)
+        {
+            StringBuilder b = new StringBuilder();
             for (int c = 0; c < 256; c++)
                 if (after[c] != before[c])
                     b.Append(':').Append(c).Append('=').Append(after[c]);
@@ -129,6 +166,8 @@ namespace LaserTank.Solver
         public List<Effect> OnBarrier = new List<Effect>();
         public List<Effect> Toward = new List<Effect>(); // move a block nearer route water
         public List<Effect> Opens = new List<Effect>();  // leave the tank able to stand somewhere new
+        public List<Effect> Enables = new List<Effect>();     // make a new board change possible
+        public List<Effect> EnablesAdv = new List<Effect>();  // ...and one the read would name
         public string Verdict = "";
         public string Why = "";
     }
@@ -243,6 +282,14 @@ namespace LaserTank.Solver
         /// layer 5's --push-trace has never reported a truncated closure.
         private List<EngineSnapshot> PoseClosure(EngineSnapshot root, byte[] board,
                                                  bool[] region, out bool won)
+            => PoseClosure(root, board, region, out won, 4096);
+
+        /// The same, stopped at `cap` poses.  Truncating can only lose poses,
+        /// so every question asked of the result has false negatives and no
+        /// false positives -- which is what lets the fourth derivation buy its
+        /// cost down without being able to promote a successor wrongly.
+        private List<EngineSnapshot> PoseClosure(EngineSnapshot root, byte[] board,
+                                                 bool[] region, out bool won, int cap)
         {
             List<EngineSnapshot> closure = new List<EngineSnapshot>();
             HashSet<ulong> local = new HashSet<ulong>();
@@ -254,7 +301,7 @@ namespace LaserTank.Solver
             region[_e.Game.Tank.X * 16 + _e.Game.Tank.Y] = true;
 
             byte[] now = new byte[256];
-            for (int head = 0; head < closure.Count && closure.Count < 4096; head++)
+            for (int head = 0; head < closure.Count && closure.Count < cap; head++)
             {
                 EngineSnapshot s = closure[head];
                 // ApplyKey writes RecBuffer[RecP] before it ticks, so a state
@@ -290,6 +337,32 @@ namespace LaserTank.Solver
         private void Enumerate(List<EngineSnapshot> poses, byte[] board, bool[] region,
                                Read r)
         {
+            Dictionary<string, Effect> byChange = Changes(poses, board, keepAfter: true);
+
+            r.Effects.AddRange(byChange.Values);
+            r.Effects.Sort((a, b) => a.Cells[0].CompareTo(b.Cells[0]));
+
+            HashSet<int> barrier = new HashSet<int>(r.Barrier);
+            foreach (Effect e in r.Effects)
+            {
+                foreach (int c in e.Cells)
+                    if (barrier.Contains(c)) { r.OnBarrier.Add(e); break; }
+                if (e.BlockFrom >= 0 && e.BlockTo >= 0 && r.RouteWater.Count > 0
+                    && Nearest(e.BlockTo, r.RouteWater) < Nearest(e.BlockFrom, r.RouteWater))
+                    r.Toward.Add(e);
+            }
+
+            AfterPass(region, r, barrier);
+        }
+
+        /// The enumeration itself, split out because the fourth derivation runs
+        /// it a second time on the board an effect leaves behind.  `keepAfter`
+        /// is what separates the two callers: the outer read keeps a snapshot
+        /// per effect so it can ask what the effect opened, the inner one wants
+        /// only the set of deltas and must not hold 4,000 snapshots to get it.
+        private Dictionary<string, Effect> Changes(List<EngineSnapshot> poses, byte[] board,
+                                                   bool keepAfter)
+        {
             Dictionary<string, Effect> byChange = new Dictionary<string, Effect>();
             byte[] now = new byte[256];
             List<int> changed = new List<int>();
@@ -319,6 +392,7 @@ namespace LaserTank.Solver
                     Effect e = new Effect
                     {
                         Sig = k,
+                        Delta = Effect.DeltaOf(board, now),
                         Key = key,
                         IsShot = key == Fire,
                         PoseX = px, PoseY = py, PoseDir = pd,
@@ -333,25 +407,23 @@ namespace LaserTank.Solver
                         if (e.Was[i] == Obj.Water && e.Now[i] != Obj.Water) e.Filled.Add(e.Cells[i]);
                     }
                     Describe(e, px, py, pd);
-                    e.After = _e.Snapshot(Take());
+                    if (keepAfter) e.After = _e.Snapshot(Take());
                     byChange[k] = e;
                 }
             }
+            return byChange;
+        }
 
-            r.Effects.AddRange(byChange.Values);
-            r.Effects.Sort((a, b) => a.Cells[0].CompareTo(b.Cells[0]));
-
-            HashSet<int> barrier = new HashSet<int>(r.Barrier);
-            foreach (Effect e in r.Effects)
-            {
-                foreach (int c in e.Cells)
-                    if (barrier.Contains(c)) { r.OnBarrier.Add(e); break; }
-                if (e.BlockFrom >= 0 && e.BlockTo >= 0 && r.RouteWater.Count > 0
-                    && Nearest(e.BlockTo, r.RouteWater) < Nearest(e.BlockFrom, r.RouteWater))
-                    r.Toward.Add(e);
-            }
-
-            OpensUp(region, r);
+        /// Would the read name this change, on the barrier and route water it
+        /// was derived against?  The two free derivations, asked of an effect
+        /// that may have come from a board one step away -- which is sound for
+        /// a setup move by construction: a change that neither fills nor opens
+        /// cannot have moved the barrier.
+        private bool Advances(Effect e, HashSet<int> barrier, List<int> water)
+        {
+            foreach (int c in e.Cells) if (barrier.Contains(c)) return true;
+            if (e.BlockFrom < 0 || e.BlockTo < 0 || water.Count == 0) return false;
+            return Nearest(e.BlockTo, water) < Nearest(e.BlockFrom, water);
         }
 
         /// Which of the effects leave the tank able to stand somewhere it could
@@ -373,9 +445,20 @@ namespace LaserTank.Solver
         /// two hundred would turn the read from cheap into a search.  Past the
         /// cap the question is simply not asked, and Opens stays 0 -- a missing
         /// label, never a wrong one.
-        private void OpensUp(bool[] region, Read r)
+        ///
+        /// The fourth derivation rides on the same closure -- `--read-enables`,
+        /// off by default because it costs a second *enumeration* on top of the
+        /// closure this pass already pays for.  See Effect.Enables.
+        private void AfterPass(bool[] region, Read r, HashSet<int> barrier)
         {
             byte[] after = new byte[256];
+            HashSet<string> had = null;
+            if (_opt.ReadEnables)
+            {
+                had = new HashSet<string>();
+                foreach (Effect e in r.Effects) had.Add(e.Delta);
+            }
+
             if (r.Effects.Count <= _opt.ReadOpensCap)
             {
                 foreach (Effect e in r.Effects)
@@ -384,12 +467,26 @@ namespace LaserTank.Solver
                     CopyBoard(after);
                     bool[] then = new bool[256];
                     List<EngineSnapshot> poses = PoseClosure(e.After, after, then, out bool won);
-                    Drain(poses);
 
                     int grew = 0;
                     for (int c = 0; c < 256; c++) if (then[c] && !region[c]) grew++;
                     e.Opens = won ? grew + 1 : grew;
                     if (e.Opens > 0) r.Opens.Add(e);
+
+                    if (had != null)
+                    {
+                        HashSet<string> fresh = new HashSet<string>();
+                        foreach (KeyValuePair<string, Effect> kv in Changes(poses, after, false))
+                        {
+                            if (had.Contains(kv.Value.Delta)) continue;
+                            if (!fresh.Add(kv.Value.Delta)) continue;
+                            e.Enables++;
+                            if (Advances(kv.Value, barrier, r.RouteWater)) e.EnablesAdv++;
+                        }
+                        if (e.Enables > 0) r.Enables.Add(e);
+                        if (e.EnablesAdv > 0) r.EnablesAdv.Add(e);
+                    }
+                    Drain(poses);
                 }
             }
             foreach (Effect e in r.Effects) { Give(e.After); e.After = null; }
@@ -787,9 +884,13 @@ namespace LaserTank.Solver
                 Read r = AnalyzeAt(boundary);
                 HashSet<string> advance = new HashSet<string>();
                 HashSet<string> opens = new HashSet<string>();
+                HashSet<string> enab = new HashSet<string>();
+                HashSet<string> enabAdv = new HashSet<string>();
                 foreach (Effect e in r.OnBarrier) advance.Add(e.Sig);
                 foreach (Effect e in r.Toward) advance.Add(e.Sig);
                 foreach (Effect e in r.Opens) opens.Add(e.Sig);
+                foreach (Effect e in r.Enables) enab.Add(e.Sig);
+                foreach (Effect e in r.EnablesAdv) enabAdv.Add(e.Sig);
                 bool inEffects = false;
                 foreach (Effect e in r.Effects) if (e.Sig == sig) { inEffects = true; break; }
                 int bt = advance.Count;
@@ -802,6 +903,8 @@ namespace LaserTank.Solver
                     advance.Count, inEffects ? 1 : 0, advance.Contains(sig) ? 1 : 0,
                     r.Barrier.Count, r.RouteWater.Count, r.Poses,
                     opens.Count, opens.Contains(sig) ? 1 : 0, bt, inBt ? 1 : 0,
+                    enab.Count, enab.Contains(sig) ? 1 : 0,
+                    enabAdv.Count, enabAdv.Contains(sig) ? 1 : 0,
                 }) + "\n");
                 rows++;
 
@@ -819,7 +922,8 @@ namespace LaserTank.Solver
 
         public const string ReadDumpHeader =
             "# collection\tlevel\tevent\tverdict\teffects\tadvance\tin_effects\t"
-            + "in_advance\tbarrier\twater\tposes\topens\tin_opens\tbt\tin_bt\n";
+            + "in_advance\tbarrier\twater\tposes\topens\tin_opens\tbt\tin_bt\t"
+            + "enables\tin_enables\tenables_adv\tin_enables_adv\n";
 
         /// One row per level, for the question a printed read cannot answer:
         /// which *shapes* does the solver fail on.  Joined against a campaign

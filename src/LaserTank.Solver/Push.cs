@@ -93,7 +93,7 @@ namespace LaserTank.Solver
         // successors.  The number to watch is _pxAdv against _pxSucc -- a tier
         // that promotes almost everything is a no-op that costs a Dijkstra, and
         // one that promotes almost nothing is a filter the beam cannot use.
-        private long _pxSucc, _pxAdv, _pxBarrier, _pxNoBarrier;
+        private long _pxSucc, _pxAdv, _pxEnab, _pxBarrier, _pxNoBarrier;
 
         /// `Game.PF` flattened, in the same layout `EngineSnapshot.PF` uses.
         private void CopyBoard(byte[] into) => Buffer.BlockCopy(_e.Game.PF, 0, into, 0, 256);
@@ -247,11 +247,12 @@ namespace LaserTank.Solver
                     if (_opt.PushRead)
                         Console.Error.WriteLine(
                             "        read: {0}/{1} successors advanced ({2}%), "
+                            + "of them enables-only {5}, "
                             + "expansions with a barrier {3}, without {4}",
                             _pxAdv, _pxSucc, _pxSucc > 0 ? 100 * _pxAdv / _pxSucc : 0,
-                            _pxBarrier, _pxNoBarrier);
+                            _pxBarrier, _pxNoBarrier, _pxEnab);
                     _pxClosure = _pxCount = _pxTrunc = 0;
-                    _pxSucc = _pxAdv = _pxBarrier = _pxNoBarrier = 0;
+                    _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = 0;
                 }
 
                 foreach (Node n in frontier) Give(n.S);
@@ -543,16 +544,40 @@ namespace LaserTank.Solver
 
         // ---- layer 6: the read, as this beam's first sort key ---------------
 
-        /// The three tiers, and the numbering is the contract with Cut().
+        /// The four tiers, and the numbering is the contract with Cut().
         ///
         /// TierPose stays above every board change whether the read is on or
         /// off, so turning the read off leaves the ordering layer 5 shipped
         /// with: every board change at TierAdvance, poses behind them.  That
         /// equivalence is checked rather than asserted -- `--push-read off`
         /// reproduces layer 5's bench keystream for keystream.
+        ///
+        /// TierEnables sits *between* the read's three derivations and the rest
+        /// rather than joining TierAdvance, and that placement is the whole
+        /// design.  Measured over the twenty hand recordings the fourth
+        /// derivation names 97% of board changes but also 79% of the successors
+        /// offered, so as a promotion into TierAdvance it would be no filter at
+        /// all -- it would only dilute one that works.  As a tier of its own it
+        /// can reorder nothing except the group the other three were already
+        /// silent about, which is exactly the group the roto rotations of
+        /// LaserTank.lvl 1 sit in.
+        ///
+        /// `opens` moves out of TierAdvance and behind TierEnables when -- and
+        /// only when -- the fourth derivation is on, which is what keeps the
+        /// numbering a contract rather than a preference.  With --push-enables 0
+        /// the tiering is layer 6's exactly, opens included; with it on, the
+        /// order is the one LaserTank.lvl 1 measures.  On its first ten board
+        /// changes the two free derivations name *nothing* (the flag sits in a
+        /// water pocket, so no effect ever lands on the barrier), `opens` names
+        /// four of seven successors and misses the human's move at seven of
+        /// them, and `enables` names three of seven and hits nine of ten.  A
+        /// derivation that is more selective *and* more accurate belongs in
+        /// front of one that is neither.
         private const int TierAdvance = 0;   // the read says this exists for a reason
-        private const int TierOther = 1;     // a board change the read is silent about
-        private const int TierPose = 2;      // the truncation escape hatch
+        private const int TierEnables = 1;   // ...or at least it makes something new possible
+        private const int TierOpens = 2;     // ...or it puts the tank somewhere new to stand
+        private const int TierOther = 3;     // a board change the read is silent about
+        private const int TierPose = 4;      // the truncation escape hatch
 
         /// Tier this expansion's successors by the read.
         ///
@@ -590,19 +615,31 @@ namespace LaserTank.Solver
                 if (n.Tier == TierOther) untiered++;
             }
 
+            EnablesPass(before, next, first);
             int k = _opt.PushReadOpens;
-            if (k == 0 || untiered == 0) { ReadCount(next, first); return; }
+            if (k != 0 && untiered > 0) Opens(at, next, first, k);
+            ReadCount(next, first);
+        }
 
+        /// The read's third derivation over this expansion's successors.
+        ///
+        /// Split out of ReadTier when the fourth derivation arrived: it used to
+        /// be two early returns, and an early return is exactly the wrong shape
+        /// for a pass that has to be followed by another one -- --push-enables
+        /// measured as inert for a whole round of benching because it sat after
+        /// them and only the k>0 path ever reached it.
+        private void Opens(EngineSnapshot at, List<Node> next, int first, int k)
+        {
             // k < 0: the cheap derivation, on every untiered successor, because
             // at a BFS apiece there is no reason to ration it.
+            int tier = _opt.PushEnables > 0 ? TierOpens : TierAdvance;
             if (k < 0)
             {
                 _e.Restore(at);
                 int was = _h.TankRegion(_e);
                 for (int i = first; i < next.Count; i++)
                     if (next[i].Tier == TierOther && ReadOpensCheap(next[i].S, was))
-                        next[i].Tier = TierAdvance;
-                ReadCount(next, first);
+                        next[i].Tier = tier;
                 return;
             }
 
@@ -618,9 +655,128 @@ namespace LaserTank.Solver
             foreach (int i in ask)
             {
                 if (OutOfBudget) break;
-                if (ReadOpens(next[i].S)) next[i].Tier = TierAdvance;
+                if (ReadOpens(next[i].S)) next[i].Tier = tier;
             }
-            ReadCount(next, first);
+        }
+
+        /// The fourth derivation, in the search: **after this change, can the
+        /// tank make a board change it could not make before?**
+        ///
+        /// The three derivations above are all about the *route* -- something
+        /// landed on the barrier, a block moved nearer the water, the tank can
+        /// stand somewhere new.  A move that aims a laser is none of those and
+        /// is invisible to every ranking key this project has: `LaserTank.lvl`
+        /// 1 turns three roto-mirrors five times before its first fill, and
+        /// across all five the heuristic is flat at 55 and the read says
+        /// nothing.  What those five moves *do* is put shots on the board that
+        /// did not exist a moment ago, which is a question the engine can be
+        /// asked without knowing what a mirror is.
+        ///
+        /// The parent's own answer is nearly free: `next` is, by construction,
+        /// every board change the tank can make from here, so the set to
+        /// compare against is the expansion's own output.  *Nearly*, and the
+        /// gap is worth naming -- a successor whose exact state sat on an
+        /// earlier frontier was refused by the closed set and never reached
+        /// `next`, so `had` can be a subset of what the parent could really do
+        /// and the derivation then over-promotes.  One delta usually arrives
+        /// from many poses and only some of them are closed, so the subset is
+        /// close; it errs toward promoting, which dilutes the tier rather than
+        /// mis-ranking against it.  The child's answer costs a pose
+        /// closure and an enumeration on top of it, so it is asked per
+        /// *playfield* rather than per successor (every pose of one board
+        /// answers identically) and capped by --push-enables.  Past the cap the
+        /// question is not asked and the successor stays at TierOther: a
+        /// missing promotion, never a wrong one, exactly as `opens` is rationed.
+        private void EnablesPass(byte[] before, List<Node> next, int first)
+        {
+            int cap = _opt.PushEnables;
+            if (cap <= 0) return;
+
+            // The ration that makes the price survivable, and it is session
+            // 18's finding re-used: a tier can only matter at a width the tiers
+            // above it do not already fill.  Count what this depth has already
+            // promoted -- across every parent expanded so far, because they all
+            // compete in one trim -- and if that alone covers the width, the
+            // enables tier would reorder nothing and the pass is pure cost.
+            //
+            // This is what separates the two populations the measurements
+            // disagree about.  On a ferry level the read fills the shipped
+            // width of 8 inside the first parent or two, so the pass is mostly
+            // skipped and the bench comes back to 19/50 from the 12/50 the
+            // ungated version scored, against 20/50 with the derivation off; on
+            // LaserTank.lvl 1, where the two free derivations name *nothing*
+            // for the whole first half of the level, it is asked every time.
+            int promoted = 0;
+            for (int i = 0; i < next.Count; i++)
+                if (next[i].Tier < TierOther) promoted++;
+            if (promoted >= _pushWidth) return;
+
+            List<int> cand = new List<int>();
+            for (int i = first; i < next.Count; i++)
+            {
+                if (next[i].Tier != TierOther) continue;
+                if (next[i].Board == 0) next[i].Board = BoardKey(next[i].S.PF);
+                cand.Add(i);
+            }
+            if (cand.Count == 0) return;
+
+            HashSet<string> had = new HashSet<string>();
+            for (int i = first; i < next.Count; i++)
+                if (next[i].Tier != TierPose)
+                    had.Add(Effect.DeltaOf(before, next[i].S.PF));
+
+            cand.Sort((a, b) => next[a].H - next[b].H);
+            Dictionary<ulong, bool> verdict = new Dictionary<ulong, bool>();
+            foreach (int i in cand)
+            {
+                if (verdict.Count >= cap) break;
+                if (OutOfBudget) break;
+                if (verdict.ContainsKey(next[i].Board)) continue;
+                verdict[next[i].Board] = EnablesNew(next[i].S, had);
+            }
+
+            foreach (int i in cand)
+                if (verdict.TryGetValue(next[i].Board, out bool v) && v)
+                    next[i].Tier = TierEnables;
+        }
+
+        /// Does this state offer a board change whose delta is not in `had`?
+        ///
+        /// The same enumeration Analyze.cs's read runs, stopped at the first
+        /// answer: a pose closure, then every key from every pose, and the
+        /// first delta the parent could not produce wins.  Compared on the
+        /// delta alone (Effect.DeltaOf) -- whether the same change arrives by
+        /// driving or by shooting is not part of "could the tank do this a
+        /// moment ago".
+        private bool EnablesNew(EngineSnapshot after, HashSet<string> had)
+        {
+            byte[] board = new byte[256];
+            _e.Restore(after);
+            CopyBoard(board);
+            bool[] then = new bool[256];
+            List<EngineSnapshot> poses =
+                PoseClosure(after, board, then, out bool won, _opt.PushEnablesPoses);
+            if (won) { Drain(poses); return true; }
+
+            byte[] now = new byte[256];
+            bool found = false;
+            foreach (EngineSnapshot p in poses)
+            {
+                if (found || OutOfBudget) break;
+                if (p.KeyLen >= _opt.MaxKeys) continue;
+                for (int k = 0; k <= MoveKeys.Length; k++)
+                {
+                    byte key = k == MoveKeys.Length ? Fire : MoveKeys[k];
+                    _e.Restore(p);
+                    _nodes++;
+                    if (_e.ApplyKey(key, _opt.TickCap) != StepResult.Ok) continue;
+                    CopyBoard(now);
+                    if (now.AsSpan().SequenceEqual(board)) continue;
+                    if (!had.Contains(Effect.DeltaOf(board, now))) { found = true; break; }
+                }
+            }
+            Drain(poses);
+            return found;
         }
 
         /// --push-trace only: the tiering as it finally stands, counted after
@@ -635,7 +791,8 @@ namespace LaserTank.Solver
             {
                 if (next[i].Tier == TierPose) continue;
                 _pxSucc++;
-                if (next[i].Tier == TierAdvance) _pxAdv++;
+                if (next[i].Tier < TierOther) _pxAdv++;
+                if (next[i].Tier == TierEnables) _pxEnab++;
             }
         }
     }

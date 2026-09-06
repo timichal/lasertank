@@ -123,11 +123,22 @@ namespace LaserTank.Solver
             // widens itself on a dead-end anyway, which is the one place width
             // has been shown to pay.  The read goes on for the same reason it
             // is on in every bench above: 20/50 with it, 9/50 without.
+            //
+            // **The fourth derivation joins from round 2**, and the round is
+            // the whole of the argument.  --push-enables is 19/50 on the ferry
+            // bench against 20/50 without it and 19/50 on the deep bench
+            // against 21/50, so it does not belong on a round whose population
+            // still contains levels the cheap derivations solve.  From round 2
+            // the population is levels the earlier rounds already failed, which
+            // is exactly what it is for: `LaserTank.lvl` 1 is unsolved by four
+            // 800M-node runs without it and solves in 15M with it, at this
+            // rung's own default width.
             ("push", static (o, r) =>
             {
                 o.RunPush = true;
                 o.PushRead = true;
                 o.PushRestarts += 6 * r;
+                if (r >= 2) o.PushEnables = 8;
             }),
         };
 

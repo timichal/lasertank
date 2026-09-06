@@ -169,6 +169,10 @@ namespace LaserTank.Solver
 "                         --lpb-list, stop at every board change, and record\n" +
 "                         whether the change the human made next is one the\n" +
 "                         read named.  Needs --lpb-list\n" +
+"    --read-enables       add the fourth derivation to --read-dump and\n" +
+"                         --analyze: after this change, is there a board\n" +
+"                         change the tank could not make before?  Costs a\n" +
+"                         second enumeration on each --read-opens closure\n" +
 "\n" +
 "  layer 5 -- push macros (Push.cs).  OFF by default, same reason, and\n" +
 "  the same second pass.  The movement closure here is PF-*preserving*, so\n" +
@@ -209,6 +213,23 @@ namespace LaserTank.Solver
 "                         how far the nearest block still is from the water\n" +
 "                         on the route.  WorkDistance does not move while a\n" +
 "                         block is being carried; this does\n" +
+"    --push-enables N     the read's fourth derivation, off by default:\n" +
+"                         distinct playfields per expansion asked whether\n" +
+"                         they make a board change possible that was not\n" +
+"                         a moment ago.  Names the laser-aiming setup no\n" +
+"                         other derivation and no ranking key can see --\n" +
+"                         it is what solves LaserTank.lvl 1 -- and costs a\n" +
+"                         pose closure and an enumeration on each one it\n" +
+"                         asks, so it is 19/50 on the ferry bench against\n" +
+"                         20/50 without.  Asked only while the tiers above\n" +
+"                         it have not already filled the width\n" +
+"    --push-enables-poses N  poses of the child closure it may look from,\n" +
+"                         default 32.  Truncating buys the cost down and\n" +
+"                         costs promotions rather than inventing them.\n" +
+"                         Raise it to follow a --push-line further: on\n" +
+"                         LaserTank.lvl 1 the whole closure holds the\n" +
+"                         human line to board change 11 against 4 at 32,\n" +
+"                         and the level solves at either\n" +
 "    --push-closed generate|expand  when a state is closed, default expand\n" +
 "                         -- the opposite of layer 0, and measured: an\n" +
 "                         expansion here is far too dear to bin forever\n" +
@@ -306,6 +327,8 @@ namespace LaserTank.Solver
                         case "--push-closed": a.Opt.PushCloseOnExpand = V() != "generate"; break;
                         case "--push-read": a.Opt.PushRead = true; break;
                         case "--push-read-opens": a.Opt.PushReadOpens = int.Parse(V()); break;
+                        case "--push-enables": a.Opt.PushEnables = int.Parse(V()); break;
+                        case "--push-enables-poses": a.Opt.PushEnablesPoses = int.Parse(V()); break;
                         case "--push-trace": a.Opt.PushTrace = true; break;
                         case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--subgoal": a.Opt.RunSubgoal = true; break;
@@ -338,6 +361,7 @@ namespace LaserTank.Solver
                         case "--read-dump": a.ReadDumpOut = V(); break;
                         case "--push-line": a.PushLine = V(); break;
                         case "--read-opens": a.Opt.ReadOpensCap = int.Parse(V()); break;
+                        case "--read-enables": a.Opt.ReadEnables = true; break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
@@ -968,8 +992,11 @@ namespace LaserTank.Solver
             TimeBudgetMs = s.TimeBudgetMs,
             TickCap = s.TickCap,
             ReadOpensCap = s.ReadOpensCap,
+            ReadEnables = s.ReadEnables,
             PushRead = s.PushRead,
             PushReadOpens = s.PushReadOpens,
+            PushEnables = s.PushEnables,
+            PushEnablesPoses = s.PushEnablesPoses,
             IdaMaxDepth = s.IdaMaxDepth,
             RunIda = s.RunIda,
             RunBeam = s.RunBeam,

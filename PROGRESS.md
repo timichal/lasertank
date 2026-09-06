@@ -60,7 +60,12 @@ level 1 is **68**. That is the difference between "needs more nodes" and "needs 
 set", and it is why four rounds of the interactive driver do not touch level 1 and a fifth would
 not either. *(Session 18 found a second, duller reason on top of that one: the driver's push rung
 doubled its width every round, so by round 5 it was running at the worst width the bench measures.
-Fixed — but the ascent argument above stands on its own and level 1 is still unsolved.)*
+Fixed — but the ascent argument above stands on its own.)*
+
+*(Session 19: **level 1 is solved**, and the ascent argument is why it took a new derivation rather
+than a bigger budget. `--push-enables` names the moves every ranking key is flat across — see*
+The fourth derivation, *under layer 6. It is off by default and it is what to reach for on any level
+whose `--push-line` dies on setup moves.)*
 
 **Then ask where the search loses it, which is a different question and a newer tool.** `--profile`
 measures the *level*; `--push-line` measures the *searcher* against a line that is known to win.
@@ -76,7 +81,10 @@ build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 1 \
 Read the last line (*followed to depth N of M, lost at K*) and then the row at K. This is what found
 the layer-5 bug that was costing forty-eight closures a depth — see *The width was being spent on
 tank poses*, below — and it is the first thing to reach for when a level with a recording will not
-fall.
+fall. It is also what found session 19's derivation: when the row at K is a *setup* move, one that
+neither opens anywhere new to stand nor touches the barrier and across which the heuristic is flat,
+the flag to add is `--push-enables 8` — see *The fourth derivation*, under layer 6. That is what
+solves `LaserTank.lvl` 1, and it is off by default because it costs a level or two on both benches.
 
 **The whole shipped chain** — a layer-0 campaign, then three passes that each attack only what the
 previous one failed. `STRIDE=5` gives the 4,185-level sample every number in Phase 4 is quoted
@@ -136,6 +144,7 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 | Solver | four shipped layers; **472 of the 4,185-level stride sample (11.3%)**, all verified |
 | Solver, layer 5 | push macros: the width was being spent on tank poses; fixed, **ferry bench 11/50 -> 20/50, deep 14/50 -> 21/50**, all verified |
 | Solver, layer 6 | the read: shipped inside layer 5 and still carrying its weight there (15/50 against 9/50 without it) |
+| Solver, layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`, **off by default**: 19/50 and 19/50 against the benches' 20/50 and 21/50, and it **solves `LaserTank.lvl` 1**, which nothing else has |
 | Layer 5 over the corpus | **15 of 255 (5.9%) of the levels the whole chain fails**, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | Presentation (Godot) | not started — see Phase 5 |
 
@@ -156,7 +165,13 @@ session 17 left undone has been run and it came out positive — 15 of 255 (5.9%
 shipped chain fails, all verified — so the open question is no longer *whether* layer 5 pays but
 *how much of the corpus it is worth spending on it*. One push expansion is a whole closure, so this
 is the one pass that has to be budgeted in tens of millions of nodes rather than hundreds of
-thousands:
+thousands.
+
+*Session 19 adds a second question to that pass and it is cheap to answer at the same time: run it
+**twice**, once as written below and once with `--push-enables 8`, and compare. The fourth
+derivation is a level or two worse on both banked benches at 4M nodes and it solves `LaserTank.lvl`
+1, which nothing else does, so the population it is worth spending on is exactly what this pass
+measures and nothing smaller can decide it.*
 
 ```bash
 # the whole population the chain fails, not a 1-in-15 sample of it, at 40M nodes
@@ -1943,20 +1958,166 @@ from its own best configuration. The rung now grows **restarts** instead (6 and 
 20/50, so it is free, and a restart only ever spends budget a dead-end had already forfeit) and
 turns the read on, while the width stays where the sweep put it. `Auto.cs` only.
 
-**Level 1 is still unsolved**, and four 800M-node runs at width 4/8/16 and 10 restarts say so
-plainly rather than hopefully. The instrument says how much closer, and the honest version of that
-sentence needs a width on it: at width 48 the line now survives to board change **6** where the old
-trim lost it at **1**, and at the shipped width of 8 it survives to **2** — a narrower frontier
-holds fewer boards, so it gives the line back in exchange for depth, and the benches say to take
-that trade (19-20/50 against 15/50). What is not width-dependent is the endgame: at 100M nodes the
-search reaches a learned score of **14** against the human line's own final 10, where before the fix
-it stalled at 37. Depth 6 is the first
+**Level 1 was still unsolved at the end of this session**, and four 800M-node runs at width 4/8/16
+and 10 restarts said so plainly rather than hopefully. The instrument says how much closer, and the
+honest version of that sentence needs a width on it: at width 48 the line now survives to board
+change **6** where the old trim lost it at **1**, and at the shipped width of 8 it survives to **2**
+— a narrower frontier holds fewer boards, so it gives the line back in exchange for depth, and the
+benches say to take that trade (19-20/50 against 15/50). What is not width-dependent is the endgame:
+at 100M nodes the search reaches a learned score of **14** against the human line's own final 10,
+where before the fix it stalled at 37. Depth 6 is the first
 of five roto-mirror rotations that set up a mirror-routed shot: pure setup, on which the read is
 silent by construction (they open nowhere new to stand and land on no barrier) and across which
 every ranking key this project has is flat. A fourth derivation — *"after this change the tank can
 make a board change it could not make before"* — is what would name them. It costs an effect
 enumeration per successor, which is the same price as expanding it, so it is a measurement to make
 before it is a feature to build.
+
+*(Session 19 made that measurement, built the derivation, and **level 1 fell to it**. The rest of
+this section is that; everything above stands as written.)*
+
+#### The fourth derivation — *what does this change make possible?*  ☑ (and it solves level 1)
+
+**Measured before it was built, and the measurement is the reason it went in where it did.**
+`--read-enables` adds the derivation to the instrument: for each effect, run the pose closure on the
+board it leaves behind, enumerate every key from every pose, and count the board *deltas* that were
+not available a moment ago. Deltas rather than resulting boards — "shoot the brick at (4,3)" is the
+same change whether or not an unrelated roto has since turned, so a delta set can overlap between
+two boards where a set of reachable boards never would. Nothing in it knows what a mirror is; it is
+the same enumeration layer 6 already runs, asked one ply further out. Over the same 20 recordings,
+with the derivation off reproducing the earlier table row for row (**0 of 800** rows differ on the
+fifteen columns that existed before it):
+
+| | 20 recordings |
+|---|---:|
+| board changes | 800 |
+| named by barrier / toward / opens | 666 = **83.2%** |
+| **+ the fourth derivation** | 777 = **97.1%** |
+| of the 134 nothing named, it names | **111** |
+| successors it names, p50 / p90 / mean fraction | 4 / 16 / **79%** |
+| *successors the other three name, for scale* | *4 / 14 / 70%* |
+
+**And that 79% is why it is a tier of its own rather than a promotion.** A derivation that names
+four fifths of an expansion is no filter; folded into `TierAdvance` it would only dilute one that
+works. As `TierEnables`, sitting between the other three and the rest, it can reorder nothing except
+the group they were already silent about — which is precisely the group level 1's rotations sit in.
+A stricter variant was measured alongside it and rejected on its own numbers: *enables a change the
+read would itself name* is properly selective (p50 1, 25% of successors) but names only 8 of the 134,
+so it buys coverage 83.2% → 84.2% and is not worth a pass.
+
+**Level 1, derivation by derivation, is the finding.** On its first ten board changes:
+
+| derivation | successors it names | times it named the human's move |
+|---|---:|---:|
+| on the barrier / toward | **0 of 7** | 0 of 10 |
+| `opens` | 4 of 7 | 3 of 10 |
+| **the fourth** | **3 of 7** | **9 of 10** |
+
+The flag sits in a water pocket, so no effect ever lands on the barrier and the two free derivations
+are inert for half the level; `opens` is not inert, it is *wrong* — it names four successors an
+expansion and misses the human's move seven times out of ten. So when the fourth derivation is on,
+`opens` moves behind it (`TierOpens`), and with `--push-enables 0` the tiering is layer 6's exactly,
+opens included. A derivation that is more selective *and* more accurate belongs in front of one that
+is neither.
+
+**Two things had to be fixed before any of it could be seen, and both are the same lesson twice.**
+The pass was written after `ReadTier`'s two early returns, so only the `--push-read-opens N>0` path
+ever reached it — **it benched as completely inert through a whole round of measurements**, which is
+session 17's "an instrument that measures the wrong moment says the layer does nothing" wearing a
+different hat. `Opens` is now a named method called from one place instead of two returns. And at
+full price the pass cost a pose closure and an enumeration per distinct board, about **4x an
+expansion**, which took the ferry bench from 20/50 to 12/50 — right shape, wrong price, layer 5's
+own story for the third time.
+
+**The ration is session 18's finding re-used, and it is what makes the price survivable.** A tier
+can only matter at a width the tiers above it do not already fill, so the pass counts what the depth
+has already promoted — across every parent expanded so far, because they all compete in one trim —
+and returns immediately if that alone covers the width. On a ferry level the read fills the shipped
+width of 8 inside the first parent or two and the pass is mostly skipped; on level 1, where the free
+derivations name nothing all the way through, it is asked every time. Ferry bench 12/50 → **19/50**
+on the gate alone.
+
+**What it costs, on both banked benches at 4M nodes, and this is the number that keeps it off by
+default:**
+
+| | ferry bench | deep bench |
+|---|---:|---:|
+| layer 5+6 as session 18 shipped it | **20/50** | **21/50** |
+| + `--push-enables 8` | 19/50 | 19/50 |
+| + `--push-enables 8`, ungated | 12/50 | — |
+
+It is a level worse on one and two worse on the other. That is the whole case for `--push-enables`
+being **off by default** and for it entering the interactive driver only from **round 2**, where the
+population is levels the cheap derivations have already failed.
+
+**And what it buys, which the two benches cannot see because neither contains a level of this
+shape.** `--push-line` on level 1 at width 48, 40M nodes — how far the beam follows the human
+recording:
+
+| | line survives to board change |
+|---|---:|
+| before session 18's trim fix | 1 |
+| session 18's shipped configuration, width 48 | 5 |
+| the same with `opens` off | 6 |
+| **+ the fourth derivation** | **11** |
+
+Board change 11 is past all five roto rotations and past the mirror shot they set up. **And then the
+level falls.**
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 1 \
+    --no-ida --no-beam --push --push-read --push-enables 8 --push-beam 48 \
+    --nodes 600000000 --jobs 1 --out build/l1
+python tools/verify_solutions.py build/l1
+```
+
+**`LaserTank.lvl` 1 "Boot Camp", solved in 6.19M nodes and 17.9 seconds**, 294 keypresses = 157
+moves + 47 shots against the `.ghs` record of 103 + 46, **1.97x**. Verified through both engines and
+banked at `solutions/LaserTank/00001.lpb`, which is committed rather than left under `build/`. The
+shipped default width of 8 solves it too, in 412 s — slower, because a narrower frontier holds fewer
+boards, which is the same trade session 18 measured and the same one the benches say to take
+everywhere else.
+
+That is the level this file has opened with since session 15, and the honest measure of the distance
+covered is that four 800M-node runs did not touch it and this one is eighteen seconds.
+
+**It is not one level, and the control is what says so.** Over `LaserTank.lvl` 1-19 — the levels
+there are hand recordings for, and which sessions 15-18 measured at 2.4x the solved population's p90
+uphill — at 60M nodes, run twice, with the derivation and without. Only the two levels in bold are
+the derivation's:
+
+| level | `--push-enables 8` | without it |
+|---:|---:|---:|
+| **1 Boot Camp** | **solved, 6.19M at width 48** | **unsolved at 60M** |
+| 3 Building A Bridge | 12.4M | 13.7M |
+| **4 The River Nile** | **solved, 49.9M** | **unsolved at 60M** |
+| 7 Jim's Wild Ride | 0.20M | 4.28M |
+| 11 Bumper Cars | 0.25M | 0.06M |
+| the other fourteen | unsolved at 60M | — |
+
+**4 of 19 against 3 of 19, and the arithmetic understates it**: 3, 7 and 11 were reachable either
+way and only 1 and 4 are new, so the honest claim is *two levels*, one of which is the one this file
+has opened with since session 15. **4/4 verified through both engines**, p50 1.7x the record. Level
+1 needs more than 60M at the shipped width of 8 — it solves there in 412 s at a larger budget, and
+in 6.19M nodes at width 48, which is why it carries a width in its row and the others do not. The
+speedups on 3 and 7 are real but are one sample each and should be read as noise until a population
+says otherwise; 11 is 4x *slower* with it, which is the same caveat pointing the other way.
+
+**What the knobs are, and what the pose cap is really for.** `--push-enables N` is the number of
+distinct playfields per expansion that may be asked (0 = off). `--push-enables-poses N` caps the
+child closure the question is asked from, default 32: truncating a closure can only *lose* poses, so
+it costs promotions and cannot invent them, which is what makes a small default safe. It is not free
+of consequence — at 32 the level-1 line is held only to board change 4 where the whole closure holds
+it to 11 — but the level solves at either, because the search does not have to follow the human's
+line to win. Raise it when reading a `--push-line`, leave it when solving.
+
+**Where this leaves the layer.** The read now has four derivations and the fourth is the first one
+that is about *the tank's options* rather than about the route. Everything the other three ask is a
+question about the flag: is the barrier smaller, is the block nearer the water, can I stand
+somewhere new. This one asks what a player asks while turning a mirror — *what does this let me do
+next?* — and it is the only one that says anything at all during pure setup. It is also, measured
+honestly, a net loss of one to two levels on both populations that were banked before it existed,
+which is the argument for the flag and against the default.
 
 ### Phase 4 addendum — polishing a solution so it reads like a person played it  ☑
 
@@ -2743,3 +2904,64 @@ one only on the second attempt, and the first attempt's failures are now *Enviro
 trap: `test_fuzz.py` rebuilds the core and every live `lasertank-solve.exe` holds the published DLL
 open, so running it beside a search reports a red gate that is entirely the machine. `Engine.cs`
 still differs from layer 0 by one word and `Engine.Search.cs` is unchanged - six layers now.
+
+**2026-09-06, session 19 - level 1 is solved.** Same opening complaint as sessions 15, 17 and 18 -
+*"the solver still doesn't solve level 1"* - and the answer was the thing session 18 wrote down and
+left undone: **the read's fourth derivation**, *"after this change the tank can make a board change
+it could not make before"*. Level 1 turns three roto-mirrors five times before its first fill; those
+five moves open nowhere new to stand, land on no barrier and move no block, and every ranking key
+this project has is flat across all of them. What they *do* is put shots on the board that did not
+exist a moment ago, and that is a question the engine can be asked without knowing what a mirror is
+- the same pose closure plus enumeration layer 6 already runs, asked one ply further out and
+compared on board *deltas* rather than on resulting boards.
+
+**Measured as an instrument first** (`--read-enables`), which is what decided where it went. Over
+the 20 recordings it takes coverage of the human's next board change from **83.2% to 97.1%**,
+naming 111 of the 134 changes nothing else named - but it also names **79% of the successors
+offered**, so as a promotion into `TierAdvance` it would be no filter at all. It went in as a tier
+of its own between the other three and the rest, where it can reorder only the group they were
+silent about. With it off, all 800 rows reproduce byte for byte on the fifteen columns that existed
+before it.
+
+**The level-1 detail is the finding, and it is about `opens` as much as about the new one.** On the
+first ten board changes barrier/toward name **nothing** (the flag is in a water pocket, so no effect
+ever lands on the barrier); `opens` names four of seven successors and misses the human's move seven
+times out of ten; the fourth derivation names three of seven and **hits nine of ten**. So when it is
+on, `opens` moves behind it - more selective *and* more accurate belongs in front.
+
+**Two failures on the way, and both are session 17's lesson.** The pass was written after
+`ReadTier`'s two early returns, so only the `--push-read-opens N>0` path reached it and **it benched
+as entirely inert through a whole round of measurements**; `Opens` is now a named method called from
+one place. And at full price it cost ~4x an expansion and took the ferry bench 20/50 -> **12/50** -
+right shape, wrong price, for the third time in this layer's life. The fix is session 18's own
+finding turned round: a tier can only matter at a width the tiers above it have not already filled,
+so the pass counts what the depth has promoted so far and returns if that covers the width. On a
+ferry level the read fills a width of 8 inside the first parent or two and the pass is skipped; on
+level 1, where the free derivations say nothing all level, it is asked every time. 12/50 -> 19/50 on
+the gate alone.
+
+**Then the level fell.** `--push-beam 48 --push-read --push-enables 8` solves `LaserTank.lvl` 1
+"Boot Camp" in **6.19M nodes and 17.9 seconds**, 294 keys = 157 moves + 47 shots against the record's
+103 + 46, **1.97x**, verified through both engines and committed at
+`solutions/LaserTank/00001.lpb`. The shipped default width of 8 solves it too, in 412 s. Against
+four 800M-node runs that did not touch it. `--push-line` says why: the human line now survives to
+board change **11** where session 18's configuration lost it at 5 and the pre-session-18 trim lost
+it at 1 - past all five rotations and past the mirror shot they set up.
+
+**And a second level, with the control run to prove it is two and not four.** Over `LaserTank.lvl`
+1-19 at 60M nodes, with and without: the derivation solves 1 and **4 (The River Nile, 49.9M)** that
+the same budget cannot solve without it, while 3, 7 and 11 come out either way. Four of nineteen
+against three, **4/4 verified**, and the honest headline is *two levels*.
+
+**What it costs, which is why it does not ship on.** Ferry bench **19/50** against 20/50 and deep
+**19/50** against 21/50, both at 4M nodes - and with `--push-enables 0` both benches reproduce
+session 18's numbers exactly on the final build. So: off by default, and it joins the interactive
+driver's push rung from **round 2**, where the population is levels the cheap derivations have
+already failed. `--push-enables-poses` (default 32) caps the child closure it looks from; truncating
+costs promotions and cannot invent them, which is what makes a small default safe - it holds the
+level-1 line only to board change 4 where the whole closure holds it to 11, and the level solves at
+either, because a search does not have to follow the human's line to win.
+
+All four fidelity gates green (187 replayed / 181 win / 6 documented, 29 difftrace, 2,347 sweep
+identical, 25 fuzz). `Analyze.cs`, `Push.cs`, `Search.cs`, `Program.cs` and `Auto.cs` only -
+`Engine.cs` still differs from layer 0 by one word and `Engine.Search.cs` is unchanged.
