@@ -47,6 +47,14 @@ solver and on in the `push-stop` rung. Read that section before adding a term to
 went in wrong five separate ways and the beam found every one, which is the most transferable thing
 in this file about writing a relaxation.)*
 
+**Work a whole stretch of a collection at once.** The driver runs one level per *lane* and the
+lanes share the `--jobs` slots, so raising `--lanes` fills the machine without changing the core
+budget. Press a lane's number to give up on the level it is holding.
+
+```bash
+build/lasertank-solve.exe data/levels/Beginner-I.lvl --from 1 --to 40 --lanes 4
+```
+
 **Look at the board the beam settled on, not only at its score.** `--push-trace-board` prints the
 best node's playfield each depth under `--push-trace`. `best=10` says the ranking key has gone flat
 and says nothing about *what* the beam is looking at — and on a flat key the answer is usually that
@@ -1369,10 +1377,11 @@ and stays on each level until it falls or you press a key.
 
     build/lasertank-solve.exe data/levels/Beginner-I.lvl --from 12 --to 40
 
-**It is the portfolio the campaign could not afford.** A round runs all four
-searchers *at once, one per thread* — layer 0's beam (with IDA* on round 0,
+**It is the portfolio the campaign could not afford.** A round runs every
+searcher *at once, one per thread* — layer 0's beam (with IDA* on round 0,
 where a probe is cheap), layer 3's subgoal beam, layer 4's learned ranking of
-it, layer 1's macro beam — and the first win cancels the rest. In a campaign
+it, layer 1's macro beam, and layers 5-7's three push rungs — and the first
+win cancels the rest. In a campaign
 that trade is a loss, because every node a specialist spends is a node taken
 from the raw beam (hence `second_pass.sh`); here a specialist spends a *core*,
 and one level at a time means the cores are there. If nobody wins, the node
@@ -1390,10 +1399,56 @@ A solution that fails is deleted and the search carries on — loudly, because
 after Phase 3 that can only mean an engine divergence. Missing engines or no
 python is a startup error, not a discovery made six levels in.
 
+**`--lanes N` works N levels at once** (session 21; default 1, so a bare run is
+exactly what it always was). The ladder is seven rungs and this machine has
+sixteen cores, so one level left nine of them idle — and a second level is a
+better thing to spend them on than a wider anything, because the rounds already
+widen what widening helps.
+
+The scheduling policy is one sentence: **every lane draws on the same pool of
+`--jobs` slots.** Four lanes against sixteen slots is four levels with about
+four searchers apiece, not twenty-eight compute-bound threads over sixteen
+cores; a rung that cannot get a slot waits, and if the level falls while it
+waits it returns without expanding a node, because its stop bit was set while
+it queued. That is the same bargain the driver already struck whenever `--jobs`
+was below the ladder size, so `--lanes` costs nothing to add and nothing to
+raise — the only thing it trades is portfolio breadth per level against levels
+in flight, and *which* of those is worth more is a property of the levels, not
+of the driver.
+
+The display is one line per lane plus a footer, and **the lane number is the
+key that gives up on it** — `1`-`N`, where the single-lane driver's any-key
+still means what it always did. A key naming no lane is ignored rather than
+guessed at: throwing away an hour of the wrong lane's search is not a thing to
+do on a maybe.
+
+Two things had to change under it, and both were latent races rather than new
+work. The gate *empties* the directory it stages through, so a lane verifies in
+one of its own — two lanes sharing one would delete each other's candidate and,
+worse, could hand a lane the other lane's solution to pass off as its own. And
+`Sweep` deleted `cand-*.lpb` wholesale, which was fine when a driver was the
+only thing running and is not fine now: a second driver started while the first
+is still going would delete a candidate between the searcher writing it and the
+gate reading it, and the first run would report a level it had actually solved
+as *the winning searcher wrote no file*. Candidates now carry the process id
+and a run sweeps only its own, plus anything a day old, since that is the
+growing-forever the sweep was written for.
+
 `Auto.cs` is the whole of it, plus a `CancelFlag` on `SolveOptions` that
 `OutOfBudget` reads — the keypress ends a search at the next node rather than
 at the end of a stage, and the searchers publish their node counts back through
-it for the live line. `Engine.Search.cs` is still unchanged since layer 0.
+it for the live display. `Engine.Search.cs` is still unchanged since layer 0.
+
+*One trap worth keeping, because it is the whole of why the display is written
+the way it is:* a lane may not write to `Console`. Two lanes each printing half
+a level's story interleave into neither, so a level's lines are built up in the
+lane and handed to a queue, and the painter on the main thread is the only
+writer there is — it erases the live block, drains the queue, and repaints. The
+block is erased with one *relative* escape (`ESC[<rows>A ESC[J`), which is what
+keeps it correct after the terminal has scrolled, and every row is cut to the
+window before it is coloured: a row that wraps is two lines on screen and one
+in the row count, and from there the block walks up the scrollback a line per
+repaint.
 
 ### Phase 4 addendum — why the search fails, measured on one level  ☑ (instrument), ☐ (layer 5)
 
@@ -3382,3 +3437,29 @@ tick.
 holding the DLL - so the new binary is at `build/rp/lasertank-solve.exe` and `bash src/build.sh`
 still has to be run. And the corpus refresh in *Start here* is now worth more than it was: every
 banked `.lpb` predates this pass.
+
+**2026-09-07, session 21 — the driver works several levels at once.** `--lanes N`. The premise it
+started from was wrong in a useful way: *does a solve use one core?* A searcher does, but the
+driver has run its whole ladder in parallel since the interactive addendum, so a level already had
+seven. What was serial was the *level loop* — and with seven rungs on sixteen cores that left nine
+cores idle, which is where the lanes came from.
+
+The policy is that lanes share one pool of `--jobs` slots rather than each claiming the ladder, so
+the core budget does not move when `--lanes` does; the reasoning is in *Phase 4 addendum — the
+interactive driver*, along with the two latent races that had to be closed first (the gate's
+staging directory, which it empties, and `Sweep` deleting other runs' candidates). Default is 1 and
+the single-lane output is unchanged line for line, which was the point of the default.
+
+Measured, not assumed: `Beginner-I` 1-8 at `--lanes 4 --jobs 12` is **8 solved, 8 verified through
+both engines, 4 s**. The display was checked by forcing the ANSI path on with a temporary patch to
+`Ansi.On` and reading the escapes back with `cat -v` — patch reverted, `Report.cs` byte-clean — and
+it caught the one real bug in the session: the footer claimed **14 searchers busy on 9 slots**,
+because a rung queued on the semaphore and a rung holding one are both "not completed". Lanes now
+report the rungs actually holding a slot and count the rest as `+N` queued, which is also the more
+useful line to read, since a lane showing two searchers is the machine being full rather than the
+level being nearly done.
+
+`Auto.cs` and `Program.cs` only. **Nothing in `LaserTank.Core` was touched** and the engine gate
+confirms it: 187 replayed / 181 win / 6 documented non-winners / 0 unexpected. Last session's
+*left for the next session* is also cleared — `bash src/build.sh` ran clean, so `build/` is current
+and `build/rp/` is stale and can go.

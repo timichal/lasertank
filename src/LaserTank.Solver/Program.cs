@@ -39,6 +39,9 @@ namespace LaserTank.Solver
 "  on it (q quits).  A solution is kept only once tools/verify_solutions.py\n" +
 "  has replayed it through both engines.  --from/--to/--out/--force/--author/\n" +
 "  --trim-ratio/--jobs apply; --nodes sets round 0's budget, not a cap.\n" +
+"  --lanes N works N levels at once and the lanes share the same --jobs\n" +
+"  slots, so the core budget does not change: press a lane's number to give\n" +
+"  up on the level it is holding.\n" +
 "\n" +
 "  selection\n" +
 "    --level N            just this level        --from N / --to N   a range\n" +
@@ -79,6 +82,8 @@ namespace LaserTank.Solver
 "    --beam N             beam width, default 600      --max-keys N\n" +
 "    --ida-depth N        IDA* bound cap, default 24   --no-ida / --no-beam\n" +
 "    --jobs N             parallel workers, default = processor count\n" +
+"    --lanes N            interactive only: levels to work on at once,\n" +
+"                         default 1; every lane draws on the --jobs slots\n" +
 "\n" +
 "  layer 1 -- macro-actions (Goto + Shoot).  OFF by default: it wins on levels\n" +
 "  the raw beam cannot solve and loses over the corpus, so it belongs in a\n" +
@@ -292,6 +297,7 @@ namespace LaserTank.Solver
             public string Author = "LTSolver";
             public int From = 1, To = int.MaxValue, Limit = int.MaxValue;
             public int Jobs = Environment.ProcessorCount;
+            public int Lanes = 1;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
             public bool Polish = true;
@@ -338,6 +344,7 @@ namespace LaserTank.Solver
                         case "--limit": a.Limit = int.Parse(V()); break;
                         case "--stride": a.Stride = Math.Max(1, int.Parse(V())); break;
                         case "--jobs": a.Jobs = Math.Max(1, int.Parse(V())); break;
+                        case "--lanes": a.Lanes = Math.Max(1, int.Parse(V())); break;
                         case "--trim-ratio": a.TrimRatio = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--budget-ms": a.Opt.TimeBudgetMs = int.Parse(V()); break;
                         case "--nodes": a.Opt.NodeBudget = long.Parse(V()); a.NodesGiven = true; break;

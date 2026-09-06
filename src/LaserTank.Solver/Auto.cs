@@ -37,10 +37,12 @@
 // The gate is the python tool rather than a reimplementation of it in here on
 // purpose: a second copy of the trust chain is a second thing to keep true.
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LaserTank.Core;
@@ -220,11 +222,87 @@ namespace LaserTank.Solver
             }),
         };
 
-        // What the keypress and Ctrl+C set.  Static because the Ctrl+C handler
-        // has to reach the round that is running now.
+        // ---- lanes ---------------------------------------------------------
+
+        /// One lane is one level being worked on: the searchers running on it
+        /// right now, and the key that gives up on it.
+        ///
+        /// The driver used to be a single loop over levels, and a lane is what
+        /// that loop became once there was more machine than one level could
+        /// use.  Seven rungs on a sixteen-core box leaves nine cores idle, and
+        /// a second lane is a whole further level to spend them on.
+        ///
+        /// **The lanes share one pool of `--jobs` slots rather than each
+        /// claiming the ladder.**  That is the whole of the scheduling policy,
+        /// and it is what keeps `--lanes` a free knob: four lanes against
+        /// sixteen slots run four levels with about four searchers apiece, not
+        /// twenty-eight compute-bound threads fighting over sixteen cores.  A
+        /// rung that cannot get a slot waits, and if somebody wins the level
+        /// while it waits it returns without expanding a node -- which is the
+        /// same bargain the single-lane driver already struck whenever `--jobs`
+        /// was below the ladder size.
+        ///
+        /// Everything a lane wants to *say* goes through the log queue rather
+        /// than to Console, because two lanes writing at once would shred both
+        /// the result block and the live display.  The painter on the main
+        /// thread is the only writer there is.
+        private sealed class Lane
+        {
+            public int Index;                   // 1-based: the key you press
+            public volatile bool Skip;          // give up on this level
+            public volatile bool Done;          // no levels left
+            public volatile Snapshot Cur;       // what to paint, or null
+            public string VerifyDir;
+        }
+
+        /// What the painter reads while a round runs.  Swapped wholesale at the
+        /// top of each round, so the painter never sees one round's flags
+        /// beside the next round's tasks.
+        private sealed class Snapshot
+        {
+            public int Level, Round;
+            public string Name = "";
+            public string Note;                 // painted instead of a round
+            public long Budget;
+            public DateTime T0;
+            public CancelFlag[] Flags;
+            public Task<Program.Outcome>[] Tasks;
+            // Set when a rung takes a slot, cleared when it gives it back.  A
+            // started task and a queued one are both "not completed", and
+            // painting them alike is how the footer came to claim fourteen
+            // busy searchers on nine slots.
+            public bool[] Running;
+        }
+
+        /// Everything a lane needs that is the same for every lane.
+        private sealed class Ctx
+        {
+            public Program.Args A;
+            public Func<int> Next;              // the level dispenser, -1 when done
+            public int Count, Lanes;
+            public string OutDir, Work, Ghs, Python, Gate, Root;
+            public SemaphoreSlim Slots;
+            public int Solved, Skipped, Already, Rejected;
+            public readonly List<int> Unsolved = new List<int>();
+        }
+
+        // What Ctrl+C sets.  Static because the handler has to reach every lane
+        // that is running now, and a lane is not reachable from it otherwise.
         private static volatile bool _quit;
-        private static volatile bool _skip;
-        private static volatile CancelFlag[] _live;
+        private static volatile Lane[] _lanes;
+
+        // The single-writer console.  Lanes enqueue finished blocks; the
+        // painter drains them between repaints.
+        private static readonly ConcurrentQueue<string> _log =
+            new ConcurrentQueue<string>();
+
+        // What the live block is showing now: the plain text of each row (to
+        // work out how many screen lines it occupies), the exact bytes that
+        // were written (to notice a repaint that would change nothing), and the
+        // width they were cut to (to notice a resize).
+        private static List<string> _frame = new List<string>();
+        private static string _painted = "";
+        private static int _cols;
 
         internal static int Run(Program.Args a)
         {
@@ -247,7 +325,6 @@ namespace LaserTank.Solver
                 ? a.Out : Path.Combine(root, "data", "solutions");
             string outDir = Path.Combine(outRoot, collection);
             string work = Path.Combine(root, "build", "solutions", ".auto");
-            string verifyDir = Path.Combine(work, collection);
             string ghsPath = Path.ChangeExtension(a.Levels, ".ghs");
 
             // Preflight the gate, not the search.  A run that solves six levels
@@ -275,7 +352,6 @@ namespace LaserTank.Solver
             }
 
             Directory.CreateDirectory(outDir);
-            Directory.CreateDirectory(verifyDir);
 
             int count = LevelFile.CountLevels(a.Levels);
             int from = Math.Max(1, a.From), to = (int)Math.Min(a.To, count);
@@ -287,61 +363,161 @@ namespace LaserTank.Solver
                 return 2;
             }
 
+            // No more lanes than there are levels to put in them: an empty lane
+            // is a painted line that never says anything.
+            int lanes = Math.Max(1, Math.Min(a.Lanes, to - from + 1));
+            int jobs = Math.Max(1, a.Jobs);
+
+            Lane[] pool = new Lane[lanes];
+            for (int i = 0; i < lanes; i++)
+            {
+                // A lane verifies in a directory of its own, because Gate()
+                // *empties* the one it is handed before staging into it: two
+                // lanes sharing one would delete each other's candidate and,
+                // worse, could hand a lane the other lane's solution to pass
+                // off as its own.  The collection name stays the leaf, so the
+                // staged file still sits where the gate expects a collection.
+                pool[i] = new Lane
+                {
+                    Index = i + 1,
+                    VerifyDir = Path.Combine(work, "l" + (i + 1), collection),
+                };
+                Directory.CreateDirectory(pool[i].VerifyDir);
+            }
+            _lanes = pool;
+
             Console.CancelKeyPress += static (_, e) =>
             {
                 e.Cancel = true;            // unwind and print, do not die here
                 _quit = true;
-                StopLive();
+                StopAll();
             };
 
-            int jobs = Math.Max(1, Math.Min(a.Jobs, Ladder.Length));
-            Console.WriteLine("{0}  levels {1}-{2} of {3}   {4} searchers per round"
-                              + "{5}, budget x4 each round",
+            Console.WriteLine("{0}  levels {1}-{2} of {3}   {4} searchers per level,"
+                              + " {5}, budget x4 each round",
                               Ansi.Bold(collection), from, to, count, Ladder.Length,
-                              jobs < Ladder.Length ? " (" + jobs + " at a time)" : "");
-            Console.WriteLine(Ansi.Dim(Interactive
-                ? "  any key gives up on the level and moves to the next; q quits\n"
-                : "  stdin is not a console, so there is no key to press here: "
-                  + "Ctrl+C is the way out\n"));
+                              // One lane can never have more than the ladder
+                              // running however many slots it is given, and
+                              // saying "16 at a time" of a 7-rung ladder is a
+                              // number the display would then contradict.
+                              lanes == 1
+                                ? Math.Min(jobs, Ladder.Length) + " at a time"
+                                : lanes + " levels at a time over " + jobs + " slots");
+            Console.WriteLine(Ansi.Dim(!Interactive
+                ? "  stdin is not a console, so there is no key to press here: "
+                  + "Ctrl+C is the way out\n"
+                : lanes == 1
+                  ? "  any key gives up on the level and moves to the next; q quits\n"
+                  : "  1-" + lanes + " gives up on that lane's level; q quits\n"));
 
             DateTime t0 = DateTime.UtcNow;
-            int solved = 0, skipped = 0, already = 0, rejected = 0;
-            List<int> unsolved = new List<int>();
-
-            for (int lv = from; lv <= to && !_quit; lv++)
+            int next = from - 1;            // Interlocked.Increment yields `from` first
+            Ctx ctx = new Ctx
             {
-                TLEVEL info = LevelFile.ReadLevel(a.Levels, lv);
+                A = a, Count = count, Lanes = lanes, OutDir = outDir, Work = work,
+                Ghs = ghsPath, Python = python, Gate = gate, Root = root,
+                Slots = new SemaphoreSlim(jobs),
+                Next = () =>
+                {
+                    int lv = Interlocked.Increment(ref next);
+                    return lv <= to ? lv : -1;
+                },
+            };
+
+            Task[] workers = new Task[lanes];
+            for (int i = 0; i < lanes; i++)
+            {
+                Lane lane = pool[i];
+                workers[i] = Task.Run(() => Worker(ctx, lane));
+            }
+
+            Task all = Task.WhenAll(workers);
+            while (!all.Wait(120))
+            {
+                Poll(pool);
+                Flush();
+                Paint(pool, t0, ctx);
+            }
+            Erase();
+            Flush();
+
+            Sweep(work);
+            Console.WriteLine("{0} solved, {1} skipped{2}{3}   in {4}",
+                ctx.Solved, ctx.Skipped,
+                ctx.Already > 0 ? ", " + ctx.Already + " already had a solution" : "",
+                ctx.Rejected > 0
+                    ? ", " + Ansi.Red(ctx.Rejected + " REJECTED by the gate") : "",
+                Progress.Span((DateTime.UtcNow - t0).TotalSeconds));
+            ctx.Unsolved.Sort();
+            if (ctx.Unsolved.Count > 0)
+                Console.WriteLine(Ansi.Dim("  still unsolved: "
+                                           + string.Join(",", ctx.Unsolved)));
+            return 0;
+        }
+
+        // ---- one lane ------------------------------------------------------
+
+        /// Take levels until there are none left, and give each as many rounds
+        /// as it takes.  This is the loop the driver used to be, with the level
+        /// number coming from a dispenser instead of a `for`, and every
+        /// Console.Write replaced by an enqueue.
+        private static void Worker(Ctx ctx, Lane lane)
+        {
+            while (!_quit)
+            {
+                int lv = ctx.Next();
+                if (lv < 0) break;
+
+                TLEVEL info = LevelFile.ReadLevel(ctx.A.Levels, lv);
                 if (info == null) break;
 
-                string lpb = Path.Combine(outDir, string.Format("{0:D5}.lpb", lv));
-                if (!a.Force && File.Exists(lpb))
+                string lpb = Path.Combine(ctx.OutDir, string.Format("{0:D5}.lpb", lv));
+                if (!ctx.A.Force && File.Exists(lpb))
                 {
-                    already++;
-                    Console.WriteLine("{0}  {1}", Head(lv, count, info),
-                                      Ansi.Dim("already solved -- --force re-solves it"));
+                    Interlocked.Increment(ref ctx.Already);
+                    Say(Head(lv, ctx.Count, info) + "  "
+                        + Ansi.Dim("already solved -- --force re-solves it"));
                     continue;
                 }
 
-                LevelFile.ReadHighScore(ghsPath, lv, out ushort gm, out ushort gs);
-                Console.WriteLine(Head(lv, count, info) + "  " + Ansi.Dim(Record(gm, gs)));
+                LevelFile.ReadHighScore(ctx.Ghs, lv, out ushort gm, out ushort gs);
 
-                _skip = false;
+                // The header used to print before the first round and the
+                // result after it.  With lanes it is held back and printed with
+                // the result as one block: two lanes each writing half a level's
+                // story would interleave into neither.  Nothing is lost -- what
+                // a level is doing *now* is what the live block is for, and it
+                // says it better than a header line did.
+                List<string> block = new List<string>
+                {
+                    Head(lv, ctx.Count, info) + "  " + Ansi.Dim(Record(gm, gs)),
+                };
+
+                lane.Skip = false;
                 bool won = false;
                 DateTime lt0 = DateTime.UtcNow;
-                for (int round = 0; !won && !_skip && !_quit; round++)
+                for (int round = 0; !won && !lane.Skip && !_quit; round++)
                 {
-                    Program.Outcome o = Round(a, info, lv, round, jobs, work, lt0);
+                    Program.Outcome o = Round(ctx, lane, info, lv, round, lt0);
                     if (o == null) continue;                       // nobody won
 
-                    string why = Gate(python, gate, root, a.Levels, o.J.LpbPath,
-                                      verifyDir, lpb);
+                    // The gate is a python process and takes a second or two on
+                    // a long solution, which is a second or two of a lane's line
+                    // saying nothing if it is not said here.
+                    lane.Cur = new Snapshot
+                    {
+                        Level = lv, Name = info.LName.Trim(), Round = round,
+                        T0 = lt0, Note = "verifying",
+                    };
+                    string why = Gate(ctx.Python, ctx.Gate, ctx.Root, ctx.A.Levels,
+                                      o.J.LpbPath, lane.VerifyDir, lpb);
                     if (why == null)
                     {
                         won = true;
-                        solved++;
-                        Console.WriteLine("  {0}  {1}",
-                            Ansi.Green("SOLVED"), Detail(o, round, lt0));
-                        Console.WriteLine("  {0}", Ansi.Dim(
+                        Interlocked.Increment(ref ctx.Solved);
+                        block.Add("  " + Ansi.Green("SOLVED") + "  "
+                                  + Detail(o, round, lt0));
+                        block.Add("  " + Ansi.Dim(
                             "verified through both engines -> " + lpb));
                     }
                     else
@@ -351,9 +527,9 @@ namespace LaserTank.Solver
                         // divergence between the engines and wants shouting
                         // about.  Phase 3 says there are none left; this is how
                         // you would find out otherwise.
-                        rejected++;
-                        Console.WriteLine("  {0}  {1}", Ansi.Red("REJECTED"), why);
-                        Console.WriteLine("  {0}", Ansi.Dim(
+                        Interlocked.Increment(ref ctx.Rejected);
+                        block.Add("  " + Ansi.Red("REJECTED") + "  " + why);
+                        block.Add("  " + Ansi.Dim(
                             "discarded; searching on -- this is an engine divergence, "
                             + "please keep the level number"));
                     }
@@ -361,25 +537,17 @@ namespace LaserTank.Solver
 
                 if (!won)
                 {
-                    unsolved.Add(lv);
-                    if (_skip) skipped++;
-                    Console.WriteLine("  {0}", Ansi.Yellow(
+                    lock (ctx.Unsolved) ctx.Unsolved.Add(lv);
+                    if (lane.Skip) Interlocked.Increment(ref ctx.Skipped);
+                    block.Add("  " + Ansi.Yellow(
                         (_quit ? "stopped" : "skipped") + " after "
                         + Progress.Span((DateTime.UtcNow - lt0).TotalSeconds)));
                 }
-                Console.WriteLine();
+                lane.Cur = null;
+                Say(block);
             }
-
-            Sweep(work);
-            Console.WriteLine("{0} solved, {1} skipped{2}{3}   in {4}",
-                solved, skipped,
-                already > 0 ? ", " + already + " already had a solution" : "",
-                rejected > 0 ? ", " + Ansi.Red(rejected + " REJECTED by the gate") : "",
-                Progress.Span((DateTime.UtcNow - t0).TotalSeconds));
-            if (unsolved.Count > 0)
-                Console.WriteLine(Ansi.Dim("  still unsolved: "
-                                           + string.Join(",", unsolved)));
-            return 0;
+            lane.Cur = null;
+            lane.Done = true;
         }
 
         // ---- one round -----------------------------------------------------
@@ -389,10 +557,11 @@ namespace LaserTank.Solver
         /// Each rung writes to its own scratch .lpb, because two of them
         /// finishing together would otherwise race on one path.  The winner's
         /// file is the one the gate is handed; the rest are deleted here.
-        private static Program.Outcome Round(Program.Args a, TLEVEL info, int lv,
-                                             int round, int jobs, string work,
-                                             DateTime lt0)
+        private static Program.Outcome Round(Ctx ctx, Lane lane, TLEVEL info,
+                                             int lv, int round, DateTime lt0)
         {
+            Program.Args a = ctx.A;
+
             // Quadrupling has to stop being taken literally at some point or
             // the shift overflows.  Round 12 is 400k x 4^12, which is a search
             // no machine will finish; past it the rounds still differ, because
@@ -401,22 +570,24 @@ namespace LaserTank.Solver
             long nodes = (a.NodesGiven ? a.Opt.NodeBudget : BaseNodes) << (2 * r);
             int ms = (int)Math.Min((long)BaseMs << r, MaxMs);
 
-            LevelFile.ReadHighScore(Path.ChangeExtension(a.Levels, ".ghs"), lv,
-                                    out ushort gm, out ushort gs);
+            LevelFile.ReadHighScore(ctx.Ghs, lv, out ushort gm, out ushort gs);
 
-            // The flags exist before any searcher does, so that a Ctrl+C in the
-            // moment between starting the first rung and starting the last one
-            // still reaches all of them.
+            // The flags exist before any searcher does, so that a quit arriving
+            // in the moment between starting the first rung and starting the
+            // last one still reaches all of them.  For the same reason the
+            // snapshot -- which is how the keyboard finds the flags at all --
+            // is published before the loop rather than after it.
             CancelFlag[] flags = new CancelFlag[Ladder.Length];
             for (int i = 0; i < flags.Length; i++) flags[i] = new CancelFlag();
-            _live = flags;
-
-            // --jobs is the number of rungs that may run at once.  Below the
-            // ladder size they queue -- and a rung that reaches the front of
-            // the queue after somebody has already won returns immediately,
-            // because its stop bit is set before it expands a single node.
-            SemaphoreSlim slots = new SemaphoreSlim(jobs);
             Task<Program.Outcome>[] tasks = new Task<Program.Outcome>[Ladder.Length];
+            bool[] running = new bool[Ladder.Length];
+            lane.Cur = new Snapshot
+            {
+                Level = lv, Name = info.LName.Trim(), Round = round, Budget = nodes,
+                T0 = lt0, Flags = flags, Tasks = tasks, Running = running,
+            };
+            if (_quit || lane.Skip) Stop(lane);
+
             for (int i = 0; i < Ladder.Length; i++)
             {
                 SolveOptions o = Program.Clone(a.Opt);
@@ -434,45 +605,56 @@ namespace LaserTank.Solver
                     Diff = info.SDiff,
                     GhsMoves = gm,
                     GhsShots = gs,
-                    LpbPath = Path.Combine(work,
-                        string.Format("cand-{0:D5}-{1}.lpb", lv, Ladder[i].Name)),
+                    // The lane is in the name because two lanes on the same
+                    // level -- which --force makes possible -- would otherwise
+                    // write one path from two threads; the process id is there
+                    // so that two drivers running at once neither collide here
+                    // nor sweep each other's files afterwards.  See Sweep().
+                    LpbPath = Path.Combine(ctx.Work,
+                        string.Format("cand-{0}-l{1}-{2:D5}-{3}.lpb",
+                                      Environment.ProcessId, lane.Index, lv,
+                                      Ladder[i].Name)),
                 };
                 File.Delete(job.LpbPath);
+                int rung = i;
                 tasks[i] = Task.Run(() =>
                 {
-                    slots.Wait();
+                    // The slots are the machine, and every lane draws on the
+                    // same pool.  A rung that waits here and reaches the front
+                    // after somebody has already won returns without expanding a
+                    // node, because its stop bit was set while it queued.
+                    ctx.Slots.Wait();
+                    running[rung] = true;
                     try { return Program.SolveOne(a, job, o); }
-                    finally { slots.Release(); }
+                    finally { running[rung] = false; ctx.Slots.Release(); }
                 });
             }
 
-            // Redirected output gets no live line (Paint returns), so a long
+            // Redirected output gets no live block (Paint returns), so a long
             // level would otherwise log nothing at all between the header and
             // the result.  One line per round is the same bargain Progress
             // strikes in Report.cs.
             if (!Ansi.On)
-                Console.WriteLine("  round {0}: {1} nodes to each of {2} searchers",
-                                  round, Num(nodes), Ladder.Length);
+                Say(string.Format(CultureInfo.InvariantCulture,
+                                  "  {0}round {1}: {2} nodes to each of {3} searchers",
+                                  ctx.Lanes > 1
+                                    ? "lane " + lane.Index + ", lv " + lv + ": " : "",
+                                  round, Num(nodes), Ladder.Length));
 
             Task all = Task.WhenAll(tasks);
-            int width = 0;
             while (!all.Wait(120))
             {
                 foreach (Task<Program.Outcome> t in tasks)
-                    if (t.IsCompletedSuccessfully && t.Result.Solved) StopLive();
-                Poll();
-                if (_skip || _quit) StopLive();
-                Paint(ref width, info, lv, round, nodes, flags, tasks, lt0);
+                    if (t.IsCompletedSuccessfully && t.Result.Solved) Stop(lane);
+                if (_quit || lane.Skip) Stop(lane);
             }
-            Clear(ref width);
-            _live = null;
 
             Program.Outcome win = null;
             for (int i = 0; i < tasks.Length; i++)
             {
                 Program.Outcome o = tasks[i].Result;
                 if (o.Error != null && !o.Solved)
-                    Console.WriteLine("  {0} {1}", Ansi.Red("error"), o.Error);
+                    Say("  " + Ansi.Red("error") + " " + o.Error);
                 if (win == null && o.Solved)
                 {
                     // The searcher names itself after its *layer*, so three
@@ -488,11 +670,21 @@ namespace LaserTank.Solver
             return win;
         }
 
-        private static void StopLive()
+        /// Stop the searchers of one lane -- what a digit key means.
+        private static void Stop(Lane lane)
         {
-            CancelFlag[] f = _live;
+            Snapshot s = lane.Cur;
+            CancelFlag[] f = s?.Flags;
             if (f == null) return;
             foreach (CancelFlag c in f) c.Stop = true;
+        }
+
+        /// Stop every lane -- what Ctrl+C and q mean.
+        private static void StopAll()
+        {
+            Lane[] pool = _lanes;
+            if (pool == null) return;
+            foreach (Lane l in pool) Stop(l);
         }
 
         // ---- the keyboard --------------------------------------------------
@@ -516,7 +708,15 @@ namespace LaserTank.Solver
             }
         }
 
-        private static void Poll()
+        /// q quits everything; a digit gives up on that lane's level.
+        ///
+        /// One lane keeps the old any-key meaning, because that is what the
+        /// banner has always promised and there is nothing to disambiguate when
+        /// there is only one thing a key could mean.  With lanes there is, so a
+        /// key that names no lane is ignored rather than guessed at: throwing
+        /// away an hour of the wrong lane's search is not a thing to do on a
+        /// maybe.
+        private static void Poll(Lane[] pool)
         {
             try
             {
@@ -524,44 +724,224 @@ namespace LaserTank.Solver
                 while (Console.KeyAvailable)
                 {
                     ConsoleKeyInfo k = Console.ReadKey(true);
-                    if (k.Key == ConsoleKey.Q || k.Key == ConsoleKey.Escape) _quit = true;
-                    else _skip = true;
+                    if (k.Key == ConsoleKey.Q || k.Key == ConsoleKey.Escape)
+                    {
+                        _quit = true;
+                        StopAll();
+                        continue;
+                    }
+                    int n = k.KeyChar - '0';
+                    Lane hit = n >= 1 && n <= pool.Length ? pool[n - 1]
+                             : pool.Length == 1 ? pool[0] : null;
+                    if (hit == null) continue;
+                    hit.Skip = true;
+                    Stop(hit);
                 }
             }
             catch (InvalidOperationException) { }   // no console to read from
         }
 
-        // ---- the live line -------------------------------------------------
+        // ---- the live block ------------------------------------------------
 
-        private static void Paint(ref int width, TLEVEL info, int lv, int round,
-                                  long budget, CancelFlag[] flags,
-                                  Task<Program.Outcome>[] tasks, DateTime lt0)
+        /// Hand the painter a finished level's lines, with the blank line that
+        /// separates one level's block from the next.
+        private static void Say(List<string> lines)
+        {
+            foreach (string s in lines) _log.Enqueue(s);
+            _log.Enqueue("");
+        }
+
+        private static void Say(string line) => _log.Enqueue(line);
+
+        /// Print what the lanes have queued.  Only ever called from the main
+        /// thread, and only with the live block erased first, so a result never
+        /// lands in the middle of the display.
+        private static void Flush()
+        {
+            if (_log.IsEmpty) return;
+            Erase();
+            StringBuilder b = new StringBuilder();
+            while (_log.TryDequeue(out string line)) b.Append(line).Append('\n');
+            Console.Write(b.ToString());
+        }
+
+        /// One line per lane, plus the footer.
+        ///
+        /// A lane's line is rebuilt from scratch every repaint rather than
+        /// edited in place, because the lane it describes changes level
+        /// underneath it whenever one falls -- which is the swap the whole
+        /// display is for.
+        private static void Paint(Lane[] pool, DateTime t0, Ctx ctx)
         {
             if (!Ansi.On) return;               // redirected: the result lines suffice
-            long done = 0;
-            List<string> running = new List<string>();
-            for (int i = 0; i < flags.Length; i++)
+
+            List<(string Text, bool Dim)> rows = new List<(string, bool)>();
+            int busy = 0;
+            foreach (Lane lane in pool)
             {
-                done += flags[i].Nodes;
-                if (!tasks[i].IsCompleted) running.Add(Ladder[i].Name);
+                Snapshot s = lane.Cur;
+                string tag = pool.Length > 1 ? "  " + lane.Index + "  " : "  ";
+                if (s == null)
+                {
+                    rows.Add((tag + (lane.Done ? "done" : "--"), true));
+                    continue;
+                }
+                if (s.Note != null)
+                {
+                    rows.Add((string.Format(CultureInfo.InvariantCulture,
+                        "{0}lv {1}  {2}  {3}", tag, s.Level, Cut(s.Name, 20), s.Note),
+                        true));
+                    continue;
+                }
+
+                long done = 0;
+                int queued = 0;
+                List<string> running = new List<string>();
+                for (int i = 0; i < s.Flags.Length; i++)
+                {
+                    done += s.Flags[i].Nodes;
+                    // A task the loop that starts the rungs has not reached yet
+                    // reads as queued rather than as a null dereference: the
+                    // painter sees this snapshot the moment it is published,
+                    // which is before any rung has been started.
+                    if (s.Tasks[i] != null && s.Tasks[i].IsCompleted) continue;
+                    if (s.Running[i]) { running.Add(Ladder[i].Name); busy++; }
+                    else queued++;
+                }
+                // What a lane is *doing* is the rungs holding a slot.  The ones
+                // still queued are worth a count, because a lane showing two
+                // searchers on a seven-rung ladder is the machine being full
+                // rather than the level being nearly done.
+                string what = running.Count > 0 ? string.Join(" ", running)
+                            : queued > 0 ? "queued" : "finishing";
+                if (running.Count > 0 && queued > 0) what += " +" + queued;
+                rows.Add((string.Format(CultureInfo.InvariantCulture,
+                    "{0}lv {1}  {2}  r{3}  {4}  {5}/{6}  {7}",
+                    tag, s.Level, Cut(s.Name, 20), s.Round,
+                    Progress.Span((DateTime.UtcNow - s.T0).TotalSeconds),
+                    Num(done), Num(s.Budget * s.Flags.Length), what), false));
             }
-            string line = string.Format(CultureInfo.InvariantCulture,
-                "  lv {0}  round {1}  {2}  {3} of {4} nodes  {5}  [{6}]",
-                lv, round, Progress.Span((DateTime.UtcNow - lt0).TotalSeconds),
-                Num(done), Num(budget * flags.Length),
-                running.Count > 0 ? string.Join(" ", running) : "finishing",
-                _skip || _quit ? "stopping" : "any key skips, q quits");
 
-            if (line.Length > 118) line = line.Substring(0, 115) + "...";
-            Console.Write("\r" + line.PadRight(Math.Max(width, line.Length)));
-            width = line.Length;
+            rows.Add((pool.Length > 1
+                ? string.Format(CultureInfo.InvariantCulture,
+                    "  1-{0} gives up on that lane, q quits   "
+                    + "{1} solved, {2} searchers busy   {3}",
+                    pool.Length, ctx.Solved, busy,
+                    Progress.Span((DateTime.UtcNow - t0).TotalSeconds))
+                : string.Format(CultureInfo.InvariantCulture,
+                    "  any key skips, q quits   {0} solved   {1}",
+                    ctx.Solved, Progress.Span((DateTime.UtcNow - t0).TotalSeconds)),
+                true));
+
+            Draw(rows);
         }
 
-        private static void Clear(ref int width)
+        /// Redraw the block in place.
+        ///
+        /// The invariant the cursor arithmetic rests on: after a draw the
+        /// cursor sits at column 0 of the line *below* the last row, because
+        /// every row went out with a newline.  So erasing is "up by the number
+        /// of screen lines the block occupies, then clear" -- both moves
+        /// relative to the cursor, so they stay correct when the terminal
+        /// scrolled while we were away.
+        ///
+        /// Three things keep it from blinking:
+        ///
+        ///   * The whole frame -- the cursor-up, every row, the trailing clear
+        ///     -- is one Console.Write.  Erasing and then writing the rows one
+        ///     WriteLine at a time is what the blink was: each write reaches
+        ///     the terminal separately, so it gets to paint the gap between the
+        ///     erase and the rows that replace it.
+        ///   * The old rows are overwritten in place and each new row clears to
+        ///     the end of its own line, so nothing is blanked before it is
+        ///     rewritten.  The screen-clear is only appended when the new block
+        ///     is shorter than the old one, and only below the part that stays.
+        ///   * A repaint that would produce the same bytes writes nothing at
+        ///     all.  At eight repaints a second most of them are that.
+        ///
+        /// Rows are cut to the window rather than to a fixed 118: a row that
+        /// wraps is two lines on screen and one in the row list, and from there
+        /// the block walks up the scrollback a line per repaint.  The text is
+        /// built plain and coloured only after the cut for the same reason --
+        /// an escape sequence is characters that occupy no column, so cutting
+        /// through one both miscounts the width and leaves the rest of the
+        /// terminal dim.
+        private static void Draw(List<(string Text, bool Dim)> rows)
         {
-            if (Ansi.On && width > 0) Console.Write("\r" + new string(' ', width) + "\r");
-            width = 0;
+            int cols = Cols();
+            List<string> plain = new List<string>(rows.Count);
+            StringBuilder body = new StringBuilder();
+            foreach ((string text, bool dim) in rows)
+            {
+                string s = text.Length > cols
+                    ? text.Substring(0, Math.Max(0, cols - 3)) + "..." : text;
+                plain.Add(s);
+                // ESC[K after the row, not spaces up to the margin: padding a
+                // row to the full width is what makes a block flash on a
+                // terminal that is scrolling it.
+                body.Append(dim ? Ansi.Dim(s) : s).Append("\u001b[K\n");
+            }
+
+            string want = body.ToString();
+            if (cols == _cols && want == _painted) return;
+
+            int was = Lines(_frame, cols);
+            int now = Lines(plain, cols);
+            StringBuilder f = new StringBuilder();
+            f.Append("\u001b[?25l");                          // hide the cursor
+            if (was > 0) f.Append("\u001b[").Append(was).Append("A\r");
+            f.Append(want);
+            if (now < was) f.Append("\u001b[J");              // block got shorter
+            f.Append("\u001b[?25h");
+            Console.Write(f.ToString());
+
+            _frame = plain;
+            _painted = want;
+            _cols = cols;
         }
+
+        private static void Erase()
+        {
+            if (!Ansi.On || _frame.Count == 0) return;
+            Console.Write("\u001b[" + Lines(_frame, Cols()) + "A\r\u001b[J");
+            _frame = new List<string>();
+            _painted = "";
+        }
+
+        /// How many screen lines the drawn rows occupy *at the current width*.
+        ///
+        /// Not simply rows.Count, which is what left stale copies behind after
+        /// a resize: the rows were cut to the width they were drawn at, so
+        /// narrowing the window wraps each of them onto two or more lines, and
+        /// a cursor-up of one line per row then stops short and redraws the
+        /// block below its own tail.  Terminals that reflow on resize (Windows
+        /// Terminal, xterm) land exactly on this count; one that does not still
+        /// gets the count right whenever the width has not changed, which is
+        /// every repaint but the one just after the drag.
+        private static int Lines(List<string> rows, int cols)
+        {
+            if (cols <= 0) return rows.Count;
+            int n = 0;
+            foreach (string s in rows) n += Math.Max(1, (s.Length + cols - 1) / cols);
+            return n;
+        }
+
+        private static int Cols()
+        {
+            try
+            {
+                int w = Console.WindowWidth;
+                return w > 40 ? w - 1 : 118;
+            }
+            catch (IOException) { return 118; }
+            catch (ArgumentOutOfRangeException) { return 118; }
+        }
+
+        /// Pad or cut a level name to a fixed width, so the columns after it
+        /// line up down the block rather than moving with every level change.
+        private static string Cut(string s, int n) =>
+            s.Length <= n ? s.PadRight(n) : s.Substring(0, n - 1) + ".";
+
 
         // ---- the gate ------------------------------------------------------
 
@@ -655,14 +1035,35 @@ namespace LaserTank.Solver
 
         /// Scratch candidates outlive an interrupted run; nothing reads them,
         /// so clear them rather than leave a directory that grows forever.
+        ///
+        /// **A run sweeps its own candidates and nobody else's**, which is why
+        /// the process id is in the name.  It used to sweep `cand-*.lpb` --
+        /// fine when a driver was the only thing running, and not fine now: a
+        /// second driver started while the first is still going would delete a
+        /// candidate out from under it between the searcher writing it and the
+        /// gate reading it, and the first run would report a level it had
+        /// actually solved as "the winning searcher wrote no file".  Two
+        /// drivers at once is a normal thing to want -- one long campaign in
+        /// one terminal, a quick look at a single level in another.
+        ///
+        /// A killed run leaves its own behind, so the day-old ones go too: that
+        /// is the growing-forever the sweep was written for, and a candidate
+        /// nothing has touched in a day belongs to no live process.
         private static void Sweep(string work)
         {
-            try
+            DateTime stale = DateTime.UtcNow.AddDays(-1);
+            string mine = "cand-" + Environment.ProcessId + "-";
+            foreach (string f in Directory.GetFiles(work, "cand-*.lpb"))
             {
-                foreach (string f in Directory.GetFiles(work, "cand-*.lpb"))
-                    File.Delete(f);
+                try
+                {
+                    if (Path.GetFileName(f).StartsWith(mine, StringComparison.Ordinal)
+                        || File.GetLastWriteTimeUtc(f) < stale)
+                        File.Delete(f);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             }
-            catch (IOException) { }
         }
 
         private static readonly (int Id, string Name)[] Tiers =
