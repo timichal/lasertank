@@ -115,8 +115,12 @@ namespace LaserTank.Solver
         /// width 1200, the frontier having emptied because everything reachable
         /// had been marked and binned.  So the policy is a knob here with its
         /// own default rather than layer 0's shared one.
-        private bool PushFresh(ulong h, HashSet<ulong> seen, HashSet<ulong> layer) =>
-            Fresh(h, seen, layer, !_opt.PushCloseOnExpand);
+        private bool PushFresh(ulong h, HashSet<ulong> seen, HashSet<ulong> layer)
+        {
+            bool fresh = Fresh(h, seen, layer, !_opt.PushCloseOnExpand);
+            if (_lineHash != null) LineSaw(h, fresh);      // --push-line, Line.cs
+            return fresh;
+        }
 
         /// The ranking key.
         ///
@@ -141,6 +145,11 @@ namespace LaserTank.Solver
         /// every level a worker solves.
         private int _pushWidth;
 
+        /// The per-board cap for the attempt in progress.  A field rather than
+        /// the option for the same reason _pushWidth is one, and unlike the
+        /// width a restart deliberately leaves it alone.
+        private int _pushPerBoard;
+
         /// Run the beam, and re-run it wider while it keeps dying of an empty
         /// frontier with budget still in hand.
         ///
@@ -160,6 +169,7 @@ namespace LaserTank.Solver
         private SolveResult PushSearch(EngineSnapshot root)
         {
             _pushWidth = _opt.PushBeamWidth;
+            _pushPerBoard = _opt.PushPerBoard;
             SolveResult r = PushBeam(root);
             int attempts = 0;
 
@@ -172,6 +182,12 @@ namespace LaserTank.Solver
                 // search that cannot finish one depth: a layer-5 depth costs
                 // width x ~4,500 ApplyKey calls.
                 _pushWidth = Math.Min(_pushWidth * 2, 9600);
+                // The per-board cap is deliberately *not* doubled with it.
+                // Doubling both was the first version and --push-trace caught
+                // it: by the fourth restart level 1 was running at width 128
+                // over **8 distinct boards**, the pose duplicates the cap
+                // exists to stop having quietly come back.  A restart buys
+                // width; letting it buy poses spends that width on nothing.
                 r = PushBeam(root);
             }
 
@@ -200,6 +216,7 @@ namespace LaserTank.Solver
             for (int depth = 0; depth < _opt.PushDepth && frontier.Count > 0; depth++)
             {
                 layer.Clear();
+                LineBegin(depth);
                 foreach (Node parent in frontier)
                 {
                     if (OutOfBudget) { r.Stop = "budget"; Recycle(frontier, next); return r; }
@@ -213,15 +230,19 @@ namespace LaserTank.Solver
                     // once.  Trim as we go, exactly as layer 1 does: later
                     // parents still compete against the survivors and the live
                     // set stays O(width).
-                    if (next.Count > 4 * _pushWidth) Cut(next, _pushWidth);
+                    if (next.Count > 4 * _pushWidth) PushCut(next, _pushWidth);
                 }
 
-                Cut(next, _pushWidth);
+                LineBefore(depth, next, _pushWidth);
+                PushCut(next, _pushWidth);
+                LineAfter(depth, next);
                 if (_opt.PushTrace)
                 {
                     Console.Error.WriteLine(
-                        "  push d={0,3} front={1,5} best={2,5} closure~{3,5} trunc={4,4} nodes={5}",
-                        depth, next.Count, next.Count > 0 ? next[0].H : -1,
+                        "  push d={0,3} front={1,5} boards={2,5} best={3,5} closure~{4,5} "
+                        + "trunc={5,4} nodes={6}",
+                        depth, next.Count, DistinctBoards(next),
+                        next.Count > 0 ? next[0].H : -1,
                         _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes);
                     if (_opt.PushRead)
                         Console.Error.WriteLine(
@@ -345,6 +366,84 @@ namespace LaserTank.Solver
             }
             Drain(closure);
             return false;
+        }
+
+        /// The width trim, over *boards* rather than over states.
+        ///
+        /// The trim every other layer uses keeps the best `width` successors.
+        /// Here a successor is (board change, the pose it was fired from) and
+        /// one board change is reachable from every pose in the closure, so
+        /// that trim keeps ~40 copies of the same playfield: on LaserTank.lvl
+        /// level 1 a width of 48 held between **1 and 9 distinct boards**, and
+        /// at three depths exactly one.  Every copy then costs its own closure
+        /// -- ~4,500 ApplyKey calls -- to expand into the successors its twin
+        /// has already produced, so the duplicates are not merely useless, they
+        /// are where the layer's whole budget goes.
+        ///
+        /// So: sort as before, then keep a successor only while its playfield
+        /// has fewer than `PushPerBoard` representatives.  Two consequences,
+        /// both deliberate:
+        ///
+        ///   * the frontier may come out *narrower* than the width, and that is
+        ///     the point -- a depth that offers six distinct boards should cost
+        ///     six closures, not forty-eight;
+        ///   * poses are not interchangeable in general (a board change can cut
+        ///     the map in two, and the tank is on one side of it), which is why
+        ///     the cap is a number rather than a dedupe.  A restart still does
+        ///     not raise it: see PushSearch for what --push-trace said about
+        ///     letting it.
+        ///
+        /// PushPerBoard = 0 restores the plain trim exactly.
+        private void PushCut(List<Node> next, int width)
+        {
+            int per = _pushPerBoard;
+            if (per <= 0) { Cut(next, width); return; }
+            if (next.Count == 0) return;
+
+            next.Sort(static (a, b) => a.Tier != b.Tier ? a.Tier - b.Tier
+                                     : a.H != b.H ? a.H - b.H : a.G - b.G);
+
+            Dictionary<ulong, int> held = new Dictionary<ulong, int>();
+            int keep = 0;
+            for (int i = 0; i < next.Count && keep < width; i++)
+            {
+                Node n = next[i];
+                if (n.Board == 0) n.Board = BoardKey(n.S.PF);
+                held.TryGetValue(n.Board, out int have);
+                if (have >= per) continue;
+                held[n.Board] = have + 1;
+                // Everything between `keep` and `i` was passed over, so the
+                // node being displaced is one this pass has already refused.
+                (next[keep], next[i]) = (next[i], next[keep]);
+                keep++;
+            }
+
+            for (int i = keep; i < next.Count; i++) Give(next[i].S);
+            next.RemoveRange(keep, next.Count - keep);
+        }
+
+        /// How many *distinct playfields* a frontier holds.
+        ///
+        /// The number this layer turned out to live or die by.  A successor is
+        /// (board change, pose fired from), and one board change is reachable
+        /// from every pose in the closure -- so a width of 48 can be 48 poses of
+        /// two boards.  The read counts the same quantity from the other side
+        /// ("4 distinct board changes reachable right now"); this counts what
+        /// survives the trim.
+        private static int DistinctBoards(List<Node> next)
+        {
+            HashSet<ulong> seen = new HashSet<ulong>();
+            foreach (Node n in next) seen.Add(BoardKey(n.S.PF));
+            return seen.Count;
+        }
+
+        /// FNV-1a over the playfield alone -- the same definition of "the board
+        /// changed" that Push.cs searches by and Profile.cs measures in.
+        private static ulong BoardKey(byte[] pf)
+        {
+            ulong h = 0xcbf29ce484222325UL;
+            for (int i = 0; i < 256; i++) h = (h ^ pf[i]) * 0x100000001b3UL;
+            return h;
         }
 
         /// The engine has just made a board change with `key`.  Emit it, then

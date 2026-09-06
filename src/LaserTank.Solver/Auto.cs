@@ -107,12 +107,27 @@ namespace LaserTank.Solver
             // it under a hundred board-change steps.  It starts paying at the
             // rounds where the others have already failed -- which is exactly
             // the level this ladder is for, and exactly why a *thread* rather
-            // than a share is the right way to carry it.  Width grows slowly
-            // for the same reason: nodes bind long before width does.
+            // than a share is the right way to carry it.
+            //
+            // **What grows is restarts, not width**, and that is session 18's
+            // correction rather than a preference.  The rung used to double the
+            // width every round, which by round 5 had it running at 256 against
+            // a default of 8 -- and the width sweep says 8 scores 19/50 on the
+            // ferry bench where 300 scores 8/50.  Benched as the ladder
+            // actually ran it, round 5 was **11/50 against the default's
+            // 20/50**: the rung was getting weaker the longer it was left
+            // alone, which is the opposite of what a ladder is for.  Restarts
+            // are the layer's own dead-end control law and only ever spend
+            // budget a dead-end had already forfeit, so growing them is free --
+            // measured, 6 restarts and 36 both score 20/50 -- and the beam
+            // widens itself on a dead-end anyway, which is the one place width
+            // has been shown to pay.  The read goes on for the same reason it
+            // is on in every bench above: 20/50 with it, 9/50 without.
             ("push", static (o, r) =>
             {
                 o.RunPush = true;
-                o.PushBeamWidth = (int)Math.Min((long)o.PushBeamWidth << r, 4800);
+                o.PushRead = true;
+                o.PushRestarts += 6 * r;
             }),
         };
 

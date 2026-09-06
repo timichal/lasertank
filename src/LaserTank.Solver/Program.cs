@@ -177,19 +177,34 @@ namespace LaserTank.Solver
 "  in it is a successor -- so search depth is the board-change count.  One\n" +
 "  expansion costs a whole closure (~4,500 ApplyKey calls), so budget this\n" +
 "  in tens of millions of nodes, not hundreds of thousands.  --push enables\n" +
-"    --push-beam N        board-change steps kept per depth, default 300\n" +
+"    --push-beam N        distinct playfields kept per depth, default 8 --\n" +
+"                         narrow and deep, measured: ferry/deep bench at 4M\n" +
+"                         nodes is 17/20 at width 4, 19/21 at 8, 18/20 at 16,\n" +
+"                         15/19 at 48, 13/17 at 128, 8/12 at 300\n" +
+"    --push-per-board N   poses of one playfield the trim may keep, default 1;\n" +
+"                         0 trims over states as every other beam here does.\n" +
+"                         A successor is (board change, the pose it was fired\n" +
+"                         from) and one change is reachable from every pose in\n" +
+"                         the closure, so without this a width of 48 holds 1-9\n" +
+"                         distinct boards and spends the other 40 closures\n" +
+"                         re-deriving what their twins already produced\n" +
 "    --push-restarts N    extra attempts after a dead-end, default 6, each\n" +
 "                         doubling the width; 0 is off.  A dead-end here\n" +
 "                         forfeits its remaining budget, so this is free\n" +
-"    --push-depth N       board changes in a solution, default 400 (a\n" +
-"                         backstop; the node budget binds long before it)\n" +
+"    --push-depth N       board changes in a solution, default 1200 -- a\n" +
+"                         backstop only, and MaxKeys because at 400 it was\n" +
+"                         binding at the narrow widths that measured best\n" +
 "    --push-closure N     poses in one closure, default 4000 -- above the\n" +
 "                         pose count, so truncation means something is odd\n" +
 "    --push-closure-depth N  movement keys to reach one, default 64\n" +
 "    --push-run N         cells one ferry may push in a row, default 8\n" +
 "    --push-move-only N   pure-movement successors kept, and only when the\n" +
 "                         closure truncated, default 4\n" +
-"    --push-eval learned  rank by the learned evaluation (= layer 4's)\n" +
+"    --push-eval work|learned  the ranking key, default learned (layer 4's);\n" +
+"                         work is WorkDistance plus the ferry term below.  On\n" +
+"                         the human recording of LaserTank 1 the winning line's\n" +
+"                         longest uphill stretch is 16 board changes ranked by\n" +
+"                         work, 12 with the ferry term and 6 by the learned one\n" +
 "    --push-ferry N       weight on the ferry term, default 1, 0 is off:\n" +
 "                         how far the nearest block still is from the water\n" +
 "                         on the route.  WorkDistance does not move while a\n" +
@@ -197,7 +212,16 @@ namespace LaserTank.Solver
 "    --push-closed generate|expand  when a state is closed, default expand\n" +
 "                         -- the opposite of layer 0, and measured: an\n" +
 "                         expansion here is far too dear to bin forever\n" +
-"    --push-trace         per-depth diagnostics to stderr\n" +
+"    --push-trace         per-depth diagnostics to stderr.  Read `boards=`\n" +
+"                         against `front=`: they are equal when the width is\n" +
+"                         being spent on positions rather than on tank poses\n" +
+"    --push-line FILE.lpb instrument, not a solve: replay a winning recording,\n" +
+"                         keep its state at every board change -- one per push\n" +
+"                         depth -- then run the beam and report, per depth,\n" +
+"                         whether that state was generated, how it ranked and\n" +
+"                         whether the width trim kept it.  The question\n" +
+"                         --read-dump cannot answer: the line is offered at\n" +
+"                         every step, so which Cut is it that loses it\n" +
 "    --push-share R       budget fraction it may run until, default 1.0\n" +
 "\n" +
 "  output\n" +
@@ -221,7 +245,7 @@ namespace LaserTank.Solver
             public HashSet<int> Only;      // --levels-list, null when unused
             public string RankDump, LpbList, ProfileOut;
             public bool DoAnalyze;
-            public string AnalyzeTsv, ReadDumpOut, PolishPath;
+            public string AnalyzeTsv, ReadDumpOut, PolishPath, PushLine;
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
@@ -270,6 +294,7 @@ namespace LaserTank.Solver
                         case "--closed": a.Opt.CloseOnGenerate = V() != "expand"; break;
                         case "--push": a.Opt.RunPush = true; break;
                         case "--push-beam": a.Opt.PushBeamWidth = int.Parse(V()); break;
+                        case "--push-per-board": a.Opt.PushPerBoard = int.Parse(V()); break;
                         case "--push-depth": a.Opt.PushDepth = int.Parse(V()); break;
                         case "--push-closure": a.Opt.PushClosureNodes = int.Parse(V()); break;
                         case "--push-closure-depth": a.Opt.PushClosureDepth = int.Parse(V()); break;
@@ -311,6 +336,7 @@ namespace LaserTank.Solver
                         case "--analyze": a.DoAnalyze = true; break;
                         case "--analyze-tsv": a.DoAnalyze = true; a.AnalyzeTsv = V(); break;
                         case "--read-dump": a.ReadDumpOut = V(); break;
+                        case "--push-line": a.PushLine = V(); break;
                         case "--read-opens": a.Opt.ReadOpensCap = int.Parse(V()); break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
@@ -359,6 +385,7 @@ namespace LaserTank.Solver
             if (a.DoAnalyze) return AnalyzeAll(a);
             if (a.ProfileOut != null) return ProfileAll(a);
             if (a.RankDump != null) return RankDumpAll(a);
+            if (a.PushLine != null) return PushLineOne(a);
             if (a.Auto) return Auto.Run(a);
 
             string ghsPath = Path.ChangeExtension(a.Levels, ".ghs");
@@ -798,6 +825,47 @@ namespace LaserTank.Solver
             return 0;
         }
 
+        /// --push-line: run the push beam over one level with a winning
+        /// recording in hand, and report per depth what the width trim did to
+        /// it.  Not a solve -- nothing is written -- so it forces the push
+        /// searcher on and the others off rather than asking for three flags.
+        private static int PushLineOne(Args a)
+        {
+            if (!File.Exists(a.PushLine))
+            {
+                Console.Error.WriteLine("lasertank-solve: no such recording " + a.PushLine);
+                return 2;
+            }
+            TRECORDREC rec = LevelFile.ReadPlayback(a.PushLine, out byte[] keys);
+            int level = a.From == a.To ? a.From : rec.Level;
+
+            a.Opt.RunPush = true;
+            a.Opt.RunIda = a.Opt.RunBeam = a.Opt.RunMacro = a.Opt.RunSubgoal = false;
+
+            Solver t = new Solver(a.Levels, Clone(a.Opt));
+            if (!t.TraceLine(level, keys))
+            {
+                Console.Error.WriteLine(
+                    a.PushLine + ": does not win level " + level + " -- nothing to follow");
+                return 2;
+            }
+            Console.WriteLine("{0} level {1}: {2} keypresses, {3} board changes",
+                              Path.GetFileName(a.PushLine), level, keys.Length, t.LineLength);
+            for (int i = 1; i < t.LineWhat.Length; i++)
+                Console.WriteLine("  line d={0,3} h={1,4}  {2}", i, t.LineHs[i], t.LineWhat[i]);
+
+            Solver s = new Solver(a.Levels, Clone(a.Opt));
+            s.SetLine(t.LineHashes, t.LineBoards, t.LineHs);
+            SolveResult r = s.Solve(level);
+            Console.WriteLine(
+                "{0}  stop={1}  nodes={2}  restarts={3}  followed to depth {4} of {5}, "
+                + "lost at {6}",
+                r.Solved ? "SOLVED" : "unsolved", r.Stop, r.Nodes, r.Restarts,
+                s.LineReached, t.LineLength,
+                s.LineLostAt < 0 ? "-- still on it" : s.LineLostAt.ToString());
+            return 0;
+        }
+
         private static int ProfileAll(Args a)
         {
             if (a.LpbList == null || !File.Exists(a.LpbList))
@@ -928,6 +996,7 @@ namespace LaserTank.Solver
             SgLearned = s.SgLearned,
             RunPush = s.RunPush,
             PushBeamWidth = s.PushBeamWidth,
+            PushPerBoard = s.PushPerBoard,
             PushDepth = s.PushDepth,
             PushClosureNodes = s.PushClosureNodes,
             PushClosureDepth = s.PushClosureDepth,

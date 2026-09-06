@@ -216,14 +216,50 @@ namespace LaserTank.Solver
         // binds, the escape hatch has to run and the expansion has stopped
         // being complete.
         public bool RunPush = false;
-        public int PushBeamWidth = 300;    // board-change steps kept per depth
-        public int PushDepth = 400;        // board changes; a backstop
+        /// Distinct playfields kept per depth -- see PushPerBoard, which is
+        /// what makes this a count of *boards* rather than of tank poses.
+        ///
+        /// 8, and narrow-and-deep for the third time in this project (layer 2's
+        /// subgoal width, layer 3's grow-on-restart, now this).  One expansion
+        /// is a whole closure, so width is the most expensive thing this layer
+        /// buys; measured at 4M nodes with the read and the learned evaluation,
+        /// ferry bench / deep bench: 4 -> 17/20, **8 -> 19/21**, 16 -> 18/20,
+        /// 48 -> 15/19, 128 -> 13/17, 300 -> 8/12.
+        public int PushBeamWidth = 8;
+
+        /// How many *poses* of one playfield the width trim may keep, 0 to
+        /// trim over states as every other beam here does.
+        ///
+        /// A successor of this layer is (board change, the pose it was made
+        /// from), and one board change is reachable from every pose in the
+        /// closure -- so the trim was ranking ~40 copies of the same board
+        /// against each other and a width of 48 was holding, measured on
+        /// LaserTank.lvl level 1, between **1 and 9 distinct playfields**.
+        /// Every duplicate then costs a whole closure (~4,500 ApplyKey calls)
+        /// to expand into the successors its twin already produced.
+        public int PushPerBoard = 1;
+        // Board changes in a solution.  A backstop and nothing else, so it is
+        // MaxKeys: at 400 it was binding at the narrow widths that turned out
+        // to be the good ones (7 of the ferry bench's 50 stopped at push-depth
+        // at width 4), and a cap that stops a search which is still descending
+        // is a cap in the wrong place.  A board change costs at least one
+        // keypress, so MaxKeys cannot be exceeded.
+        public int PushDepth = 1200;
         public int PushClosureNodes = 4000;// poses in one PF-preserving closure
         public int PushClosureDepth = 64;  // movement keys to reach one
         public int PushRun = 8;            // cells one ferry may push in a row
         public int PushMoveOnlyK = 4;      // pure-movement successors, and only
                                            // when the closure truncated
-        public bool PushLearned = false;   // rank by the learned evaluation
+        /// Rank by layer 4's learned evaluation rather than WorkDistance.
+        ///
+        /// On by default here and off for the subgoal beam, which is not an
+        /// inconsistency but the measurement: over the human recording of
+        /// LaserTank.lvl 1 the longest stretch the winning line spends at or
+        /// above its own best value is 16 board changes ranked by work, 12 with
+        /// the ferry term, and **6** ranked by the learned evaluation -- inside
+        /// the solved population's p90 of 8 for the first time.  The benches
+        /// agree: ferry 14 -> 15, deep 17 -> 19 at width 48.
+        public bool PushLearned = true;
         public int PushFerry = 1;          // weight on Heuristic.RouteFerry; 0 is off
         public int PushRestarts = 6;       // extra attempts after a dead-end, each
                                            // doubling the width; 0 is off
@@ -460,6 +496,11 @@ namespace LaserTank.Solver
             public int G;                  // keypresses spent
             public int H;
             public ulong Hash;             // StateHash(S), for the closed set
+
+            /// The playfield alone, hashed -- layer 5's trim ranks over this
+            /// rather than over Hash, so it is filled in lazily by PushCut and
+            /// left at 0 by every other layer.
+            public ulong Board;
 
             /// 0 for a successor that advanced, 1 for one that is only there so
             /// the search has somewhere to go (layer 2's slack -- see

@@ -58,7 +58,25 @@ fits in its width, so that number, not the budget, is what says whether a level 
 Over the 402 recordings the solver has produced it is p50 6 / p90 21 keypresses. `LaserTank.lvl`
 level 1 is **68**. That is the difference between "needs more nodes" and "needs a different move
 set", and it is why four rounds of the interactive driver do not touch level 1 and a fifth would
-not either.
+not either. *(Session 18 found a second, duller reason on top of that one: the driver's push rung
+doubled its width every round, so by round 5 it was running at the worst width the bench measures.
+Fixed — but the ascent argument above stands on its own and level 1 is still unsolved.)*
+
+**Then ask where the search loses it, which is a different question and a newer tool.** `--profile`
+measures the *level*; `--push-line` measures the *searcher* against a line that is known to win.
+It replays one recording, keeps its state at every board change — one per push-beam depth — and
+runs the real beam with those in hand, reporting per depth whether the line was generated, how the
+ranking key placed it, and whether the width trim kept it:
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 1 \
+    --push-line data/demos/LaserTank/00001.lpb --nodes 20000000 --jobs 1
+```
+
+Read the last line (*followed to depth N of M, lost at K*) and then the row at K. This is what found
+the layer-5 bug that was costing forty-eight closures a depth — see *The width was being spent on
+tank poses*, below — and it is the first thing to reach for when a level with a recording will not
+fall.
 
 **The whole shipped chain** — a layer-0 campaign, then three passes that each attack only what the
 previous one failed. `STRIDE=5` gives the 4,185-level sample every number in Phase 4 is quoted
@@ -116,8 +134,9 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers; **472 of the 4,185-level stride sample (11.3%)**, all verified |
-| Solver, layer 5 | push macros: built, measured, **does not yet pay** — see its section |
-| Solver, layer 6 | the read: built, measured, and wired into layer 5 — **+7 of 50 on a ferry bench, not yet run over the corpus** |
+| Solver, layer 5 | push macros: the width was being spent on tank poses; fixed, **ferry bench 11/50 -> 20/50, deep 14/50 -> 21/50**, all verified |
+| Solver, layer 6 | the read: shipped inside layer 5 and still carrying its weight there (15/50 against 9/50 without it) |
+| Layer 5 over the corpus | **15 of 255 (5.9%) of the levels the whole chain fails**, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | Presentation (Godot) | not started — see Phase 5 |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
@@ -132,13 +151,28 @@ measured, not assumed: the fuzz campaign reached it zero times. It **throws** ra
 if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
 logic.
 
-**Next action: the decision pass for layer 6, which is the one measurement this session did not
-finish.** Everything else about layer 6 is measured; what is missing is whether it adds levels to
-the shipped chain. The run is written and was started twice and killed twice (both times to free
-the binary for a rebuild), so just run it:
+**Next action: the fourth pass, at a budget that matches what layer 5 costs.** The decision pass
+session 17 left undone has been run and it came out positive — 15 of 255 (5.9%) of the levels the
+shipped chain fails, all verified — so the open question is no longer *whether* layer 5 pays but
+*how much of the corpus it is worth spending on it*. One push expansion is a whole closure, so this
+is the one pass that has to be budgeted in tens of millions of nodes rather than hundreds of
+thousands:
 
 ```bash
-python - <<'EOF'          # rebuild build/reports/chain.jsonl if it is gone
+# the whole population the chain fails, not a 1-in-15 sample of it, at 40M nodes
+NODES=40000000 BUDGET_MS=1800000 JOBS=12 bash tools/second_pass.sh \
+    build/reports/chain.jsonl solutions/l5 build/reports/l5.jsonl \
+    --no-ida --no-beam --push --push-read
+python tools/report_stats.py build/reports/l5.jsonl
+python tools/verify_solutions.py build/solutions/l5
+```
+
+Budget it as hours, not minutes: 3,713 levels at 40M nodes is 10x the sample pass at 10x the budget.
+`SAMPLE=15` first if a rehearsal is wanted — that is the run above, and it took about twenty minutes
+at 12 jobs. Rebuild `build/reports/chain.jsonl` first if it is gone:
+
+```bash
+python - <<'EOF'
 import json
 rows={}
 for f in ["l0.jsonl","l3n.jsonl","l34.jsonl","l34pass4.jsonl"]:
@@ -147,26 +181,17 @@ for f in ["l0.jsonl","l3n.jsonl","l34.jsonl","l34pass4.jsonl"]:
             r=json.loads(line); rows[(r["collection"],r["level"])]=r.get("solved",False)
 with open("build/reports/chain.jsonl","w",encoding="utf-8") as w:
     for (c,l),sv in sorted(rows.items()):
-        w.write(json.dumps({"collection":c,"level":l,"solved":sv})+"
-")
+        w.write(json.dumps({"collection":c,"level":l,"solved":sv})+"\n")
 EOF
-
-# arm A -- layer 5 at the corrected width, no read
-SAMPLE=15 NODES=4000000 BUDGET_MS=900000 JOBS=14 bash tools/second_pass.sh   build/reports/chain.jsonl solutions/l6a build/reports/l6a.jsonl   --no-ida --no-beam --push --push-beam 48
-# arm B -- the same plus the read
-SAMPLE=15 NODES=4000000 BUDGET_MS=900000 JOBS=14 bash tools/second_pass.sh   build/reports/chain.jsonl solutions/l6b build/reports/l6b.jsonl   --no-ida --no-beam --push --push-beam 48 --push-read
-python tools/report_stats.py build/reports/l6a.jsonl --diff build/reports/l6b.jsonl
 ```
 
-About 250 levels an arm (`SAMPLE=15` of the 3,713 the chain fails), roughly half an hour each.
-**Read it knowing what it is**: a 4M-node pass is 27x the campaign budget, so a win here is an
-argument for a fourth pass at a high budget, not for changing the chain. And run the benches again
-only as a check - `bench.sh` on `build/reports/ferry-levels.txt` should still give 4/50 plain and
-11/50 with `--push-read` at width 48.
+**And the benches as a check, not as a decision**: `bench.sh` on `build/reports/ferry-levels.txt`
+and `deep-levels.txt` at 4M nodes with `--no-ida --no-beam --push --push-read` should give **20/50**
+and **21/50**, and adding `--push-beam 48 --push-per-board 0 --push-eval work --push-depth 400` — the
+configuration session 17 shipped — should still give 11/50 and 14/50.
 
-**Two smaller things that are ready and unmeasured.** Layer 5's width of 300 is wrong and 48 is
-better on both banked benches (deep 7 -> 13); that is a one-line default change nobody has run a
-campaign on. And `Trim.Polish` now removes 47% of a subgoal solution's keypresses, so **every banked
+**One smaller thing that is ready and unmeasured.** `Trim.Polish` now removes 47% of a subgoal
+solution's keypresses, so **every banked
 `.lpb` under `build/solutions/` is longer than it needs to be** - `--polish DIR` over each of them
 would refresh the corpus that layer 4 is fit on and `--profile` measures, which is not nothing:
 shorter trajectories change the ascent statistics the whole layer-5 argument rests on.
@@ -1445,7 +1470,7 @@ instrument now exists, so each further one is another row. Two distinct uses, wo
 Short recordings are not wanted: the solver already wins those, and they would push the fit further
 toward what it already knows.
 
-### Phase 4 — layer 5, push macros  ◐ (built, measured, does not yet pay)
+### Phase 4 — layer 5, push macros  ☑ (built, measured, and after session 18 it pays)
 
 **Built on the addendum's argument and measured against it.** `Push.cs`, `--push`, off by default.
 The action set is: one **PF-preserving movement closure** — everything the tank can do without
@@ -1475,6 +1500,15 @@ is two orders of magnitude fewer steps, and the bench says so plainly, on the 50
 It closes as the budget grows and it has not caught up. **So layer 5 does not ship in the chain
 yet**, and the honest statement of where it stands is that it buys the right *shape* and has not
 yet bought a level.
+
+> **Superseded in session 18, and the reason is worth keeping in place.** That table is real and
+> its explanation was wrong: the cost per expansion was not the binding constraint, the *trim* was.
+> A successor here is (board change, the pose it was fired from) and the trim was ranking forty
+> copies of one board against each other, so a width of 300 was searching a handful of boards and
+> paying for three hundred closures. Capping poses per board takes the same code to 20/50 on the
+> ferry bench and 21/50 on the deep bench — see *The width was being spent on tank poses*, below.
+> Everything between here and there is the reasoning that led to the instrument that found it, and
+> the ferry term below is a keeper on its own terms.
 
 **The ferry term, and it is the part worth keeping.** WorkDistance prices a water cell at 9 and
 does not move at all while a block is being carried towards it: the whole ferry — fetch, turn,
@@ -1737,6 +1771,8 @@ Two findings, and they are orthogonal:
   bench from **7/50 to 13/50**, which is the first time layer 5 has matched layer 0 (13/50) on that
   bench. Narrow-and-deep again, exactly as layer 3 measured for the subgoal beam — one push
   expansion is ~4,500 `ApplyKey` calls, so width is the most expensive thing this layer buys.
+  *(Session 18: right conclusion, wrong reason. Narrower was buying **fewer duplicate tank poses**,
+  not more focus — with the poses capped the whole curve moves and the best width is 8. See below.)*
 - **The read is worth roughly 2.75x on the population it was built for and nothing elsewhere.** At
   width 48, 4/50 → **11/50** on ferries and 13/50 → 14/50 on the deep bench. That split is the
   read's own claim about itself holding up: its three derivations are barrier, ferry and opens, and
@@ -1759,6 +1795,168 @@ word `partial` and `Engine.Search.cs` is unchanged since layer 0 — five layers
 is `src/LaserTank.Solver/Analyze.cs` (new) plus three flags and one option in `Program.cs`. All four
 fidelity gates re-run green after it: 187 replayed / 181 win / 6 documented, 29 difftrace, 2,347
 sweep identical, 25 fuzz.
+
+#### The width was being spent on tank poses — `--push-line`, and what it found  ☑
+
+**The instrument first, and this one is new in kind.** Three sessions had explained level 1 from the
+outside — the record's percentile, the ascent length, the read's verdict — and every explanation was
+true while none of them named *which line of code loses the level*. `--push-line FILE.lpb`
+(`Line.cs`) asks that directly: replay a winning recording, keep its state at every board change —
+one per push-beam depth, by construction — then run the real beam with those states in hand and
+report per depth whether the line's state was generated, what the ranking key made of it, and
+whether the width trim kept it. The hashes are read and never given to `Cut`, so a `--push-line` run
+*is* the run it is explaining.
+
+Four outcomes, and they call for different fixes: **CUT** (generated, ranked, outside the width —
+rank 60 at width 48 is a tiebreak problem, rank 3,000 is a ranking problem), **STALE** (refused by
+the closed set, which is a `--push-closed` finding and not a ranking one), **cut-early** (dropped by
+the interim trim inside the depth), and **absent** (never generated, which after `--read-dump`'s
+800/800 can only mean the parent was already gone). Aliveness is asked of the *playfield*, not of
+the state, and that distinction turned out to matter: every pose in a closure offers the same board
+changes, so a frontier holding the line's board at some other pose can still play the line's next
+move — and the runs show it doing exactly that, the exact state dropping out at one depth and
+reappearing two depths later. Losing the *board* is the loss that does not come back.
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 1 \
+    --push-line data/demos/LaserTank/00001.lpb --nodes 20000000 --jobs 1
+```
+
+**What it said about level 1 was one row long.**
+
+```
+line d=  1 CUT    rank=130/156  line-h=99  tier=0  best-h=90  cut-h=93  boards 3->0
+line d=  2 absent rank= -1/186  ...                                     boards 0->0
+```
+
+The line dies at **the first board change** — not at the 12-event ascent this layer was built for,
+but before the search has done anything at all.
+
+**And the cause is that the trim was counting the wrong thing.** A successor of this layer is
+(board change, the pose it was fired from), and one board change is reachable from *every* pose in
+the closure: level 1's root closure is 158 poses offering **4** distinct changes, so the expansion
+emits 156 successors that are four boards wearing thirty-nine hats each. `Cut` ranks them by a
+heuristic that depends on where the tank is standing and fills all 48 slots with poses of one or two
+of those boards. `--push-trace` grew a `boards=` column and it reads **1 to 9 distinct playfields at
+a width of 48**, and exactly one at three separate depths. Every duplicate then costs its own
+closure — ~4,500 `ApplyKey` calls — to expand into the successors its twin has already produced.
+**That is where this layer's budget was going**, and it re-explains every width experiment before
+it: narrower was never buying focus, it was buying fewer duplicates.
+
+**`--push-per-board N`** caps how many poses of one playfield the trim may keep, default 1, and `0`
+restores the old trim exactly. The frontier is then allowed to come out *narrower* than the width,
+which is the point — a depth that offers six distinct boards should cost six closures and not
+forty-eight. Poses are not interchangeable in general (a board change can cut the map in two with
+the tank on one side of it), which is why it is a cap rather than a dedupe. On the two banked
+benches at 4M nodes with everything else as layer 5 shipped it, width 48 and the read on:
+
+| `--push-per-board` | ferry bench | deep bench | level 1: line survives to |
+|---:|---:|---:|---:|
+| 0 *(layer 5+6 as shipped)* | 11/50 | 14/50 | board change 1 |
+| **1** | **14/50** | **17/50** | **board change 6** |
+| 2 | 11/50 | 16/50 | board change 7 |
+| 4 | — | — | board change 3 |
+
+The 11 and the 14 are session 17's recorded numbers reproducing to the level, which is the check
+that makes the rest of the table worth reading.
+
+**With the trim fixed, the ranking key changes hands.** `--push-line` prints the line's heuristic at
+every board change, so session 15's basin measurement is now one command at push granularity — and
+it says layer 4's learned evaluation is a different animal on this level than on the population it
+was fit on:
+
+| ranking key | longest stretch at-or-above its own best | deepest rise |
+|---|---:|---:|
+| `work`, ferry 0 | 16 board changes | +8 |
+| `work`, ferry 1 *(layer 5's old default)* | 12 | +8 |
+| `work`, ferry 2 | 12 | +10 |
+| `work`, ferry 3 | 11 | +21 |
+| **`learned`** | **6** | +8 |
+| *solved population* | *p50 1 / p90 8* | |
+
+Six is **inside the solved population's p90 for the first time on this level**. The four `work` rows
+reproduce session 16's 16/12/12/11 exactly, so the learned row is being read on the same scale. The
+benches agree: at width 48 with per-board 1, `learned` takes ferry 14 → 15 and deep 17 → 19, and
+dropping the read from that configuration costs 15 → 9 and 19 → 15, so the read is still carrying
+its weight — more of it than before, because a tier that names 5% of successors is worth something
+only at a width that does not already keep everything.
+
+**Then the width, re-measured on a trim that finally spends it on boards.** All at 4M nodes,
+per-board 1, read on, ranked by `learned`:
+
+| `--push-beam` | ferry bench | deep bench |
+|---:|---:|---:|
+| 4 | 17/50 | 20/50 |
+| **8** | **19/50** | **21/50** |
+| 16 | 18/50 | 20/50 |
+| 48 | 15/50 | 19/50 |
+| 128 | 13/50 | 17/50 |
+| 300 *(layer 5's old default)* | 8/50 | 12/50 |
+
+Narrow and deep for the third time in this project — layer 2's subgoal width, layer 3's
+grow-on-restart, now this — and this time the number is **8**. `--push-depth` came with it: at width
+4 seven of the ferry bench's fifty stopped at the 400-board-change cap, so it is now `MaxKeys`, a
+backstop again rather than something that stops a search which is still descending.
+
+**And one more thing the trace caught, in the restart.** The first version doubled the per-board cap
+alongside the width, on the argument that a dead-end can be either too few boards or too few ways
+into the one that mattered. `--push-trace` says otherwise: by the fourth restart level 1 was running
+at width 128 over **8 distinct boards** — the pose duplicates the cap exists to stop, quietly back.
+A restart now buys width only, worth ferry 19 → 20 with the deep bench unchanged at 21.
+
+**Where that leaves layer 5, and it is a different place.** New defaults — width 8, per-board 1,
+`learned`, depth 1200, restarts buying width alone — with the read:
+
+| | ferry bench | deep bench |
+|---|---:|---:|
+| layer 5+6 as session 17 shipped it | 11/50 | 14/50 |
+| **the same code, new defaults** | **20/50** | **21/50** |
+| *layer 0, for scale* | *—* | *13/50* |
+
+**40/40 verified through both engines** across those two benches, and the old configuration still
+reproduces its two numbers from its flags, so the delta is the change and not the machine.
+
+**The corpus pass that decides whether it ships, which is what session 17 left undone.** One pass
+over the levels the whole shipped chain fails, `SAMPLE=15` of them at 4M nodes:
+
+```bash
+SAMPLE=15 NODES=4000000 BUDGET_MS=900000 JOBS=12 bash tools/second_pass.sh \
+    build/reports/chain.jsonl build/solutions/l7 build/reports/l7.jsonl \
+    --no-ida --no-beam --push --push-read
+python tools/report_stats.py build/reports/l7.jsonl
+python tools/verify_solutions.py build/solutions/l7
+```
+
+**15 of 255 (5.9%), all fifteen verified through both engines** — Beginner-I 6/16, Challenge-II 2/26,
+Challenge-III 1/25, and a scatter elsewhere. Read it knowing what it is: 4M nodes is 27x the
+campaign budget, so this is an argument for **a fourth pass at a high budget**, not for changing
+what the campaign itself runs. Extrapolated over the 3,713 failures the chain has it is on the order
+of 200 levels, which would be 472 → ~690 of the 4,185-level stride sample; that extrapolation is a
+motivation to run the pass, not a number to quote.
+
+**And the interactive driver's push rung was getting *weaker* every round.** The ladder doubles a
+rung's width per round, which was written when the default was 300 and nodes were assumed to bind
+first; against a default of 8 it meant round 5 ran at 256, and the rung never turned the read on.
+Benched as the ladder actually ran it — width 256, no read — that is **11/50 on the ferry bench
+against the default's 20/50**. So "level 1 survives five rounds" was partly the ladder walking away
+from its own best configuration. The rung now grows **restarts** instead (6 and 36 both score
+20/50, so it is free, and a restart only ever spends budget a dead-end had already forfeit) and
+turns the read on, while the width stays where the sweep put it. `Auto.cs` only.
+
+**Level 1 is still unsolved**, and four 800M-node runs at width 4/8/16 and 10 restarts say so
+plainly rather than hopefully. The instrument says how much closer, and the honest version of that
+sentence needs a width on it: at width 48 the line now survives to board change **6** where the old
+trim lost it at **1**, and at the shipped width of 8 it survives to **2** — a narrower frontier
+holds fewer boards, so it gives the line back in exchange for depth, and the benches say to take
+that trade (19-20/50 against 15/50). What is not width-dependent is the endgame: at 100M nodes the
+search reaches a learned score of **14** against the human line's own final 10, where before the fix
+it stalled at 37. Depth 6 is the first
+of five roto-mirror rotations that set up a mirror-routed shot: pure setup, on which the read is
+silent by construction (they open nowhere new to stand and land on no barrier) and across which
+every ranking key this project has is flat. A fourth derivation — *"after this change the tank can
+make a board change it could not make before"* — is what would name them. It costs an effect
+enumeration per successor, which is the same price as expanding it, so it is a measurement to make
+before it is a feature to build.
 
 ### Phase 4 addendum — polishing a solution so it reads like a person played it  ☑
 
@@ -2239,6 +2437,20 @@ place despite not winning.
   Python's text mode makes it CRLF, and `core.autocrlf=true` then makes `git diff` show *nothing*
   while every line on disk has changed. Patch and restore in **bytes**, or pass `newline=''`.
   `tools/test_fuzz.py` does, and a green self-test leaves the tree byte-clean.
+- **Never run `test_fuzz.py` while a solver process is alive.** It rebuilds the core, and Windows
+  keeps `build/LaserTank.Core.dll` locked open by every running `lasertank-solve.exe`, so the
+  rebuild loses its retry ladder and *both* the "clean core builds" control and the restore check
+  report `FAIL` — a red gate that is entirely the machine. The tell is `MSB3027 ... The file is
+  locked by: "lasertank-solve (NNNNN)"` in the output. The tree is still left byte-clean, so the
+  fix is simply to wait for the search to finish and re-run. Same trap in the other direction:
+  `src/build.sh` cannot replace the binary while a search is running, which is what killed session
+  17's decision pass twice.
+- **A backslash does not survive `python - <<'EOF'` in this harness.** Rewriting `PROGRESS.md` (or
+  any file) through a Python heredoc silently turns `\n` into a real newline and eats `\` line
+  continuations, which is how the *Next action* block's `chain.jsonl` snippet came to be split
+  across two lines and its `second_pass.sh` invocation to lose its continuations. Use the editing
+  tools for anything containing a backslash, or write the replacement text to a file first and read
+  it in.
 - **The quirk packs mix `.lvl` and `.LVL`**, and the four that ship uppercase are the four biggest.
   A `glob("*.lvl")` is case-insensitive on Windows and silently drops them on Linux — it already
   cost one campaign four packs with no warning. Match on `suffix.lower()`, as `replay_all.py`,
@@ -2467,3 +2679,67 @@ entirely in reductions not found.
 
 Also: the interactive driver now writes to `./solutions` (committable) rather than gitignored
 `build/`. All four fidelity gates green, and `Engine.cs` still differs from layer 0 by one word.
+
+**2026-09-06, session 18 - the beam was ranking tank poses, and the instrument that said so.**
+Started from the same complaint as sessions 15 and 17 - *"level 1 is still not solvable even on
+round 5"* - and refused, again, to answer it by tuning. The three previous explanations were all
+true and none of them named a line of code, so the session built the instrument that does:
+**`--push-line`** (`Line.cs`) replays a hand recording, keeps its state at every board change - one
+per push-beam depth - and runs the real beam with those in hand, reporting per depth whether the
+line was generated, how the ranking key placed it and whether the width trim kept it. It reads the
+line's survival off the *playfield* rather than the state, because every pose in a closure offers
+the same board changes and the exact state routinely drops out at one depth and comes back two
+later.
+
+**It answered in one row.** Level 1's line dies at **the first board change**, ranked 130 of 156 -
+nowhere near the 12-event ascent layer 5 was built for. The cause is that a successor here is
+(board change, the pose it was fired from), and one change is reachable from every pose in the
+closure: the root closure is 158 poses offering **4** distinct changes, so 156 successors are four
+boards wearing thirty-nine hats each, and `Cut` - ranking by a heuristic that depends on where the
+tank stands - filled all 48 slots with poses of one or two of them. A `boards=` column added to
+`--push-trace` reads **1 to 9 distinct playfields at width 48**, and exactly one at three depths.
+Each duplicate then bought its own ~4,500-call closure to re-derive what its twin had already
+produced. **That is where the layer's budget had been going all along**, and it re-explains every
+"narrower is better" result before it: narrow was buying fewer duplicates, never focus.
+
+**`--push-per-board`**, default 1, caps poses per playfield and lets the frontier come out narrower
+than the width. Ferry bench 11/50 -> 14/50 and deep 14/50 -> 17/50 on that alone, with per-board 0
+reproducing session 17's recorded 11 and 14 exactly. Three more measurements followed from a trim
+that finally spends width on boards, and each moved a default: the **learned evaluation** makes
+level 1's winning line only **6 board changes uphill** against 12 for the ferry term and 16 for
+plain work - inside the solved population's p90 of 8 for the first time - and is worth ferry
+14 -> 15, deep 17 -> 19; the **width** wants to be **8** (ferry 19, deep 21) where 300 gives 8 and
+12; and the **restart** must buy width *alone*, because doubling the per-board cap with it had level
+1 running at width 128 over eight distinct boards by the fourth restart, the duplicates quietly
+back. `--push-depth` went to `MaxKeys` after seven of the ferry bench's fifty stopped at the old
+400 cap at width 4.
+
+**Layer 5 as it now stands: ferry 20/50 and deep 21/50 against 11/50 and 14/50**, layer 0 being
+13/50 on the deep bench; 40/40 verified through both engines, and the old configuration still
+reproduces its own two numbers from its flags. **And the corpus pass session 17 left undone was
+run**: over the levels the whole shipped chain fails, `SAMPLE=15` at 4M nodes, **15 of 255 (5.9%),
+all fifteen verified**. That is 27x the campaign budget, so it argues for a fourth pass at a high
+budget rather than for changing the campaign - which is now the next action, written out in
+*Status*.
+
+**Also: the interactive driver's push rung was getting weaker every round**, which is half of why
+the complaint that started this session kept coming back. The ladder doubles a rung's width per
+round, so against the new default of 8 round 5 ran at 256 and never turned the read on - benched as
+the ladder actually ran it, **11/50 on the ferry bench against the default's 20/50**. It now grows
+restarts instead (6 and 36 both score 20/50, so it costs nothing) and turns the read on.
+
+**Level 1 is still unsolved** - four 800M-node runs across widths 4/8/16 and 10 restarts - and is
+closer in a way that is measured rather than felt: at width 48 the line survives to board change 6
+where the old trim lost it at 1 (at the shipped width of 8 it is 2, a frontier that holds fewer
+boards buying depth with it), and the search reaches a learned score of 14 against the human line's
+own final 10 where before it stalled at 37. Depth 6 is the first of five roto-mirror
+rotations - pure setup, on which the read is silent by construction and every ranking key is flat.
+Naming those wants a fourth derivation, *"after this change the tank can make a board change it
+could not make before"*, which costs an effect enumeration per successor; that is a measurement to
+make before it is a feature to build.
+
+All four fidelity gates green (187/181/6, 29 difftrace, 2,347 sweep identical, 25 fuzz) - the fuzz
+one only on the second attempt, and the first attempt's failures are now *Environment notes*' newest
+trap: `test_fuzz.py` rebuilds the core and every live `lasertank-solve.exe` holds the published DLL
+open, so running it beside a search reports a red gate that is entirely the machine. `Engine.cs`
+still differs from layer 0 by one word and `Engine.Search.cs` is unchanged - six layers now.
