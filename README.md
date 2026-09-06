@@ -44,7 +44,8 @@ build/lasertank-solve.exe data/levels/Beginner-I.lvl --from 12 --to 40
 Walks the collection in level order and stays on each level until it solves it or you press a
 key (`q` quits). Every searcher runs at once, one per core, and the budget quadruples each round,
 so there is no timeout to pick. A solution is written only after `tools/verify_solutions.py` has
-replayed it through *both* engines — winners land in `build/solutions/auto/<collection>/`.
+replayed it through *both* engines — winners land in `data/solutions/<collection>/`, committed
+next to the rest of the game content.
 
 For measuring the solver rather than using it — whole-corpus campaigns, per-layer comparisons, the
 JSONL reports — see `tools/campaign.sh` and Phase 4 in [`PROGRESS.md`](PROGRESS.md);

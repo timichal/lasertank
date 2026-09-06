@@ -209,7 +209,7 @@ namespace LaserTank.Solver
             //    everything after it; drop the turn and the shot goes off in the
             //    wrong direction.  Only the pair comes out.  That is why a
             //    solution can be single-key minimal and still read as machine
-            //    output, which is exactly what `solutions/Challenge-I/00001.lpb`
+            //    output, which is exactly what `data/solutions/Challenge-I/00001.lpb`
             //    was when this was written.
             //
             //    Back to front so an accepted deletion cannot move an index
@@ -218,7 +218,7 @@ namespace LaserTank.Solver
             // Widest first, and *every* small width rather than a halving
             // ladder.  ddmin's usual 1/2/4/8/16 was the first version and it is
             // not enough here: the artifact Michal actually pointed at in
-            // `solutions/Challenge-I/00001.lpb` -- aim south, fire at nothing,
+            // `data/solutions/Challenge-I/00001.lpb` -- aim south, fire at nothing,
             // aim west, step, fire at nothing, before the one shot that counts
             // -- is *five* keys long, and 5 is precisely what a halving ladder
             // skips.  A run of pointless play is as long as it is; there is no
