@@ -124,21 +124,61 @@ namespace LaserTank.Solver
             // has been shown to pay.  The read goes on for the same reason it
             // is on in every bench above: 20/50 with it, 9/50 without.
             //
-            // **The fourth derivation joins from round 2**, and the round is
-            // the whole of the argument.  --push-enables is 19/50 on the ferry
-            // bench against 20/50 without it and 19/50 on the deep bench
-            // against 21/50, so it does not belong on a round whose population
-            // still contains levels the cheap derivations solve.  From round 2
-            // the population is levels the earlier rounds already failed, which
-            // is exactly what it is for: `LaserTank.lvl` 1 is unsolved by four
-            // 800M-node runs without it and solves in 15M with it, at this
-            // rung's own default width.
+            // The fourth derivation is deliberately *not* here.  It costs this
+            // configuration a level on the ferry bench and two on the deep one,
+            // and a rung that has been tuned to its best measured setting is
+            // the wrong place to spend that.  It gets a rung of its own below,
+            // for the same reason `learned` is a rung rather than a change to
+            // `subgoal`: it solves levels this does not, and loses levels this
+            // wins, so the answer is a thread and not a preference.
             ("push", static (o, r) =>
             {
                 o.RunPush = true;
                 o.PushRead = true;
                 o.PushRestarts += 6 * r;
-                if (r >= 2) o.PushEnables = 8;
+            }),
+            // layer 6's fourth derivation: *what does this change make
+            // possible?*  The rung that exists because `LaserTank.lvl` 1 does.
+            //
+            // **Why a rung and not a flag on the one above.**  Session 19
+            // measured it both ways: 19/50 on the ferry bench against that
+            // rung's 20/50 and 19/50 on the deep bench against its 21/50, and
+            // level 1 -- which four 800M-node runs of every other rung never
+            // touched -- in 6.19M nodes.  A configuration that trades two
+            // levels for a level nothing else reaches is a specialist, and the
+            // driver's whole premise is that a specialist costs a *core* rather
+            // than a share of somebody's budget.  Nobody running this should
+            // have to know that a flag exists, let alone which level wants it.
+            //
+            // **The width is the one thing this rung changes with the round**,
+            // and it is measured as a *union* with the rung above rather than
+            // on its own -- which is the only honest way to pick a knob for a
+            // portfolio member, and it gives a different answer from the
+            // solo score.  All at 4M nodes, the plain rung's own solved set
+            // against what each width adds to it:
+            //
+            //             solo   union with the plain rung   it adds
+            //   ferry   w8  19            24                    4
+            //           w48 14            21                    1
+            //   deep    w8  19            26                    5
+            //           w48 18            26                    5
+            //
+            // So the default width is the better partner and the wider one is
+            // not redundant: all three configurations together are 24 and 28,
+            // so w48 contributes two deep levels the other two never reach.
+            // Early rounds take the width the bench prefers; from round 3 --
+            // by which point the budget is 25.6M and everything either bench
+            // solves at 4M has already had three chances at it -- the rung
+            // widens, because that is the width `LaserTank.lvl` 1 wants: 6.19M
+            // nodes and 18 s at 48, against 412 s at 8.  One rung, both widths,
+            // and no core spent on the disagreement.
+            ("push-enables", static (o, r) =>
+            {
+                o.RunPush = true;
+                o.PushRead = true;
+                o.PushEnables = 8;
+                if (r >= 3) o.PushBeamWidth = 48;
+                o.PushRestarts += 6 * r;
             }),
         };
 

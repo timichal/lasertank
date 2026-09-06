@@ -64,8 +64,10 @@ Fixed — but the ascent argument above stands on its own.)*
 
 *(Session 19: **level 1 is solved**, and the ascent argument is why it took a new derivation rather
 than a bigger budget. `--push-enables` names the moves every ranking key is flat across — see*
-The fourth derivation, *under layer 6. It is off by default and it is what to reach for on any level
-whose `--push-line` dies on setup moves.)*
+The fourth derivation, *under layer 6. Nobody has to know that: it is a rung of the interactive
+driver, so `lasertank-solve.exe data/levels/LaserTank.lvl --from 1 --to 1` solves level 1 in 67
+seconds with no flags. The flag is what to reach for in a **batch** run whose `--push-line` dies on
+setup moves.)*
 
 **Then ask where the search loses it, which is a different question and a newer tool.** `--profile`
 measures the *level*; `--push-line` measures the *searcher* against a line that is known to win.
@@ -144,7 +146,7 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 | Solver | four shipped layers; **472 of the 4,185-level stride sample (11.3%)**, all verified |
 | Solver, layer 5 | push macros: the width was being spent on tank poses; fixed, **ferry bench 11/50 -> 20/50, deep 14/50 -> 21/50**, all verified |
 | Solver, layer 6 | the read: shipped inside layer 5 and still carrying its weight there (15/50 against 9/50 without it) |
-| Solver, layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`, **off by default**: 19/50 and 19/50 against the benches' 20/50 and 21/50, and it **solves `LaserTank.lvl` 1**, which nothing else has |
+| Solver, layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`, off in the batch solver, and its **own rung in the interactive driver**, where it adds 4 ferry / 5 deep levels to the rung beside it and **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 5 over the corpus | **15 of 255 (5.9%) of the levels the whole chain fails**, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | Presentation (Godot) | not started — see Phase 5 |
 
@@ -2047,8 +2049,10 @@ default:**
 | + `--push-enables 8`, ungated | 12/50 | — |
 
 It is a level worse on one and two worse on the other. That is the whole case for `--push-enables`
-being **off by default** and for it entering the interactive driver only from **round 2**, where the
-population is levels the cheap derivations have already failed.
+being **off by default** — and, as it turned out, the wrong way to read the number for the one place
+a user actually meets the solver. See *The rung*, below: measured as a *union* with the rung it runs
+beside rather than on its own, the same configuration **adds four ferry levels and five deep ones**.
+A solo score is the wrong statistic for a portfolio member.
 
 **And what it buys, which the two benches cannot see because neither contains a level of this
 shape.** `--push-line` on level 1 at width 48, 40M nodes — how far the beam follows the human
@@ -2102,6 +2106,58 @@ has opened with since session 15. **4/4 verified through both engines**, p50 1.7
 in 6.19M nodes at width 48, which is why it carries a width in its row and the others do not. The
 speedups on 3 and 7 are real but are one sample each and should be read as noise until a population
 says otherwise; 11 is 4x *slower* with it, which is the same caveat pointing the other way.
+
+#### The rung — and why the solo bench score was the wrong statistic  ☑
+
+**Michal's objection, and it is the right one:** *"we have to somehow incorporate this into the
+autosolver — the user won't know to fine tune random parameters for specific levels."* A flag that
+solves the flagship level and that nobody will ever type is not a feature. The first attempt was to
+switch it on inside the existing push rung from round 2, which is the cheap answer and the wrong
+one: it makes a rung that has been tuned to its best measured setting worse, on the argument that a
+later round's population is different — an argument with nothing measured behind it.
+
+**The driver's own design says what to do instead.** It is a portfolio: every searcher runs at once,
+one per core, and a specialist costs a *core* rather than a share of anybody's budget — which is
+exactly why `learned` is a rung beside `subgoal` rather than a change to it. So the fourth
+derivation gets a rung, `push-enables`, and the ladder goes from five searchers to six.
+
+**And the moment it is a portfolio member the bench numbers have to be read differently.** A solo
+score answers "is this configuration better", which is not the question; the question is "does this
+add anything the rung beside it does not". All at 4M nodes, against the plain push rung's own solved
+set:
+
+| | solo | union with the plain rung | it adds |
+|---|---:|---:|---:|
+| plain push rung (session 18's) | 20 / 21 | — | — |
+| **+ `--push-enables 8` at the default width 8** | 19 / 19 | **24 / 26** | **+4 / +5** |
+| + `--push-enables 8` at width 48 | 14 / 18 | 21 / 26 | +1 / +5 |
+| *all three together* | | *24 / 28* | |
+
+*(ferry / deep.)* **The configuration that looks like a one-to-two-level loss on its own is a
+four-to-five-level gain next to the rung it runs beside**, because the levels it fails are not the
+levels the other rung fails. That is the entire case for the rung, and it is invisible in every
+table above this one.
+
+**The width is the one thing the rung changes with the round.** The default of 8 is the better
+partner (+4/+5 against +1/+5) and 48 is what level 1 wants — 6.19M nodes and 18 s, against 412 s at
+width 8. Both, then: width 8 while the rounds are cheap, and 48 from **round 3**, by which point the
+budget is 25.6M and anything either bench solves at 4M has had three chances at it already. One
+rung, both widths, no core spent on the disagreement.
+
+**The test that matters is the one a user would run**, with no flags anywhere:
+
+```bash
+build/lasertank-solve.exe data/levels/LaserTank.lvl --from 1 --to 1
+```
+
+```
+  round 3: 25.6M nodes to each of 6 searchers
+  SOLVED  294 keys (157 moves, 47 shots), 2.0x the record   push, round 3, 67s, 6.2M nodes
+  verified through both engines -> data\solutions\LaserTank\00001.lpb
+```
+
+**67 seconds, from the bare command line, banked and verified without being asked.** That is the
+difference between a derivation that exists and one that ships.
 
 **What the knobs are, and what the pose cap is really for.** `--push-enables N` is the number of
 distinct playfields per expansion that may be asked (0 = off). `--push-enables-poses N` caps the
@@ -2956,14 +3012,28 @@ it at 1 - past all five rotations and past the mirror shot they set up.
 the same budget cannot solve without it, while 3, 7 and 11 come out either way. Four of nineteen
 against three, **4/4 verified**, and the honest headline is *two levels*.
 
-**What it costs, which is why it does not ship on.** Ferry bench **19/50** against 20/50 and deep
+**What it costs, which is why it is off by default.** Ferry bench **19/50** against 20/50 and deep
 **19/50** against 21/50, both at 4M nodes - and with `--push-enables 0` both benches reproduce
-session 18's numbers exactly on the final build. So: off by default, and it joins the interactive
-driver's push rung from **round 2**, where the population is levels the cheap derivations have
-already failed. `--push-enables-poses` (default 32) caps the child closure it looks from; truncating
-costs promotions and cannot invent them, which is what makes a small default safe - it holds the
+session 18's numbers exactly on the final build. `--push-enables-poses` (default 32) caps the child
+closure it looks from; truncating costs promotions and cannot invent them, which is what makes a
+small default safe - it holds the
 level-1 line only to board change 4 where the whole closure holds it to 11, and the level solves at
 either, because a search does not have to follow the human's line to win.
+
+**And then Michal made the objection that mattered** - *"we have to somehow incorporate this into
+the autosolver - the user won't know to fine tune random parameters for specific levels"* - which is
+right, and which the first answer got wrong. Switching the flag on inside the existing push rung
+from round 2 makes a rung tuned to its best measured setting worse on an argument with nothing
+measured behind it. The driver is a *portfolio*, so the answer is its own rung, `push-enables`, six
+searchers instead of five - and the moment it is a portfolio member the bench numbers have to be
+read as a **union** rather than solo. Against the plain push rung's own solved set at 4M nodes, the
+configuration that scores 19/50 and 19/50 alone **adds four ferry levels and five deep ones**;
+at width 48 it adds one and five, and all three together are 24 and 28. **A solo score is the wrong
+statistic for a portfolio member**, and every table in this session's notes above that point is
+written in it. The rung therefore runs at the default width while the rounds are cheap and widens to
+48 from round 3, which is where level 1 lives. The test is the one a user would actually run:
+`build/lasertank-solve.exe data/levels/LaserTank.lvl --from 1 --to 1`, no flags, **solved in 67
+seconds at round 3**, verified through both engines and banked to `data/solutions/` unasked.
 
 All four fidelity gates green (187 replayed / 181 win / 6 documented, 29 difftrace, 2,347 sweep
 identical, 25 fuzz). `Analyze.cs`, `Push.cs`, `Search.cs`, `Program.cs` and `Auto.cs` only -
