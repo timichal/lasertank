@@ -77,7 +77,7 @@ pass is skipped by a later one, so no `.lpb` is ever written twice.
 
 These are the reason the numbers in this file can be trusted.
 
-- **Bench on the corpus, not on a filtered population.** `build/reports/bench-levels.txt` is levels
+- **Bench on the corpus, not on a filtered population.** `bench/bench-levels.txt` is levels
   layer 0 failed. It flattered layers 1 and 2, overstated layer 3's budget scaling and *understated*
   layer 4. A bench picks parameters; only a campaign decides what ships.
 - **Govern by `--nodes`, never wall clock.** A node is one `Engine.ApplyKey`. Seconds are not
@@ -107,7 +107,7 @@ These are the reason the numbers in this file can be trusted.
 |---|---|
 | Layers 0-4, the chain | **472 of the 4,185-level stride sample (11.3%)**, every solution verified through both engines |
 | Layer 5 — push macros | board-change search. Ferry bench **20/50**, deep **21/50** (from 11 and 14 before the pose-duplicate fix) |
-| Layer 6 — the read | derives what is in the way and what can change it. Ships inside layer 5's rung (15/50 against 9/50 without it) |
+| Layer 6 — the read | derives what is in the way and what can change it. Ships inside layer 5's rung (15/50 against 9/50 without it). Its anti-tank-on-the-route rule is `--read-antitank-wall`, **off by default** — see *Layer 8* |
 | Layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`; own rung, adds 4 ferry / 5 deep, **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
@@ -140,6 +140,19 @@ attack on it.
 ---
 
 ## Next actions
+
+> **Read this first — session 24.** `build/` is empty on this machine (Michal moved machines; it is
+> gitignored, so nothing in it travelled). That makes **items 1, 2 and 3 below unrunnable exactly as
+> written**: the level lists, `chain.jsonl` and every banked campaign solution are gone. The
+> ordering has changed accordingly — **item 0 now comes before all of them**, because it is what
+> makes the rest possible again.
+>
+> **0. Re-run the layer-0 campaign, and commit the three level lists to `bench/` this time.** The
+> chain at the top of this file rebuilds `build/reports/*.jsonl` and `build/solutions/`;
+> `chain.jsonl` is then the union of the four. `deep-levels.txt` is the only list derivable without
+> a campaign (it is a `.ghs` total filter). Until this is done, no number in the tuning tables can
+> be re-checked, and the *19/50 and 21/50* bench check in item 1 has nothing to run against. See
+> `bench/README.md`.
 
 **1. The fourth pass, at a budget that matches what layer 5 costs.** The decision pass came out
 positive — 15 of 255 (5.9%) of the levels the shipped chain fails, all verified — so the open
@@ -176,12 +189,13 @@ they are missing, not a nice-to-have:
 Note the raised `--max-keys`: 1,200 is a silent cap on any level whose solution runs long, which is
 exactly the population this pass is.
 
-**And the benches as a check, not as a decision:** `bench.sh` on `build/reports/ferry-levels.txt`
+**And the benches as a check, not as a decision:** `bench.sh` on `bench/ferry-levels.txt`
 and `deep-levels.txt` at 4M nodes with `--no-ida --no-beam --push --push-read` should give **19/50**
 and **21/50**; adding `--push-beam 48 --push-per-board 0 --push-eval work --push-depth 400` (the
 session-17 configuration) should still give 11/50 and 14/50.
 
-**2. Refresh the banked solutions.** `Trim.Polish` removes 47% of a subgoal solution's keypresses and
+**2. Refresh the banked solutions.** *(Blocked on item 0: `build/solutions/` is empty.)*
+`Trim.Polish` removes 47% of a subgoal solution's keypresses and
 `Replan.Improve` another slice on top, so **every banked `.lpb` under `build/solutions/` is longer
 than it needs to be** — they all predate the replan pass. `--polish DIR` runs both over each of them.
 This is not cosmetic: shorter trajectories change the ascent statistics the whole layer-5 argument
@@ -195,18 +209,30 @@ afterwards. That is the normal working loop, not a lost result — so a level na
 file may be absent from the directory at any given moment, and the way to check whether it is solved
 is this file plus `build/`, never a directory listing.
 
-The one thing worth acting on is that **shorter verified solutions for both are sitting in `build/`**
-than the ones normally banked:
+~~The one thing worth acting on is that shorter verified solutions for both are sitting in `build/`~~
+— **session 24: those files are gone with the rest of `build/`.** What they were:
 
-| lvl | shortest verified file | keys | ratio | the banked one |
+| lvl | shortest verified file, now lost | keys | ratio | banked now |
 |---:|---|---:|---:|---|
-| 8 | `build/w/w8-2048/LaserTank/00008.lpb` | **308** (262 + 46) | **1.4x** | 335 / 1.5x (`build/e8` is the same length) |
-| 9 | `build/w/b9-b/LaserTank/00009.lpb` | **114** (81 + 33) | **1.9x** | 127 / 2.2x (`build/w/g9`) |
+| 8 | `build/w/w8-2048/LaserTank/00008.lpb` | 308 (262 + 46) | 1.4x | 335 / 1.5x |
+| 9 | `build/w/b9-b/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **127 / 2.2x, re-derived** |
 
-All four re-verified in session 23 — every one wins on both engines with byte-identical traces. Which
-configuration produced the two *shorter* files is not recorded; the widths in the directory names
-(`w8-2048`, `b9-b`) are the only clue, so the attribution in *Levels 8 and 9 are solved* below is
-session 22's own and the shorter files are unattributed. Worth a `--polish` pass either way.
+Which configuration produced either is not recorded — the widths in the directory names were the only
+clue — so **neither is reproducible and the 308 and 114 routes are lost**, not merely misplaced. That
+is the same lesson as `bench/`: a verified result that lives only in a gitignored directory is not
+banked.
+
+Level 9's was re-derived in session 24 and is banked again at **127 keys / 2.2x**, verified through
+both engines, from the `push-ferry-work` rung at its round-5 settings run directly — 16m36s:
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 9   --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall   --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16   --push-beam 2048 --max-keys 5000 --push-restarts 30   --nodes 250000000 --budget-ms 3600000 --out build/short9
+```
+
+**This is the command to use for level 9, not the driver.** An unattended driver run banks the beam's
+**294-key / 5.0x** route instead, because the beam reaches its win at 94.3M nodes and
+`push-ferry-work` needs 162.8M, so the beam always gets there first and cancels it. Level 8's 308 has
+not been re-derived.
 
 **4. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both now want the same thing, and
 it is not budget. 6 wants layer 2's decomposition one level out: commit to one block-and-hole pair,
@@ -1118,7 +1144,20 @@ and reporting `budget`.
 
 Both verified and banked under `data/solutions/LaserTank/` — level 9 from the layer-8 run, because 127
 keys against 294 is not close. (Either may be temporarily absent from that directory: see *Next
-actions*, item 3, which also lists **shorter verified files for both** sitting in `build/`.)
+actions*, item 3.)
+
+> **Session 24: the shorter files item 3 pointed at are gone.** `build/w/` is empty — `build/` is
+> gitignored and did not survive the reorg — so `build/w/b9-b/…` (114 keys) and `build/w/w8-2048/…`
+> (308 keys) no longer exist and the 114-key level-9 route is lost unless it is re-derived. **And an
+> unattended driver run re-banks the *worse* level-9 route**, because the beam reaches its win at
+> 94.3M nodes while `push-ferry-work` needs 162.8M: the beam always gets there first and cancels the
+> rest. That is now the one case where the driver cannot produce the solution this table credits, and
+> it is why the round's winner is chosen by *length* rather than by ladder order — see *The
+> interactive driver*. Measured while re-checking it: the beam's route is **73 board changes** and
+> `Replan.Improve` cannot touch it (294 → 294 at width 64 and 50M nodes, terminating on `done` rather
+> than on budget), against **26** for the hand recording in `data/demos/`, which itself polishes to
+> **96 keys / 1.63x** — better than either solver route. A 5.0x solution is a bad *route*, and no
+> post-processing is a substitute for finding a better one.
 **Level 8 is layer 8's** (unsolved at 400M at width 512 on
 the learned key, at 150M at width 128 on either, and at 80M without the new terms), and
 `--from 8 --to 8` with no flags lands it at round 4 in 9m51s.
@@ -1202,6 +1241,15 @@ there. If nobody wins, the node budget quadruples and the round repeats — 400k
 second; 400M on round 5, about an hour — and rounds also widen what only widening helps: the raw beam
 doubles its width (a `beam-dead-end` has nothing to do with a bigger budget), the subgoal beam gets six
 more restarts, and the push rungs step their widths where a level has paid for the step.
+
+**The round's winner is the shortest solution, not the first one in ladder order.** More than one
+rung crossing the line in the same round is common — the stop bit is polled every 120 ms and a rung
+already past its search and inside `Clean()` never sees it — and the routes they bring back are not
+equally good. Choosing by ladder index made that a coin toss dressed as a policy; everything compared
+here has already been through `Clean()`, so it is two finished solutions being compared on the number
+the result line prints. Ties keep the earlier rung, which keeps the choice deterministic. *This does
+not rescue `LaserTank.lvl` 9* — there the beam is the only rung that solves at all before it cancels
+the others — but it stops the ladder's shape from silently deciding which of two winners is banked.
 
 **The two-engine gate is not optional here, it is the write path.** A win goes to a scratch `.lpb`,
 then to `tools/verify_solutions.py` (which grew a `--levels` argument so one candidate can be checked
@@ -1448,11 +1496,27 @@ basin.py          read a --profile dump: how far uphill a winning line goes, per
 verify_solutions.py  the gate.  Both engines, WIN on each, byte-identical traces
 ```
 
-The banked level lists live in `build/reports/`: `bench-levels.txt` (60 levels layer 0 failed,
+> **Session 24: `build/` is empty on this machine, and it held more than artefacts.** Michal moved
+> machines; `build/` is gitignored, so nothing in it travelled. `build/reports/` and
+> `build/solutions/` are both gone — the three level lists, `chain.jsonl`, and every banked campaign
+> solution with them. That makes the *19/50 and 21/50* check in *Next actions* item 1, the fourth
+> pass (which needs `chain.jsonl`), the `--polish` pass in item 2, and the shorter `.lpb` files in
+> item 3 all **unrunnable as written**, and the tuning tables below not reproducible on this tree
+> until a layer-0 campaign has been re-run.
+>
+> **The rule it pays for: a list that only lives in a gitignored directory is not banked.** The
+> curated lists are small, hand-picked and are what every number in this file is measured against —
+> a machine move should not be able to take them. They now belong in **`bench/`**, committed; see
+> the README there for what does and does not go in it.
+
+The banked level lists live in **`bench/`**, committed — see the README there for why, and for what
+belongs beside them. The reports they are compared through stay in `build/reports/`, which is
+gitignored and machine-local. The lists: `bench-levels.txt` (60 levels layer 0 failed,
 GAUNTLET-heavy), `deep-levels.txt` (50 `Beginner-I` levels with a `.ghs` total of 40-150),
-`ferry-levels.txt` (50 the chain fails that the read calls FERRY or SOKOBAN — banked because the two
-older lists contain almost no ferry), and `chain.jsonl` (the shipped chain's final per-level state, so
-`second_pass.sh` can be pointed at everything it still fails).
+and `ferry-levels.txt` (50 the chain fails that the read calls FERRY or SOKOBAN — banked because the
+two older lists contain almost no ferry). `build/reports/chain.jsonl` is *not* one of them: it is the
+shipped chain's final per-level state, so `second_pass.sh` can be pointed at everything it still
+fails, and it is an output tied to one code version rather than a curated input.
 
 ---
 
@@ -1600,3 +1664,25 @@ came out of re-reading the claims against the tree and the machine:
 The general form of the second one is worth keeping, because it is this file's own framing arithmetic
 turned back on it: **`closure~` × width × board changes says what a perfect beam costs, and when that
 product exceeds the budget the answer is to shrink a factor, not to raise the budget.**
+
+**session 24 — an ungated derivation, and a tie-break that was choosing by accident.** Started from
+two complaints, and both were real:
+
+- **Level 1 regressed and the attribution is exact.** Session 22's read correction — an anti-tank
+  standing *on* the route is a barrier, not only a threat — was the one thing in that commit not
+  behind a flag, and `PushRead` is on for all five push rungs. At identical flags it cost level 1
+  **272 keys in 22 s → 289 in 60 s**, and in the driver **round 3 and 6.19M nodes → round 4 and
+  33.5M**, because the barrier set decides the tier and the tier decides the beam's order. Reverting
+  that hunk alone restores 272 exactly; it is now `--read-antitank-wall`, off by default, on in the
+  two rungs that were measured with it. The `--analyze` instrument keeps it unconditionally, because
+  a mis-classified GAUNTLET is a wrong answer rather than a tuning and no rung is fitted to it.
+  **The rule this pays for: a derivation shared by every rung is a flag, not an improvement** — the
+  rungs below it were tuned against its absence, and "it is obviously more correct" is not a
+  measurement.
+- **The driver was choosing between two winners by ladder index.** Which is to say by accident. It
+  now keeps the shortest, which is free and which the level-9 numbers argue for even though it does
+  not rescue that level.
+
+And one thing that is not a bug and was worth measuring anyway: **level 9's 5.0x is the route, not
+missing polish.** 73 board changes against the hand recording's 26, and `Replan.Improve` moves it by
+nothing at width 64 and 50M nodes. Post-processing does not substitute for a better search.

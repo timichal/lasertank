@@ -252,6 +252,11 @@ namespace LaserTank.Solver
             {
                 o.RunPush = true;
                 o.PushRead = true;
+                // Layer 8's read as well as layer 8's terms: an anti-tank on
+                // the route is a barrier here.  See ReadDerive -- it is flagged
+                // because it is not free, and these two rungs are the ones it
+                // was measured with.
+                o.ReadAntiTankWall = true;
                 o.PushReach = true;
                 o.PushFerryMatch = true;
                 o.PushFerryMaze = true;
@@ -296,6 +301,11 @@ namespace LaserTank.Solver
                 o.RunPush = true;
                 o.PushRead = true;
                 o.PushLearned = false;
+                // Layer 8's read as well as layer 8's terms: an anti-tank on
+                // the route is a barrier here.  See ReadDerive -- it is flagged
+                // because it is not free, and these two rungs are the ones it
+                // was measured with.
+                o.ReadAntiTankWall = true;
                 o.PushReach = true;
                 o.PushFerryMatch = true;
                 o.PushFerryMaze = true;
@@ -749,14 +759,28 @@ namespace LaserTank.Solver
                 if (_quit || lane.Skip) Stop(lane);
             }
 
+            // **The shortest win, not the first one in ladder order.**  More
+            // than one rung crossing the line in the same round is common --
+            // the stop bit is only polled every 120 ms, and a rung already past
+            // its search and inside Clean() does not see it at all -- and the
+            // routes they bring back are not equally good.  Picking by index
+            // silently preferred whichever specialist sits higher in the
+            // ladder; on a level where two rungs land together that is a coin
+            // toss dressed as a policy.  Keys is the same number the result
+            // line reports and the same one `--polish` is measured in, and
+            // everything here has already been through Clean(), so the
+            // comparison is between two finished solutions rather than two
+            // raw ones.  Ties keep the earlier rung, which keeps the choice
+            // deterministic when the routes are the same length.
             Program.Outcome win = null;
             for (int i = 0; i < tasks.Length; i++)
             {
                 Program.Outcome o = tasks[i].Result;
                 if (o.Error != null && !o.Solved)
                     Say("  " + Ansi.Red("error") + " " + o.Error);
-                if (win == null && o.Solved)
+                if (o.Solved && (win == null || o.Keys < win.Keys))
                 {
+                    if (win != null) File.Delete(win.J.LpbPath);   // beaten
                     // The searcher names itself after its *layer*, so three
                     // rungs now report "push" and the result line stops saying
                     // which configuration actually did it -- which is the one
@@ -765,7 +789,7 @@ namespace LaserTank.Solver
                     win = o;
                     continue;
                 }
-                File.Delete(o.J.LpbPath);          // loser, or a duplicate win
+                File.Delete(o.J.LpbPath);          // loser, or a longer win
             }
             return win;
         }

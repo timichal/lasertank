@@ -86,6 +86,11 @@ namespace LaserTank.Solver
                                            // cheap flag-component proxy on every
                                            // successor, N>0 = the executed pose
                                            // closure on the best N, 0 = off
+        public bool ReadAntiTankWall;      // the read counts an anti-tank standing
+                                           // *on* the route as a barrier, not
+                                           // only as a threat.  Off is what every
+                                           // rung below layer 8 was tuned against;
+                                           // see ReadDerive
         public bool ReadEnables;           // layer 6's fourth derivation, instrument
                                            // only: after this change, is there a
                                            // board change the tank could not make

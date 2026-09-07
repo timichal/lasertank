@@ -758,8 +758,24 @@ namespace LaserTank.Solver
                 // with them excluded the barrier came back empty, ReadAdvances
                 // returned false for every successor at every depth, and the
                 // read said nothing at all for the whole level.
+                //
+                // **Behind a flag, and that is session 24's correction rather
+                // than a preference.**  Admitting it changes the barrier on any
+                // level with an anti-tank on the route, so it changes the tier,
+                // the beam's order and the search -- for every rung that reads,
+                // which is all five push rungs.  Shipped ungated it cost
+                // `LaserTank.lvl` 1 both its route and its round: 272 keys in
+                // 22 s became 289 in 60 s at the same flags, and the driver's
+                // push-enables rung went from round 3 to round 4 because 6.19M
+                // nodes became 33.5M.  Reverting this one hunk alone restores
+                // 272 exactly, which is the whole attribution.  So the rungs
+                // tuned before layer 8 keep the read they were measured with,
+                // and the two layer-8 rungs -- tuned with it, and the reason it
+                // exists -- ask for it.  The `--analyze` instrument keeps it
+                // unconditionally: a mis-classified GAUNTLET is a wrong answer
+                // rather than a tuning, and no rung is fitted to it.
                 if (cell >= Obj.AntiTankUp && cell <= Obj.AntiTankLeft
-                    && !_readOnRoute[i]) continue;
+                    && !(_opt.ReadAntiTankWall && _readOnRoute[i])) continue;
                 _readBarrier.Add(_readInto[i]);
                 if (cell == Obj.Water) _readWater.Add(_readInto[i]);
             }

@@ -185,6 +185,10 @@ namespace LaserTank.Solver
 "                         --lpb-list, stop at every board change, and record\n" +
 "                         whether the change the human made next is one the\n" +
 "                         read named.  Needs --lpb-list\n" +
+"    --read-antitank-wall the read counts an anti-tank standing *on* the\n" +
+"                         route as a barrier, not only as a threat.  Off\n" +
+"                         is what every rung below layer 8 was tuned\n" +
+"                         against; the two push-ferry rungs turn it on\n" +
 "    --read-enables       add the fourth derivation to --read-dump and\n" +
 "                         --analyze: after this change, is there a board\n" +
 "                         change the tank could not make before?  Costs a\n" +
@@ -469,6 +473,8 @@ namespace LaserTank.Solver
                         case "--read-dump": a.ReadDumpOut = V(); break;
                         case "--push-line": a.PushLine = V(); break;
                         case "--read-opens": a.Opt.ReadOpensCap = int.Parse(V()); break;
+                        case "--read-antitank-wall":
+                            a.Opt.ReadAntiTankWall = true; break;
                         case "--read-enables": a.Opt.ReadEnables = true; break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
@@ -1170,6 +1176,7 @@ namespace LaserTank.Solver
             TimeBudgetMs = s.TimeBudgetMs,
             TickCap = s.TickCap,
             ReadOpensCap = s.ReadOpensCap,
+            ReadAntiTankWall = s.ReadAntiTankWall,
             ReadEnables = s.ReadEnables,
             PushRead = s.PushRead,
             PushReadOpens = s.PushReadOpens,

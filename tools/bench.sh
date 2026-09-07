@@ -6,14 +6,14 @@
 # The two lists that matter are already banked, which is what makes the tuning
 # tables in PROGRESS reproducible rather than anecdotal:
 #
-#   build/reports/bench-levels.txt   60 Beginner-I levels layer 0 failed
-#   build/reports/deep-levels.txt    50 Beginner-I levels with a .ghs total 40-150
+#   bench/bench-levels.txt   60 Beginner-I levels layer 0 failed
+#   bench/deep-levels.txt    50 Beginner-I levels with a .ghs total 40-150
 #
-#   tools/bench.sh l2  build/reports/deep-levels.txt 400000 \
+#   tools/bench.sh l2  bench/deep-levels.txt 400000 \
 #                      --no-ida --no-beam --subgoal --sg-restarts 0
-#   tools/bench.sh l3  build/reports/deep-levels.txt 400000 \
+#   tools/bench.sh l3  bench/deep-levels.txt 400000 \
 #                      --no-ida --no-beam --subgoal
-#   tools/bench.sh l4  build/reports/deep-levels.txt 400000 \
+#   tools/bench.sh l4  bench/deep-levels.txt 400000 \
 #                      --no-ida --no-beam --subgoal --sg-eval learned
 #
 # **Read the result knowing what the population is.**  Both lists are levels
