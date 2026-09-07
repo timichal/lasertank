@@ -93,6 +93,48 @@ def build(script):
     return p.returncode == 0, (p.stdout + p.stderr).strip()
 
 
+def find_dotnet():
+    """The .NET SDK, which is not on this shell's PATH.
+
+    Same story as find_bash and the MinGW lookup in oracle/build.sh: the winget
+    install updated the machine PATH after the shell started.  src/build.sh
+    searches these three; so does this.
+    """
+    if shutil.which("dotnet") is not None:
+        return "dotnet"
+    for d in (r"C:\Program Files\dotnet",
+              os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\dotnet"),
+              os.path.expanduser("~/.dotnet")):
+        cand = pathlib.Path(d) / "dotnet.exe"
+        if cand.exists():
+            return str(cand)
+    raise SystemExit("dotnet not found; install Microsoft.DotNet.SDK.10")
+
+
+def build_godot_game():
+    """Rebuild src/LaserTank.Game's C# -> (ok, warning count).
+
+    **`godot --path` does not build C#.**  It loads whatever assembly is already
+    in `.godot/mono/temp/bin/`, silently -- so a session that edits Session.cs
+    and runs a Godot-backed gate would be testing the *previous* build and
+    getting a green result for it.  Verified the ugly way: a string changed on
+    disk did not appear in the run's output.  Only the editor builds on run, and
+    no gate opens the editor, so every gate that runs the Godot project must
+    build first.
+
+    This never publishes into build/, so it is safe beside a live solver (see
+    PROGRESS.md, Environment notes).
+    """
+    p = subprocess.run([find_dotnet(), "build",
+                        str(ROOT / "src" / "LaserTank.Game" / "LaserTank.Game.csproj"),
+                        "--nologo"],
+                       capture_output=True, text=True, cwd=str(ROOT), timeout=900)
+    if p.returncode != 0:
+        print((p.stdout or p.stderr)[-4000:])
+        raise SystemExit("the Godot project does not build")
+    return True, len([l for l in p.stdout.splitlines() if ": warning " in l])
+
+
 def require_engines(oracle=ORACLE, core=CORE):
     """Fail loudly and with the build command rather than mysteriously."""
     for exe, how in ((oracle, "bash oracle/build.sh"), (core, "bash src/build.sh")):

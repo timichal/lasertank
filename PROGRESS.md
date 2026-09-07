@@ -16,8 +16,13 @@ validation plan, not a ranking of the two halves.
 **Where the project is.** Phases 1-3 complete: a C reference oracle (`oracle/`), a C#
 transliteration that traces byte-identically to it on the whole recorded corpus
 (`src/LaserTank.Core/`), and a differential fuzzer (`tools/fuzz.py`) with 20,626 cases and no
-divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is not started** and its
-section below is a plan with exit criteria, not a wish list.
+divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0 and 1
+are done** — `src/LaserTank.Game/` is a playable game. It draws any level from `Game.BMF` with any
+of the four sprite sheets, runs a fixed 20 Hz tick, takes the keyboard through the original's own
+`WM_KEYDOWN` filter, and writes `.lpb` recordings the 25-year-old C replays byte-identically.
+`tools/atlas_check.py` and `tools/tick_check.py` gate those two. Steps 2-6 below are still a plan
+with exit criteria rather than a wish list; **step 2, the graphics menu and persisted options, is
+the next thing to build** — though most of step 2's *machinery* already landed with step 0.
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -29,12 +34,23 @@ python tools/sweep.py                          # 2,347/2,347 identical
 python tools/test_fuzz.py                      # 25 passed  (slow: injects faults and rebuilds)
 ```
 
-Those four are the fidelity gates and must be green before anything else is believed. Phase 5 adds
-one of its own, `python tools/atlas_check.py` (~35 s), which is about the renderer rather than the
-rules and so is listed apart from them.
+Those four are the fidelity gates and must be green before anything else is believed.
 `test_fuzz.py` patches `Engine.cs` and restores it — a green run leaves the tree byte-clean, and if
 it ever does not, read the line-ending trap in *Environment notes* before anything else. Never run
 it while a solver process is alive (see the same section).
+
+Phase 5 adds two gates of its own, both about the presentation rather than the rules, so they are
+listed apart from the four and nothing in Phases 1-4 depends on them:
+
+```bash
+python tools/atlas_check.py                    # step 0: 2,347 levels + 4 sprite sheets, ~35 s
+python tools/tick_check.py                     # step 1: 208/208 vs the oracle + the rate, ~20 s
+```
+
+Both need Godot; `atlas_check` degrades to a loud SKIP without it, `tick_check` needs it outright.
+Both **rebuild the Godot project's C# first**, because `godot --path` does not and would otherwise
+report green for the previous session's assembly — see *Environment notes*. Neither touches
+`build/lasertank-solve.exe`, so both are safe to run beside a live solver.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
 `src/LaserTank.Core/Engine.cs` differs from a literal transliteration by the single word `partial`,
@@ -48,7 +64,7 @@ need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 started: step 0 done, step 1 next.**
+**Phases 1-3 complete. Phase 5 started: steps 0 and 1 done, step 2 next.**
 
 | | state |
 |---|---|
@@ -56,13 +72,14 @@ need an engine change, that is the signal to stop and re-read.**
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | **step 0 done**: the board renders from `Game.BMF`, all four sprite sheets decode, gated by `tools/atlas_check.py` |
+| Presentation (Godot) | **steps 0-1 done**: playable. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter, `.lpb` recordings the oracle replays. Gated by `atlas_check.py` + `tick_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
 moves *and* shots. `test_difftrace.py` 29 passed. `test_fuzz.py` 25 passed. `sweep.py` 2,347/2,347
 identical. `tools/verify_solutions.py` over any solver output — every `.lpb` wins on both engines
-with byte-identical traces.
+with byte-identical traces. Phase 5's two: `atlas_check.py` OK (2,347 levels clean, 4 sheets
+cross-checked), `tick_check.py` 208/208 agreeing with the oracle plus 100 ticks in 5 s.
 
 **What is still not ported: `MouseOperation`, and only that.** The mouse buffer is empty headless
 (`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it —
@@ -70,9 +87,12 @@ measured, not assumed: the fuzz campaign reached it zero times. It **throws** ra
 if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
 logic.
 
-**Next action for this half of the project: Phase 5, step 1 — the 20 Hz tick.** Step 0 is done and
-its gate (`python tools/atlas_check.py`, 2,347 levels + 4 sheets) is green. Phase 3's fuzzer can
-keep running in parallel on new seeds and the 12 collections its first campaign never touched.
+**Next action for this half of the project: Phase 5, step 2 — the graphics menu and persisted
+options.** Steps 0 and 1 are done and both their gates are green; step 2's engine-facing half
+(loading all four sheets, the mask fold, draw-time scaling at 24/32/40) already landed with step 0,
+so what is left is the game's own way in — a menu rather than the `G` key, the choice remembered,
+and the external `game.bmp`/`mask.bmp` mode. Phase 3's fuzzer can keep running in parallel on new
+seeds and the 12 collections its first campaign never touched.
 
 **Blocked on:** nothing.
 
@@ -342,12 +362,14 @@ replayed tick-for-tick through the 25-year-old C with zero divergences.)
 
 ---
 
-## Phase 5 — Presentation & features  ☐
+## Phase 5 — Presentation & features  ◐  (step 0 done)
 
 **This is the first phase where the deliverable is the game rather than a measurement, and the
 discipline that got the project here still applies: the presentation layer must not become a second
-implementation of the rules.** Everything in `LaserTank.Core` stays untouched — a Godot node reads
-`Game.PF` and `Game.BMF` and draws them; it never decides anything. That is the same contract the
+implementation of the rules.** The transliteration in `LaserTank.Core` stays untouched — a Godot
+node reads `Game.PF` and `Game.BMF` and draws them; it never decides anything. (Core may still gain
+*presentation data*: step 0 added `GraphicsFile.cs`, which no code path inside `Tick()` can reach.
+The line is whether a rule could move, not which directory a file sits in.) That is the same contract the
 solver kept for nine layers (`Engine.Search.cs` unchanged throughout), and it is why the fidelity
 gates keep working while this phase is built.
 
@@ -368,7 +390,8 @@ board from `Game.BMF`; `PgUp`/`PgDn` walk the 2,030 flagship levels, `G` cycles 
 packs, `Z` cycles the three zooms.
 
 ```bash
-GODOT=~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/Godot_v4.7.2*/Godot_v4.7.2-stable_mono_win64_console.exe
+GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/*/Godot_v4.7.2-stable_mono_win64_console.exe)
+"$GODOT" --headless --path src/LaserTank.Game --import         # once per checkout
 "$GODOT" --path src/LaserTank.Game                             # play with it
 "$GODOT" --path src/LaserTank.Game -- --shot out.png --level 7 --pack 3 --zoom 40
 python tools/atlas_check.py                                    # the gate, ~35 s
@@ -423,14 +446,129 @@ Also decoded on the way: the sheets are `BI_RGB` 24 bpp (8 bpp for `Warcraft_II`
 mask, but the *internal* pair — `original/src/Game.BMP` and `Mask.BMP`, the ones the 2007 build
 carries as resources — are **RLE8 and RLE4**. Both readers handle 1/4/8/24 bpp and both RLE modes.
 
-**Step 1 — the tick loop, and the gate that matters.** A fixed 20 Hz tick (`GameDelay = 50` ms,
-`LTANK.H:96`) decoupled from rendering, driving `Engine.Tick()`; keyboard input appended to
-`RecBuffer` exactly as `AddKBuff` does; visuals interpolated between ticks. **Never drive logic
-from `_process`** (hazard #10).
-*Exit — and this is Phase 5's real gate:* play a level in Godot, win it, save the keystream with the
-existing `LevelFile.WritePlayback`, and **that `.lpb` must replay byte-identically through the
-unmodified C oracle** (`tools/verify_solutions.py` already does exactly this, unchanged). A human
-playthrough that survives the oracle is the same proof every solver solution gives.
+**Step 1 — the tick loop, and the gate that matters. ☑ DONE.** `src/LaserTank.Game/` is now a
+game you can play: `Session.cs` is the Godot replacement for the *driver* half of `LTANK.C`'s window
+proc — `WM_TIMER`, `WM_KEYDOWN`, `WM_Dead`, ReStart (command 105), `WM_SaveRec` — and `BoardView`
+draws it and routes keys. `PlayMode.cs` is the same driver with the human replaced by a script,
+which is what makes the exit criterion re-runnable.
+
+```bash
+"$GODOT" --path src/LaserTank.Game                             # play it
+python tools/tick_check.py                                     # the gate, ~20 s
+"$GODOT" --headless --path src/LaserTank.Game -- --play --lpb data/demos/LaserTank/00001.lpb
+"$GODOT" --path src/LaserTank.Game -- --shot out.png --lpb <f>.lpb --ticks 40
+"$GODOT" --headless --path src/LaserTank.Game -- --tick-rate 5
+```
+
+Keys: arrows move, space fires, `R` restarts, `F6` saves the recording to `out/recordings/`,
+`Enter` takes the next level once one is solved, `[` `]` walk levels, `G` graphics, `Z` zoom,
+`I` toggles interpolation, `Esc` quits. **The dev keys are all deliberately outside VK 32..40** —
+see below for why that range and not the five game keys.
+
+*Exit — MET, and by more than was asked.* The criterion was a human playthrough surviving the C
+oracle; that happened, and then it was mechanised so it survives the *next* change too.
+`tools/tick_check.py` plays all 208 recorded `.lpb` in the corpus through Godot's own input path
+and its own tick, and checks four things per recording plus one about the clock:
+
+- **208/208 agree with the oracle** on result *and tick count* and moves and shots. Equal tick
+  counts are the strong claim: the driver is not merely reaching the same ending, it takes the same
+  number of 50 ms steps to get there.
+- the keystream Godot recorded is the input keystream **byte for byte**.
+- **the round trip**: replaying Godot's own `.lpb` through the oracle reproduces the oracle's
+  original verdict. Confirmed by hand first — `data/demos/LaserTank/00001.lpb` re-recorded through
+  Godot differs from the original in bytes 32-38 only, which is the `Author` field, and nowhere
+  else in 330 bytes.
+- header sanity: the level number and name Godot wrote are the ones the `.lvl` has, because
+  `lasertank-core` refuses a mismatch.
+- **the rate**, measured separately: `--tick-rate 5` runs the real `_PhysicsProcess` driver against
+  the wall clock and must have taken exactly 20 ticks a second (100 in 5 s, headless and windowed
+  alike). Every other check calls `Step()` in a loop, so they prove what a tick *does* and nothing
+  about when one happens — worth having as its own assertion.
+
+**The input path is the part with the surprises in it**, and all three are in `LTANK.C:570`:
+
+- **The filter is `wparam >= 32 && wparam <= 40`, not the five game keys.** Space is 32 and the
+  arrows are 37-40, but **33-36 — PageUp, PageDown, End, Home — are inside the range too**, and
+  `AddKBuff` filters nothing. The tick's switch has no `default` and `RecP++` runs regardless, so
+  those four record a legal one-tick **wait** that still gives the anti-tanks their turn. They are
+  reachable from a real keyboard and always were; no human ever used them (all 54,162 bytes of all
+  187 `.lpb` are the five keys). The port keeps them reachable, which is also why every dev binding
+  in the game had to move off `PgUp`/`PgDn`/`Home` — step 0 had used exactly those three.
+- **`if ((RB_TOS > Game.RecP) && (lparam & 0x40000000)) return(0);`** — auto-repeat is dropped
+  *only while a key is still pending*. That one line is what stops a held-down arrow flooding the
+  buffer while the tank is busy and what lets it keep the tank moving once the buffer drains. It is
+  also the real answer to hazard #10's "a 144 Hz display must not consume 144 keys a second": the
+  frame rate never enters into it, the pending-key test does. Godot's `InputEventKey.Echo` is the
+  same bit.
+- **`WM_SaveRec` writes `Game.RecP`, not `RB_TOS`** (`LTANK.C:709`) — the keys *consumed*, not the
+  keys pressed. That is what makes a recording saved the instant a level is won end exactly at the
+  winning move, and it is why `tick_check` compares against a prefix of the input keystream rather
+  than the whole of it.
+
+**`GameOn()` is `SetTimer` / `KillTimer` (`LTANK2.C:881`), so a finished game receives no ticks at
+all.** `Session.Step()` returns false rather than ticking when `Game_On` is clear, which is the
+faithful shape and not a guard bolted on: calling `Tick()` on a won game would not crash, it would
+quietly keep playing. The cheap evidence is that `--ticks 20` on a keystream that drowns the tank
+stops at tick 3, matching the oracle's `DEAD … ticks=3`.
+
+**The laser is the one genuinely new piece of drawing**, and it had to be reconstructed as *paint
+only*. `UpDateLaser` (`LTANK2.C:549`) is a bar down the middle of a cell — `LaserOffset = 10` of 32
+— green when `laser.Good` and red otherwise, which is `FireLaser`'s `laser.Good = (sf == 2)` and so
+already load-bearing for logic. `UpDateLaserBounce` (`:565`) paints *two half-bars*, the half the
+shot came in through and the half it leaves by. But that function is hazard #1: it also sets
+`LaserBounceOnIce`, and **the core already calls it inside the tick**, so the renderer must not
+call, skip or reimplement it. The one fact the paint call has and the state does not is the laser's
+incoming direction, so `Session` recovers it by watching `laser.Dir` across a tick — reading the
+same fact without touching anything.
+
+**Verify the laser by pixels, not by eye** — this is the recipe, and it caught a real bug on the
+first try. Dump the trace's `L=x,y,dir,firing,good` for a tick, render that exact tick with
+`--shot … --ticks N`, read the PNG back and compare. Tick 40 of `00001.lpb` is a bounce
+(dir 1 → dir 4 at cell 5,10) and the frame carries exactly two half-bars, lower and left, matching
+`UpDateLaserBounce(1,4)`'s `Rectangle` calls; tick 35 is straight and the bar is 300/300 pure green.
+
+The bug it caught is hazard #1's cost to a retained-mode renderer, and it is subtler than "one
+frame is missing". When the laser bounces off a mirror that is itself **sliding on ice**,
+`UpDateLaserBounce` sets `LaserBounceOnIce` and `MoveLaser` `goto`s back for a *second* step in the
+same tick — so the bend happened one cell back and the laser now sits in a cell it went straight
+through. Comparing `laser.Dir` across the tick says "bounced", and the two half-bars would be
+painted **in the wrong cell**, drawing a bend that is not there. The fix is a distance test: two
+cells of travel in one tick is exactly that case, so the bounce glyph is suppressed and the
+ordinary straight bar drawn. What is lost is the bend itself for one 50 ms frame; what is avoided
+is drawing it somewhere it never happened.
+
+`Tutor-with-Playbacks` 93 (tick 527) and 94 (tick 206) are the only recordings in the corpus that
+reach this, and 93 is now checked end to end: ticks 526/527/528 render a horizontal bar, a
+*straight* vertical bar in the double-step cell, and `UpDateLaserBounce(3,2)`'s upper-plus-right
+halves — read out of the PNGs, against the trace. That recording also plays identically through
+Godot's driver at buffer depths 1, 2, 5 and 50 pending keys, which is the demonstration that a
+player who presses ahead gets the same game: key consumption is gated on quiescence, so the depth
+of the queue moves no tick.
+
+**One deliberate deviation, and it is not a rule.** `Session.Load` builds a **fresh `Engine` per
+level**, and `Restart` reloads rather than restoring `CurRecData.PF` in place the way command 105
+does. `LoadLevel` leaves `wasIce`, `WaitToTrans`, `ConvMoving` and `BlackHole` standing (quirk
+#12), faithfully, because the original never reloaded a level into a fresh process either — but
+every keystream this game records is going to be replayed somewhere that *did* start clean: the C
+oracle, the 2010 binary, `verify_solutions.py`. A clean start is also the only configuration the
+whole oracle equivalence was ever established for, since every fidelity gate builds a fresh engine
+per case. So the port starts every level clean and a recording it writes always replays. The four
+flags are uninitialised state, not a rule; nothing about hazards #9 or #11 is touched by this.
+
+**Interpolation is ours, and the original had none** — it snapped, one cell per 50 ms. The tank is
+lerped between the previous cell and the current one, guarded three ways: only while the timer is
+running, only between *adjacent* cells so a tunnel does not slide the tank across the board, and
+rounded to whole pixels because the sheet is nearest-filtered. `I` turns it off, which is the
+honest A/B against the 2010 binary, and `--shot` forces it off so a screenshot names a tick rather
+than a moment between two.
+
+The tick itself is `_PhysicsProcess` with `physics_ticks_per_second = 20` in `project.godot`, and
+`BoardView` refuses to start if that setting and `GameDelay` disagree — the logic rate is the one
+number in this project that must not drift. `_Process` only calls `QueueRedraw`.
+
+**Not in step 1, on purpose:** sound (step 3), undo (step 4 — `UndoStep` is still the one missing
+reader), the level picker and the recording UI (step 4). `F6` writing to `out/recordings/` is the
+placeholder for the last of those, not the finished thing.
 
 **Step 2 — graphics packs and zoom.** `.ltg` is a 324-byte `TLTGREC` header (`Name[40]`,
 `Author[30]`, `Info[245]`, `ID[5]` = `"LTG1"`, `MaskOffset` DWORD) followed by two ordinary Windows
@@ -478,7 +616,8 @@ formats stay readable *and* writable) is demonstrated rather than asserted.
 - **Do not "fix" anything on the way past.** Hazards #9 and #11 are both real bugs in the original
   that must survive, and #11 is inside `SetGameSize` — a function this phase has to touch.
 - **The 20 Hz tick is not a rendering rate.** Interpolate sprites between ticks; a 144 Hz display
-  must not consume 144 keys a second.
+  must not consume 144 keys a second. Both halves are done and measured — see step 1, and note that
+  the key-rate half is the original's own pending-key test rather than anything about frames.
 - **`.lpb` compatibility is bidirectional.** The 2010 binary must be able to play what Godot
   records. `LevelFile.WritePlayback` already writes the real 66-byte header format, and the
   solver's recordings are the existing evidence that it round-trips.
@@ -515,9 +654,11 @@ formats stay readable *and* writable) is demonstrated rather than asserted.
 
 **The wait.** The switch at `LTANK.C:616` has no `default`, and `Game.RecP++` runs regardless — so
 any recorded byte outside {32, 37, 38, 39, 40} is a legal one-tick **wait** that still gives the
-anti-tanks their turn, and `AddKBuff` (`LTANK2.C:256`) filters nothing, so a human pressing any
-other key records one. **No human ever did:** all 54,162 bytes of all 187 `.lpb` are those five
-keys, zero exceptions. The "wait" the tutor hints describe (level 4 *"Move up, wait"*, level 14
+anti-tanks their turn, and `AddKBuff` (`LTANK2.C:256`) filters nothing. **Which keys can a human
+actually record one with?** `WM_KEYDOWN` admits `wparam >= 32 && wparam <= 40` (`LTANK.C:572`), so
+exactly four: **33-36 = PageUp, PageDown, End, Home.** (Phase 5 step 1 pinned this down; an earlier
+revision of this note said "any other key", which over-states it.) **No human ever did:** all
+54,162 bytes of all 187 `.lpb` are those five keys, zero exceptions. The "wait" the tutor hints describe (level 4 *"Move up, wait"*, level 14
 *"Wait 11 seconds"*) is a different thing — it is *free* time while the world is non-quiescent
 (riding a conveyor, sliding on ice), during which no key is consumed and no byte is needed. So the
 solver's action set is the five keys, matching the recordings. Note that neither engine's `--keys`
@@ -609,7 +750,11 @@ them: *in this program a function's name tells you nothing about whether it muta
 9. `BuildBMField()` (`LTANK2.C:843`) leaves `i` uninitialized on one branch; currently unreachable
    because of the 2003 sanitization above it, but do not "fix" it silently.
 10. Godot must run logic on a **fixed 20 Hz tick decoupled from rendering**, interpolating visuals.
-    Never drive logic from `_process`.
+    Never drive logic from `_process`. **Settled in step 1:** the tick is `_PhysicsProcess` with
+    `physics_ticks_per_second = 20`, `_Process` only redraws, and `BoardView` refuses to start if
+    that setting and `GameDelay` disagree. The "must not consume 144 keys a second" half turned out
+    not to be about the frame rate at all — `WM_KEYDOWN` drops auto-repeat while a key is still
+    pending (`RB_TOS > Game.RecP`), and that is the whole mechanism.
 11. **`LTANK2.C:1738` reads `if (GFXOn) GFXKill;`** — a missing `()`, so the call never happens.
     A real bug in the original, in `SetGameSize`, and cosmetic. Same species as #9: **do not
     "fix" it.** It is Phase 5 territory, which is the phase most likely to want to.
@@ -651,9 +796,12 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    GraphicsFile.cs — .ltg + BMP readers, BMSTA/ColorList (Phase 5)
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
-  LaserTank.Game/  the Godot 4.7 project — BoardView.cs draws Game.BMF, Atlas.cs
-                   hands the sheet to the renderer, Paths.cs finds data/.
-                   Built by Godot or `dotnet build`, never published into build/
+  LaserTank.Game/  the Godot 4.7 project.  BoardView.cs draws Game.BMF and routes
+                   keys, Session.cs is LTANK.C's driver half (WM_TIMER, WM_KEYDOWN,
+                   WM_Dead, ReStart, WM_SaveRec), PlayMode.cs is that driver with a
+                   scripted player, Atlas.cs hands the sheet to the renderer,
+                   Paths.cs finds data/.  Built by Godot or `dotnet build`, never
+                   published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
 ```
@@ -680,6 +828,11 @@ verify_solutions.py replay every .lpb through BOTH engines: WIN on each,
 atlas_check.py    Phase 5 step 0's gate: every BMF/BMF2 value over the corpus
                     lands inside the 10x6 sprite grid, and every graphics pack
                     decodes to the same 320x192 pixels in Python and in C#
+tick_check.py     Phase 5 step 1's gate: every recorded .lpb replayed through
+                    Godot's own input path and 20 Hz tick must agree with the C
+                    oracle on result/ticks/moves/shots, must re-record the same
+                    keystream, and its own .lpb must replay in the oracle.  Plus
+                    --tick-rate: the real driver, timed, must be 20 ticks/second
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -776,6 +929,15 @@ place despite not winning.
   `"$GODOT" --headless --path src/LaserTank.Game --import` before `--path` will run the project,
   and `Godot.NET.Sdk` restores from nuget.org on the first build (the install also ships it under
   `GodotSharp/Tools/nupkgs/` if that machine is offline).
+- **`godot --path` does not build C#, and says nothing about it.** It loads whatever assembly is
+  already in `src/LaserTank.Game/.godot/mono/temp/bin/`, so editing `Session.cs` and running the
+  project — or a gate — silently exercises the *previous* build. Only the editor builds on run.
+  Verified the ugly way: a changed string on disk did not appear in the output, while the gate
+  still reported a green 208/208. Both Godot-backed gates now call
+  `engines.build_godot_game()` first (`tick_check.py` always, `atlas_check.py` in its
+  cross-check half), and anything new that runs the project must do the same. By hand:
+  `dotnet build src/LaserTank.Game/LaserTank.Game.csproj`. It builds into `.godot/` and
+  `src/LaserTank.Core/bin/`, never `build/`, so it is safe beside a live solve.
 - **A running solver blocks `src/build.sh`, but not the compilers.** `dotnet publish -o build`
   cannot replace `build/LaserTank.Core.dll` while a `lasertank-solve.exe` holds it open, so during
   a long solve build each project into its own `bin/` instead — `dotnet build
@@ -890,6 +1052,32 @@ class of bug: one decoder agreeing with itself proves nothing, so Python's reade
 produce the same sha256. Run under a live solve, so `build/` was never republished; the corpus was
 re-replayed against a locally built core instead (187/181/112, and `game-objects` 16/16 identical
 to the oracle).
+
+**2026-09-07, session 25 — Phase 5 step 1: the game is playable.** A fixed 20 Hz
+`_PhysicsProcess` tick driving `Engine.Tick()` + `Pump()`, the keyboard through the original's own
+`WM_KEYDOWN` filter into `AddKBuff`, restart, death and win handling, the laser drawn, and `F6`
+writing a `.lpb`. Step 1's exit criterion was met and then mechanised: `tools/tick_check.py` replays
+all 208 corpus recordings through Godot's own input path and tick and gets **208/208 agreement with
+the C oracle on result, tick count, moves and shots**, with the re-recorded keystreams byte-identical
+and each Godot-written `.lpb` replaying in the oracle to the same verdict — and, separately, 100
+ticks in 5 seconds from the real driver. Three things the input path taught: the `WM_KEYDOWN` filter
+is **VK 32..40**, so PageUp/PageDown/End/Home are recordable one-tick waits (which forced every dev
+binding off those keys — step 0 had used exactly them); auto-repeat is dropped **only while a key is
+still pending**, which is the whole of hazard #10's "not 144 keys a second" and has nothing to do
+with frames; and `WM_SaveRec` saves `Game.RecP`, the keys consumed, not `RB_TOS`. The laser was
+verified by reading pixels out of a `--shot` PNG against the trace's own `L=` state rather than by
+eye — tick 40 of `00001.lpb` is a mirror bounce and carries exactly `UpDateLaserBounce(1,4)`'s two
+half-bars. That is how the one real rendering bug of the session was found: on the ice double-step
+(hazard #1's `goto LaserMoveJump`) the bend happens a cell back, so comparing `laser.Dir` across
+the tick paints the two half-bars in a cell the laser went *straight through* — suppressed now by a
+distance test, and checked against the PNGs at ticks 526/527/528 of `Tutor-with-Playbacks` 93. One deliberate deviation, documented in the step: a fresh `Engine` per level and per
+restart, because a recording made on a dirty engine may not replay on a clean one and clean is the
+only configuration the oracle equivalence was ever established for. `LaserTank.Core` was not
+touched. Run under a live solve again, so `build/` was never republished; `replay_all` (187/181/112),
+`test_difftrace` (29) and `atlas_check --sheets-only` (4/4) were re-run to confirm nothing rotted,
+and `sweep`/`test_fuzz` were skipped as they could not have — Core is byte-identical. One trap
+found while checking the handoff: **`godot --path` does not compile C#**, so both Godot-backed
+gates now build before they measure.
 
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
 re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the single word

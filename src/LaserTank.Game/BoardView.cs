@@ -1,15 +1,22 @@
-// Phase 5, step 0: the board on screen.
+// Phase 5, steps 0 and 1: the board on screen, and the 20 Hz tick under it.
 //
-// This node draws and nothing else.  It reads Game.BMF / Game.BMF2 / Game.PF2
-// and the tank, exactly as UpDateSprite and UpDateTank do (LTANK2.C:490, :536),
-// and it never decides anything -- no rule, no movement, no laser logic lives
-// here.  There is no tick yet either: that is step 1, where a fixed 20 Hz timer
-// drives Engine.Tick() and the gate is a Godot playthrough replaying in the C
-// oracle.
+// This node draws and routes keys.  It reads Game.BMF / Game.BMF2 / Game.PF2,
+// the tank and the laser, exactly as UpDateSprite, UpDateTank, UpDateLaser and
+// UpDateLaserBounce do (LTANK2.C:490, :536, :549, :565), and it never decides
+// anything -- no rule, no movement, no laser logic lives here.  The tick is
+// Session's; the rules are LaserTank.Core's.
 //
 // Read BMF, never re-derive it from PF.  BuildBMField is not GetOBM(PF): a
 // tunnel is 55, the tank's own cell is 1 and its PF is zeroed, and Animate()
 // then cycles BMF for animated objects.
+//
+// **The tick is _PhysicsProcess, never _Process** (hazard #10).  Godot's
+// physics step is a fixed rate decoupled from rendering, and project.godot sets
+// it to 1000 / GameDelay = 20 Hz, which is the original's SetTimer(1, 50).
+// _Process only asks for a redraw, so a 144 Hz display draws 144 interpolated
+// frames a second over the same 20 ticks -- and, separately, cannot consume 144
+// keys a second, because the pending-key test in Session.Key is what gates
+// that and no frame rate enters into it.
 using System;
 using System.IO;
 using Godot;
@@ -32,14 +39,28 @@ namespace LaserTank.Game
         private int Cell => Zooms[_zoom];
 
         private const int Margin = 16;
+        private const int HudH = 126;
 
-        private Engine _e;
+        /// LaserOffset (LTANK2.C:46) is 10 of a 32 px sprite -- the laser bar is
+        /// 12 px wide down the middle of its cell.  Kept as a fraction so the
+        /// three zooms all get the same picture.
+        private const float LaserFrac = 10f / 32f;
+
+        private Session _s;
         private Atlas _atlas;
         private string[] _packs;
         private int _pack;
-        private string _levels;
-        private int _level = 1, _levelCount;
         private string _error;
+
+        /// Off in --shot mode: the shot awaits two frames, and physics would
+        /// otherwise tick the game past the frame being captured.
+        private bool _driving = true;
+
+        /// Interpolating the tank between ticks is a presentation choice the
+        /// original did not make -- it snapped, one cell per 50 ms.  On by
+        /// default because a 60 Hz display shows the step as a stutter; `I`
+        /// turns it off, which is the honest A/B against the 2010 binary.
+        private bool _interpolate = true;
 
         public override void _Ready()
         {
@@ -50,19 +71,109 @@ namespace LaserTank.Game
                 return;
             }
 
+            // The tick rate is a project setting, so a stale project.godot
+            // would silently play the game at 60 Hz.  Fail loudly instead.
+            int tps = Godot.Engine.PhysicsTicksPerSecond;
+            if (tps != 1000 / Session.GameDelayMs)
+                throw new InvalidOperationException(
+                    $"physics_ticks_per_second is {tps}, must be " +
+                    $"{1000 / Session.GameDelayMs} (GameDelay = {Session.GameDelayMs} ms)");
+
             _packs = Paths.GraphicsPacks();
-            _levels = Paths.Flagship;
-            _levelCount = LevelFile.CountLevels(_levels);
             LoadPack(Arg(args, "--pack", 0));
             _zoom = Math.Clamp(Array.IndexOf(Zooms, Arg(args, "--zoom", 32)), 0, Zooms.Length - 1);
-            LoadLevel(Arg(args, "--level", 1));
+
+            string levels = ArgStr(args, "--levels") ?? Paths.Flagship;
+            int level = Arg(args, "--level", 1);
+            byte[] script = Array.Empty<byte>();
+            string lpbName = null;
+
+            string lpb = ArgStr(args, "--lpb");
+            if (lpb != null)
+            {
+                TRECORDREC r = LevelFile.ReadPlayback(lpb, out script);
+                level = r.Level;
+                lpbName = r.LName;
+            }
+            else if (ArgStr(args, "--keys") is string ks)
+            {
+                script = PlayMode.ParseKeys(ks);
+            }
+
+            // --play: the synthetic playthrough, headless and reproducible.
+            // See PlayMode and tools/tick_check.py.
+            if (Array.IndexOf(args, "--play") >= 0)
+            {
+                _driving = false;
+                string outDir = ArgStr(args, "--out")
+                                ?? Path.Combine(Paths.Root, "out", "recordings");
+                int maxTicks = Arg(args, "--max-ticks", 100000);
+                int pending = Arg(args, "--pending", 1);
+                string author = ArgStr(args, "--author") ?? "LTGodot";
+                GetTree().Quit(ArgStr(args, "--lpb-list") is string list
+                    ? PlayMode.RunList(list, outDir, maxTicks, pending, author)
+                    : PlayMode.Run(levels, level, script, lpbName, outDir,
+                                   maxTicks, pending, author));
+                return;
+            }
+
+            _s = new Session(levels);
+            if (!_s.Load(level)) _error = _s.Error;
             Resize();
 
-            // `-- --shot FILE`: draw one frame, write a PNG, quit.  A rendered
-            // board is the only honest evidence for step 0, and a file is
-            // reviewable where a window is not.
+            // `--tick-rate SECONDS`: let the real driver run against the clock
+            // and report what it measured.  This is the one claim in step 1 the
+            // rest of the checking cannot make -- tools/tick_check.py calls
+            // Step() synchronously, so it proves the tick's *content*, never
+            // its rate.  With no keys the level never ends, so the game ticks
+            // for the whole window.
+            if (Arg(args, "--tick-rate", 0) is int secs && secs > 0)
+            {
+                TickRate(secs);
+                return;
+            }
+
+            // `-- --shot FILE`: draw one frame, write a PNG, quit.  With
+            // `--keys`/`--lpb` and `--ticks N` it runs the script for N ticks
+            // first, which is how a rendering change to a *moving* board -- a
+            // laser in flight, a pushed block -- gets reviewed without a window.
             string shot = ArgStr(args, "--shot");
-            if (shot != null) Shot(shot);
+            if (shot != null)
+            {
+                _driving = false;
+                RunTicks(script, Arg(args, "--ticks", 0));
+                Shot(shot);
+            }
+        }
+
+        /// Measure the tick rate the same way a player experiences it: through
+        /// _PhysicsProcess, against the wall clock.
+        private async void TickRate(int secs)
+        {
+            ulong t0 = Time.GetTicksMsec();
+            long before = _s.Ticks;
+            await ToSignal(GetTree().CreateTimer(secs), SceneTreeTimer.SignalName.Timeout);
+            double elapsed = (Time.GetTicksMsec() - t0) / 1000.0;
+            long ticks = _s.Ticks - before;
+            // Invariant culture: this line is parsed by tools/tick_check.py, and
+            // a Czech locale would print "20,57".
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            GD.PrintRaw(string.Format(inv, "rate ticks={0} seconds={1:F3} hz={2:F2} want={3}\n",
+                                      ticks, elapsed, ticks / elapsed,
+                                      1000 / Session.GameDelayMs));
+            GetTree().Quit(0);
+        }
+
+        /// Drive the script forward n ticks synchronously, so a screenshot names
+        /// a tick rather than a moment.  Same press-on-drain player as PlayMode.
+        private void RunTicks(byte[] script, int n)
+        {
+            int at = 0;
+            for (int i = 0; i < n; i++)
+            {
+                while (at < script.Length && _s.Pending < 1) _s.Key(script[at++], false);
+                if (!_s.Step()) break;
+            }
         }
 
         private static string ArgStr(string[] args, string name)
@@ -83,7 +194,7 @@ namespace LaserTank.Game
         {
             if (DisplayServer.GetName() == "headless") return;
             DisplayServer.WindowSetSize(
-                new Vector2I(2 * Margin + 16 * Cell, 2 * Margin + 16 * Cell + 70));
+                new Vector2I(2 * Margin + 16 * Cell, 2 * Margin + 16 * Cell + HudH));
         }
 
         private async void Shot(string path)
@@ -91,7 +202,8 @@ namespace LaserTank.Game
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             Error err = GetViewport().GetTexture().GetImage().SavePng(path);
-            GD.PrintRaw($"shot {path} level {_level} pack {_atlas?.Label} zoom {Cell} -> {err}\n");
+            GD.PrintRaw($"shot {path} level {_s?.Level} tick {_s?.Ticks} " +
+                        $"pack {_atlas?.Label} zoom {Cell} -> {err}\n");
             GetTree().Quit(err == Error.Ok ? 0 : 1);
         }
 
@@ -103,51 +215,100 @@ namespace LaserTank.Game
             QueueRedraw();
         }
 
-        private void LoadLevel(int n)
+        // ---- the tick, LTANK.C:579 -----------------------------------------
+        /// WM_TIMER.  Session.Step is the whole 50 ms unit and returns false
+        /// when GameOn(FALSE) has stopped the timer -- winning, dying, or no
+        /// level loaded.
+        public override void _PhysicsProcess(double delta)
         {
-            if (n < 1) n = _levelCount;
-            if (n > _levelCount) n = 1;
-            // Quirk #12: LoadLevel leaves wasIce / WaitToTrans / ConvMoving /
-            // BlackHole where the previous game left them, faithfully.  A fresh
-            // Engine per level is the rule that follows from it.
-            _e = new Engine();
-            if (!_e.LoadLevel(_levels, n)) { _error = $"cannot load level {n}"; return; }
-            _level = n;
-            _error = null;
-            QueueRedraw();
+            if (_driving) _s?.Step();
         }
+
+        /// Rendering only.  Nothing here may touch the game.
+        public override void _Process(double delta) => QueueRedraw();
 
         public override void _UnhandledInput(InputEvent ev)
         {
-            if (ev is not InputEventKey k || !k.Pressed || k.Echo) return;
+            if (ev is not InputEventKey k || !k.Pressed) return;
+
+            // The game keys first, and untouched: Session.Key is the original's
+            // WM_KEYDOWN filter (VK 32..40, auto-repeat dropped only while a
+            // key is still pending) feeding AddKBuff.  Everything below it is
+            // ours, and deliberately outside 32..40 so no binding of ours can
+            // ever eat a byte the recording needed.
+            int vk = ToVk(k.Keycode);
+            if (vk != 0)
+            {
+                _s?.Key(vk, k.Echo);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (k.Echo) return;
+
             switch (k.Keycode)
             {
-                case Key.Pagedown: LoadLevel(_level + 1); break;
-                case Key.Pageup: LoadLevel(_level - 1); break;
-                case Key.Home: LoadLevel(1); break;
+                case Key.Bracketright: _s?.Load(_s.Level + 1); break;
+                case Key.Bracketleft: _s?.Load(_s.Level - 1); break;
+                case Key.Enter:
+                    // The original's flag case calls LoadNextLevel straight
+                    // away (LTANK.C:655); a Godot win waits, so the recording
+                    // is still there to save.
+                    if (_s != null && _s.Now == Session.State.Won) _s.Load(_s.Level + 1);
+                    break;
+                case Key.R: _s?.Restart(); break;                    // command 105
+                case Key.F6: SaveRecording(); break;                 // command 117
                 case Key.G: LoadPack(_pack + 1); break;
-                case Key.Z: _zoom = (_zoom + 1) % Zooms.Length; Resize(); QueueRedraw(); break;
+                case Key.Z: _zoom = (_zoom + 1) % Zooms.Length; Resize(); break;
+                case Key.I: _interpolate = !_interpolate; break;
                 case Key.Escape: GetTree().Quit(); break;
                 default: return;
             }
             GetViewport().SetInputAsHandled();
         }
 
+        /// Godot keycodes -> Win32 virtual-key codes, for the nine keys
+        /// LTANK.C:572's `(wparam < 32) || (wparam > 40)` admits.  33..36 are
+        /// the recordable one-tick wait; see Session.Key.
+        private static int ToVk(Key k) => k switch
+        {
+            Key.Space => 32,
+            Key.Pageup => 33,
+            Key.Pagedown => 34,
+            Key.End => 35,
+            Key.Home => 36,
+            Key.Left => 37,
+            Key.Up => 38,
+            Key.Right => 39,
+            Key.Down => 40,
+            _ => 0,
+        };
+
+        private void SaveRecording()
+        {
+            if (_s?.E == null) return;
+            try
+            {
+                string dir = Path.Combine(Paths.Root, "out", "recordings");
+                _error = "saved " + _s.Save(dir);
+            }
+            catch (Exception ex) { _error = ex.Message; }
+        }
+
         public override void _Draw()
         {
             Font font = ThemeDB.FallbackFont;
-            if (_error != null)
+            if (_s?.E == null || _atlas == null)
             {
-                DrawString(font, new Vector2(Margin, Margin + 16), _error,
+                DrawString(font, new Vector2(Margin, Margin + 16), _error ?? "no level",
                            HorizontalAlignment.Left, -1, 16, Colors.OrangeRed);
                 return;
             }
-            if (_e == null || _atlas == null) return;
 
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++)
                     DrawCell(x, y);
             DrawTank();
+            DrawLaser();
             DrawHud(font);
         }
 
@@ -159,7 +320,7 @@ namespace LaserTank.Game
         /// under-bitmap painted first; anything else is a plain copy.
         private void DrawCell(int x, int y)
         {
-            TGAMEREC g = _e.Game;
+            TGAMEREC g = _s.E.Game;
             int bmn = g.BMF[x, y];
             Rect2 dst = CellRect(x, y);
 
@@ -197,27 +358,142 @@ namespace LaserTank.Game
         /// UpDateTank (LTANK2.C:536): sprite 1 + Tank.Dir, masked, over whatever
         /// the cell already holds.  The tank's own PF cell is zeroed by
         /// BuildBMField, so the cell under it is drawn as dirt.
+        ///
+        /// The interpolation is ours and is guarded twice: only while the timer
+        /// is running (a finished game has no tick in flight to be part-way
+        /// through) and only between adjacent cells, so a tunnel does not slide
+        /// the tank across the board.  Rounded to whole pixels because the
+        /// sheet is nearest-filtered pixel art.
         private void DrawTank()
         {
-            TTANKREC t = _e.Game.Tank;
-            Blit(1 + t.Dir, CellRect(t.X, t.Y));
+            TTANKREC t = _s.E.Game.Tank;
+            Rect2 dst = CellRect(t.X, t.Y);
+
+            int dx = t.X - _s.PrevTankX, dy = t.Y - _s.PrevTankY;
+            if (_interpolate && _driving && _s.E.Game_On
+                && Math.Abs(dx) + Math.Abs(dy) == 1)
+            {
+                float back = 1f - (float)Godot.Engine.GetPhysicsInterpolationFraction();
+                dst.Position -= new Vector2(Mathf.Round(dx * back * Cell),
+                                            Mathf.Round(dy * back * Cell));
+            }
+            Blit(1 + t.Dir, dst);
         }
 
+        /// UpDateLaser (LTANK2.C:549) and UpDateLaserBounce (:565), as paint
+        /// only.  **UpDateLaserBounce also sets LaserBounceOnIce** (hazard #1),
+        /// which makes MoveLaser take a second step in the same tick -- the
+        /// core already calls it inside the tick, so this must not call, skip or
+        /// reimplement it.  Session recovers the one thing the paint call knows
+        /// and the state does not, the laser's incoming direction, by watching
+        /// laser.Dir across the tick.
+        ///
+        /// Game.Tank.Firing is the "a laser exists" flag: MoveLaser clears it
+        /// and erases the cell in the same breath when the shot stops.  Colour
+        /// is laser.Good -- FireLaser's `laser.Good = (sf == 2)` -- green for
+        /// the tank's own shot, red for an anti-tank's (LTANK2.C:1649).
+        ///
+        /// One thing retained-mode drawing cannot reproduce: when a laser
+        /// bounces off a mirror that is itself sliding on ice, MoveLaser takes
+        /// two steps in one tick and the original painted both cells.  Only the
+        /// second is visible here.  Two recordings in the whole corpus reach it.
+        private void DrawLaser()
+        {
+            if (_s.E.Game.Tank.Firing == 0) return;
+            TTANKREC l = _s.E.laser;
+            Gfx.Rgb(l.Good != 0 ? 0x0000FF00u : 0x000000FFu,
+                    out byte r, out byte g, out byte b);
+            Color c = Color.Color8(r, g, b);
+
+            if (_s.LaserBounced)
+            {
+                Bar(l.X, l.Y, _s.LaserFromDir, true, c);
+                Bar(l.X, l.Y, l.Dir, false, c);
+            }
+            else
+            {
+                Rect2 cell = CellRect(l.X, l.Y);
+                float o = Mathf.Round(LaserFrac * Cell);
+                Fill((l.Dir & 1) == 1
+                        ? new Rect2(cell.Position.X + o, cell.Position.Y, Cell - 2 * o, Cell)
+                        : new Rect2(cell.Position.X, cell.Position.Y + o, Cell, Cell - 2 * o),
+                     c);
+            }
+        }
+
+        /// One half-bar of UpDateLaserBounce: the half of the cell on the side
+        /// the laser came in from (`incoming`) or left by.  Direction is the
+        /// original's 1 = up, 2 = right, 3 = down, 4 = left, and an incoming
+        /// direction paints the *opposite* half -- a shot travelling up entered
+        /// through the bottom.
+        private void Bar(int cx, int cy, int dir, bool incoming, Color c)
+        {
+            Rect2 cell = CellRect(cx, cy);
+            float o = Mathf.Round(LaserFrac * Cell);
+            float h = Mathf.Round(Cell / 2f);
+            float x = cell.Position.X, y = cell.Position.Y;
+            bool far = incoming;                       // the half behind the laser
+            Fill(dir switch
+            {
+                1 => new Rect2(x + o, far ? y + h : y, Cell - 2 * o, far ? Cell - h : h),
+                2 => new Rect2(far ? x : x + h, y + o, far ? h : Cell - h, Cell - 2 * o),
+                3 => new Rect2(x + o, far ? y : y + h, Cell - 2 * o, far ? h : Cell - h),
+                _ => new Rect2(far ? x + h : x, y + o, far ? Cell - h : h, Cell - 2 * o),
+            }, c);
+        }
+
+        /// GDI Rectangle() is a brush fill plus the default one-pixel black pen,
+        /// which is why the laser has an outline in the original.
+        private void Fill(Rect2 rect, Color c)
+        {
+            DrawRect(rect, c);
+            DrawRect(rect, Colors.Black, false, 1);
+        }
+
+        /// The original's own status strip is a bitmap panel beside the board
+        /// (ContXPos, LTANK.C:556) showing the level name, the author and the
+        /// two counters.  Same information, laid out for this window.  Every
+        /// line is width-clipped, so the 24 px zoom truncates rather than
+        /// spilling past the board.
         private void DrawHud(Font font)
         {
-            float y = Margin + 16 * Cell + 22;
-            TLEVEL lv = _e.CurRecData;
-            string head = $"{_level}/{_levelCount}  {lv.LName}";
+            float y = Margin + 16 * Cell + 20;
+            float w = 16 * Cell;
+            TLEVEL lv = _s.Rec;
+            TGAMEREC g = _s.E.Game;
+
+            // One column, never right-aligned: the window is only as wide as
+            // the board, and at the 24 px zoom that is 384 px -- two columns
+            // collide there.
+            string head = $"{_s.Level}/{_s.LevelCount}  {lv.LName}";
             if (!string.IsNullOrEmpty(lv.Author)) head += $"   by {lv.Author}";
             DrawString(font, new Vector2(Margin, y), head,
-                       HorizontalAlignment.Left, -1, 16, Colors.White);
+                       HorizontalAlignment.Left, w, 16, Colors.White);
             DrawString(font, new Vector2(Margin, y + 20),
-                       $"graphics: {_atlas.Label}    zoom {Cell}px" +
-                       "     PgUp/PgDn level, G graphics, Z zoom, Esc quit",
-                       HorizontalAlignment.Left, -1, 12, Colors.Gray);
+                       $"moves {g.ScoreMove}   shots {g.ScoreShot}    " +
+                       $"{_atlas.Label}  {Cell}px  {(_interpolate ? "smooth" : "snap")}",
+                       HorizontalAlignment.Left, w, 14, Colors.White);
+
+            (string what, Color tint) = _s.Now switch
+            {
+                Session.State.Won => ("SOLVED -- Enter for the next level, F6 saves it",
+                                      Colors.LightGreen),
+                Session.State.Dead => ("DEAD -- R restarts", Colors.OrangeRed),
+                _ => (_error ?? "", Colors.Yellow),
+            };
+            if (what != "")
+                DrawString(font, new Vector2(Margin, y + 38), what,
+                           HorizontalAlignment.Left, w, 14, tint);
+
+            DrawString(font, new Vector2(Margin, y + 56),
+                       "arrows move, space fires, R restart, F6 saves the recording",
+                       HorizontalAlignment.Left, w, 12, Colors.Gray);
+            DrawString(font, new Vector2(Margin, y + 72),
+                       "[ ] level, G graphics, Z zoom, I smooth, Esc quit",
+                       HorizontalAlignment.Left, w, 12, Colors.Gray);
             if (!string.IsNullOrEmpty(lv.Hint))
-                DrawString(font, new Vector2(Margin, y + 40), lv.Hint.Replace("\r\n", " "),
-                           HorizontalAlignment.Left, 16 * Cell, 12, Colors.DarkGray);
+                DrawString(font, new Vector2(Margin, y + 90), lv.Hint.Replace("\r\n", " "),
+                           HorizontalAlignment.Left, w, 12, Colors.DarkGray);
         }
     }
 

@@ -321,7 +321,16 @@ def find_godot():
 
 
 def godot_hashes(godot):
-    """Run the Godot project's own --check-sheets -> {label: sha256}."""
+    """Run the Godot project's own --check-sheets -> {label: sha256}.
+
+    Build first: `godot --path` does not compile C#, so without this the
+    cross-check can compare Python against the assembly the *previous* session
+    built and call a stale SpriteSheet agreement.  See
+    engines.build_godot_game.
+    """
+    _ok, warn = engines.build_godot_game()
+    print("  build: LaserTank.Game ok%s"
+          % ("" if not warn else "   %d warning(s)" % warn))
     p = subprocess.run([godot, "--headless", "--path",
                         str(ROOT / "src" / "LaserTank.Game"), "--", "--check-sheets"],
                        capture_output=True, text=True, cwd=str(ROOT), timeout=600)

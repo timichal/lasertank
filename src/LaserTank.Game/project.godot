@@ -17,7 +17,19 @@ config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 ; The board at the default 32 px zoom, plus the HUD strip.  BoardView
 ; resizes the window when the zoom changes, exactly as SetGameSize does.
 window/size/viewport_width=544
-window/size/viewport_height=614
+window/size/viewport_height=670
+
+[physics]
+
+; The tick.  GameDelay = 50 ms (LTANK.H:96) is 20 Hz, and BoardView refuses to
+; start if this setting and that constant disagree -- the logic rate is the one
+; number in this project that must not drift.  _PhysicsProcess drives Tick();
+; _Process only redraws (hazard #10).
+common/physics_ticks_per_second=20
+
+; A frame that fell far behind must not run a burst of game ticks: 4 is 200 ms
+; of catch-up, past which the game simply runs slow rather than teleporting.
+common/max_physics_steps_per_frame=4
 
 [dotnet]
 
