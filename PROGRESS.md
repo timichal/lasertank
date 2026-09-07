@@ -29,7 +29,9 @@ python tools/sweep.py                          # 2,347/2,347 identical
 python tools/test_fuzz.py                      # 25 passed  (slow: injects faults and rebuilds)
 ```
 
-Those four are the fidelity gates and must be green before anything else is believed.
+Those four are the fidelity gates and must be green before anything else is believed. Phase 5 adds
+one of its own, `python tools/atlas_check.py` (~35 s), which is about the renderer rather than the
+rules and so is listed apart from them.
 `test_fuzz.py` patches `Engine.cs` and restores it — a green run leaves the tree byte-clean, and if
 it ever does not, read the line-ending trap in *Environment notes* before anything else. Never run
 it while a solver process is alive (see the same section).
@@ -46,7 +48,7 @@ need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 not started.**
+**Phases 1-3 complete. Phase 5 started: step 0 done, step 1 next.**
 
 | | state |
 |---|---|
@@ -54,7 +56,7 @@ need an engine change, that is the signal to stop and re-read.**
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | not started — see Phase 5 |
+| Presentation (Godot) | **step 0 done**: the board renders from `Game.BMF`, all four sprite sheets decode, gated by `tools/atlas_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
@@ -68,8 +70,9 @@ measured, not assumed: the fuzz campaign reached it zero times. It **throws** ra
 if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
 logic.
 
-**Next action for this half of the project: Phase 5, step 0.** Phase 3's fuzzer can keep running in
-parallel on new seeds and the 12 collections its first campaign never touched.
+**Next action for this half of the project: Phase 5, step 1 — the 20 Hz tick.** Step 0 is done and
+its gate (`python tools/atlas_check.py`, 2,347 levels + 4 sheets) is green. Phase 3's fuzzer can
+keep running in parallel on new seeds and the 12 collections its first campaign never touched.
 
 **Blocked on:** nothing.
 
@@ -358,9 +361,28 @@ inside the tick — the renderer must not call it, skip it, or reimplement it.**
 
 ### The steps, each with an exit criterion
 
-**Step 0 — the Godot project, and the board on screen.** A `LaserTank.Game` Godot project
-referencing `LaserTank.Core` as a plain library (it has no Godot dependency, which is what makes
-this a reference rather than a rewrite). Load a level and draw the 16×16 board.
+**Step 0 — the Godot project, and the board on screen. ☑ DONE.** `src/LaserTank.Game/` is a Godot
+4.7 project referencing `LaserTank.Core` as a plain library (it has no Godot dependency, which is
+what makes this a reference rather than a rewrite). `BoardView.cs` loads a level and draws the 16×16
+board from `Game.BMF`; `PgUp`/`PgDn` walk the 2,030 flagship levels, `G` cycles the four graphics
+packs, `Z` cycles the three zooms.
+
+```bash
+GODOT=~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/Godot_v4.7.2*/Godot_v4.7.2-stable_mono_win64_console.exe
+"$GODOT" --path src/LaserTank.Game                             # play with it
+"$GODOT" --path src/LaserTank.Game -- --shot out.png --level 7 --pack 3 --zoom 40
+python tools/atlas_check.py                                    # the gate, ~35 s
+```
+
+`--shot` draws one frame to a PNG and exits, which is how a rendering change gets reviewed without a
+window. `--pack 0` is the internal sheet, 1-3 the `.ltg` files in `data/graphics/` sorted by name.
+
+**Nothing in `LaserTank.Core`'s transliteration moved.** Core gained one new file, `GraphicsFile.cs`
+— the `.ltg`/BMP readers and the two rendering tables from the top of `LTANK2.C` — which nothing in
+`Tick()` can reach. `Engine.cs` still differs from a literal transliteration by the single word
+`partial`, `Engine.Search.cs` is still untouched, and the corpus was re-replayed against a core
+built *with* the new file: 187 replayed / 181 win / 112/112 `.ghs`, and `game-objects` traces
+16/16 identical to the oracle with `--field --bmf`.
 
 **The atlas geometry, decoded and verified against all three packs**, because getting it wrong is a
 silent off-by-one: the sheet is **always 320×192 — a 10×6 grid of 32×32 sprites** — and `BMA[]` is
@@ -371,8 +393,35 @@ object table yields is 57, so the last row is partly unused.
 **Read `Game.BMF`, never re-derive it from `PF`.** `BuildBMField` is not simply `GetOBM(PF)`: a
 tunnel is 55, the tank's own cell is 1 *and its `PF` is zeroed*, and `Animate()` then cycles `BMF`
 for animated objects. Every one of those is a place a re-derivation drifts.
-*Exit:* a headless test over all 2,347 corpus levels — every `BMF` value at load is in 1..57 and
-maps to a cell inside the 10×6 grid. Cheap, no rendering, runs beside the other gates.
+
+*Exit — MET.* `tools/atlas_check.py` is two checks, both green:
+
+- **grid**, 2,347/2,347 corpus levels: every `BMF`/`BMF2` byte the engine produces is a bitmap
+  number that lands inside the 10×6 grid. It reads the `--bmf` hex the trace already carries, so it
+  needs no engine code and no rendering — 30 s at `--jobs 8`.
+- **sheets**, 4/4: every shipped pack decodes to 320×192, and **decodes to the same pixels in two
+  independent implementations** — Python's reader in the tool, and C#'s `SpriteSheet` reached
+  through `godot --headless -- --check-sheets` — compared by sha256. One decoder agreeing with
+  itself would not be a check. Godot missing downgrades that half to a loud SKIP.
+
+**Three things the sheet decode had to get right**, each of which silently produces a
+plausible-but-wrong picture:
+
+- **The mask is not simply an alpha channel.** The original blits mask-`SRCAND` then
+  bitmap-`SRCPAINT` only for the sprites `BMSTA[]` (`LTANK2.C:80`) marks transparent; everything
+  else is a plain `SRCCOPY` that never looks at the mask. In the internal sheet the mask cell for
+  an opaque sprite is *solid white*, so applying it to everything erases the board.
+- **…except the tunnel, which is masked anyway.** `UpDateSprite`'s tunnel branch (`LTANK2.C:498`)
+  paints `ColorList[id]` and then masks sprite 55 over it **regardless of `BMSTA[55]` being 0** —
+  that is the only reason a tunnel's colour is visible. Caught here by eye after the first render
+  showed eight identical black discs; `Gfx.Masked()` is now the one place that rule lives.
+- **`BMSTA` is declared `[MaxBitMaps+1]` = 59 wide with 58 initialisers**, so C zero-fills the last
+  entry. Both ports carry the trailing 0 rather than the shorter array, because bitmap 58 is a
+  legal index.
+
+Also decoded on the way: the sheets are `BI_RGB` 24 bpp (8 bpp for `Warcraft_II`) with a 1 bpp
+mask, but the *internal* pair — `original/src/Game.BMP` and `Mask.BMP`, the ones the 2007 build
+carries as resources — are **RLE8 and RLE4**. Both readers handle 1/4/8/24 bpp and both RLE modes.
 
 **Step 1 — the tick loop, and the gate that matters.** A fixed 20 Hz tick (`GameDelay = 50` ms,
 `LTANK.H:96`) decoupled from rendering, driving `Engine.Tick()`; keyboard input appended to
@@ -398,6 +447,12 @@ resample — the sprite size is a presentation choice and no logic reads it.
 *Exit:* all three packs in `data/graphics/` load and render; switching zoom changes nothing but
 pixels. Note hazard #11 lives in this function — `if (GFXOn) GFXKill;` is missing its parens and
 must stay missing.
+
+**Most of this landed with step 0** and is only listed here because the *user-facing* half has not:
+the loading, the mask fold, all four sheets (the three packs plus the internal pair) and the
+draw-time scaling at 24/32/40 all work and are gated. What step 2 still owes is the game's own way
+in — a graphics menu rather than `G`, the choice persisted, and the external `game.bmp`/`mask.bmp`
+mode (`GraphM == 1`) that `GFXInit` also supports.
 
 **Step 3 — sound.** The 16 WAVs in `original/src/Sounds/`. The tick already computes *which* sound
 fires: `FireLaser`'s `sf` argument is the sound id and is load-bearing for logic
@@ -593,8 +648,12 @@ oracle/     the C reference oracle — see oracle/README.md
 src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank-solve.exe
   LaserTank.Core/  Objects.cs GameState.cs LevelFile.cs Engine.cs  (no Godot here)
                    Engine.Search.cs — snapshot/restore, ApplyKey, StateHash
+                   GraphicsFile.cs — .ltg + BMP readers, BMSTA/ColorList (Phase 5)
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
+  LaserTank.Game/  the Godot 4.7 project — BoardView.cs draws Game.BMF, Atlas.cs
+                   hands the sheet to the renderer, Paths.cs finds data/.
+                   Built by Godot or `dotnet build`, never published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
 ```
@@ -618,6 +677,9 @@ test_fuzz.py      self-test for fuzz.py: injects known faults into the C# core,
 verify_solutions.py replay every .lpb through BOTH engines: WIN on each,
                     byte-identical traces, and the ratio to the .ghs record.
                     --levels names the .lvl instead of finding it by directory name
+atlas_check.py    Phase 5 step 0's gate: every BMF/BMF2 value over the corpus
+                    lands inside the 10x6 sprite grid, and every graphics pack
+                    decodes to the same 320x192 pixels in Python and in C#
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -709,7 +771,18 @@ place despite not winning.
   .NET 10 runtime is present, hence `RollForward=LatestMajor` on the `net8.0` CLI.
 - **Godot 4.7.2 (.NET/Mono build)**, `winget install GodotEngine.GodotEngine.Mono`, unpacked under
   `~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/`. The `godot` alias
-  needs admin to be created, so call the `.exe` by path. Nothing before Phase 5 needs it.
+  needs admin to be created, so call the `.exe` by path — `..._console.exe` if you want stdout.
+  `tools/atlas_check.py` finds it by that glob; `$LT_GODOT` overrides. A fresh checkout needs one
+  `"$GODOT" --headless --path src/LaserTank.Game --import` before `--path` will run the project,
+  and `Godot.NET.Sdk` restores from nuget.org on the first build (the install also ships it under
+  `GodotSharp/Tools/nupkgs/` if that machine is offline).
+- **A running solver blocks `src/build.sh`, but not the compilers.** `dotnet publish -o build`
+  cannot replace `build/LaserTank.Core.dll` while a `lasertank-solve.exe` holds it open, so during
+  a long solve build each project into its own `bin/` instead — `dotnet build
+  src/LaserTank.Core/LaserTank.Core.csproj -c Release`, and `replay_all.py --engine
+  src/LaserTank.Cli/bin/Release/net8.0/lasertank-core.exe` to run the corpus against it. That is
+  how Phase 5 step 0 was checked without touching a live solve. The Godot project never publishes
+  into `build/` at all.
 - **Trap in the oracle's own usage text:** it advertises `--keys` as accepting "raw decimal VK
   codes separated by commas", but `driver.c` only parses the characters `u d l r f` and silently
   skips everything else. `--keys 38,38,32` therefore yields an *empty* keystream and an idle run
@@ -804,6 +877,19 @@ two claims the plan would otherwise have shipped wrong.
 **2026-09-07, session 23 — this file split in two.** `PROGRESS.md` is the port; `SOLVER.md` is
 Phase 4. Nothing was measured or changed; both files are the same facts with the narrative of
 superseded reasoning removed.
+
+**2026-09-07, session 24 — Phase 5 step 0: the board on screen.** The Godot project, the sprite
+sheet readers, and a gate for both. `src/LaserTank.Game/` renders any of the 2,030 flagship levels
+from `Game.BMF` with any of the four sheets at any of the three zooms; `SpriteSheet` in Core reads
+`.ltg` and the internal RLE `.bmp` pair; `tools/atlas_check.py` is green on 2,347/2,347 levels and
+4/4 sheets. Two findings paid for themselves immediately: the mask must be applied per-sprite by
+`BMSTA[]` (applying it to everything erases the board, because an opaque sprite's mask cell is
+solid white) **and to the tunnel anyway**, which is what makes the eight tunnel colours visible —
+the first render showed eight identical black discs. The sheet cross-check exists for exactly that
+class of bug: one decoder agreeing with itself proves nothing, so Python's reader and C#'s must
+produce the same sha256. Run under a live solve, so `build/` was never republished; the corpus was
+re-replayed against a locally built core instead (187/181/112, and `game-objects` 16/16 identical
+to the oracle).
 
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
 re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the single word

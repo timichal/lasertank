@@ -1,0 +1,30 @@
+; LaserTank -- Phase 5, the presentation layer.
+;
+; The game logic is LaserTank.Core, referenced as a plain library.  This project
+; only draws it: no rules live here.  See PROGRESS.md, "Phase 5".
+
+config_version=5
+
+[application]
+
+config/name="LaserTank"
+config/description="Godot port of LaserTank 4.1.2 (Jim Kindley / Yves Maingoy), public domain."
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[display]
+
+; The board at the default 32 px zoom, plus the HUD strip.  BoardView
+; resizes the window when the zoom changes, exactly as SetGameSize does.
+window/size/viewport_width=544
+window/size/viewport_height=614
+
+[dotnet]
+
+project/assembly_name="LaserTank.Game"
+
+[rendering]
+
+; Pixel art: the sheet is a native 32x32 grid scaled at draw time, so nearest
+; is the only filter that keeps it looking like the original.
+textures/canvas_textures/default_texture_filter=0
