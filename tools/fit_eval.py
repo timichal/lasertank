@@ -7,6 +7,9 @@ is what says whether fitting anything is the right move at all:
     python tools/fit_eval.py build/reports/rank.tsv
     python tools/fit_eval.py build/reports/rank.tsv --fit --out build/reports/w.txt
 
+Needs `numpy` (`pip install numpy`) -- the only tool in tools/ that is not
+stdlib-only, so it is deliberately kept out of every gate and build path.
+
 **The report.**  Each group is one subgoal expansion from a state on a winning
 trajectory: every candidate the shipped expansion offered, and which of them the
 winner went through.  Two numbers come out of that and they point at different

@@ -26,14 +26,72 @@ src/               The C# port.  LaserTank.Core is the transliterated engine —
 tools/             Replay gate, trace differ, level dumper, .lpb decoder, bump analysis
 ```
 
-## Building
+## Prerequisites
 
+Developed and verified on **Windows 11**. The build scripts are `bash`, the reference game and the
+oracle are Windows binaries, and `tools/` shells out to both — so Windows with Git Bash is the
+supported combination.
+
+| What | Install | Needed for |
+|---|---|---|
+| **Git for Windows** | `winget install Git.Git` | the `bash` both build scripts and `tools/` expect |
+| **MinGW-w64** (WinLibs, UCRT; gcc 16.1 verified) | `winget install BrechtSanders.WinLibs.POSIX.UCRT` | `oracle/build.sh` — the C reference oracle |
+| **.NET SDK 10** (10.0.400 verified) | `winget install Microsoft.DotNet.SDK.10` | `src/build.sh` — the C# core and solver |
+| **Python 3.12+** (3.12.7 and 3.14.7 verified) | either alias works, `python` or `python3` | everything in `tools/` |
+| Godot 4.7.2 **.NET/Mono** build | `winget install GodotEngine.GodotEngine.Mono` | Phase 5 only — **not started, skip it for now** |
+
+Notes that save an afternoon:
+
+- **Neither gcc nor dotnet needs to be on `PATH`.** Both build scripts look them up themselves —
+  MinGW under `~/AppData/Local/Microsoft/Winget/Packages/`, the SDK at `C:\Program Files\dotnet` —
+  because a fresh `winget install` updates the machine `PATH` only for shells started afterwards.
+  `CC` overrides the compiler.
+- **`tools/` is stdlib-only** and must stay that way so either Python alias works — so nothing
+  above needs a virtualenv or a requirements file. The single exception is `tools/fit_eval.py`
+  (weight fitting, a solver instrument and not a gate), which needs `pip install numpy` in
+  whichever interpreter you run it with.
+- **Use Git Bash, not WSL.** A bare `bash` on Windows resolves to WSL's `System32\bash.exe`, which
+  has no gcc and no dotnet and fails with an unreadable `execvpe` error. `tools/engines.py`
+  skips it automatically; set `$LT_BASH` if neither guess is right on your machine.
+- **The projects target `net8.0`** (the lowest TFM Godot 4.x accepts) with `RollForward=LatestMajor`,
+  so the .NET 10 runtime alone is enough — no .NET 8 runtime install needed.
+
+## Setup
+
+Git for Windows sets `core.autocrlf=true` system-wide, and this repo commits LF with no
+`.gitattributes` — so turn it off first, and the working tree stays byte-identical to what is
+committed. That is the assumption `tools/` patches source files under (in bytes, to preserve it)
+and the one behind the line-ending trap in PROGRESS's *Environment notes*:
+
+```bash
+git config --global core.autocrlf false        # or --local, after cloning
+git clone git@github.com:timichal/lasertank.git
+cd lasertank
 ```
-bash oracle/build.sh                 # the C reference oracle (needs MinGW-w64)
-bash src/build.sh                    # the C# core           (needs .NET SDK 10)
-python tools/replay_all.py           # replay the recorded corpus through the oracle
-python tools/test_difftrace.py       # self-test the trace differ
+
+Nothing needs extracting or downloading: the levels, scores and recordings are committed
+(≈24 MB, see *Why so much binary data is committed*). Only the binaries are missing — `build/`
+and `oracle/build/` are gitignored, so build them:
+
+```bash
+bash oracle/build.sh                 # -> oracle/build/oracle.exe
+bash src/build.sh                    # -> build/lasertank-{core,solve}.exe
 ```
+
+Then run the four fidelity gates. All four must be green before any measurement here is worth
+believing; about three minutes all in:
+
+```bash
+python tools/replay_all.py           # 187 replayed, 181 win, 6 documented non-win
+python tools/test_difftrace.py       # 29 passed
+python tools/sweep.py                # 2,347/2,347 identical
+python tools/test_fuzz.py            # 25 passed  (slow: injects faults and rebuilds the core)
+```
+
+`PROGRESS.md` holds the canonical expected counts and an *Environment notes* section with the
+traps behind each of them — including why `test_fuzz.py` must never run while a solver process is
+alive (Windows keeps `build/LaserTank.Core.dll` locked, and the rebuild fails for reasons that
+have nothing to do with the code).
 
 ## Solving levels
 
@@ -48,7 +106,7 @@ replayed it through *both* engines — winners land in `data/solutions/<collecti
 next to the rest of the game content.
 
 For measuring the solver rather than using it — whole-corpus campaigns, per-layer comparisons, the
-JSONL reports — see `tools/campaign.sh` and Phase 4 in [`PROGRESS.md`](PROGRESS.md);
+JSONL reports — see `tools/campaign.sh` and [`SOLVER.md`](SOLVER.md);
 `build/lasertank-solve.exe` with no arguments prints every flag.
 
 ## Why so much binary data is committed

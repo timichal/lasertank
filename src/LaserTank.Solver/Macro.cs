@@ -62,7 +62,7 @@
 // raw beam gets easily and every node spent here is a node taken from it.  So
 // RunMacro is off by default and this runs as a *second pass* over a campaign's
 // failures instead (tools/second_pass.sh): 395 -> 416, nothing lost.  The full
-// measurement is in PROGRESS.md's layer 1 section.
+// measurement is in SOLVER.md's layer 1 section.
 using System;
 using System.Collections.Generic;
 using LaserTank.Core;

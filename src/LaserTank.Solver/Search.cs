@@ -13,7 +13,7 @@
 //   Macro   (Macro.cs) searches Goto + Shoot instead of keypresses, so its
 //           depth is the number of shots.  It wins on shallow, branchy levels
 //           and loses on deep ones -- the measurement, and why, is in
-//           PROGRESS.md's layer 1 section.  --macro-share splits the budget.
+//           SOLVER.md's layer 1 section.  --macro-share splits the budget.
 //
 // All three drive Engine.ApplyKey, i.e. the real tick through the real
 // RecBuffer.  There is no separate "model of the game" anywhere in the solver

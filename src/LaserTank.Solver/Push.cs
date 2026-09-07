@@ -16,7 +16,8 @@
 // step is "change the board once" -- from 3.2x beyond anything ever solved to
 // 2x the p90, which is the range width and restarts already reach.  That is the
 // whole argument for this layer, and it is an argument about *this level*; the
-// instrument now exists to check it on others (PROGRESS.md, Phase 4 addendum).
+// instrument now exists to check it on others (SOLVER.md, "Why the search
+// fails on long levels").
 //
 // **What the action set is.**  From a state, everything the tank can do without
 // changing the playfield is one movement closure -- and unlike layer 1's Goto,

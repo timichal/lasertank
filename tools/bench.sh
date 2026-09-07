@@ -22,8 +22,8 @@
 # 3's budget scaling, and *understated* layer 4 -- the learned evaluation is
 # worth +1 here and +30 on the corpus, and the refit that lost a level on both
 # benches gained three on the corpus.  A bench here picks *parameters*; only a
-# campaign over the corpus decides whether a layer ships.  See PROGRESS.md,
-# Phase 4.
+# campaign over the corpus decides whether a layer ships.  See SOLVER.md,
+# "Five rules the sessions each paid to learn".
 #
 # Node-governed like everything else, so two labels are comparable even if the
 # machine was busy for one of them.  LEVELS overrides the collection.
