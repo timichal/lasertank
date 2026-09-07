@@ -16,16 +16,19 @@ validation plan, not a ranking of the two halves.
 **Where the project is.** Phases 1-3 complete: a C reference oracle (`oracle/`), a C#
 transliteration that traces byte-identically to it on the whole recorded corpus
 (`src/LaserTank.Core/`), and a differential fuzzer (`tools/fuzz.py`) with 20,626 cases and no
-divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0-3 are
-done** — `src/LaserTank.Game/` is a playable game. It draws any level from `Game.BMF` with any
-of the four sprite sheets, runs a fixed 20 Hz tick, takes the keyboard through the original's own
-`WM_KEYDOWN` filter, plays the original's sixteen WAVs off the sound ids the tick itself computes,
-writes `.lpb` recordings the 25-year-old C replays byte-identically, and remembers its graphics set,
-its board size, whether the sound is on and the level you were on in a `LaserTank.ini` with the
-original's own section and key names. `tools/atlas_check.py`, `tools/tick_check.py`,
-`tools/options_check.py` and `tools/sound_check.py` gate those four. Steps 4-6 below are still a
-plan with exit criteria rather than a wish list; **step 4, the game around the game — level picker,
-high scores, undo, record/playback UI — is the next thing to build.**
+divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0-4 are
+done** — `src/LaserTank.Game/` is a playable game with the game around it. It draws any level from
+`Game.BMF` with any of the four sprite sheets, runs a fixed 20 Hz tick, takes the keyboard through
+the original's own `WM_KEYDOWN` filter and on the original's own accelerator keys, plays the
+original's sixteen WAVs off the sound ids the tick itself computes, undoes, saves and restores a
+position, picks levels and shows both high-score lists out of `.lvl`/`.hs`/`.ghs`, writes a `.hs`
+the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all three of the
+original's speeds, and remembers its graphics set, board size, sound, animation, auto-record, player
+initials and the level you were on in a `LaserTank.ini` with the original's own section and key
+names. `atlas_check.py`, `tick_check.py`, `options_check.py`, `sound_check.py`, `undo_check.py`,
+`list_check.py` and `roundtrip_check.py` gate those five steps. Steps 5-6 below are still a plan
+with exit criteria rather than a wish list; **step 5, the level editor — and with it
+`MouseOperation`, the one unported function — is the next thing to build.**
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -42,32 +45,50 @@ Those four are the fidelity gates and must be green before anything else is beli
 it ever does not, read the line-ending trap in *Environment notes* before anything else. Never run
 it while a solver process is alive (see the same section).
 
-Phase 5 adds three gates of its own, all about the presentation rather than the rules, so they are
+**If a solve is running, that block does not work as written** and the first symptom is a build
+failure, not a red gate: `src/build.sh` publishes into `build/`, which a live `lasertank-solve.exe`
+holds open. Build into each project's own `bin/` and point the tools at it instead — and skip
+`test_fuzz.py` until the solve is done, because it rebuilds the core:
+
+```bash
+dotnet build src/LaserTank.Cli/LaserTank.Cli.csproj -c Release
+export LT_CORE=$PWD/src/LaserTank.Cli/bin/Release/net8.0/lasertank-core.exe
+python tools/replay_all.py --engine "$LT_CORE"   # replay_all takes --engine, not $LT_CORE
+python tools/sweep.py                            # everything on engines.py reads $LT_CORE
+```
+
+Phase 5 adds seven gates of its own, all about the presentation rather than the rules, so they are
 listed apart from the four and nothing in Phases 1-4 depends on them:
 
 ```bash
 python tools/atlas_check.py                    # step 0: 2,347 levels + 4 sprite sheets, ~35 s
 python tools/tick_check.py                     # step 1: 208/208 vs the oracle + the rate, ~20 s
-python tools/options_check.py                  # step 2: the INI, the packs, the laser's width, ~40 s
+python tools/options_check.py                  # step 2: the INI, the packs, the laser's width, ~50 s
 python tools/sound_check.py                    # step 3: 208 SoundPlay streams + 16 WAVs, ~60 s
+python tools/undo_check.py                     # step 4: undo + save/restore vs the oracle, ~60 s
+python tools/list_check.py                     # step 4: list rows + .hs bytes vs Python, ~25 s
+python tools/roundtrip_check.py                # step 4: record -> replay -> oracle, ~150 s
 ```
 
-All four want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
-the other two need it outright. All four **rebuild the Godot project's C# first**, because
-`godot --path` does not and would otherwise report green for the previous session's assembly — see
-*Environment notes*. None of them touches `build/lasertank-solve.exe`, so all are safe to run
-beside a live solver. `options_check` opens three brief windows for its pixel measurements
-(`--shot` needs a rendering device); `--no-window` skips that half. `sound_check`'s corpus half
-drives `build/lasertank-core.exe`, which a live solve locks against rebuilding — `$LT_CORE` points
-it at a locally built one instead (*Environment notes*).
+All seven want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
+`undo_check` needs only the two engines, the rest need Godot outright. Every one that runs the
+project **rebuilds its C# first**, because `godot --path` does not and would otherwise report green
+for the previous session's assembly — see *Environment notes*. None of them touches
+`build/lasertank-solve.exe`, so all are safe to run beside a live solver. `options_check` opens
+three brief windows for its pixel measurements (`--shot` needs a rendering device); `--no-window`
+skips that half. The corpus halves of `sound_check`, `undo_check` and `roundtrip_check` drive
+`build/lasertank-core.exe`, which a live solve locks against rebuilding — `$LT_CORE` points them at
+a locally built one instead (*Environment notes*).
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
 `src/LaserTank.Core/Engine.cs` differs from a literal transliteration by the word `partial`, twice:
 on the class, and on `SoundPlay`, whose body moved to `Engine.Sound.cs` in step 3 while every call
 site stayed identical. Step 3 also *restored* three `SoundPlay` calls Phase 2 had read as paint —
-`S_Move`, `S_EndLev`, `S_Die` — which is a transliteration getting closer to the C, not further
-from it, and the corpus proves it: 208/208 recordings agree with the oracle on the whole sound
-stream. `Engine.Search.cs` has not changed since the solver's first layer. **If a solver change
+`S_Move`, `S_EndLev`, `S_Die` — and step 4 added `UndoStep` (`LTANK2.C:455`, the one function Phase 2
+left unported for lack of a caller) plus commands 111 and 112. All of those are a transliteration
+getting *closer* to the C, not further from it, and the corpus proves each: 208/208 on the sound
+stream, and 400 scripts of undo diffed against the oracle's own `UndoStep`.
+`Engine.Search.cs` has not changed since the solver's first layer. **If a solver change
 seems to need an engine change, that is the signal to stop and re-read.**
 
 **Artifacts live under `build/`, which is gitignored** — they survive a context clear but not a
@@ -77,39 +98,45 @@ seems to need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 under way: steps 0-3 done, step 4 next.**
+**Phases 1-3 complete. Phase 5 under way: steps 0-4 done, step 5 next.**
 
 | | state |
 |---|---|
 | C reference oracle | replays the whole corpus; ground truth, never refactored |
-| C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
+| C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf`, and on 400 undo scripts with `--script` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | **steps 0-3 done**: playable, with sound. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter, the sixteen WAVs off the engine's own `SoundPlay` ids, `.lpb` recordings the oracle replays, a graphics menu and a `LaserTank.ini` that remembers the pack, the size, the sound and the level. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` |
+| Presentation (Godot) | **steps 0-4 done**: a playable game with the game around it. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter and its own accelerator table, the sixteen WAVs off the engine's own `SoundPlay` ids, undo / save / restore position, the level picker and both high-score lists, a `.hs` writer faithful to the byte, record and playback at all three speeds, and a `LaserTank.ini` that remembers nine keys under the original's names. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` + `undo_check.py` + `list_check.py` + `roundtrip_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
 moves *and* shots. `test_difftrace.py` 29 passed. `test_fuzz.py` 25 passed. `sweep.py` 2,347/2,347
 identical. `tools/verify_solutions.py` over any solver output — every `.lpb` wins on both engines
-with byte-identical traces. Phase 5's four: `atlas_check.py` OK (2,347 levels clean, 4 sheets
+with byte-identical traces. Phase 5's seven: `atlas_check.py` OK (2,347 levels clean, 4 sheets
 cross-checked), `tick_check.py` 208/208 agreeing with the oracle plus 100 ticks in 5 s,
-`options_check.py` OK (20 checks: the INI's semantics and round trip, mode 1 == mode 2 pixels for
-every pack, the three board sizes, the laser bar 4/6/6 px wide), `sound_check.py` OK (208/208
-recordings identical *including* the per-tick `SoundPlay` stream, 16/16 WAVs decoding to the same
-PCM in Python and C#, 12 checks on `[OPT] Sound`).
+`options_check.py` OK (25 checks: the INI's semantics and round trip, the strict `Yes` test on all
+four Yes/No keys, mode 1 == mode 2 pixels for every pack, the three board sizes, the laser bar
+4/6/6 px wide), `sound_check.py` OK (208/208 recordings identical *including* the per-tick
+`SoundPlay` stream, 16/16 WAVs decoding to the same PCM in Python and C#, 12 checks on
+`[OPT] Sound`), `undo_check.py` OK (400 scripts, 0 divergences, all four commands exercised),
+`list_check.py` OK (12 list dumps and 8 `.hs` writes rebuilt in Python, plus 6 checks that reaching
+the flag posts a score), `roundtrip_check.py` OK (60 cases, six runs each).
 
 **What is still not ported: `MouseOperation`, and only that.** The mouse buffer is empty headless
 (`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it —
-measured, not assumed: the fuzz campaign reached it zero times. It **throws** rather than no-ops, so
-if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
-logic.
+measured, not assumed: the fuzz campaign reached it zero times, and so did step 4's undo campaign.
+It **throws** rather than no-ops, so if that premise ever breaks the run stops loudly. It is step 5
+work: a UI entry point, not game logic. (`UndoStep` was the other one until step 4, and for the same
+reason — no keystream can reach a `WM_COMMAND` case. What reached it in the end was a *script*; see
+step 4.)
 
-**Next action for this half of the project: Phase 5, step 4 — the game around the game.** Steps 0-3
-are done and all four gates are green. Step 4 is the level picker, the high scores (`.hs`/`.ghs`,
-already read by `LevelFile`), undo and the record/playback UI; undo needs less than it looks, since
-`UpdateUndo` / `ResetUndoBuffer` and the whole `UndoBuffer` are already ported and maintained and
-only `UndoStep`, the reader, is missing. Phase 3's fuzzer can keep running in parallel on new seeds
-and the 12 collections its first campaign never touched.
+**Next action for this half of the project: Phase 5, step 5 — the level editor.** Steps 0-4 are done
+and all seven Phase 5 gates are green. Step 5 is where `MouseOperation` — still the only unported
+function, and still throwing rather than no-opping — finally gets written, because it is a UI entry
+point rather than game logic. Its exit criterion is the one that turns constraint 2 from an
+assertion into a demonstration: an edited level saves as a `.lvl` the 2010 binary opens. Phase 3's
+fuzzer can keep running in parallel on new seeds and the 12 collections its first campaign never
+touched, and `undo_check.py` is now a second campaign of the same kind on the same engine.
 
 **Blocked on:** nothing.
 
@@ -302,11 +329,14 @@ Decisions worth not relitigating:
 - **`net8.0` for both projects.** Lowest TFM Godot 4.x accepts, so Phase 5 can reference
   `LaserTank.Core` unchanged; the CLI sets `RollForward=LatestMajor` because only the .NET 10
   runtime is installed.
-- **The undo buffer is carried even though nothing headless reads it.** `UndoStep` is unreachable
-  from a keystream, so the `TGAMEREC` snapshots `UpdateUndo` stores are write-only. `UndoP` is not:
-  `MoveObj`'s tunnel path decrements it (quirk #7), so its growth (`UndoBufSize` in steps of 200)
-  and its roll-over at `UndoMax` have to be exact, and the cheapest way to be sure is to keep the
-  buffer they index into. The two `GlobalReAlloc == NULL` branches in
+- **The undo buffer was carried for two phases even though nothing read it back**, and step 4 is
+  what vindicated the decision. `UndoStep` is unreachable from a keystream, so the `TGAMEREC`
+  snapshots `UpdateUndo` stores were write-only. `UndoP` was not: `MoveObj`'s tunnel path
+  decrements it (quirk #7), so its growth (`UndoBufSize` in steps of 200) and its roll-over at
+  `UndoMax` have to be exact, and the cheapest way to be sure was to keep the buffer they index
+  into. Phase 5 step 4 then wrote the reader and diffed 400 undo scripts against the oracle's own
+  `UndoStep` with no divergence — so the arithmetic really was right, and it was right because the
+  snapshots were kept rather than optimised away. The two `GlobalReAlloc == NULL` branches in
   `UpdateUndo`/`ResetUndoBuffer` are *not* carried: the oracle's stub is plain `realloc`
   (`oracle/win32_stub.c:74`), so they are unreachable on both sides. They are the only pieces of
   either function left out.
@@ -379,7 +409,7 @@ replayed tick-for-tick through the 25-year-old C with zero divergences.)
 
 ---
 
-## Phase 5 — Presentation & features  ◐  (steps 0-2 done)
+## Phase 5 — Presentation & features  ◐  (steps 0-4 done)
 
 **Where the fidelity line actually runs, decided out loud in the step 2 session and worth reading
 before the next UI change: the mechanics of the puzzles must be exactly the same — every level has
@@ -597,9 +627,10 @@ The tick itself is `_PhysicsProcess` with `physics_ticks_per_second = 20` in `pr
 `BoardView` refuses to start if that setting and `GameDelay` disagree — the logic rate is the one
 number in this project that must not drift. `_Process` only calls `QueueRedraw`.
 
-**Not in step 1, on purpose:** sound (step 3), undo (step 4 — `UndoStep` is still the one missing
-reader), the level picker and the recording UI (step 4). `F6` writing to `out/recordings/` is the
-placeholder for the last of those, not the finished thing.
+**Not in step 1, on purpose:** sound (step 3), undo (step 4 — `UndoStep` was still the one missing
+reader), the level picker and the recording UI (step 4). `F6` writing to `out/recordings/` was the
+placeholder for the last of those; step 4 kept the directory and gave it the recorder, the author
+name and BuildPB_Name's file name.
 
 **Step 2 — graphics packs and zoom. ☑ DONE.** `.ltg` is a 324-byte `TLTGREC` header (`Name[40]`,
 `Author[30]`, `Info[245]`, `ID[5]` = `"LTG1"`, `MaskOffset` DWORD) followed by two ordinary Windows
@@ -829,12 +860,126 @@ noticed rather than measured, which is worth remembering if the audio path is ev
 **Not in step 3, on purpose:** an Options menu (the `S` key is the whole UI, as `G` and `Z` are),
 `Ani_On`'s `[OPT] Animation` twin, and the volume/mixer settings the original never had.
 
-**Step 4 — the game around the game.** Level picker, high scores (`.hs`/`.ghs`, already read by
-`LevelFile`), undo, and record/playback UI. Undo needs less than it looks: `UpdateUndo` /
-`ResetUndoBuffer` and the whole `UndoBuffer` are already ported and maintained — only `UndoStep`,
-the reader, is missing, because nothing headless ever called it.
-*Exit:* a recorded game round-trips — record in Godot, replay in Godot, replay in the oracle, all
-three agree.
+**Step 4 — the game around the game. ☑ DONE.** Level picker, the two high-score lists, undo,
+Save/Restore Position, and the record/playback UI.
+
+```bash
+"$GODOT" --path src/LaserTank.Game        # U undo, L levels, V/G scores, F5/F6/F7 record
+
+python tools/undo_check.py                # the commands, vs the oracle, ~60 s
+python tools/list_check.py                # the list rows and the .hs bytes, vs Python, ~25 s
+python tools/roundtrip_check.py           # step 4's exit criterion, six runs a case, ~150 s
+
+# the commands, from either engine, as a token stream
+oracle/build/oracle.exe  --levels data/levels/LaserTank.lvl --level 7 \
+    --script "uufz.zc.v" --trace a.tr --field
+build/lasertank-core.exe --levels data/levels/LaserTank.lvl --level 7 \
+    --script "uufz.zc.v" --trace b.tr --field
+python tools/difftrace.py a.tr b.tr
+
+"$GODOT" --headless --path src/LaserTank.Game -- --play --script "uufz.zllZ" --level 7 --out DIR
+"$GODOT" --headless --path src/LaserTank.Game -- --replay DIR/x.lpb --speed 2
+"$GODOT" --headless --path src/LaserTank.Game -- --check-lists ABS/PATH/TO.lvl
+"$GODOT" --headless --path src/LaserTank.Game -- --check-scores ABS/DIR
+
+# the panels as pictures, which is the only way to review one without a window
+# -- the same trick --menu is for.  levels | scores | global | playback
+"$GODOT" --path src/LaserTank.Game -- --panel levels --zoom 2 --level 900 \
+    --levels ABS/PATH/TO.lvl --shot ABS/OUT.png
+```
+
+**A rule that step 4 had to learn the hard way: an instrument must not post a high score.**
+`Session` writes a `.hs` only when it was given `Options` whose INI is writable — the same
+live-versus-instrument rule `Ini.ReadOnly` is, and for the same two reasons (parallel gate jobs
+racing over one file, and a measurement changing what the next player sees). `PlayMode` builds its
+Sessions without `Options`, so `tick_check.py` can replay 208 *winning* recordings and leave the
+corpus alone. It did not, at first: one run left `.hs` files in six collections under `data/`
+(gitignored, so the tree stayed clean and nothing said so). `--play --script --ini FILE` is the one
+configuration that does post, which is how `list_check.py`'s `win` half checks that reaching the
+flag writes anything at all — the `--check-scores` half drives `HighScores.Check` directly and so
+can only prove the writer, never its caller.
+
+**`--script` is what made this checkable, and it is the same move `--sound` was.** Undo, Save
+Position and Restore Position are `WM_COMMAND` cases, not bytes in `RecBuffer` — which is precisely
+why Phase 2 left `UndoStep` unported: no keystream can reach it, so nothing headless ever called it,
+so the undo buffer had been written and maintained for two phases *with nothing reading it back*.
+Its arithmetic — the growth, the roll-over, quirk #7's `UndoP--` in `MoveObj`'s tunnel path — had
+never been checked against anything but itself. A **script** reaches it: a token stream consumed at
+most one token per tick, where `u d l r f` press a key (only when the buffer has drained, which is
+the original's own pending-key rule), `.` idles one tick, `z` is command 110, `Z` is the DeadBox's
+"Undo Last Move" — command 110 plus `GameOn(TRUE)`, the only path in the game that resumes a death —
+and `c`/`v` are commands 111 and 112. `oracle/driver.c` grew a `script_feed` for it, and **the
+oracle's `UndoStep` is the real one**: `oracle/build.sh` compiles `LTANK2.C` verbatim, so the C being
+diffed against was written in 2002 and this project has never read it into anything.
+
+**Three drivers implement that fifteen-line rule on purpose** — `oracle/driver.c`'s `script_feed`,
+`LaserTank.Cli`'s `Feed`, `PlayMode`'s `Feed`. The first two prove the *engine* undoes correctly;
+only the third proves that what the `U` key calls does. Same argument as carrying the sound-id table
+twice.
+
+**It found two things on its first runs, and both are now hazards #13 and #14.** `undo_check.py`'s
+very first campaign flagged `v` before `c` — a blank `SaveGame` copied over the live game, which
+walks `ConvMoveTank` off the end of `Game.PF` and is unreachable in the original only because the
+menu item is grayed. And `roundtrip_check.py` disproved the exit criterion's most natural reading:
+*a recording made with undos in it is not a transcript of what the player saw*, because `UndoStep`
+restores `Game` and `Game` does not contain the laser. That is the C's behaviour, measured in the
+oracle with no port involved, so the gate asserts the tie-in only for command-free scripts and
+counts it for the rest (44 of 45 in the default campaign).
+
+**The keys are the original's accelerator table** (`lt32l_us.inc:120`), read rather than invented,
+which moved two of step 2's: the sound is `N` (`S` is Skip Level) and the graphics dialog is
+`Ctrl+G` (`G` is the global high-score list). Step 4 is where that became affordable — with a dozen
+commands, an invented set is worse than the real one — and it is the same rule as reading
+`LaserOffset` out of its table.
+
+**The three list dialogs are one dialog three times.** `LoadBox` (106), `HSList` (113) and `GHSList`
+(906) each build one string per level with a `sprintf` whose padding and truncation are observable,
+prefix it with a difficulty digit that `DrawLevels` then colours by, and hand it to an owner-drawn
+listbox; all three seek to `CurLevel - 1` and load on Enter. So `LevelList` is one class with three
+modes carrying the original's own format strings, and `--check-lists` dumps every row for
+`tools/list_check.py` to rebuild in Python from the `.lvl` / `.hs` / `.ghs` bytes. One difference
+between them is kept because it is observable: **command 106 stops the clock and 113/906 do not**
+(`x = Game_On; GameOn(FALSE); DialogBox(...)`, `LTANK.C:906`), so a tank in the open can die while
+you read your scores and cannot while you pick a level.
+
+**Playback needed no new rules at all** — `PBOpen`, `PlayBack`, `PBHold`, `Speed` and `SlowPB` have
+been read by `Engine.Tick` since Phase 2, so the panel is four buttons wired to five fields. One
+line of `PBWindow` does have to live outside the engine: in Single Step the original's tick posts
+`ID_PLAYBOX_02` back at the dialog from *inside* the tick, and an engine with no dialog cannot, so
+`Playback.AfterTick` pauses instead. Measured at all three speeds on the corpus's first recording:
+Fast 372 ticks (identical to the oracle), Slow 1,136, Step 372.
+
+**The `.hs` writer is where the file format has a quirk in it.** A `.hs` is dense and positional, so
+beating level 8 of a collection whose file reaches level 3 writes records 4..7 in front of it — and
+`CheckHighScore` pads with its `HS` global **before** refreshing that global from the file, with only
+`moves` forced to 0. So the padding carries the *previous* level's shots and initials. Nothing reads
+them; every read-back test passes with them zeroed; they are in every `.hs` the 2010 binary has ever
+written, and constraint 2 says these files stay writable and not merely readable. So `HS` is a
+`ScoreState` the Session owns for its whole life, and `--check-scores` replays a scripted sequence of
+writes that `tools/list_check.py` performs again in Python and compares as hex, step by step.
+
+**One documented loss.** Command 105 never calls `ResetUndoBuffer` — it restores the playfield in
+place and pushes one more snapshot first (*"Without this we loose the last move"*), so in the 2010
+binary `R` then `U` walks back into the attempt you just abandoned, resuming its recording from the
+middle of a `RecBuffer` that 105 rewound but did not clear. Reproducing that means keeping the
+`Engine` across a restart, and keeping it is what `Session.Load` argues against (quirk #12): a
+recording saved after a restart would then not replay in a process that started clean, which every
+replay of it does. So the restart is clean and the undo history goes with it.
+
+*Exit — MET.* `roundtrip_check.py` 60/60 over six runs each: the script traces byte-identical
+between the oracle and the port, Godot's own command path agreeing with the oracle on result, ticks,
+moves and shots, the recording it writes replaying byte-identically in both engines, and Godot's
+*playback* path — `PBOpen`, `PBHold`, `Speed`, none of which pressing keys exercises — agreeing with
+the oracle on that replay. `undo_check.py` 400 scripts, 0 divergences, over the flagship and all ten
+quirk packs. `list_check.py` 12 lists and 8 writes. And the seven gates before them are green with
+all of it in.
+
+**Not in step 4, on purpose:** the Search sub-dialog (`SearchBox` — name/author substring,
+difficulty mask, skip-completed), `TransListKey`'s type-ahead, `[OPT] SkipComLev` and
+`[DATA] Diff_Setting` (both belong with a `LoadNextLevel` port rather than with a menu),
+`Backspace[]`'s ten-level history (command 118), Resume Recording (command 125), Print (126), the
+`RecordBox`/`HSBox` name prompts (the two INI keys are read and written; there is no dialog to type
+into yet), and the hint box (301).
 
 **Step 5 — the level editor.** This is where `MouseOperation`, the one unported function, finally
 gets written; it is a UI entry point rather than game logic, which is why it was left throwing.
@@ -860,7 +1005,29 @@ formats stay readable *and* writable) is demonstrated rather than asserted.
   and no trace carried sound. The fix is the same one Phase 1 found when "186/186 reach the flag"
   turned out to be the wrong bar: make the thing being added *observable*, then diff it against the
   C. Every step after this one should ask what its own new output is and how the oracle can be made
-  to emit it too.
+  to emit it too. **Step 4 is what generalised the trick:** `--sound` made the tick's decisions
+  visible, and `--script` made the *player's commands* expressible — undo, Save and Restore Position
+  are `WM_COMMAND` cases that no keystream can reach, and inventing a token stream for them turned
+  three unreachable functions into an ordinary trace diff. When the next step's feature seems
+  untestable because the oracle has no way to be asked, the question is what input language is
+  missing rather than whether the C can answer.
+- **When the oracle can answer, ask it before writing down what "correct" means.** Step 4's exit
+  criterion — "a recorded game round-trips, all three agree" — silently assumed that a recording
+  replays to the position it was saved from, and the oracle disproved that on its own in one command
+  (hazard #13). The gate now asserts it only where it holds. A criterion written before the
+  measurement is a hypothesis; three of step 4's four surprises were the gate contradicting one.
+- **A guard the original gets from Windows still has to be written down somewhere.** Two of step 4's
+  three invented behaviours were guards: a null check in `RestorePosition` and a resurrect-on-restore
+  that command 112 does not do. Both looked like the obviously-sane reading of a function whose C is
+  three lines with no guard at all, because the guard is a grayed menu item. The rule that came out
+  of it: transliterate the function literally, and put the menu's own condition in the *driver*,
+  named after the `EnableMenuItem` call it stands for — then both script drivers can apply it and be
+  diffed against each other.
+- **An instrument must not write the player's state**, and that now covers three files rather than
+  one: the INI (step 2), and — since step 4 — the `.hs` and anything under `out/recordings/`. The
+  test is whether a gate could be run eight times in parallel and leave the tree as it found it.
+  `tick_check.py` replaying 208 winning recordings wrote `.hs` files into six collections of `data/`
+  before this was noticed, and `.gitignore` is why nothing said so.
 - **Measure pixels, do not look at them.** Both step 2 bugs were invisible in a screenshot until
   someone knew the number to expect. Anything geometric — bar widths, outlines, cell rects — gets a
   reader-and-compare in `tools/options_check.py`, whose laser check takes the coordinates from the
@@ -1017,6 +1184,33 @@ them: *in this program a function's name tells you nothing about whether it muta
     winning keystreams as losing (see `SOLVER.md`, the polishing addendum). The search itself is
     unaffected: `Restore()` puts all four flags back, which is exactly why `EngineSnapshot`
     carries them.
+13. **Undo restores `Game` and nothing else, so a recording made with undos in it is not a
+    transcript of what the player saw.** `UndoStep` is `Game = UndoBuffer[UndoP]`
+    (`LTANK2.C:459`) and `TGAMEREC` holds the four playfields, the tank and the two scores.
+    The laser is a *separate* global; so are `wasIce`, `WaitToTrans`, `ConvMoving`,
+    `BlackHole` and `LaserBounceOnIce`; and the slide stacks are **cleared** by the next three
+    lines rather than restored. So the world after an undo is not the world a clean replay of
+    the rewound keystream would produce — while `Game.RecP` is rewound as if it were. Keys
+    pressed after the undo then land in a different game and `RecP` keeps counting, so
+    `RecBuffer[0..RecP)` — which is exactly what `WM_SaveRec` writes — can replay somewhere
+    else entirely. Measured in the **oracle alone**, no port involved: flagship level 1,499,
+    script `ffrlrfzcrfzzzzzzfufuZvfdddffdflzzzflllflrrrfr` plays to 100 ticks and 2 moves, and
+    the 13 keys it leaves behind replay to 60 ticks and 6 moves. This is not a port bug and not
+    a bug to fix; it is why `tools/roundtrip_check.py` asserts "the recording reproduces the
+    play" **only for command-free scripts** and counts it for the rest. It also means an
+    undo-heavy `.lpb` is still a perfectly valid recording — it wins or loses on its own terms,
+    and all three engines agree on which.
+14. **`SaveGame` starts blank, and Restore Position is only unreachable because of a menu.**
+    `SaveGame` is a file-scope `TGAMEREC` (`LTANK2.C:59`), so command 112 before command 111
+    copies a *zeroed* record over the live game: tank at 0,0 facing 0, every playfield cell 0.
+    The copy itself is defined, but command 112 does **not** stop sliding (unlike `UndoStep`
+    three lines away), so the tank then keeps whatever ice slide was running and `ConvMoveTank`
+    walks off the end of `Game.PF` — out of bounds in C, a thrown
+    `IndexOutOfRangeException` in the port. The original cannot get there: `LoadLevel` grays
+    command 112 and only 111 enables it (`LTANK2.C:1028`, `LTANK.C:957`). So the engine
+    reproduces the blank record faithfully and `Engine.CanRestore` carries the *menu's* guard,
+    which both script drivers apply before issuing the command. `tools/undo_check.py` found
+    this on its first run against `Tutor.LVL` level 85 with the three-token script `llv`.
 
 ---
 
@@ -1050,11 +1244,15 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
   LaserTank.Game/  the Godot 4.7 project.  BoardView.cs draws Game.BMF and routes
                    keys, Session.cs is LTANK.C's driver half (WM_TIMER, WM_KEYDOWN,
-                   WM_Dead, ReStart, WM_SaveRec), PlayMode.cs is that driver with a
-                   scripted player, Atlas.cs hands the sheet to the renderer,
-                   Options.cs is LaserTank.ini, Packs.cs is GFXInit's three modes,
-                   GraphicsMenu.cs is GraphBox, Sfx.cs is lt_sfx.c (one player,
-                   monophonic), Paths.cs finds data/.  Built by
+                   WM_Dead, ReStart, WM_SaveRec, commands 110/111/112/114/124),
+                   PlayMode.cs is that driver with a scripted player, Atlas.cs
+                   hands the sheet to the renderer, Options.cs is LaserTank.ini,
+                   Packs.cs is GFXInit's three modes, GraphicsMenu.cs is GraphBox,
+                   LevelList.cs is LoadBox/HSList/GHSList (one class, three modes),
+                   HighScores.cs is AssignHSFile + CheckHighScore + the HS global,
+                   Recorder.cs is command 123 and PBWindow, Sfx.cs is lt_sfx.c (one
+                   player, monophonic), Step4Check.cs is the two headless dumps
+                   list_check.py compares against, Paths.cs finds data/.  Built by
                    Godot or `dotnet build`, never published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
@@ -1100,6 +1298,23 @@ sound_check.py    Phase 5 step 3's gate: every recorded .lpb replayed through
                     decoding to the same PCM in Python and in C#; and
                     [OPT] Sound's semantics, including the original's
                     case-sensitive test for "Yes"
+undo_check.py     Phase 5 step 4's gate: Undo and Save/Restore Position, which
+                    no keystream can reach, driven through --script -- a token
+                    stream both engines take -- and trace-diffed against the
+                    oracle's own UndoStep.  Shrinks a divergence like fuzz.py.
+                    --replay LEVEL SCRIPT re-checks one with --field
+list_check.py     Phase 5 step 4's second gate: the three list dialogs' rows and
+                    the .hs writer's bytes, rebuilt in Python and compared
+                    against --check-lists / --check-scores.  Neither output is
+                    engine behaviour, so neither can go through the oracle;
+                    this is the sprite-sheet pattern instead.  Plus `win`:
+                    level 1's own recorded solution replayed as a script with a
+                    live --ini, to check the flag case actually posts a score
+roundtrip_check.py Phase 5 step 4's exit criterion: for each of N undo-carrying
+                    scripts, six runs -- the script through both engines
+                    (trace-diffed) and through Godot's own command path, then
+                    the .lpb it records through both engines (trace-diffed) and
+                    through Godot's playback path
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1404,7 +1619,42 @@ the id→name table is carried twice for the same reason. One thing no gate cove
 claim in the step that was checked by ear rather than measured: that `AudioStreamPlayer` actually
 makes a noise -- confirmed by hand at the end of the session.
 
+**2026-09-07, session 28 — Phase 5 step 4: the game around the game, and `--script`.** Undo, Save
+and Restore Position, the level picker, both high-score lists, the `.hs` writer, and record/playback
+at all three speeds. The step's problem was not the features but the *check*: Undo, 111 and 112 are
+`WM_COMMAND` cases, so **no keystream can reach them** — which is exactly why Phase 2 left `UndoStep`
+unported and why the undo buffer had been maintained for two phases with nothing reading it back.
+So the commands were made expressible the way sound was made observable: `--script`, a token stream
+consumed one token per tick (`u d l r f` press on drain, `.` idles, `z` = 110, `Z` = the DeadBox's
+undo, `c`/`v` = 111/112), implemented three times on purpose — `oracle/driver.c`, `LaserTank.Cli`,
+and `PlayMode` so that what the `U` key calls is checked and not just what the engine does. The
+oracle's `UndoStep` is the 2002 C, compiled verbatim, and had never been read by this project.
+
+It paid for itself immediately. `undo_check.py`'s first campaign found a null guard in
+`RestorePosition` that had invented behaviour the C does not have (`SaveGame` is a *zeroed* global,
+so restoring before saving blanks the board — hazard #14), then found that the resulting state walks
+`ConvMoveTank` off the end of `Game.PF`, so the menu's own gray-out is now carried by both drivers.
+`roundtrip_check.py` then disproved the step's own exit criterion in its most natural reading:
+**a recording made with undos in it is not a transcript of what the player saw**, because `UndoStep`
+is `Game = UndoBuffer[UndoP]` and `Game` does not contain the laser (hazard #13) — measured in the
+oracle alone, flagship level 1,499, 100 ticks and 2 moves for the play against 60 and 6 for the 13
+keys it leaves behind. And a third invention was caught the same way: `RestorePos` resuming a dead
+game, which command 112 does not do. Undo is the way back from a death; that is what the buffer is
+for. Two outputs that no oracle can emit — the three list dialogs' `sprintf` rows and the `.hs`
+file's bytes — went through the sprite-sheet pattern instead, rebuilt in Python and compared
+(`list_check.py`), which is where the `HS` global turned out to be load-bearing: `CheckHighScore`
+pads a sparse `.hs` with it *before* refreshing it, so the padding carries the previous level's
+initials. The keys were moved onto the original's own accelerator table (`ACC1`), which cost step 2's
+`S` and `G` their old meanings. One deviation is recorded rather than fixed: a restart loses the undo
+history, because keeping it means keeping the `Engine` across the restart and quirk #12 says a
+recording must replay from clean. **`test_fuzz.py` was not re-run this session** — a solve was live
+throughout and it rebuilds the core, which Windows will not allow while `lasertank-solve.exe` holds
+`build/LaserTank.Core.dll` open (see *Environment notes*). Everything it gates is unchanged:
+`Engine.cs` is 89 added lines and none removed. Run it once the solve is done.
+
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
 re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the word
 `partial` — on the class, and (since step 3) on `SoundPlay`, whose body is in `Engine.Sound.cs` —
-and `Engine.Search.cs` has not changed since the solver's layer 0.*
+plus (since step 4) `UndoStep`, `SavePosition` and `RestorePosition`, which are transliterations of
+`LTANK2.C:455` and `LTANK.C:955` that Phase 2 had no caller for. `Engine.Search.cs` has not changed
+since the solver's layer 0.*

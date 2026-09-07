@@ -58,6 +58,11 @@ Case = namedtuple("Case", "levels level keys")
 # take --lpb and read the level number out of its 66-byte header, so this is
 # the shape tools/verify_solutions.py needs.
 LpbCase = namedtuple("LpbCase", "levels lpb")
+# A script instead of a keystream (Phase 5, step 4): one token per tick, where a
+# token can be a *command* -- undo, save/restore position -- and not just a key.
+# Both engines take --script and neither accepts it beside --keys or --lpb, so
+# this is a third shape of the same Case rather than a flag on one.
+ScriptCase = namedtuple("ScriptCase", "levels level script")
 Run = namedtuple("Run", "rc stdout stderr trace")
 
 # kind: tick | length | result | exit | engine
@@ -157,8 +162,13 @@ def command(exe, case, trace, field=False, bmf=False, max_ticks=None,
     """The exact argv, so a repro can quote something that actually runs."""
     cmd = [str(exe), "--levels", str(case.levels)]
     lpb = getattr(case, "lpb", None)
+    script = getattr(case, "script", None)
     if lpb is not None:
         cmd += ["--lpb", str(lpb)]
+    elif script is not None:
+        if case.level:
+            cmd += ["--level", str(case.level)]
+        cmd += ["--script", script]
     else:
         if case.level:
             cmd += ["--level", str(case.level)]

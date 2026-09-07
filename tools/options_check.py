@@ -226,6 +226,45 @@ def check_ini(tmp):
                        "rc=%d rll=%s start_level=%s"
                        % (rc, o.get("rll"), o.get("start_level"))))
 
+    # -- the Yes/No test is `strcmp(temps, psYes)`, so **exactly "Yes"**, and
+    # step 4 read the C properly and made the port strict everywhere.  Six keys
+    # use the idiom and they split on the *default* only: Animation, Sound and
+    # RLL default to Yes and are off unless the value is exactly "Yes"
+    # (LTANK.C:404, :411, :439); SkipComLev, Auto_Record and DisableWarnings
+    # default to No and are on only when it is (LTANK.C:418, :424, :431).
+    #
+    # This is what step 2 left unresolved -- it read RLL loosely, on the grounds
+    # that the idiom was ambiguous, and PROGRESS.md recorded the disagreement
+    # rather than guessing.  LTANK.C:439 is not ambiguous.
+    # Two layers compose here and it is worth keeping them apart: the
+    # *comparison* is strict, and the *reader* trims.  GetPrivateProfileString
+    # strips surrounding whitespace and quotes before anything sees the value,
+    # so `RLL=Yes ` is "Yes" and stays on -- while `Yes!` and any change of case
+    # reach the strcmp intact and turn it off.
+    for value, want_rll in (("yes", "No"),     # lower case really does turn it off
+                            ("YES", "No"),
+                            ("Yes!", "No"),    # reaches the strcmp and fails it
+                            ("Yes ", "Yes"),   # trimmed by the reader, so still on
+                            ("Yes", "Yes")):
+        strict = tmp / ("strict_%s_%d.ini" % (value.strip().lower().strip("!"),
+                                              len(value)))
+        strict.write_bytes(("[OPT]\r\nRLL=%s\r\nSound=%s\r\nAnimation=%s\r\n"
+                            "Auto_Record=%s\r\n" % (value, value, value, value))
+                           .encode("latin-1"))
+        rc, out = run(["--ini", strict, "--check-options"])
+        o = options(out)
+        # Auto_Record's default is the other way round, so the same value flips
+        # it the other way: on only for exactly "Yes".
+        want_arec = want_rll
+        got = (o.get("rll"), o.get("sound"), o.get("animation"),
+               o.get("auto_record"))
+        want = (want_rll, want_rll, want_rll, want_arec)
+        good &= (ok("exactly \"Yes\": %-5r" % value,
+                    "rll/sound/animation=%s auto_record=%s" % (want_rll, want_arec))
+                 if rc == 0 and got == want
+                 else fail("exactly \"Yes\": %-5r" % value,
+                           "rc=%d got %s want %s" % (rc, got, want)))
+
     # -- the file the 2010 binary actually left behind, read through a copy so
     # the player's own is never touched.  Its Size=3 and Graphics_Dir are the
     # two keys we share with it.

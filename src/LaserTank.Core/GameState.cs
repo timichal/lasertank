@@ -72,6 +72,23 @@ namespace LaserTank.Core
             return c;
         }
 
+        /// The other direction: `Game = UndoBuffer[UndoP]` (LTANK2.C:459) and
+        /// `Game = SaveGame` (LTANK.C:961), which are the same struct
+        /// assignment read backwards.  `Engine.Game` is readonly -- the whole
+        /// engine holds one instance and hands its arrays out -- so a restore
+        /// overwrites this object's fields instead of rebinding the reference.
+        public void CopyFrom(TGAMEREC src)
+        {
+            System.Array.Copy(src.PF, PF, PF.Length);
+            System.Array.Copy(src.PF2, PF2, PF2.Length);
+            System.Array.Copy(src.BMF, BMF, BMF.Length);
+            System.Array.Copy(src.BMF2, BMF2, BMF2.Length);
+            ScoreMove = src.ScoreMove;
+            ScoreShot = src.ScoreShot;
+            RecP = src.RecP;
+            Tank = src.Tank;
+        }
+
         public void CopyPFFrom(byte[] flat)
         {
             for (int x = 0; x < W; x++)
@@ -99,6 +116,54 @@ namespace LaserTank.Core
         public string Hint = "";
         public string Author = "";
         public ushort SDiff;
+    }
+
+    /// LTANK.H:188 tHSRec -- one 10-byte record of a .hs or .ghs file, indexed
+    /// by level - 1.  `.hs` is the player's own; `.ghs` ships with the
+    /// collection and holds the best score anyone has posted for it.
+    ///
+    /// `name` is `char[6]`, but the original never puts more than four
+    /// characters in it: HSBox reads the initials with
+    /// `GetWindowText(..., 5)` and the INI default with
+    /// `GetPrivateProfileString(..., 5, ...)`, and both counts include the
+    /// terminator.  So the field is six bytes wide, four of them reachable, and
+    /// `%4s` is how both list dialogs print it.
+    public sealed class THSREC
+    {
+        public const int Size = 10;
+        public const int NameSize = 6;
+        /// The reachable width, terminator included -- HSBox's two `5`s.
+        public const int NameEntry = 5;
+
+        public ushort Moves, Shots;
+        public string Name = "";
+    }
+
+    /// One row of the level picker: what LoadBox and the two high-score lists
+    /// keep out of a 576-byte level record (LTANK_D.C:341).
+    public sealed class TLEVELINFO
+    {
+        public int Number;
+        public string LName = "";
+        public string Author = "";
+        public ushort SDiff;
+
+        /// The difficulty digit LoadBox prefixes each row with and DrawLevels
+        /// then colours by (LTANK_D.C:343, :701).  SDiff is a *bitmask* --
+        /// 1/2/4/8/16 for Kids/Easy/Medium/Hard/Deadly -- and the switch has no
+        /// case for a combination or for 0, so both fall through to '0'.
+        public char DiffDigit => SDiff switch
+        {
+            1 => '1', 2 => '2', 4 => '3', 8 => '4', 16 => '5', _ => '0',
+        };
+
+        /// The five difficulty names, LANGUAGE.C:65 -- leading " - " and all,
+        /// because that is how the status panel concatenates them onto the level
+        /// number (LTANK.C:537).  Index 0 is "no rating".
+        public static readonly string[] DiffNames =
+            { "", " - Kids", " - Easy", " - Medium", " - Hard", " - Deadly" };
+
+        public string DiffName => DiffNames[DiffDigit - '0'];
     }
 
     /// LTANK.H:145 tRecordRec -- the 66-byte header of a .lpb file.

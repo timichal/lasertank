@@ -57,7 +57,15 @@ namespace LaserTank.Game
         internal static int CellOf(int size) => Zooms[Math.Clamp(size, 1, 3) - 1];
 
         private const int Margin = 16;
-        private const int HudH = 126;
+        // Room for DrawHud's eight lines: the header, the scores, the state
+        // line, four key legends and the hint.  Step 4 added a dozen keys, and
+        // they went into *four short* legends rather than three long ones
+        // because the window is only as wide as the board -- 384 px at the
+        // default 24 px zoom, where DrawString clips a long line silently.
+        // Keep this in step with DrawHud or the hint falls off the window;
+        // options_check.py checks the strip is the same height at all three
+        // sizes, not that it is any particular height.
+        private const int HudH = 166;
 
         private Session _s;
         private Atlas _atlas;
@@ -65,8 +73,16 @@ namespace LaserTank.Game
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
         private GraphicsMenu _menu;
+        private LevelList _list;
         private Sfx _sfx;
         private string _error;
+
+        /// A monospace face for the three list panels.  Their rows are the
+        /// original's own `%4d %-30.30s` sprintf output, so the padding only
+        /// lines up in a fixed-pitch font; ThemeDB.FallbackFont is proportional.
+        /// A SystemFont falls through its name list and then to the default, so
+        /// a machine with none of the three still draws readable rows.
+        private Font _mono;
 
         /// Off in --shot mode: the shot awaits two frames, and physics would
         /// otherwise tick the game past the frame being captured.
@@ -91,6 +107,18 @@ namespace LaserTank.Game
                 GetTree().Quit(Sfx.Check());
                 return;
             }
+            // Step 4's two, before any of the options work below: neither needs
+            // an INI, a pack or a level, and both must be runnable in parallel.
+            if (ArgStr(args, "--check-lists") is string cl)
+            {
+                GetTree().Quit(Step4Check.CheckLists(cl));
+                return;
+            }
+            if (ArgStr(args, "--check-scores") is string cs)
+            {
+                GetTree().Quit(Step4Check.CheckScores(cs));
+                return;
+            }
 
             // The tick rate is a project setting, so a stale project.godot
             // would silently play the game at 60 Hz.  Fail loudly instead.
@@ -110,6 +138,7 @@ namespace LaserTank.Game
             string ini = ArgStr(args, "--ini");
             bool instrument = ArgStr(args, "--shot") != null
                               || Array.IndexOf(args, "--play") >= 0
+                              || ArgStr(args, "--replay") != null
                               || Array.IndexOf(args, "--check-options") >= 0
                               || Arg(args, "--tick-rate", 0) > 0;
             // One rule, used twice: **an explicit --ini makes the options
@@ -137,6 +166,11 @@ namespace LaserTank.Game
 
             _packs = Packs.Scan(_opt.GraphicsDir);
             _menu = new GraphicsMenu(this);
+            _list = new LevelList(this);
+            _mono = new SystemFont
+            {
+                FontNames = new[] { "Consolas", "DejaVu Sans Mono", "Courier New", "monospace" },
+            };
             Pack want = Packs.FromOptions(_packs, _opt);
             if (ArgStr(args, "--pack") is string ps)
             {
@@ -212,10 +246,33 @@ namespace LaserTank.Game
                 int maxTicks = Arg(args, "--max-ticks", 100000);
                 int pending = Arg(args, "--pending", 1);
                 string author = ArgStr(args, "--author") ?? "LTGodot";
-                GetTree().Quit(ArgStr(args, "--lpb-list") is string list
-                    ? PlayMode.RunList(list, outDir, maxTicks, pending, author)
+                GetTree().Quit(
+                    ArgStr(args, "--lpb-list") is string list
+                        ? PlayMode.RunList(list, outDir, maxTicks, pending, author)
+                    // Step 4's script mode: the same token stream the oracle and
+                    // the CLI take, run through the game's own command path.
+                    : ArgStr(args, "--script") is string sc
+                        // The options go in only when the run is live -- an
+                        // explicit --ini.  Without them the Session posts no high
+                        // score, which is what keeps roundtrip_check from
+                        // writing .hs files across data/ (it did once).
+                        ? PlayMode.RunScript(levels, level, sc, outDir, maxTicks,
+                                             author, ArgStr(args, "--stem"),
+                                             live ? _opt : null)
                     : PlayMode.Run(levels, level, script, lpbName, outDir,
                                    maxTicks, pending, author));
+                return;
+            }
+
+            // --replay: watch a .lpb through the *playback* path (PBOpen and the
+            // three speeds), which is not the same thing as pressing its keys.
+            // Step 4's exit criterion needs both.
+            if (ArgStr(args, "--replay") is string rep)
+            {
+                _driving = false;
+                var sp = (PbSpeed)Math.Clamp(Arg(args, "--speed", 1), 1, 3);
+                GetTree().Quit(PlayMode.RunReplay(
+                    levels, rep, Arg(args, "--max-ticks", 100000), sp));
                 return;
             }
 
@@ -254,6 +311,22 @@ namespace LaserTank.Game
             // `--menu` opens the graphics dialog on start, which is the only
             // way to review the panel with --shot rather than by hand.
             if (Array.IndexOf(args, "--menu") >= 0) _menu.Show(_packs, _pack);
+
+            // `--panel levels|scores|global|playback` is the same idea for step
+            // 4's overlays: with --shot it is the only way to review one without
+            // a window and a hand on the keyboard.
+            switch (ArgStr(args, "--panel"))
+            {
+                case "levels": OpenList(ListMode.Levels); break;
+                case "scores": OpenList(ListMode.MyScores); break;
+                case "global": OpenList(ListMode.GlobalScores); break;
+                case "playback": OpenPlayback(); break;
+                case null: break;
+                default:
+                    GD.PrintErr("--panel wants levels|scores|global|playback");
+                    GetTree().Quit(2);
+                    return;
+            }
 
             string shot = ArgStr(args, "--shot");
             if (shot != null)
@@ -395,14 +468,20 @@ namespace LaserTank.Game
                 "options graphics_mode={4} graphics_file={5} graphics_dir={6}\n" +
                 "options pack={7} label={8} sha256={9}\n" +
                 "options rll={10} rll_file={11} rll_level={12}\n" +
-                "options sound={13}\n",
+                "options sound={13} animation={14} auto_record={15}\n" +
+                "options player={16} record_author={17}\n",
                 _opt.Ini.Path, _size, Cell, LaserOffset,
                 _pack.Mode, _pack.File.Length > 0 ? _pack.File : "-", _opt.GraphicsDir,
                 _pack.Mode == 1 ? "external" : _pack.Mode == 0 ? "internal" : _pack.File,
                 _atlas.Label, Convert.ToHexString(h).ToLowerInvariant(),
                 _opt.RememberLastLevel ? "Yes" : "No",
                 _opt.LastLevelFile.Length > 0 ? _opt.LastLevelFile : "-", _opt.LastLevel,
-                _opt.SoundOn ? "Yes" : "No"));
+                _opt.SoundOn ? "Yes" : "No",
+                // Step 4's three: the option that moves a trace, the one that
+                // starts the recorder, and the two names.
+                _opt.AnimationOn ? "Yes" : "No", _opt.AutoRecord ? "Yes" : "No",
+                _opt.Player.Length > 0 ? _opt.Player : "-",
+                _opt.RecordAuthor.Length > 0 ? _opt.RecordAuthor : "-"));
             // What the level resolution above settled on -- the collection and
             // the number this run would have opened.
             GD.PrintRaw(string.Format(inv, "options start_file={0} start_level={1}\n",
@@ -432,6 +511,12 @@ namespace LaserTank.Game
         public override void _PhysicsProcess(double delta)
         {
             if (!_driving) return;
+            // Command 106 is the one dialog in this port that stops the clock,
+            // because it is the one the original stops it for: `x = Game_On;
+            // GameOn(FALSE); DialogBox(...)` (LTANK.C:906).  The graphics dialog
+            // (226) and the two score lists (113, 906) do not, so the tank can
+            // die while they are up -- see GraphicsMenu and LevelList.StopsClock.
+            if (_list != null && _list.Open && _list.StopsClock) return;
             if (_s == null || !_s.Step()) return;
             // The tick's sounds, after Tick() *and* Pump(): a drowning death
             // posts WM_Dead, so S_Die belongs to the tick that caused it
@@ -461,6 +546,28 @@ namespace LaserTank.Game
                 return;
             }
 
+            // Same for the level picker and the two score lists.  On Enter they
+            // hand back a level number, which is `EndDialog(Dialog, i + 100)`
+            // and the `if (i > 100)` that meets it (LTANK.C:910).
+            if (_list != null && _list.Open)
+            {
+                _list.Key(k.Keycode);
+                if (_list.Chosen > 0) _s?.Load(_list.Chosen);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            // PBWindow is a DialogBox too (LTANK_D.C:1003), so while it is up
+            // the keys are its four buttons and none reach AddKBuff -- which is
+            // the whole point: a playback is watched, not played.  The clock
+            // keeps running, as it does behind the graphics dialog.
+            if (_s != null && _s.Pb.PanelUp)
+            {
+                PlaybackKey(k.Keycode);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
             // The game keys first, and untouched: Session.Key is the original's
             // WM_KEYDOWN filter (VK 32..40, auto-repeat dropped only while a
             // key is still pending) feeding AddKBuff.  Everything below it is
@@ -475,29 +582,84 @@ namespace LaserTank.Game
             }
             if (k.Echo) return;
 
+            // **The bindings are the original's accelerator table**
+            // (`ACC1 ACCELERATORS`, lt32l_us.inc:120), which is a table, and the
+            // rule in this project when the original has a table is to read it.
+            // Step 4 is where that became affordable -- there are enough
+            // commands now for an invented set to be worse than the real one --
+            // and it moved two of step 2's keys: the sound is N, not S (S is
+            // Skip Level), and the graphics dialog is Ctrl+G, not G (G is the
+            // global high-score list).  `[`/`]` and I are this port's own and
+            // have no accelerator; every one of them is outside VK 32..40, so
+            // none can eat a byte a recording needed.
+            bool ctrl = k.CtrlPressed;
             switch (k.Keycode)
             {
-                case Key.Bracketright: _s?.Load(_s.Level + 1); break;
-                case Key.Bracketleft: _s?.Load(_s.Level - 1); break;
+                // ---- levels -------------------------------------------------
+                case Key.L: OpenList(ListMode.Levels); break;         // 106
+                case Key.S: _s?.Load(_s.Level + 1); break;            // 107
+                case Key.P: _s?.Load(_s.Level - 1); break;            // 119
+                case Key.Bracketright: _s?.Load(_s.Level + 1); break; // ours
+                case Key.Bracketleft: _s?.Load(_s.Level - 1); break;  // ours
                 case Key.Enter:
                     // The original's flag case calls LoadNextLevel straight
                     // away (LTANK.C:655); a Godot win waits, so the recording
                     // is still there to save.
                     if (_s != null && _s.Now == Session.State.Won) _s.Load(_s.Level + 1);
                     break;
-                case Key.R: _s?.Restart(); break;                    // command 105
-                case Key.F6: SaveRecording(); break;                 // command 117
+                case Key.R: _s?.Restart(); break;                     // 105
+                case Key.F2: NewGame(); break;                        // 101
+
+                // ---- undo and the saved position ----------------------------
+                case Key.U:                                           // 110
+                    // A dead game takes the DeadBox's Undo, which is 110 plus
+                    // GameOn(TRUE) -- the only way back from a death, and the
+                    // only choice the original's dialog offers besides Restart.
+                    bool undone = _s != null && (_s.Now == Session.State.Dead
+                                                 ? _s.UndoDead() : _s.Undo());
+                    if (!undone) _error = "nothing to undo";
+                    break;
+                case Key.C when ctrl: _s?.SavePos(); _error = "position saved"; break;
+                case Key.V when ctrl:                                 // 112
+                    if (_s != null && !_s.RestorePos()) _error = "no saved position";
+                    break;
+
+                // ---- scores -------------------------------------------------
+                case Key.V: OpenList(ListMode.MyScores); break;       // 113
+                case Key.G when !ctrl: OpenList(ListMode.GlobalScores); break;   // 906
+
+                // ---- recording and playback ---------------------------------
+                case Key.F5: ToggleRecording(); break;                // 123
+                case Key.F6: SaveRecording(); break;                  // 117
+                case Key.F7: OpenPlayback(); break;                   // 114
+                case Key.F4: _s?.Replay(); break;                     // 124
+
+                // ---- options ------------------------------------------------
                 // Command 226, the Options menu's "Graphics" (LTANK.C:1122).
-                case Key.G: _menu.Show(_packs, _pack); break;
+                case Key.G when ctrl: _menu.Show(_packs, _pack); break;
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
-                // Command 102, the Options menu's "Sound" (LTANK.C:875).  The
-                // checkmark is the INI here; ToggleOpt writes it immediately.
-                case Key.S:
+                // Command 102, "Sound" (LTANK.C:875).  The checkmark is the INI
+                // here; ToggleOpt writes it immediately.
+                case Key.N:
                     bool on = _opt.ToggleSound();
                     if (_sfx != null) _sfx.SoundOn = on;
                     break;
+                // Command 104, "Animation" (LTANK.C:886).  The only option that
+                // changes what a tick does, so it takes effect on the next level
+                // load rather than mid-level: Ani_On is read by Session.Load.
+                case Key.A:
+                    _error = "animation " + (_opt.ToggleAnimation() ? "on" : "off")
+                             + " -- next level";
+                    break;
+                // Command 115, "Auto Record" (LTANK.C:978), which also turns the
+                // recorder itself on or off.
+                case Key.F8:
+                    _error = "auto-record "
+                             + (_s != null && _s.Rec2.ToggleAutoRecord() ? "on" : "off");
+                    break;
+
                 case Key.Escape: GetTree().Quit(); break;
                 default: return;
             }
@@ -521,15 +683,96 @@ namespace LaserTank.Game
             _ => 0,
         };
 
+        /// Command 117 (F6) reaching WM_SaveRec.  The original opens a Save
+        /// dialog; this writes to out/recordings/ under the name BuildPB_Name
+        /// would have offered, which is where step 1's F6 has always written and
+        /// what tools/tick_check.py reads.
         private void SaveRecording()
         {
             if (_s?.E == null) return;
             try
             {
                 string dir = Path.Combine(Paths.Root, "out", "recordings");
-                _error = "saved " + _s.Save(dir);
+                string p = _s.SaveRecording(dir);
+                // `if (Recording)` is command 117's own guard -- F6 does nothing
+                // at all when the recorder is off, which is worth saying out
+                // loud rather than looking broken.
+                _error = p == null ? "not recording -- F5 starts it"
+                                   : "saved " + Path.GetFileName(p);
             }
             catch (Exception ex) { _error = ex.Message; }
+        }
+
+        /// Command 123 (F5).  The original's checkmark is the window title
+        /// ("LaserTank *** RECORDING ***", txt046); here it is the HUD.
+        private void ToggleRecording()
+        {
+            if (_s == null) return;
+            _error = _s.Rec2.Toggle() ? "recording" : "recording off";
+        }
+
+        /// Command 101, New Game (F2): back to the remembered level, or level 1.
+        /// `LastLevel = CurLevel; CurLevel = 0; if (RLL) CurLevel = [DATA]
+        /// RLLLevel - 1; LoadNextLevel` (LTANK.C:864) -- so with Remember Last
+        /// Level off it really does start over at 1.
+        private void NewGame()
+        {
+            if (_s == null) return;
+            int want = _opt.RememberLastLevel ? _opt.LastLevel : 1;
+            _s.Load(want < 1 ? 1 : want);
+        }
+
+        /// PBWindow's WM_COMMAND (LTANK_D.C:1054), which is four buttons and a
+        /// radio group of three.
+        private void PlaybackKey(Key k)
+        {
+            Playback pb = _s.Pb;
+            switch (k)
+            {
+                case Key.Space:
+                case Key.Enter:
+                case Key.KpEnter:
+                    // ID_PLAYBOX_02, whose label is txt017/txt018 -- "&Play" and
+                    // "&Pause", one control that reads as whichever it will do
+                    // next.
+                    pb.TogglePlay(_s.E);
+                    break;
+                case Key.R:                                  // ID_PLAYBOX_03, Reset
+                    _s.Replay();
+                    break;
+                case Key.Key1: pb.SetSpeed(_s.E, PbSpeed.Fast); break;   // _04
+                case Key.Key2: pb.SetSpeed(_s.E, PbSpeed.Slow); break;   // _05
+                case Key.Key3: pb.SetSpeed(_s.E, PbSpeed.Step); break;   // _06
+                default:
+                    // ID_PLAYBOX_01 / Cancel: the recording becomes what was
+                    // actually watched.  See Playback.Close.
+                    pb.Close(_s.E);
+                    break;
+            }
+        }
+
+        private void OpenList(ListMode mode)
+        {
+            if (_s == null) return;
+            _list.Show(mode, _s.LevelPath, _s.Level);
+        }
+
+        /// Command 114 (F7), PlayBack Recording.  The original opens a file
+        /// dialog; there is no file dialog here, so the two names BuildPB_Name
+        /// would have offered are tried in order -- out/recordings/ first,
+        /// because that is where this port's own F6 writes, then beside the
+        /// .lvl, which is where the corpus in data/demos/ lives.
+        private void OpenPlayback()
+        {
+            if (_s == null) return;
+            foreach (string cand in Playback.Candidates(Paths.Root, _s.LevelPath, _s.Level))
+            {
+                if (!File.Exists(cand)) continue;
+                string bad = _s.LoadPlayback(cand);
+                _error = bad ?? ("playing " + Path.GetFileName(cand));
+                return;
+            }
+            _error = "no recording for this level in out/recordings/ or beside the .lvl";
         }
 
         public override void _Draw()
@@ -548,11 +791,12 @@ namespace LaserTank.Game
             DrawTank();
             DrawLaser();
             DrawHud(font);
-            // The graphics dialog, over the board and under nothing: the
-            // original's is a modal window on top of the game, which keeps
-            // playing behind it.
-            if (_menu.Open)
-                _menu.Draw(this, font, new Rect2(Margin, Margin, 16 * Cell, 16 * Cell));
+            // The dialogs, over the board and under nothing: the original's are
+            // modal windows on top of the game, which keeps playing behind them.
+            var board = new Rect2(Margin, Margin, 16 * Cell, 16 * Cell);
+            if (_menu.Open) _menu.Draw(this, font, board);
+            if (_list.Open) _list.Draw(this, font, _mono, board);
+            if (_s.Pb.PanelUp) DrawPlaybackPanel(font, board);
         }
 
         private Rect2 CellRect(int x, int y) =>
@@ -703,6 +947,60 @@ namespace LaserTank.Game
             DrawRect(new Rect2(rect.Position + Vector2.One, rect.Size - 2 * Vector2.One), c);
         }
 
+        /// HSBox (LTANK_D.C:598) as one line.  That dialog's whole content is
+        /// this: the score just made, the previous personal best if there was
+        /// one (txt008), and either the posted best (txt009) or
+        /// "Congratulation's You beat it !!" (txt012) when the posted best has
+        /// been beaten.  What the dialog also does -- ask for the initials --
+        /// is `[DATA] Player` here, read before the write rather than after.
+        private string WinLine()
+        {
+            ScoreResult r = _s.Score;
+            if (r == null)
+                return _s.Pb.Open ? "playback reached the flag"
+                                  : "SOLVED -- Enter for the next level, F6 saves it";
+            string s = "SOLVED";
+            if (r.Global) s += " -- Congratulation's You beat it !!";
+            else if (r.Personal) s += " -- your best yet";
+            else s += " -- your best stands at " + HighScores.Describe(r.Old);
+            if (r.Target != null && !r.Global)
+                s += "   (par " + r.Target.Moves + "/" + r.Target.Shots + ")";
+            if (r.Error != null) s += "   [.hs not written: " + r.Error + "]";
+            return s + "   Enter next, F6 saves";
+        }
+
+        /// PBWindow (LTANK_D.C:1003) as a strip at the bottom of the board.  The
+        /// original positions its dialog beside the game window
+        /// (`SetWindowPos(..., Box.left + ContXPos + 2, Box.top + 280, ...)`);
+        /// there is no second column here, so it goes over the board's foot,
+        /// where it hides two rows rather than the whole thing.
+        private void DrawPlaybackPanel(Font font, Rect2 board)
+        {
+            Playback pb = _s.Pb;
+            var panel = new Rect2(board.Position.X + 6, board.End.Y - 74,
+                                  board.Size.X - 12, 68);
+            DrawRect(panel, new Color(0.05f, 0.06f, 0.08f, 0.96f));
+            DrawRect(panel, new Color(0.55f, 0.60f, 0.70f), false, 1);
+            float x = panel.Position.X + 9, w = panel.Size.X - 18;
+            float y = panel.Position.Y + 17;
+
+            // txt013 + LName + txt014 + Author: "Playback Level : " and
+            // "\nRecorded by " (LANGUAGE.C:54).
+            DrawString(font, new Vector2(x, y),
+                       $"Playback Level : {pb.Rec.LName}   Recorded by {pb.Rec.Author}",
+                       HorizontalAlignment.Left, w, 13, Colors.White);
+            // ID_PLAYBOX_09 / _10: the count of keys played, over the total.
+            DrawString(font, new Vector2(x, y + 18),
+                       $"{_s.E.Game.RecP} / {pb.Rec.DataSize}    "
+                       + (_s.E.PlayBack ? "playing" : "paused") + "    "
+                       + pb.Speed.ToString().ToLowerInvariant(),
+                       HorizontalAlignment.Left, w, 12, Colors.LightGreen);
+            DrawString(font, new Vector2(x, y + 36),
+                       "space play/pause   1 fast  2 slow  3 step   R reset   "
+                       + "any other key closes",
+                       HorizontalAlignment.Left, w, 11, Colors.Gray);
+        }
+
         /// The original's own status strip is a bitmap panel beside the board
         /// (ContXPos, LTANK.C:556) showing the level name, the author and the
         /// two counters.  Same information, laid out for this window.  Every
@@ -718,35 +1016,62 @@ namespace LaserTank.Game
             // One column, never right-aligned: the window is only as wide as
             // the board, and at the 24 px zoom that is 384 px -- two columns
             // collide there.
-            string head = $"{_s.Level}/{_s.LevelCount}  {lv.LName}";
+            // The level number carries its difficulty name and takes its colour
+            // from it, which is what the original's panel does -- `itoa(CurLevel)`
+            // then `strcat(txt023..027)` and `SetTextColor(DifCList[1..5])`
+            // (LTANK.C:532).
+            var info = new TLEVELINFO { SDiff = lv.SDiff };
+            string head = $"{_s.Level}{info.DiffName}/{_s.LevelCount}  {lv.LName}";
             if (!string.IsNullOrEmpty(lv.Author)) head += $"   by {lv.Author}";
             DrawString(font, new Vector2(Margin, y), head,
                        HorizontalAlignment.Left, w, 16, Colors.White);
+
+            // The .ghs target beside the live score, because that is the number
+            // a player is actually chasing.  The .hs half is only interesting
+            // once it exists.
+            string par = "";
+            if (LevelFile.ReadHighScore(_s.Files.Ghs, _s.Level, out ushort tm, out ushort ts))
+                par = $"   par {tm}/{ts}";
+            // Single-spaced, and every word short: the window is only as wide as
+            // the board, and at the default 24 px zoom that is 384 px.  Both
+            // this line and the three legends below are written to fit *there*
+            // rather than at the size they were composed at -- step 4 added a
+            // dozen keys and clipped the legend mid-word before this was
+            // measured.  DrawString's `w` clips rather than spilling, so a line
+            // that is too long loses its tail silently.
             DrawString(font, new Vector2(Margin, y + 20),
-                       $"moves {g.ScoreMove}   shots {g.ScoreShot}    " +
-                       $"{_atlas.Label}  {Cell}px  {(_interpolate ? "smooth" : "snap")}  " +
-                       $"{(_opt.SoundOn ? "sound" : "muted")}",
-                       HorizontalAlignment.Left, w, 14, Colors.White);
+                       $"moves {g.ScoreMove}  shots {g.ScoreShot}{par}  " +
+                       $"{_atlas.Label}  {(_interpolate ? "smooth" : "snap")}  " +
+                       $"{(_opt.SoundOn ? "sound" : "muted")}" +
+                       (_s.Rec2.Recording ? "  *** REC ***" : ""),
+                       HorizontalAlignment.Left, w, 14,
+                       _s.Rec2.Recording ? Colors.Khaki : Colors.White);
 
             (string what, Color tint) = _s.Now switch
             {
-                Session.State.Won => ("SOLVED -- Enter for the next level, F6 saves it",
-                                      Colors.LightGreen),
-                Session.State.Dead => ("DEAD -- R restarts", Colors.OrangeRed),
+                Session.State.Won => (WinLine(), Colors.LightGreen),
+                Session.State.Dead => ("DEAD -- U undoes the last move, R restarts",
+                                       Colors.OrangeRed),
                 _ => (_error ?? "", Colors.Yellow),
             };
             if (what != "")
                 DrawString(font, new Vector2(Margin, y + 38), what,
                            HorizontalAlignment.Left, w, 14, tint);
 
-            DrawString(font, new Vector2(Margin, y + 56),
-                       "arrows move, space fires, R restart, F6 saves the recording",
-                       HorizontalAlignment.Left, w, 12, Colors.Gray);
-            DrawString(font, new Vector2(Margin, y + 72),
-                       "[ ] level, G graphics menu, Z size, I smooth, S sound, Esc quit",
-                       HorizontalAlignment.Left, w, 12, Colors.Gray);
+            // Four short lines rather than three long ones, for the same reason.
+            string[] legend =
+            {
+                "arrows move  space fires  U undo  R restart  ctrl+C/V pos",
+                "L levels  V scores  G global  S/P next/prev  ctrl+G gfx",
+                "F5 rec  F6 save  F7 play  F4 replay  F8 auto-rec",
+                "Z size  I smooth  N sound  A anim  Esc quit",
+            };
+            for (int i = 0; i < legend.Length; i++)
+                DrawString(font, new Vector2(Margin, y + 56 + 16 * i), legend[i],
+                           HorizontalAlignment.Left, w, 12, Colors.Gray);
             if (!string.IsNullOrEmpty(lv.Hint))
-                DrawString(font, new Vector2(Margin, y + 90), lv.Hint.Replace("\r\n", " "),
+                DrawString(font, new Vector2(Margin, y + 56 + 16 * legend.Length + 4),
+                           lv.Hint.Replace("\r\n", " "),
                            HorizontalAlignment.Left, w, 12, Colors.DarkGray);
         }
     }

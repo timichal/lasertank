@@ -71,6 +71,42 @@ namespace LaserTank.Game
         private int _recBufSize;
         private int _levelCount;
 
+        // ---- step 4: the game around the game -------------------------------
+        /// The .hs / .ghs / recording names AssignHSFile derives from the .lvl
+        /// (LTANK2.C:1055).
+        public ScoreFiles Files { get; }
+
+        /// Recording state (command 123) and the playback being watched
+        /// (command 114).  Both are the driver's, not the engine's -- but the
+        /// *playback* fields the tick reads (PBOpen, PlayBack, PBHold, Speed,
+        /// SlowPB) are the engine's and have been since Phase 2.
+        public Recorder Rec2 { get; }
+        public Playback Pb { get; } = new Playback();
+
+        /// What CheckHighScore decided on the last win, or null.  The original
+        /// puts this in a dialog (HSBox) the instant the flag is reached; here
+        /// the renderer shows it and it survives until the next level.
+        public ScoreResult Score { get; private set; }
+
+        /// `OKtoHS` (LTANK2.C:31): set by every level load, cleared when a level
+        /// is loaded in a way that must not post a score.  The editor clears it
+        /// (LTANK.C:1091); nothing else does, so nothing here does either.
+        public bool OkToHS { get; private set; } = true;
+
+        /// **A Session with no Options never writes a .hs**, which is the same
+        /// rule `Ini.ReadOnly` is and for the same reasons: eight parallel gate
+        /// jobs must not race over one file, and an instrument run must not
+        /// change what the next player sees.  `PlayMode` builds its Sessions
+        /// without Options, so `tick_check.py` replaying all 208 winning
+        /// recordings posts nothing -- it wrote `.hs` files across six
+        /// collections of `data/` once, which is how this got noticed.  A
+        /// read-only INI (`--shot`, `--check-*`) is held to the same rule.
+        private readonly bool _postScores;
+
+        /// The `HS` global (LTANK.H:239), which outlives a level for a reason --
+        /// see ScoreState.
+        private readonly ScoreState _hs = new ScoreState();
+
         /// `options` is the persisted state (Phase 5, step 2) and may be null --
         /// PlayMode's synthetic player has none, because a gate must not write
         /// the player's INI.  All it is used for here is [DATA] RLLFilename /
@@ -80,7 +116,13 @@ namespace LaserTank.Game
             _lvlPath = lvlPath;
             _opt = options;
             _levelCount = LevelFile.CountLevels(lvlPath);
+            Files = new ScoreFiles(lvlPath);
+            Rec2 = new Recorder(options);
+            _postScores = options != null && !options.Ini.ReadOnly;
         }
+
+        public string LevelPath => _lvlPath;
+        public Options Opt => _opt;
 
         public int LevelCount => _levelCount;
         public TLEVEL Rec => E?.CurRecData;
@@ -109,6 +151,12 @@ namespace LaserTank.Game
             // all, which is what the solver and every headless trace get.
             e.SoundLog = _sounds;
             _sounds.Clear();
+            // [OPT] Animation, LTANK.C:404.  The only persisted option that
+            // changes what a tick does -- AniCount and AniLevel are both trace
+            // fields -- so it is set from the file here and nowhere else, and a
+            // Session built without Options (PlayMode's synthetic player, every
+            // headless gate) keeps Engine's default of true.
+            if (_opt != null) e.Ani_On = _opt.AnimationOn;
             if (!e.LoadLevel(_lvlPath, n))
             {
                 Error = $"cannot load level {n} of {_lvlPath}";
@@ -129,19 +177,170 @@ namespace LaserTank.Game
             _recBufSize = Math.Max(_recBufSize, RecBufSize0);
             E.RecBuffer = new byte[_recBufSize];
 
+            // LTANK2.C:1025: OKtoHS goes back on with every level.
+            OkToHS = true;
+            Score = null;
+
             // LTANK2.C:1035, at the same point in the same function: remember
             // the level so the next session starts here.  Gated on RLL there
             // and in Options.RememberLevel.
             _opt?.RememberLevel(_lvlPath, n);
+
+            // LTANK2.C:1044, the last thing LoadLevel does:
+            // `if (ARecord && !PBOpen) SendMessage(WM_COMMAND, 123)`.
+            Rec2.OnLevelLoaded(Pb.Open);
+
+            // A playback survives a level load only when the load *is* the
+            // playback's own (LoadPlayback sets CurLevel from the header and
+            // then loads).  Any other load ends it, because the keystream in
+            // RecBuffer belongs to a level that is no longer on screen.
+            if (Pb.Open && Pb.Rec != null && Pb.Rec.Level == n) Pb.Install(E);
+            else if (Pb.Open) Pb.Close(E);
             return true;
+        }
+
+        // ---- the three commands no keystream can reach ----------------------
+        /// Command 110 (LTANK.C:946).  -> false when the buffer is spent, which
+        /// is what grays the menu item there.
+        ///
+        /// Undoing a *death* is the DeadBox's "Undo Last Move"
+        /// (ID_DEADBOX_UNDO, LTANK.C:727): command 110 and then GameOn(TRUE),
+        /// the only path in the original that resumes a dead game.  Undoing a
+        /// *win* has no original at all -- the flag case calls LoadNextLevel
+        /// immediately, so by the time a player could ask, the next level is
+        /// already up. This port waits on a win instead (so the recording is
+        /// still there to save), which would make undo-after-win reachable; it
+        /// is refused rather than invented.
+        /// Command 110 on its own: undo, and leave the timer exactly as it was.
+        /// A dead game stays dead here, because that is all command 110 does --
+        /// the DeadBox is what adds the GameOn(TRUE), and `UndoDead` is that.
+        /// Keeping the two apart is what lets the script drivers in
+        /// oracle/driver.c and LaserTank.Cli express the same two things and be
+        /// diffed against this one.
+        public bool Undo()
+        {
+            if (E == null || Now == State.Won) return false;
+            if (!E.CanUndo) return false;
+            E.UndoStep();
+            AfterRewind();
+            return true;
+        }
+
+        /// ID_DEADBOX_UNDO (LTANK.C:727): `SendMessage(WM_COMMAND, 110);
+        /// GameOn(TRUE);`.  The only path in the original that brings a dead
+        /// game back, and the reason the undo buffer exists at all.
+        public bool UndoDead()
+        {
+            if (!Undo()) return false;
+            E.GameOn(true);
+            E.Deaths = 0;
+            Now = State.Playing;
+            return true;
+        }
+
+        /// The presentation state that a wholesale replacement of `Game`
+        /// invalidates: the tank has teleported, so there is nothing to
+        /// interpolate from and no bounce in flight.
+        private void AfterRewind()
+        {
+            LaserBounced = false;
+            PrevTankX = E.Game.Tank.X;
+            PrevTankY = E.Game.Tank.Y;
+        }
+
+        public bool CanUndo => E != null && Now != State.Won && E.CanUndo;
+
+        /// Commands 111 and 112 (LTANK.C:955).  Restore is grayed until Save has
+        /// been used, and that guard is not politeness: see Engine.SaveGame.
+        public void SavePos() => E?.SavePosition();
+
+        public bool CanRestore => E != null && E.CanRestore;
+
+        /// **Restore does not resume a dead game.**  Command 112 is three lines
+        /// and none of them is GameOn(TRUE) -- the DeadBox offers Undo and
+        /// Restart and nothing else, so the position you saved is simply out of
+        /// reach once you have drowned.  Adding the resume looked like the only
+        /// sane reading of "restore the position I saved" and made this port's
+        /// driver disagree with the oracle's on the third case
+        /// tools/roundtrip_check.py tried: level 1719, script
+        /// `lulf...zfufclllvlldlf..zfrrzzzzfrlfuu...zuffd`, where the C stops at
+        /// the death after 18 ticks and a resurrecting `v` played on for 47.
+        /// Undo is the way back from a death; that is what the buffer is for.
+        public bool RestorePos()
+        {
+            if (E == null || !E.CanRestore) return false;
+            E.RestorePosition();
+            AfterRewind();
+            return true;
+        }
+
+        // ---- command 114, PlayBack Recording --------------------------------
+        /// LoadPlayback (LTANK.C:106) then the level its header names.
+        /// -> null on success, else the reason.
+        public string LoadPlayback(string path)
+        {
+            if (!Pb.Load(path)) return Pb.Error;
+            if (!Load(Pb.Rec.Level))
+                return $"cannot load level {Pb.Rec.Level} of {Path.GetFileName(_lvlPath)}";
+            // LoadPlayback's own check, and the reason it has a name-search
+            // fallback: a .lpb records the level *name* as well as its number,
+            // so a collection whose levels have moved is detectable.
+            if (E.CurRecData.LName != Pb.Rec.LName)
+            {
+                string bad = $"\"{Pb.Rec.LName}\" is not level {Pb.Rec.Level} of "
+                             + $"{Path.GetFileName(_lvlPath)} (that is "
+                             + $"\"{E.CurRecData.LName}\")";
+                Pb.Close(E);
+                return bad;
+            }
+            Pb.PanelUp = true;
+            return null;
+        }
+
+        /// Command 124, RePlay (LTANK.C:1047): rewind the board and replay the
+        /// keystream already in the buffer.  Unlike ReStart it *keeps* RB_TOS,
+        /// which is what makes it a replay rather than a restart, and it resets
+        /// the undo buffer because the old snapshots describe a run that is
+        /// being thrown away.
+        /// It doubles as the playback panel's Reset (ID_PLAYBOX_03), which is
+        /// literally `SendMessage(WM_COMMAND, 105)` followed by `Game.RecP = 0;
+        /// RB_TOS = PBRec.Size; PBHold = FALSE` (LTANK_D.C:1093) -- the same
+        /// rewind, with the keystream taken from the loaded file rather than
+        /// from the buffer.  Load() reinstalls the playback itself when one is
+        /// open, so the two cases differ only in where the keys come from.
+        public void Replay()
+        {
+            if (E == null) return;
+            int keys = E.RB_TOS;
+            byte[] buf = E.RecBuffer;
+            bool wasPb = Pb.Open;
+            if (!Load(Level)) return;
+            if (!wasPb)
+            {
+                E.RecBuffer = buf;
+                E.RB_TOS = keys;
+                E.Game.RecP = 0;
+            }
         }
 
         /// ReStart, LTANK.C:889 command 105.  The original restores
         /// CurRecData.PF in place and calls BuildBMField -- which does reset the
         /// tank and the scores -- leaving the same four flags standing that
-        /// Load does.  Same reasoning as Load: reload clean instead.  (The
-        /// `if (UndoP > 0) UpdateUndo()` the original does first belongs to the
-        /// undo buffer, which is step 4.)
+        /// Load does.  Same reasoning as Load: reload clean instead.
+        ///
+        /// **The undo buffer does not survive a restart here, and in the
+        /// original it does.**  Command 105 never calls ResetUndoBuffer -- it
+        /// restores the playfield in place and pushes one more snapshot first
+        /// ("Without this we loose the last move"), so in the 2010 binary R and
+        /// then U walks back *into the attempt you just abandoned*, resuming its
+        /// recording from the middle of a RecBuffer that command 105 rewound but
+        /// did not clear.  Reproducing that means keeping the Engine across a
+        /// restart, and keeping the Engine is what Load argues against: the four
+        /// flags of quirk #12 would carry over, and a recording saved after a
+        /// restart would then not replay in a process that started clean --
+        /// which every replay of it does, step 4's exit criterion included.  So
+        /// the restart is clean and the undo history goes with it.  A documented
+        /// loss, not an oversight.
         public void Restart() => Load(Level);
 
         // ---- WM_KEYDOWN, LTANK.C:570 ---------------------------------------
@@ -205,6 +404,7 @@ namespace LaserTank.Game
             _sounds.Clear();          // SF is per tick (driver.c: sf_n = 0)
             int oDir = E.laser.Dir, oX = E.laser.X, oY = E.laser.Y;
             bool wasFiring = E.Game.Tank.Firing != 0;
+            uint oRecP = E.Game.RecP;
 
             E.Tick();
             E.Pump();               // quirk #8: the deferred deaths land here
@@ -236,13 +436,47 @@ namespace LaserTank.Game
                            && E.laser.Dir != oDir && moved == 1;
             LaserFromDir = oDir;
 
+            // Single Step: the original's tick posts ID_PLAYBOX_02 back at the
+            // playback dialog from inside the PBOpen block (LTANK.C:606).  The
+            // engine has the block but no dialog, so the pause happens here.
+            Pb.AfterTick(E, oRecP);
+
             // The flag case calls GameOn(FALSE) and a death calls it too, so
             // "the timer stopped" is the signal; which of the two it was is the
             // same test lasertank-core's driver makes.
             if (E.Deaths != 0) Now = State.Dead;
             else if (!E.Game_On)
+            {
                 Now = E.Game.PF[E.Game.Tank.X, E.Game.Tank.Y] == 2 ? State.Won : State.Dead;
+                if (Now == State.Won) OnWin();
+            }
             return true;
+        }
+
+        /// The flag case's bookkeeping, LTANK.C:646.
+        ///
+        ///     if (!PBOpen) {
+        ///         if (Recording) SendMessage(WM_SaveRec);
+        ///         CheckHighScore();
+        ///         LoadNextLevel(FALSE, FALSE);
+        ///     }
+        ///
+        /// **`!PBOpen` gates all three**, which is the rule that keeps a
+        /// playback from posting the recording's author's score as the player's
+        /// own -- watch someone's 12-move solution and it is not yours.  It is
+        /// also why the oracle can replay the whole corpus without ever writing
+        /// a .hs: `PBOpen` is TRUE for every run it makes.
+        ///
+        /// Two of the three differ here.  Saving is not automatic -- the
+        /// original opens a file dialog (WM_SaveRec) and this port's F6 is that
+        /// dialog, so an auto-save would write a file the player did not name.
+        /// And LoadNextLevel is not called at all: a Godot win waits, so the
+        /// keystream is still there to save, and Enter advances.
+        private void OnWin()
+        {
+            if (Pb.Open || !OkToHS || !_postScores) return;
+            Score = HighScores.Check(Files, Level, E.Game.ScoreMove, E.Game.ScoreShot,
+                                     _opt.Player, _hs);
         }
 
         // ---- WM_SaveRec, LTANK.C:702 ---------------------------------------
@@ -262,6 +496,24 @@ namespace LaserTank.Game
             string path = Path.Combine(dir, (stem ?? $"{Level:D5}") + ".lpb");
             LevelFile.WritePlayback(path, E.CurRecData.LName, author, Level, keys);
             return path;
+        }
+
+        /// The interactive save -- command 117 (F6) reaching WM_SaveRec.
+        ///
+        /// Two things the gates' `Save` above does not do, because they belong
+        /// to a player rather than to a measurement: the file is named the way
+        /// BuildPB_Name names it (`LaserTank_0001.lpb`, which is the shape every
+        /// recording in data/demos/ has), and the author is `[DATA] Record
+        /// Author` rather than a fixed string.
+        ///
+        /// `if (Recording)` is command 117's own guard (LTANK.C:998): F6 does
+        /// nothing at all when the recorder is off.  -> the path written, or
+        /// null when the recorder is off.
+        public string SaveRecording(string dir)
+        {
+            if (!Rec2.Recording) return null;
+            return Save(dir, Rec2.Author,
+                        Path.GetFileNameWithoutExtension(Files.PbName(Level)));
         }
     }
 }

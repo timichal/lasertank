@@ -24,6 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using LaserTank.Core;
 
 namespace LaserTank.Game
 {
@@ -197,9 +198,13 @@ namespace LaserTank.Game
         public const string PsGFN = "Graphics_File";
         public const string PsGDN = "Graphics_Dir";
         public const string PsSound = "Sound";                  // Yes / No
+        public const string PsAni = "Animation";                // Yes / No
+        public const string PsARec = "Auto_Record";             // Yes / No
         public const string PsRllOn = "RLL";
         public const string PsRllN = "RLLFilename";
         public const string PsRllL = "RLLLevel";
+        public const string PsUser = "Player";                  // the initials
+        public const string PsPBA = "Record Author";
         public const string PsYes = "Yes";
 
         private readonly Ini _ini;
@@ -240,14 +245,50 @@ namespace LaserTank.Game
             // reading -- it went in with step 2 and its gate now pins it.  The
             // two disagreeing is worth knowing about, not worth harmonising by
             // guess.)
-            SoundOn = _ini.Get(SecOpt, PsSound, PsYes) == PsYes;
+            SoundOn = YesNo(PsSound, true);
 
-            // LTANK.C:439 -- Remember Last Level defaults to Yes.
-            RememberLastLevel = !string.Equals(_ini.Get(SecOpt, PsRllOn, PsYes), "No",
-                                               StringComparison.OrdinalIgnoreCase);
+            // LTANK.C:404 -- Animation defaults to Yes, same strict test.  It
+            // is the one option in this list that moves a *trace*: Ani_On gates
+            // AniCount, and AniLevel and AniCount are both trace fields.  Turning
+            // it off is therefore a legitimate way to make the port disagree
+            // with the oracle -- the 2010 binary disagrees with itself the same
+            // way -- which is why every headless gate leaves it alone: PlayMode
+            // builds its Session with no Options at all, and Engine.Ani_On
+            // defaults to true.
+            AnimationOn = YesNo(PsAni, true);
+
+            // LTANK.C:439 -- Remember Last Level defaults to Yes and takes the
+            // same strict test as Sound and Animation:
+            // `if (strcmp(temps,psYes)) RLL = FALSE;`.  Step 2 read this key
+            // loosely (anything but "No") on the grounds that the idiom was
+            // ambiguous; LTANK.C:439 is not ambiguous, so the loose reading is
+            // gone and tools/options_check.py pins the strict one.
+            RememberLastLevel = YesNo(PsRllOn, true);
             LastLevelFile = _ini.Get(SecData, PsRllN);
             LastLevel = _ini.GetInt(SecData, PsRllL, 1);
+
+            // LTANK.C:424 -- and here the default flips: Auto_Record, like
+            // SkipComLev and DisableWarnings, defaults to **No** and is tested
+            // `strcmp(temps,psYes) == 0`.  Same one-sided comparison, opposite
+            // sense, so a missing key means off rather than on.
+            AutoRecord = YesNo(PsARec, false);
+
+            // [DATA] Player and [DATA] Record Author -- the initials that go
+            // into a .hs record and the name that goes into a .lpb header.
+            // Neither has a default: the original opens its dialogs with an
+            // empty box (LTANK_D.C:634, :983) and writes whatever comes back.
+            Player = _ini.Get(SecData, PsUser);
+            RecordAuthor = _ini.Get(SecData, PsPBA);
         }
+
+        /// The original's Yes/No test, which is a `strcmp` against `psYes` and
+        /// therefore **case-sensitive and exact**: a hand-edited `Sound=yes`
+        /// really does mute the 2010 binary.  The only thing that varies between
+        /// the six keys that use it is the default, and hence which side of the
+        /// comparison the missing case falls on -- so both senses are one
+        /// function with a `dflt`.
+        private bool YesNo(string key, bool dflt) =>
+            _ini.Get(SecOpt, key, dflt ? PsYes : "No") == PsYes;
 
         /// 1, 2 or 3 -- the original's small / medium / large, not a pixel size.
         public int Size { get; private set; }
@@ -258,9 +299,21 @@ namespace LaserTank.Game
         /// the engine's: SoundPlay's ids are recorded whatever this says, so
         /// turning the sound off cannot move a trace.
         public bool SoundOn { get; private set; }
+        /// Engine.Ani_On, [OPT] Animation, command 104.  The one option here
+        /// that changes what a tick does.
+        public bool AnimationOn { get; private set; }
         public bool RememberLastLevel { get; private set; }
         public string LastLevelFile { get; private set; }
         public int LastLevel { get; private set; }
+        /// [OPT] Auto_Record, command 115.
+        public bool AutoRecord { get; private set; }
+        /// [DATA] Player -- the initials a .hs record carries.  HSBox reads it
+        /// with `GetPrivateProfileString(..., 5, ...)`, so four characters is
+        /// the width the original can store and this trims to the same.
+        public string Player { get; private set; }
+        /// [DATA] Record Author -- the name a .lpb header carries.  RecordBox
+        /// reads 30 into a char[31].
+        public string RecordAuthor { get; private set; }
 
         /// SetGameSize's own write (LTANK2.C:1737).
         public void SetSize(int size)
@@ -300,6 +353,47 @@ namespace LaserTank.Game
             SoundOn = on;
             _ini.Set(SecOpt, PsSound, SoundOn ? PsYes : "No");
             return SoundOn;
+        }
+
+        /// ToggleOpt for command 104 (LTANK.C:886).  Same shape as the sound.
+        public bool ToggleAnimation() => SetAnimation(!AnimationOn);
+
+        public bool SetAnimation(bool on)
+        {
+            AnimationOn = on;
+            _ini.Set(SecOpt, PsAni, on ? PsYes : "No");
+            return on;
+        }
+
+        /// Command 115 (LTANK.C:978).  The write half; Recorder does the rest,
+        /// because that command also turns the recorder itself on or off.
+        public bool SetAutoRecord(bool on)
+        {
+            AutoRecord = on;
+            _ini.Set(SecOpt, PsARec, on ? PsYes : "No");
+            return on;
+        }
+
+        /// HSBox's write (LTANK_D.C:830): the initials, trimmed to the four
+        /// characters `GetWindowText(..., 5)` can return, and written only when
+        /// they changed -- `if (stricmp(temps, HS.name) != 0)`, a
+        /// case-*insensitive* compare, so re-typing "MZ" as "mz" does not
+        /// rewrite the key.
+        public void SetPlayer(string name)
+        {
+            name ??= "";
+            if (name.Length > THSREC.NameEntry - 1)
+                name = name.Substring(0, THSREC.NameEntry - 1);
+            if (string.Equals(name, Player, StringComparison.OrdinalIgnoreCase)) return;
+            Player = name;
+            _ini.Set(SecData, PsUser, name);
+        }
+
+        /// RecordBox's write (LTANK_D.C:990), unconditional there.
+        public void SetRecordAuthor(string name)
+        {
+            RecordAuthor = name ?? "";
+            _ini.Set(SecData, PsPBA, RecordAuthor);
         }
 
         /// LoadLevel's own write (LTANK2.C:1035), gated on RLL exactly there.

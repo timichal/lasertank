@@ -352,17 +352,117 @@ static int load_playback(const char *path)
     return 1;
 }
 
+/* ===================== the script driver (Phase 5, step 4) =====================
+ *
+ * --keys installs a whole keystream up front, which is what a .lpb playback
+ * does and all Phases 1-3 ever needed.  It cannot express a *command*: Undo,
+ * Save Position and Restore Position are WM_COMMAND cases, not bytes in
+ * RecBuffer, so no keystream reaches them and Phase 2 left UndoStep unported
+ * for exactly that reason.
+ *
+ * A script can.  It is a sequence of tokens consumed **at most one per tick**,
+ * at the top of the tick, before LT_Tick():
+ *
+ *   u d l r f   press a game key -- AddKBuff, but only when the buffer has
+ *               drained (RB_TOS == RecP).  Otherwise the token waits and this
+ *               tick consumes nothing, which is the pending-key rule the real
+ *               WM_KEYDOWN filter enforces (LTANK.C:573) and the rule that
+ *               makes one-key-at-a-time identical to a preloaded buffer: the
+ *               tick takes a key only when the world is quiescent anyway.
+ *   .           let one tick pass.  This is what makes the *timing* of a
+ *               command expressible -- "f..z" undoes with the laser still in
+ *               flight, which restores Game.Tank.Firing from the snapshot while
+ *               the laser global keeps flying.
+ *   z           command 110, Undo (LTANK.C:946).
+ *   Z           the DeadBox's "Undo Last Move" (LTANK.C:727): command 110 and
+ *               then GameOn(TRUE), the one path that resumes a dead game.  It
+ *               clears the oracle's own dead counter with it, because that
+ *               counter is instrumentation and the original has no such flag.
+ *   c v         commands 111 and 112, Save / Restore Position (LTANK.C:955).
+ *
+ * A dead or finished game gets no ticks -- GameOn() is literally KillTimer
+ * (LTANK2.C:881) -- but it still consumes tokens, so `Z` can bring it back.
+ */
+static const char *script = NULL;
+static size_t script_at = 0;
+/* EnableMenuItem(MMenu,112,...): Restore Position is grayed until Save Position
+ * has been used (LTANK.C:957) and grayed again by every LoadLevel
+ * (LTANK2.C:1028).  Windows enforces that, not LTANK.C, so a driver standing in
+ * for the window proc has to carry it -- and it matters rather than being
+ * politeness: `SaveGame` is a zero-initialised global, so restoring before ever
+ * saving copies a blank record over the live game, dropping the tank at 0,0 on
+ * an empty board.  The copy is defined, but the tank then keeps whatever ice
+ * slide was running (command 112 does not stop sliding, unlike UndoStep), and
+ * ConvMoveTank walks off the end of Game.PF.  That is out-of-bounds in C and a
+ * thrown IndexOutOfRangeException in the port -- a state the original cannot
+ * reach, so neither driver offers it.  tools/undo_check.py found it on
+ * Tutor.LVL level 85 with the script "llv". */
+static int can_restore = 0;
+
+static int script_key(char c)
+{
+    switch (c) {
+    case 'u': case 'U': return VK_UP;
+    case 'd': case 'D': return VK_DOWN;
+    case 'l': case 'L': return VK_LEFT;
+    case 'r': case 'R': return VK_RIGHT;
+    case 'f': case 'F': return VK_SPACE;
+    default:            return 0;
+    }
+}
+
+/* -> 1 if this tick should run, 0 if the script is spent and the game is over. */
+static void script_feed(void)
+{
+    char c;
+    int vk;
+
+    if (script_at >= strlen(script)) return;
+    c  = script[script_at];
+    vk = script_key(c);
+    if (vk) {
+        if ((DWORD)RB_TOS != Game.RecP) return;    /* still pending: wait */
+        if (RB_TOS >= RecBufSize) {
+            RecBufSize += 1024;
+            RecBuffer = GlobalReAlloc(RecBuffer, RecBufSize, GMEM_MOVEABLE);
+        }
+        RecBuffer[RB_TOS++] = (char)vk;
+        script_at++;
+        return;
+    }
+    script_at++;
+    switch (c) {
+    case '.': break;                                        /* idle one tick */
+    case 'z': UndoStep();                        break;     /* command 110   */
+    case 'Z': UndoStep(); GameOn(TRUE); lt_dead = 0; break; /* DeadBox Undo  */
+    case 'c': SaveGame = Game;                              /* command 111   */
+              can_restore = 1;                   break;
+    case 'v': if (!can_restore) break;                      /* command 112   */
+              Game = SaveGame;
+              RB_TOS = Game.RecP;
+              MB_TOS = MB_SP = 0;                break;
+    default:  break;                             /* unknown: skipped, as --keys does */
+    }
+}
+
+static int script_done(void)
+{
+    return script_at >= strlen(script);
+}
+
 static void usage(void)
 {
     fprintf(stderr,
-      "usage: oracle --levels FILE.lvl (--lpb FILE.lpb | --level N --keys STR)\n"
+      "usage: oracle --levels FILE.lvl (--lpb FILE.lpb | --level N (--keys | --script) STR)\n"
       "              [--trace FILE] [--field] [--bmf] [--sound] [--max-ticks N]\n"
       "              [--quiet]\n"
       "\n"
       "  --lpb FILE     replay a recorded solution; level number comes from its header\n"
-      "  --level N      1-based level number (with --keys)\n"
+      "  --level N      1-based level number (with --keys / --script)\n"
       "  --keys STR     keystream as characters: u d l r f  (or raw decimal VK codes\n"
       "                 separated by commas)\n"
+      "  --script STR   one token per tick: u d l r f press, . idles, z undoes,\n"
+      "                 Z undoes a death and resumes, c/v save/restore position\n"
       "  --field        include full PF / PF2 hex in the trace\n"
       "  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n"
       "  --sound        include SF, the SoundPlay ids the tick asked for\n");
@@ -379,6 +479,7 @@ int main(int argc, char **argv)
         if      (!strcmp(argv[i], "--levels") && i + 1 < argc) levels    = argv[++i];
         else if (!strcmp(argv[i], "--lpb")    && i + 1 < argc) lpb       = argv[++i];
         else if (!strcmp(argv[i], "--keys")   && i + 1 < argc) keys      = argv[++i];
+        else if (!strcmp(argv[i], "--script") && i + 1 < argc) script    = argv[++i];
         else if (!strcmp(argv[i], "--trace")  && i + 1 < argc) tracepath = argv[++i];
         else if (!strcmp(argv[i], "--level")  && i + 1 < argc) level     = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--max-ticks") && i + 1 < argc) max_ticks = atol(argv[++i]);
@@ -388,7 +489,11 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--quiet")) quiet       = 1;
         else { usage(); return 2; }
     }
-    if (!levels || (!lpb && !keys)) { usage(); return 2; }
+    if (!levels || (!lpb && !keys && !script)) { usage(); return 2; }
+    if (script && (lpb || keys)) {
+        fprintf(stderr, "oracle: --script cannot be combined with --lpb or --keys\n");
+        return 2;
+    }
 
     if (file_size(levels) < 0) {
         fprintf(stderr, "oracle: cannot open %s\n", levels);
@@ -416,9 +521,13 @@ int main(int argc, char **argv)
         return 3;
     }
 
-    /* Install the keystream.  LoadNextLevel resets RecP/RB_TOS, so do it after. */
+    /* Install the keystream.  LoadNextLevel resets RecP/RB_TOS, so do it after.
+     * A script installs nothing: it presses one key at a time, as a player
+     * does, so RB_TOS starts at 0 and grows. */
     if (lpb) {
         RB_TOS = PBRec.Size;
+    } else if (script) {
+        RB_TOS = 0;
     } else {
         int n = 0;
         const char *p;
@@ -443,13 +552,44 @@ int main(int argc, char **argv)
         trace_fp = fopen(tracepath, "wb");
         if (!trace_fp) { fprintf(stderr, "oracle: cannot write %s\n", tracepath); return 2; }
         fprintf(trace_fp, "# lasertank oracle trace\n");
+        /* `keys` is how much input this run was given, which difftrace uses to
+         * refuse a diff of two different inputs.  A script has pressed nothing
+         * yet, so RB_TOS is 0 and the token count is the honest answer. */
         fprintf(trace_fp, "# levels=%s level=%d name=%s author=%s keys=%d\n",
-                levels, level, CurRecData.LName, CurRecData.Author, RB_TOS);
+                levels, level, CurRecData.LName, CurRecData.Author,
+                script ? (int)strlen(script) : RB_TOS);
     }
 
     /* ---- run ---- */
     lt_stub_pump_clear();
     trace_tick(0);
+    if (script) {
+        /* The script loop.  It differs from the keystream loop below in three
+         * places and nowhere else: a token is fed before each tick, a dead or
+         * finished game still consumes tokens (so `Z` can resume it) but takes
+         * no tick, and "nothing further can happen" also requires the script to
+         * be spent.  LT_Tick itself is untouched -- the commands are the window
+         * proc's, and that is exactly where they run here. */
+        while (tick < max_ticks) {
+            size_t before = script_at;
+            script_feed();
+            if (Game_On && !lt_dead) {
+                tick++;
+                sf_n = 0;
+                LT_Tick();
+                lt_stub_pump();
+                trace_tick(tick);
+            } else if (script_at == before) {
+                /* No tick to advance the clock and no token consumed -- a key
+                 * waiting on a buffer that a dead game will never drain.  Stop
+                 * rather than spin: max_ticks cannot save a loop that does not
+                 * tick. */
+                break;
+            }
+            if (script_done() && Game.RecP >= (DWORD)RB_TOS && quiescent() && Game_On)
+                break;
+        }
+    } else
     while (Game_On && !lt_dead && tick < max_ticks) {
         tick++;
         sf_n = 0;                /* SF is per tick, and the pump's S_Die counts */

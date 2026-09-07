@@ -123,5 +123,125 @@ namespace LaserTank.Core
             shots = U16(data, at + 2);
             return moves != 0;
         }
+
+        /// The same record with the initials, which the two list dialogs show
+        /// and CheckHighScore writes.  -> null when the file or the record is
+        /// not there; a present record with `Moves == 0` is the blank marker and
+        /// comes back as a THSREC, because "blank" and "absent" are different
+        /// answers to the padding question below.
+        public static THSREC ReadHS(string path, int level)
+        {
+            if (!File.Exists(path)) return null;
+            byte[] data = File.ReadAllBytes(path);
+            int at = (level - 1) * THSREC.Size;
+            if (at < 0 || at + THSREC.Size > data.Length) return null;
+            return new THSREC
+            {
+                Moves = U16(data, at),
+                Shots = U16(data, at + 2),
+                Name = Str(data, at + 4, THSREC.NameSize),
+            };
+        }
+
+        /// How many 10-byte records a .hs / .ghs holds.
+        public static int CountHighScores(string path) =>
+            File.Exists(path) ? (int)(new FileInfo(path).Length / THSREC.Size) : 0;
+
+        /// CheckHighScore's test (LTANK2.C:1088), the whole scoring rule of the
+        /// game: fewer moves wins, and moves being equal, fewer shots.  A blank
+        /// record -- `Moves == 0` -- is always beaten, which is also how a
+        /// `null` (no file, or short of this level) reads.
+        public static bool Beats(ushort moves, ushort shots, THSREC best) =>
+            best == null || best.Moves == 0 || moves < best.Moves
+            || (moves == best.Moves && shots < best.Shots);
+
+        /// The thing that makes a .hs a file format rather than an array:
+        /// **it is dense and positional, so beating level 500 of a collection
+        /// first writes 499 records in front of it** (LTANK2.C:1080).
+        ///
+        ///     if ((CurLevel * sizeof(THSREC)) > (i = SetFilePointer(F2,0,NULL,FILE_END)))
+        ///     {
+        ///         HS.moves = 0;
+        ///         for (x = (i / sizeof(THSREC)); x < CurLevel-1; x++)
+        ///             WriteFile(F2, &HS, sizeof(THSREC), ...);
+        ///     }
+        ///
+        /// Note what is *not* zeroed. Only `moves` is set; `HS.shots` and
+        /// `HS.name` keep whatever the previous high score left in that global,
+        /// and this runs **before** the read of the level's own record, so the
+        /// leftovers come from the last level scored in this process rather than
+        /// from this one. Reading back only ever tests `moves`, so the game
+        /// cannot see them -- but they are in every .hs the 2010 binary has
+        /// written, and constraint 2 says these files stay writable, not merely
+        /// readable. So `pad` is that global, passed in, and the caller keeps it
+        /// across calls. Zeroing it instead looked obviously right and is what
+        /// tools/list_check.py's --check-scores sequence would have caught.
+        ///
+        /// `i / sizeof(THSREC)` truncates, so a file whose length is not a whole
+        /// number of records is padded from the last *complete* one and the
+        /// partial tail is overwritten.
+        public static void PadHighScore(string path, int level, THSREC pad)
+        {
+            if (level < 1) throw new ArgumentOutOfRangeException(nameof(level));
+            using FileStream f = new FileStream(path, FileMode.OpenOrCreate,
+                                                FileAccess.ReadWrite);
+            if ((long)level * THSREC.Size <= f.Length) return;
+            byte[] blank = Bytes(new THSREC
+            {
+                Moves = 0,                       // HS.moves = 0, and only that
+                Shots = pad?.Shots ?? 0,
+                Name = pad?.Name ?? "",
+            });
+            long first = f.Length / THSREC.Size;
+            f.Seek(first * THSREC.Size, SeekOrigin.Begin);
+            for (long x = first; x < level - 1; x++)
+                f.Write(blank, 0, blank.Length);
+        }
+
+        /// CheckHighScore's own write, the last two lines of it (LTANK2.C:1092):
+        /// seek to the level's slot and put the record there.  The file must
+        /// already be long enough, which is what PadHighScore is for.
+        public static void WriteHighScore(string path, int level, THSREC rec)
+        {
+            if (level < 1) throw new ArgumentOutOfRangeException(nameof(level));
+            using FileStream f = new FileStream(path, FileMode.OpenOrCreate,
+                                                FileAccess.ReadWrite);
+            f.Seek((long)(level - 1) * THSREC.Size, SeekOrigin.Begin);
+            byte[] b = Bytes(rec);
+            f.Write(b, 0, b.Length);
+        }
+
+        private static byte[] Bytes(THSREC r)
+        {
+            byte[] b = new byte[THSREC.Size];
+            b[0] = (byte)(r.Moves & 0xFF); b[1] = (byte)(r.Moves >> 8);
+            b[2] = (byte)(r.Shots & 0xFF); b[3] = (byte)(r.Shots >> 8);
+            Fixed(b, 4, THSREC.NameSize, r.Name);
+            return b;
+        }
+
+        /// Every level's name, author and difficulty in one pass, for the level
+        /// picker and the two high-score lists (LTANK_D.C:311, :766, :843).
+        /// Reading 576 bytes per level and keeping 3 fields of it is what the
+        /// original's `while (BytesMoved == sizeof(TLEVEL))` loop does; the
+        /// playfields are dropped because none of the three lists draws one.
+        public static TLEVELINFO[] ReadLevelList(string path)
+        {
+            byte[] data = File.ReadAllBytes(path);
+            int n = data.Length / TLEVEL.Size;
+            var list = new TLEVELINFO[n];
+            for (int i = 0; i < n; i++)
+            {
+                int at = i * TLEVEL.Size;
+                list[i] = new TLEVELINFO
+                {
+                    Number = i + 1,
+                    LName = Str(data, at + 256, 31),
+                    Author = Str(data, at + 543, 31),
+                    SDiff = U16(data, at + 574),
+                };
+            }
+            return list;
+        }
     }
 }

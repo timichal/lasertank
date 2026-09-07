@@ -414,6 +414,13 @@ namespace LaserTank.Core
             BuildBMField();
             GameOn(true);
             FindTank = true;
+            // EnableMenuItem(MMenu,110/112,MF_GRAYED) (LTANK2.C:1027): both Undo
+            // and Restore Position are off on a fresh level.  Undo's guard is
+            // the buffer itself and ResetUndoBuffer below is what turns it off;
+            // Restore's is this flag.  SaveGame's *contents* are not cleared
+            // here, because the original does not clear them either -- only the
+            // menu item goes gray.
+            CanRestore = false;
             ResetUndoBuffer();               // LTANK2.C:1033, in this position
 
             Game.RecP = 0;
@@ -462,6 +469,88 @@ namespace LaserTank.Core
             }
             UndoBuffer[UndoP] = Game.Clone();    // UndoBuffer[UndoP] = Game
             // EnableMenuItem / EnableWindow are UI.
+        }
+
+        // ---- LTANK2.C:455  UndoStep -----------------------------------------
+        /// The reader Phase 2 left out, because nothing headless called it.
+        ///
+        /// `Tank.Dir == 0` is the empty marker: a live tank always faces 1..4,
+        /// ResetUndoBuffer zeroes slot 0's Dir, and a slot is zeroed again as it
+        /// is consumed -- so the buffer is a stack whose bottom is self-marking
+        /// and each step can be taken exactly once.  Command 110 uses the same
+        /// test to gray the menu item afterwards (LTANK.C:948), which is
+        /// `CanUndo`.
+        ///
+        /// **A null slot is out of data.**  In C the array is GlobalReAlloc'd
+        /// without zeroing, so a slot no UpdateUndo ever wrote holds garbage;
+        /// the original never reads one, because UndoP only ever walks back over
+        /// slots that were written (and UndoRollOver is set to the highest of
+        /// them as it rolls).  Here those slots are null instead of garbage, and
+        /// reading one as "empty" both matches the reachable behaviour and
+        /// cannot throw.
+        ///
+        /// **Only `Game` is restored.**  The laser is a separate global
+        /// (LTANK2.C's `laser`) and is not in TGAMEREC, so undoing while a shot
+        /// is in flight restores `Game.Tank.Firing` from the snapshot while the
+        /// laser itself keeps its position -- and the sliding stacks are cleared
+        /// rather than restored, which is the next three lines. That asymmetry
+        /// is the original's and it is observable; see tools/undo_check.py.
+        public bool CanUndo => UndoBuffer[UndoP] != null && UndoBuffer[UndoP].Tank.Dir != 0;
+
+        public void UndoStep()
+        {
+            if (!CanUndo) return;                // out of data
+            Game.CopyFrom(UndoBuffer[UndoP]);    // Game = UndoBuffer[UndoP]
+            RB_TOS = (int)Game.RecP;             // clear all keys not processed
+            SlideT.s = 0;                        // stop any sliding
+            SlideO.s = 0;
+            SlideMem.count = 0;
+            UndoBuffer[UndoP].Tank.Dir = 0;
+            UndoP--;
+            if (UndoP < 0) UndoP = UndoRollOver;
+            MB_TOS = MB_SP = 0;                  // cancel all mouse inputs
+        }
+
+        // ---- LTANK.C:955 and :960  commands 111 and 112 ---------------------
+        /// Save Position / Restore Position -- `SaveGame = Game` and its
+        /// inverse, the undo buffer's one-slot cousin.  They are in the engine
+        /// rather than the driver because `SaveGame` is a TGAMEREC and the
+        /// assignment is the same one UpdateUndo makes.
+        ///
+        /// Restore clears the mouse buffer and rewinds RB_TOS, and **does not
+        /// stop sliding** -- unlike UndoStep three lines up. Restoring while
+        /// the tank is on ice therefore leaves SlideT running against a tank
+        /// that has been teleported back. That is the original's line, and it
+        /// has a defined effect, so it stays.
+        ///
+        /// **`SaveGame` starts blank, not absent** (LTANK2.C:59 -- a file-scope
+        /// TGAMEREC, so zeroed at load). Restoring before ever saving therefore
+        /// copies a zeroed record over the live game: the tank goes to 0,0
+        /// facing 0, both scores and RecP reset, and every playfield cell goes
+        /// to 0. The original cannot get there through its menu -- LoadLevel
+        /// grays command 112 and only command 111 enables it (LTANK2.C:1028,
+        /// LTANK.C:957) -- but the state it *would* produce is defined, so the
+        /// engine reproduces it and `CanRestore` carries the menu's guard for
+        /// the UI instead. Making this a null check and returning early looked
+        /// harmless and was the first thing tools/undo_check.py caught.
+        public readonly TGAMEREC SaveGame = new TGAMEREC();
+
+        /// EnableMenuItem(112): off until Save Position has been used, and off
+        /// again on every LoadLevel.  A UI state, kept here because the two
+        /// call sites that set it are the two functions above.
+        public bool CanRestore { get; private set; }
+
+        public void SavePosition()
+        {
+            SaveGame.CopyFrom(Game);     // SaveGame = Game
+            CanRestore = true;
+        }
+
+        public void RestorePosition()
+        {
+            Game.CopyFrom(SaveGame);     // Game = SaveGame
+            RB_TOS = (int)Game.RecP;     // clear all keys Past this Pos
+            MB_TOS = MB_SP = 0;
         }
 
         // ---- LTANK2.C:1164  TranslateTunnel ---------------------------------

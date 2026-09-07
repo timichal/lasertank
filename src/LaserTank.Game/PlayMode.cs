@@ -93,6 +93,171 @@ namespace LaserTank.Game
             => Play(new Session(lvlPath), level, script, lpbName, outDir, maxTicks,
                     pending, author, null);
 
+        // ---- step 4: scripts, and replaying what they recorded --------------
+        /// `--script STR --level N`: the token stream of oracle/driver.c's
+        /// `script_feed` and LaserTank.Cli's `Feed`, run through **the game's own
+        /// command path** -- Session.Undo, Session.UndoDead, Session.SavePos,
+        /// Session.RestorePos -- rather than through Engine directly.
+        ///
+        /// This is the third implementation of a fifteen-line rule, which is
+        /// deliberate and is the same argument the id -> sound-name table is
+        /// carried twice for: the other two prove the *engine* undoes correctly,
+        /// and only this one proves that the thing the U key calls does.  All
+        /// three must produce the same trace, and tools/undo_check.py and
+        /// tools/roundtrip_check.py are where that is checked.
+        ///
+        ///   godot --headless --path src/LaserTank.Game -- \
+        ///       --play --script "uufz.zllZ" --level 7 --out DIR
+        ///
+        /// `options` is null for a gate run and the real thing for a `--ini`
+        /// one, which is the only way to exercise the *whole* win path headless:
+        /// a Session with no Options posts no high score (see Session's
+        /// `_postScores`), so `--play --script --ini FILE` is what proves that
+        /// reaching the flag writes a `.hs`.
+        public static int RunScript(string lvlPath, int level, string script,
+                                    string outDir, int maxTicks, string author,
+                                    string stem, Options options)
+        {
+            var s = new Session(lvlPath, options);
+            if (!s.Load(level))
+            {
+                GD.PrintErr("play: " + s.Error);
+                return 2;
+            }
+            // A script's keys go in one at a time and the buffer must be able to
+            // hold them all; Session grows it, as AddKBuff does.
+            int at = 0;
+            long ticks = 0;
+            while (ticks < maxTicks)
+            {
+                int before = at;
+                Feed(s, script, ref at);
+                if (s.Now == Session.State.Playing && s.E.Game_On)
+                {
+                    if (!s.Step()) break;
+                    ticks++;
+                }
+                else if (at == before)
+                {
+                    break;      // no tick to advance the clock, no token taken
+                }
+                if (at >= script.Length && s.Pending == 0 && s.E.Quiescent()
+                    && s.E.Game_On) break;
+            }
+            int rc = Report(s, script.Length, outDir, author, stem, "script");
+            // What CheckHighScore decided, when it was allowed to decide
+            // anything.  One line, so a gate can assert the write happened
+            // without reading the file back the same way the writer wrote it.
+            if (s.Score != null)
+                GD.PrintRaw(string.Format(
+                    "highscore level={0} personal={1} global={2} old={3} target={4}{5}\n",
+                    s.Level, s.Score.Personal ? 1 : 0, s.Score.Global ? 1 : 0,
+                    HighScores.Describe(s.Score.Old),
+                    HighScores.Describe(s.Score.Target),
+                    s.Score.Error == null ? "" : " error=" + s.Score.Error));
+            return rc;
+        }
+
+        /// One script token through the game's own driver.  Mirrors
+        /// LaserTank.Cli.Program.Feed; see RunScript on why there are three.
+        private static void Feed(Session s, string script, ref int at)
+        {
+            if (at >= script.Length) return;
+            char c = script[at];
+            byte vk = c switch
+            {
+                'u' or 'U' => Engine.VK_UP,
+                'd' or 'D' => Engine.VK_DOWN,
+                'l' or 'L' => Engine.VK_LEFT,
+                'r' or 'R' => Engine.VK_RIGHT,
+                'f' or 'F' => Engine.VK_SPACE,
+                _ => (byte)0,
+            };
+            if (vk != 0)
+            {
+                if (s.Pending != 0) return;         // still pending: wait
+                s.Key(vk, echo: false);
+                at++;
+                return;
+            }
+            at++;
+            switch (c)
+            {
+                case '.': break;
+                case 'z': s.Undo(); break;
+                case 'Z': s.UndoDead(); break;
+                case 'c': s.SavePos(); break;
+                // The menu's own guard, as in the other two drivers: restoring
+                // a position that was never saved is unreachable in the original
+                // and reaches C undefined behaviour.  See Engine.SaveGame.
+                case 'v': s.RestorePos(); break;
+                default: break;
+            }
+        }
+
+        /// `--replay FILE.lpb`: watch a recording through the game's *playback*
+        /// path -- Session.LoadPlayback, then the engine's own PBOpen block --
+        /// rather than by pressing its keys.
+        ///
+        /// This is the half of step 4's exit criterion that step 1's gate could
+        /// not make: `--play --lpb` presses the keystream as a player would,
+        /// which is not what watching a recording does.  Playback runs the same
+        /// tick with PBOpen set, PBHold gating the key, and Speed throttling it,
+        /// and none of that had ever been exercised outside the CLI's fixed
+        /// Speed = 1.
+        public static int RunReplay(string lvlPath, string lpbPath, int maxTicks,
+                                    PbSpeed speed)
+        {
+            var s = new Session(lvlPath);
+            string bad = s.LoadPlayback(lpbPath);
+            if (bad != null)
+            {
+                GD.PrintErr("replay: " + bad);
+                return 2;
+            }
+            s.Pb.SetSpeed(s.E, speed);
+            s.Pb.TogglePlay(s.E);            // the Play button
+            long ticks = 0;
+            while (s.Now == Session.State.Playing && ticks < maxTicks)
+            {
+                if (!s.Step()) break;
+                ticks++;
+                // Single Step pauses itself after each key (see
+                // Playback.AfterTick), so press Play again -- which is what a
+                // human holding the button down would be doing.
+                if (speed == PbSpeed.Step && !s.E.PlayBack) s.Pb.TogglePlay(s.E);
+                if (s.E.Game.RecP >= (uint)s.E.RB_TOS && s.E.Quiescent()
+                    && s.E.Game_On) break;
+            }
+            GD.PrintRaw(string.Format(
+                "replay {0,-10} level={1,-5} ticks={2,-6} moves={3,-4} shots={4,-4} "
+                + "keys={5}/{6} speed={7}  {8}\n",
+                Result(s), s.Level, s.Ticks, s.E.Game.ScoreMove, s.E.Game.ScoreShot,
+                s.E.Game.RecP, s.Pb.Rec.DataSize, (int)speed, s.Rec.LName));
+            return Result(s) == "WIN" ? 0 : 1;
+        }
+
+        private static string Result(Session s) => s.Now switch
+        {
+            Session.State.Won => "WIN",
+            Session.State.Dead => "DEAD",
+            _ => "UNFINISHED",
+        };
+
+        private static int Report(Session s, int offered, string outDir, string author,
+                                  string stem, string tag)
+        {
+            string result = Result(s);
+            string saved = outDir != null ? s.Save(outDir, author, stem) : "";
+            GD.PrintRaw(string.Format(
+                "{0} {1,-10} level={2,-5} ticks={3,-6} moves={4,-4} shots={5,-4} "
+                + "keys={6}/{7} out={8}  {9}\n",
+                tag, result, s.Level, s.Ticks, s.E.Game.ScoreMove, s.E.Game.ScoreShot,
+                s.E.Game.RecP, offered,
+                saved == "" ? "-" : Path.GetFileName(saved), s.Rec.LName));
+            return result == "WIN" ? 0 : 1;
+        }
+
         private static int Play(Session s, int level, byte[] script, string lpbName,
                                 string outDir, int maxTicks, int pending, string author,
                                 string stem)
