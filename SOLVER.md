@@ -130,6 +130,7 @@ These are the reason the numbers in this file can be trusted.
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
+| The fourth pass, rehearsed | **82 of 250 (32.8%)** of the levels the chain fails, as the **union of five arms at 40M nodes** on a 1-in-15 stride of the whole failure population — session 26, 269 of 269 solutions through the two-engine gate. No single arm scores above **61 (24.4%)**, so the pass is a chain of arms rather than a configuration. *Next actions* item 2 |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item 3, and the shorter files for 8 and 9 it lists); **6 and 10 open**, and 10 is no longer a budget case — two 900M-node runs came back unsolved at depth 2 |
 
 *One number moved for a reason worth knowing before trusting the rest: the ferry bench is **19/50**
@@ -245,40 +246,93 @@ not measured through the path that ships. How it *was* measured is not recoverab
 been an `--eval-weights` file written by `fit_eval.py --fit` into `build/`, and `build/` is gone.
 Session 24's lesson a second time, one layer down.
 
-**2. The fourth pass, at a budget that matches what layer 5 costs.** The decision pass came out
-positive — 15 of 255 (5.9%) of the levels the shipped chain fails, all verified — so the open
-question is not *whether* layer 5 pays but *how much of the corpus is worth spending on it*. One push
-expansion is a whole closure, so this is the one pass that has to be budgeted in tens of millions of
-nodes rather than hundreds of thousands.
+**2. The fourth pass — rehearsed in session 26, and the rehearsal changed the shape of it.** The
+decision pass came out positive — 15 of 255 (5.9%) of the levels the shipped chain fails — so the
+open question was never *whether* layer 5 pays but *how much of the corpus is worth spending on it*.
+One push expansion is a whole closure, so this is the one pass budgeted in tens of millions of nodes
+rather than hundreds of thousands.
 
-```bash
-# the whole population the chain fails, not a 1-in-15 sample of it, at 40M nodes
-NODES=40000000 BUDGET_MS=1800000 JOBS=12 bash tools/second_pass.sh \
-    build/reports/chain.jsonl solutions/l5 build/reports/l5.jsonl \
-    --no-ida --no-beam --push --push-read
-python tools/report_stats.py build/reports/l5.jsonl
-python tools/verify_solutions.py build/solutions/l5
-```
+**All five arms have now been run at `SAMPLE=15`** — a 1-in-15 stride over the whole 3,709-level
+failure population, 250 levels every arm was given, `NODES=40000000 BUDGET_MS=1800000 JOBS=16`,
+each arm on the whole machine in turn. **269 of 269 solutions through the two-engine gate, zero
+divergences.**
 
-Budget it as hours: 3,713 levels at 40M nodes is 10x the sample pass at 10x the budget. `SAMPLE=15`
-first if a rehearsal is wanted (~20 minutes at 12 jobs). `build/reports/chain.jsonl` exists again;
-if it is gone, `tools/chain_union.py` rebuilds it from the four chain reports rather than a
-hand-retyped union.
-
-**Run it in five arms and compare unions, not solo counts.** Layers 7 and 8 have *never* seen the
-corpus — two benches and an ablation is all that is behind them — so those arms are the measurement
-they are missing, not a nice-to-have:
-
-| arm | flags on top of `--no-ida --no-beam --push --push-read` |
-|---|---|
-| plain | — |
-| layer 6's fourth derivation | `--push-enables 8` |
-| layer 7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` |
-| layer 8, learned key | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` |
-| layer 8, work key | the same plus `--push-eval work` |
+| arm | flags on top of `--no-ida --no-beam --push --push-read` | solo | only it solves | greedy union |
+|---|---|---:|---:|---|
+| layer 8, work key | the layer-8 set plus `--push-eval work` | **61** (24.4%) | 5 | 61 |
+| layer 7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` | 54 | **8** | +14 → 75 |
+| layer 6's fourth derivation | `--push-enables 8` | 52 | 2 | +5 → 80 |
+| layer 8, learned key | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` | 57 | 2 | +2 → 82 |
+| plain | — | 38 | **0** | **+0 → 82 (32.8%)** |
 
 Note the raised `--max-keys`: 1,200 is a silent cap on any level whose solution runs long, which is
 exactly the population this pass is.
+
+**The union is 82 of 250 (32.8%) where the file's fourth-pass argument rests on 5.9%.** Read the
+comparison honestly: the 15/255 was `Beginner-I` alone at ~4M nodes, this is all thirteen
+collections at 40M, so both the population and the budget differ and what it licenses is *40M buys
+much more than 4M*, not a 5.5x improvement in the searcher.
+
+Four things the arms say that their solo counts do not:
+
+* **The best single arm is not the pass.** `l8work` solves 61; the chain of three solves 82.
+  Shipping the winner alone costs 21 levels, a quarter of the result. This is layer 1's founding
+  finding a fourth time, and it is why the instruction was *compare unions*.
+* **Two arms are dead weight — and it took all five to know which.** `plain` contributes **0**
+  exclusive levels and **+0** to the union, and `l8learned`, second-best solo at 57, adds **+2**
+  because it overlaps `l8work` in 50 of 68. After two arms `plain` still held 4 exclusive levels
+  and after three it held 1; only the fifth arm retired it. **The full run wants three arms —
+  `l8work`, `layer7`, `enables` — for 80 of the 82.**
+* **`--push-eval work` beats the learned key on the push side, which corroborates item 1 over the
+  corpus rather than over a bench.** 61 against 57 solo, 11 exclusive against 7 head-to-head. Item
+  1's reason for not shipping the scale fix is that `Push.cs:167` mixes `Rank()`'s output with
+  work-unit addends; this says that mixing is already costing the learned key *today, at the
+  shipped weights*. Item 1's "the push side needs the two benches first" now has a population
+  behind it.
+* **Layers 7 and 8 are validated over the corpus for the first time.** They were carrying two
+  benches and an ablation. Layer 7 is the most complementary arm in the set — 8 exclusive and +14
+  in greedy order on top of the best arm.
+
+What the rehearsal does **not** show, stated plainly: **`Hard` and `Deadly` are 0 of 21 in every
+arm**, so none of this touches the two tiers that have never fallen; and **98.8% of the 168 the
+union misses still stop on `budget`**, so even the best arm is nowhere near a structural ceiling at
+40M. Extrapolated to all 3,709 the union is ~1,216 levels and a composite near **1,690 of 4,185
+(~40%)** against 476 today — a stride-sample estimate, not a promise, and the sample is 250 levels.
+
+**The full run has not been started; it is a multi-day machine commitment.** Priced from the
+rehearsal rather than guessed: an unsolved level at 40M nodes costs a median **275 s** at 16 jobs
+(117 s near-solo — the search is bandwidth-bound, and effective parallelism is only ~6.4x at 16
+jobs, so buying more jobs does not recover it). That is **~18 h per arm** over the full population,
+so the three-arm pass is **~54 h**.
+
+```bash
+# three arms, in greedy order, each into its own report so the union can be recomputed.
+# Run them one at a time: each wants the whole machine, and 16 jobs is already past
+# the point where more parallelism buys anything.
+L8="--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8
+    --push-shot-run 16 --push-beam 128 --max-keys 5000"
+run () {   # run <arm> <flags...>
+  arm=$1; shift
+  NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
+      build/reports/chain.jsonl "l5/$arm" "build/reports/l5-$arm.jsonl" \
+      --no-ida --no-beam --push --push-read "$@"
+  python tools/verify_solutions.py "build/l5/$arm"
+}
+run l8work  $L8 --push-eval work
+run layer7  --push-stop 1 --push-shot-run 16 --push-beam 128
+run enables --push-enables 8
+
+python tools/arms_union.py l8work=build/reports/l5-l8work.jsonl \
+    layer7=build/reports/l5-layer7.jsonl enables=build/reports/l5-enables.jsonl
+```
+
+Run `l8work` first — it is the largest single result, so it lands earliest if the run is
+interrupted. `build/reports/chain.jsonl` is what all three are pointed at; if it is gone,
+`tools/chain_union.py` rebuilds it from the four chain reports rather than a hand-retyped union.
+**Interaction with item 7:** that item draws the solved-vs-budget curve for the *chain's* four
+searchers and notes the push rungs become affordable as a fifth pass at 50M. These arms are that
+fifth pass, already measured at 40M — run item 7 first if the question is the production curve,
+this if the question is what layer 5 adds.
 
 **And the benches as a check, not as a decision — rebased in session 25.** The lists are
 reconstructions, so the old pair has nothing to be equal to; these four numbers are the new ones,
@@ -1877,6 +1931,10 @@ report_stats.py   read a campaign .jsonl: per-tier and per-collection rates, sto
 chain_union.py    union the chain's four per-pass reports into chain.jsonl -- the
                     shipped chain's per-level state, and what the fourth pass has
                     to be pointed at.  Was a sentence in this file until session 25
+arms_union.py     compare several arms of one pass by what each *adds*: solo count,
+                    levels only it solves, the cumulative union in greedy order, the
+                    pairwise overlap matrix.  Session 26, because item 2 says to
+                    compare unions and there was no tool that did
 rankdump.py       layer 4's instrument: replay every winning .lpb and dump the group
                     of successors the shipped expansion offered at each shot boundary
 fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regenerate
@@ -2114,3 +2172,38 @@ dominance prune the closure does not take, what the push rungs' `learned` key ac
 the shipped weights, and one arithmetic disagreement: level 10 at width 1024 runs ~5.7M nodes a
 depth and reaches depth 9 in 39M, so the "depth 2 at 900M" reading needs a `--push-trace` before
 it decides anything.
+
+**session 26 — the fourth pass, rehearsed.** *Next actions* item 2, in a session parallel to the
+second reader's above. All five arms run at `SAMPLE=15` — a 1-in-15 stride over the whole
+3,709-level failure population, 250 levels each arm was given, 40M nodes, 16 jobs, each arm on the
+whole machine in turn. **The union is 82 of 250 (32.8%)** where the fourth-pass argument rested on
+5.9%, and **269 of 269 solutions passed the two-engine gate**. Three findings, in the order they
+change what to run:
+
+- **The pass is a chain of arms, not a configuration.** Best solo arm 61, union of three 82;
+  shipping the winner alone would cost 21 levels. `plain` contributes **0** exclusive levels and
+  `l8learned` **+2**, so the full run wants three arms for 80 of the 82 — but `plain` still held 4
+  exclusive levels after two arms and 1 after three, so it took all five to retire it. **An arm's
+  solo count does not predict what it adds, and no smaller experiment would have said so.**
+- **`--push-eval work` beats the learned key on the push side over the corpus** (61 to 57 solo, 11
+  exclusive to 7), which is item 1's `Push.cs:167` warning showing up as levels rather than as a
+  bench. Item 1's decision not to ship the scale fix is better supported than when it was written.
+- **Layers 7 and 8 have now seen the corpus**, which two benches and an ablation were standing in
+  for. Layer 7 is the most complementary arm in the set.
+
+The full run was priced from the rehearsal and **not started**: ~275 s per unsolved level at 16 jobs
+(117 s near-solo — bandwidth-bound, ~6.4x effective parallelism), so ~18 h an arm and ~54 h for the
+three. `tools/arms_union.py` is new and is what the union numbers come from; the instruction to
+compare unions had no tool behind it.
+
+The session's lesson is a small one about instruments: **the pricing probe was measured at the wrong
+concurrency and was 2.4x optimistic**, because `SAMPLE=100` left each collection 1-4 levels and the
+timings came out near-solo. A cost measured at a parallelism the real run will not use is not a cost.
+
+And a citation worth having, found this session: **LaserTank is NP-complete** — Alexandersson and
+Restadh, [arXiv:1908.05966](https://arxiv.org/abs/1908.05966), by reduction from 3-SAT, and the
+hardness survives a board of only mirrors and solid blocks with the tank confined to a single
+column. It offers the solver nothing algorithmically, and its **NP-membership half does not
+transfer**: that holds for the restricted element set, and the paper conjectures PSPACE-completeness
+with a richer one — which is the corpus. Worth knowing mainly because it says there is no polynomial
+trick being missed, which is what *depth is the binding constraint* already says empirically.
