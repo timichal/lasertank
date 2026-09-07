@@ -249,11 +249,18 @@ namespace LaserTank.Solver
             r.Work = _h.WorkDistance(_e);
             r.RouteObstacles = _h.RouteObstacles;
             int[] into = new int[64];
-            int n = _h.FrontierObstacles(_e, region, into);
+            bool[] onRoute = new bool[64];
+            int n = _h.FrontierObstacles(_e, region, into, onRoute);
             for (int i = 0; i < n; i++)
             {
                 byte cell = board[into[i]];
-                if (cell >= Obj.AntiTankUp && cell <= Obj.AntiTankLeft)
+                // Same split as ReadDerive, and it is the same correction: an
+                // anti-tank the route has to walk *through* is a barrier cell,
+                // and only one merely aligned with a free cell of the route is
+                // a threat.  The read called all 28 of `LaserTank.lvl` 9's
+                // threats until session 22, which is why it called a maze of
+                // anti-tank walls a GAUNTLET.
+                if (cell >= Obj.AntiTankUp && cell <= Obj.AntiTankLeft && !onRoute[i])
                 {
                     if (!r.Threats.Contains(into[i])) r.Threats.Add(into[i]);
                 }
@@ -714,6 +721,7 @@ namespace LaserTank.Solver
 
         private readonly bool[] _readRegion = new bool[256];
         private readonly int[] _readInto = new int[64];
+        private readonly bool[] _readOnRoute = new bool[64];
         private readonly List<int> _readBarrier = new List<int>();
         private readonly List<int> _readWater = new List<int>();
 
@@ -733,11 +741,25 @@ namespace LaserTank.Solver
             foreach (EngineSnapshot s in poses) _readRegion[s.Tank.X * 16 + s.Tank.Y] = true;
 
             _e.Restore(at);
-            int n = _h.FrontierObstacles(_e, _readRegion, _readInto);
+            int n = _h.FrontierObstacles(_e, _readRegion, _readInto, _readOnRoute);
             for (int i = 0; i < n; i++)
             {
                 byte cell = _e.Game.PF[_readInto[i] >> 4, _readInto[i] & 15];
-                if (cell >= Obj.AntiTankUp && cell <= Obj.AntiTankLeft) continue;
+                // An anti-tank *aligned* with a free cell of the route is a
+                // target, not a barrier: nothing lands on it and shooting it is
+                // not a step along the route, so admitting it here would have
+                // the read call every shot in its direction an advance.
+                //
+                // One standing *on* the route is a different cell entirely and
+                // was thrown out with it until session 22.  It is in the way in
+                // exactly the sense a brick is, and on the levels the read calls
+                // GAUNTLET it is the *only* thing in the way -- `LaserTank.lvl`
+                // 9 "Grid Lock" is a maze whose every wall is an anti-tank, and
+                // with them excluded the barrier came back empty, ReadAdvances
+                // returned false for every successor at every depth, and the
+                // read said nothing at all for the whole level.
+                if (cell >= Obj.AntiTankUp && cell <= Obj.AntiTankLeft
+                    && !_readOnRoute[i]) continue;
                 _readBarrier.Add(_readInto[i]);
                 if (cell == Obj.Water) _readWater.Add(_readInto[i]);
             }

@@ -220,6 +220,106 @@ namespace LaserTank.Solver
                 o.PushBeamWidth = 128;
                 o.PushRestarts += 6 * r;
             }),
+            // Layer 8, the big-board rung: everything session 22 derived, at the
+            // width the levels it was derived on actually want.
+            //
+            // The five terms are one bet and not five, which is why they are one
+            // rung: they are what a player reads off a board that the price list
+            // cannot.  Fire (BuildFire, Engine.AntiTank() asked of every cell),
+            // the safe flood it makes possible (--push-reach), the frozen block
+            // (--push-dead, and TierLost, without which the penalty is one every
+            // board pays), and the ferry priced as an assignment through the
+            // maze rather than as a nearest block as the crow flies.
+            //
+            // **Read as a portfolio member, which is the only honest way.** Solo
+            // at 4M nodes it is 17/50 ferry and 21/50 deep against the plain push
+            // rung's 19 and 21 -- level for level on one bench and a loss on the
+            // other. Against that rung's own solved set it **adds 3 ferry levels
+            // and 6 deep ones** (union 22 and 27), which is the largest addition
+            // of any specialist here: push-enables adds 4 and 5, push-stop 3 and
+            // 5.  The width is 128 rather than the measured-best 8 for the same
+            // reason it is 128 on the rung above -- the levels this is for are
+            // bigger than anything either bench contains, and `--push-line`
+            // follows the human line on `LaserTank.lvl` 6 to board change 1 at
+            // width 8 and to **26** at width 128.
+            //
+            // MaxKeys is raised because the default 1,200 is a *silent* cap on
+            // this population: `LaserTank.lvl` 6's own hand recording is 904
+            // keypresses and a solver route is longer than a human's, so the
+            // search was dropping states near the end of the level and reporting
+            // budget.
+            ("push-ferry", static (o, r) =>
+            {
+                o.RunPush = true;
+                o.PushRead = true;
+                o.PushReach = true;
+                o.PushFerryMatch = true;
+                o.PushFerryMaze = true;
+                o.PushDead = 20;
+                o.PushFire = 8;
+                o.PushShotRun = 16;
+                // Round 3 is 25.6M nodes and round 5 is 409.6M, by which
+                // point everything either bench solves at 4M has had three and
+                // five chances; from there the rung takes the width the
+                // *population it was built for* wants rather than the one the
+                // bench measured.  Same shape and same justification as
+                // push-enables above -- and unlike that one, both steps are
+                // paid for by a level rather than by an argument:
+                // `LaserTank.lvl` 8 falls at **width 512 in 57.5M nodes** and
+                // is unsolved at 400M at 128, and level 9 falls at **width
+                // 2048 in 162.8M** and is unsolved at 100M at 8,192 or at 400M
+                // at 512.  A bench at 4M nodes cannot say anything about a
+                // width a round-3 budget pays for, which is why `--push-line`
+                // is the instrument here: level 8's human line survives to
+                // board change 7 at width 128 and to 15 at 512.
+                o.PushBeamWidth = r >= 5 ? 2048 : r >= 3 ? 512 : 128;
+                o.MaxKeys = 5000;
+                o.PushRestarts += 6 * r;
+            }),
+            // The same searcher ranked by WorkDistance instead of layer 4's
+            // learned evaluation, and a rung of its own for the same reason
+            // `learned` is a rung beside `subgoal`: it solves levels the other
+            // does not.  Over the two banked benches it is 18/50 and 21/50 solo,
+            // **adds 4 ferry levels to the plain push rung** on its own, and adds
+            // 1 more ferry and 2 more deep on top of the rung above -- all three
+            // together are 23/50 and 29/50 against the plain rung's 19 and 21.
+            //
+            // The split is not arbitrary and `--push-line` says where it comes
+            // from: the learned model is seventeen features fitted before any of
+            // these terms existed, `work` is one of them at weight 157, and
+            // everything layers 5 to 8 add is added outside it.  On the four
+            // levels this session was aimed at, the human line's longest uphill
+            // stretch is 11 and 11 board changes on the learned key for 6 and 8
+            // and 7 and 12 on the raw one for 9 and 10.
+            ("push-ferry-work", static (o, r) =>
+            {
+                o.RunPush = true;
+                o.PushRead = true;
+                o.PushLearned = false;
+                o.PushReach = true;
+                o.PushFerryMatch = true;
+                o.PushFerryMaze = true;
+                o.PushDead = 20;
+                o.PushFire = 8;
+                o.PushShotRun = 16;
+                // Round 3 is 25.6M nodes and round 5 is 409.6M, by which
+                // point everything either bench solves at 4M has had three and
+                // five chances; from there the rung takes the width the
+                // *population it was built for* wants rather than the one the
+                // bench measured.  Same shape and same justification as
+                // push-enables above -- and unlike that one, both steps are
+                // paid for by a level rather than by an argument:
+                // `LaserTank.lvl` 8 falls at **width 512 in 57.5M nodes** and
+                // is unsolved at 400M at 128, and level 9 falls at **width
+                // 2048 in 162.8M** and is unsolved at 100M at 8,192 or at 400M
+                // at 512.  A bench at 4M nodes cannot say anything about a
+                // width a round-3 budget pays for, which is why `--push-line`
+                // is the instrument here: level 8's human line survives to
+                // board change 7 at width 128 and to 15 at 512.
+                o.PushBeamWidth = r >= 5 ? 2048 : r >= 3 ? 512 : 128;
+                o.MaxKeys = 5000;
+                o.PushRestarts += 6 * r;
+            }),
         };
 
         // ---- lanes ---------------------------------------------------------
@@ -229,7 +329,7 @@ namespace LaserTank.Solver
         ///
         /// The driver used to be a single loop over levels, and a lane is what
         /// that loop became once there was more machine than one level could
-        /// use.  Seven rungs on a sixteen-core box leaves nine cores idle, and
+        /// use.  Nine rungs on a sixteen-core box leaves seven cores idle, and
         /// a second lane is a whole further level to spend them on.
         ///
         /// **The lanes share one pool of `--jobs` slots rather than each
@@ -398,7 +498,7 @@ namespace LaserTank.Solver
                               Ansi.Bold(collection), from, to, count, Ladder.Length,
                               // One lane can never have more than the ladder
                               // running however many slots it is given, and
-                              // saying "16 at a time" of a 7-rung ladder is a
+                              // saying "16 at a time" of a nine-rung ladder is a
                               // number the display would then contradict.
                               lanes == 1
                                 ? Math.Min(jobs, Ladder.Length) + " at a time"
@@ -810,7 +910,7 @@ namespace LaserTank.Solver
                 }
                 // What a lane is *doing* is the rungs holding a slot.  The ones
                 // still queued are worth a count, because a lane showing two
-                // searchers on a seven-rung ladder is the machine being full
+                // searchers on a nine-rung ladder is the machine being full
                 // rather than the level being nearly done.
                 string what = running.Count > 0 ? string.Join(" ", running)
                             : queued > 0 ? "queued" : "finishing";

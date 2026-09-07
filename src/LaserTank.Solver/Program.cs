@@ -245,6 +245,59 @@ namespace LaserTank.Solver
 "                         both banked benches against 19 and 21, but with\n" +
 "                         --push-shot-run 16 and --push-beam 128 it solves\n" +
 "                         LaserTank.lvl 2, which nothing else does\n" +
+"    --push-fire N        price of a cell an anti-tank would fire on, added\n" +
+"                         to its terrain inside the route Dijkstra; 0 (the\n" +
+"                         default) is off.  Not an estimate: Engine.AntiTank\n" +
+"                         decides by walking outward from the tank with\n" +
+"                         CheckLoc and asking whether the first cell it could\n" +
+"                         not enter is an anti-tank pointing back, which is a\n" +
+"                         statement about the board, so Heuristic.BuildFire\n" +
+"                         answers it for all 256 cells in four line sweeps.\n" +
+"                         What it buys is the shield: a block, a mirror or\n" +
+"                         another anti-tank dropped in a lane stops the scan,\n" +
+"                         so the route round the fire gets cheaper -- and\n" +
+"                         nothing else here can see that at all\n" +
+"    --push-dead N        weight on the frozen-block term, 0 (default) is\n" +
+"                         off: water cells on the route with no *live* block\n" +
+"                         left to fill them, where live means the block can\n" +
+"                         still be moved somewhere.  A cliff, not a gradient,\n" +
+"                         because what it reports is a lost level.  See\n" +
+"                         Heuristic.RouteDead\n" +
+"    --push-shield N      weight on the shield term, 0 (default) is off:\n" +
+"                         RouteFerry for fire.  Take the first swept cell the\n" +
+"                         route has to cross, ask which anti-tank covers it\n" +
+"                         (AntiTank's own scan order, so it is the one that\n" +
+"                         would fire) and price the nearest pushable object\n" +
+"                         against the nearest cell on the ray between them --\n" +
+"                         anything dropped in there stops the scan.  --push-\n" +
+"                         fire says what is wrong with the board and this says\n" +
+"                         how far the fix still has to travel.  Implies the\n" +
+"                         fire scan.  See Heuristic.RouteShield\n" +
+"    --push-reach         price the route from the flag to the nearest cell\n" +
+"                         the tank can *safely walk to* rather than to the\n" +
+"                         cell it stands on -- layer 2's premise as a ranking\n" +
+"                         key.  Implies the fire scan.  What it buys over\n" +
+"                         --push-fire alone is that a sum can be lowered by\n" +
+"                         shuffling an anti-tank anywhere and a flood cannot:\n" +
+"                         the number moves only when somewhere new becomes\n" +
+"                         safe to stand\n" +
+"    --push-ferry-stage   price the ferry one carry at a time: holes left\n" +
+"                         first, the cheapest remaining carry as the tie-\n" +
+"                         break.  Implies --push-ferry-match.  The sum is\n" +
+"                         indifferent about which carry a push belongs to and\n" +
+"                         a long Sokoban needs the beam to finish one\n" +
+"    --push-ferry-match   spend each block once: price the ferry as an\n" +
+"                         assignment of blocks to the holes on the route,\n" +
+"                         not as a nearest block per hole.  On a level with\n" +
+"                         as many blocks as holes the second lets every hole\n" +
+"                         name the same block, so the term reads small on a\n" +
+"                         board where five of six carries have not started\n" +
+"    --push-ferry-maze    measure the ferry term through the maze instead of\n" +
+"                         as the crow flies.  Manhattan is what RouteFerry has\n" +
+"                         always used and it is wrong about walls, not about\n" +
+"                         pushing: LaserTank.lvl 6 has a block thirteen cells\n" +
+"                         from its hole in a straight line and forty through\n" +
+"                         the corridors\n" +
 "    --push-ferry N       weight on the ferry term, default 1, 0 is off:\n" +
 "                         how far the nearest block still is from the water\n" +
 "                         on the route.  WorkDistance does not move while a\n" +
@@ -367,6 +420,13 @@ namespace LaserTank.Solver
                         case "--push-run": a.Opt.PushRun = int.Parse(V()); break;
                         case "--push-shot-run": a.Opt.PushShotRun = int.Parse(V()); break;
                         case "--push-stop": a.Opt.PushStop = int.Parse(V()); break;
+                        case "--push-fire": a.Opt.PushFire = int.Parse(V()); break;
+                        case "--push-dead": a.Opt.PushDead = int.Parse(V()); break;
+                        case "--push-reach": a.Opt.PushReach = true; break;
+                        case "--push-shield": a.Opt.PushShield = int.Parse(V()); break;
+                        case "--push-ferry-maze": a.Opt.PushFerryMaze = true; break;
+                        case "--push-ferry-match": a.Opt.PushFerryMatch = true; break;
+                        case "--push-ferry-stage": a.Opt.PushFerryStage = true; break;
                         case "--push-trace-board": a.Opt.PushTrace = true; a.Opt.PushTraceBoard = true; break;
                         case "--push-move-only": a.Opt.PushMoveOnlyK = int.Parse(V()); break;
                         case "--push-eval": a.Opt.PushLearned = V() == "learned"; break;
@@ -1148,6 +1208,13 @@ namespace LaserTank.Solver
             PushRun = s.PushRun,
             PushShotRun = s.PushShotRun,
             PushStop = s.PushStop,
+            PushFire = s.PushFire,
+            PushDead = s.PushDead,
+            PushReach = s.PushReach,
+            PushShield = s.PushShield,
+            PushFerryMaze = s.PushFerryMaze,
+            PushFerryMatch = s.PushFerryMatch,
+            PushFerryStage = s.PushFerryStage,
             PushTraceBoard = s.PushTraceBoard,
             PushMoveOnlyK = s.PushMoveOnlyK,
             PushLearned = s.PushLearned,

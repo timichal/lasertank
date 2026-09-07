@@ -14,8 +14,20 @@ ninety-second version.
 
 **What is built.** A C reference oracle (`oracle/`), a C# transliteration of the engine that traces
 byte-identically to it (`src/LaserTank.Core/`), a differential fuzzer (`tools/fuzz.py`), and a
-solver of five layers, four of which ship (`src/LaserTank.Solver/`). No Godot yet — that is
-Phase 5.
+solver of eight layers, four of which ship in the batch chain and all of which have a rung in the
+interactive driver (`src/LaserTank.Solver/`). No Godot yet — that is Phase 5.
+
+*(Session 22 added layer 8 — six derivations of what a player reads off a board and the price list
+cannot: anti-tank fire, the safe region it defines, the frozen block, the ferry priced as an
+assignment through the maze, and the shield. Five of the six are two rungs of the driver, worth 3+1
+ferry and 6+2 deep levels as portfolio members, and they solve **`LaserTank.lvl` 8 in 57.5M nodes at
+width 512**. Level 9 is solved too and layer 8 gets there — but so does layer 0's plain beam at round
+5 in 94.3M nodes, so that one was a budget statement all along and the lesson is to let the driver
+finish a round before deriving anything. 6 and 10 remain. Two things in that section
+are worth more than the flags: the framing measurement, which says all four levels were
+ranking-limited by two orders of magnitude and that one `--push-trace` column would have said so
+before the eighty-million-node grid that did not; and, once the ranking was fixed, that both levels
+fell to a **width** no bench would have suggested.)*
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -105,6 +117,12 @@ build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 1 \
 after a quarter of a million nodes and reports the line lost at depth 2 when nothing of the sort
 happened.)*
 
+*(Session 22: **the `line-h` column is not a distance** unless you say `--push-eval work`. This
+layer's default key is layer 4's learned model, so the number is a seventeen-feature score in which
+`work` is one term and every term layers 5-8 add is added outside it. The tell is that a line which
+ends on the flag does not end at 0 — `LaserTank.lvl` 9's winning line ends at 70. Read both keys;
+they disagree per level, and that disagreement is why layer 8 is two rungs.)*
+
 Each row now carries **two** numbers, `d=` (beam depth) and `at=` (how far along the *line* the
 frontier is), and they are not the same: a run emits several of the line's board changes at once, so
 a frontier can be four changes along at depth one. The report was depth-indexed until session 20,
@@ -166,7 +184,8 @@ clone. Everything else in `build/reports/` is a measurement that can be re-run.
 
 ## Status
 
-**Phases 1-3 complete. Phase 4 complete through layer 4. Phase 5 not started.**
+**Phases 1-3 complete. Phase 4 complete through layer 4, with layers 5-8 shipping as driver rungs.
+Phase 5 not started.**
 
 *One number in this table moved for a reason worth reading before trusting the rest: the ferry
 bench is **19/50** where every earlier session banked 20/50. That is the buried-flag fix (session
@@ -187,6 +206,9 @@ ranking; the number to compare future runs against is 19.*
 | Layer 5 over the corpus | **15 of 255 (5.9%) of the levels the whole chain fails**, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | Solver, layer 7, the stop cell | *what has to be blocked before the tank can stand next to the flag?* — `Heuristic.RouteStop`, the ferry term for a route that crosses a conveyor rather than water. Off in the batch solver, its **own rung in the interactive driver** with `--push-shot-run` and width 128, where it adds 3 ferry / 5 deep levels to the plain push rung and **solves `LaserTank.lvl` 2 in 65 s with no flags** |
 | Solver, `--push-shot-run` | PushRun for the laser: a k-cell laser ferry is k successors of one expansion, not k depths. Off by default (ferry 15/50, deep 23/50 solo — a wash), on in the layer-7 rung, where level 2 needs it |
+| Solver, layer 8 | *what a player reads off the board and the price list cannot* — six derivations (`--push-fire`, `--push-reach`, `--push-dead`, `--push-ferry-match`, `--push-ferry-maze`, `--push-shield`) plus a correctness fix to the read. **Two new rungs**, `push-ferry` and `push-ferry-work`, adding **3+1 ferry / 6+2 deep** levels to the plain push rung (portfolio 23/50 and 29/50 against 19 and 21), and solving **`LaserTank.lvl` 8 in 57.5M nodes** (width 512) — the level nothing else touches at 400M. It also solves 9 at width 2048 in 162.8M and half the length, but **9 falls to layer 0's beam alone at round 5 (94.3M)**, so that one is attributed to the budget rather than to this layer. 6 and 10 are still unsolved |
+| Solver, `--push-shield` | RouteFerry for fire, and the one term this session built that **did not earn a rung**: it shortens level 10's ascent 12 -> 7 and adds **zero** levels to the three-rung portfolio on either bench. Off by default, off in the ladder, kept because the measurement is worth more than the flag |
+| Solver, the read's barrier | an anti-tank *on* the route was thrown out with the ones merely aligned with it, so on a level whose walls are anti-tanks the read said nothing at all. Fixed; benches unmoved, `--read-dump` 667/800 against 666, and **179 of the 4,185-level sample (4.3%) change verdict**, 164 of them out of GAUNTLET |
 | Presentation (Godot) | not started — see Phase 5 |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
@@ -220,6 +242,20 @@ plain rung's 19 and 21, adds 3 ferry and 5 deep levels as a union, and solves `L
 which nothing else does — which is the whole of what is known about it. Layer 7 is the only layer
 here that has never seen the corpus, so that arm is not a nice-to-have on this pass, it is the
 measurement the layer is missing. Run all three arms and compare unions, not solo counts.*
+
+*Session 22 adds a **fourth and fifth** arm, and they have the strongest bench case of any of them:
+the two layer-8 rungs, `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20
+--push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000`, once as written and once with
+`--push-eval work` on top. They add 3+1 ferry and 6+2 deep levels to the plain push rung and the
+three-way portfolio is 23/50 and 29/50 against 19 and 21, which is the largest union move any
+specialist here has made — and, like layer 7, they have never seen the corpus. Note the raised
+`--max-keys`: 1,200 is a silent cap on any level whose solution runs long, which is exactly the
+population this pass is.*
+
+*And the four levels this session was aimed at are all still unsolved — see* Phase 4 — layer 8*,
+which names the missing thing per level. The cheapest of the four to try again is **8**, where the
+beam's own score descends the whole way and it is a width-and-nodes question rather than a
+derivation one.*
 
 ```bash
 # the whole population the chain fails, not a 1-in-15 sample of it, at 40M nodes
@@ -2375,6 +2411,380 @@ but the direction of travel on ice depends on how the tank entered, which is a s
 a state look dearer, which is the safe direction). And the layer has never been run over the
 corpus: the ablation and the two benches are all that is behind it.
 
+### Phase 4 — layer 8, what a player reads off the board  ☑ (six derivations; solves `LaserTank.lvl` 8, and 6 and 10 are still open)
+
+**The trigger.** *"Onwards with the level solver — I'm stuck on levels 6, 8, 9 and 10. All the
+levels have manual playthroughs in demos."* Four levels of `LaserTank.lvl`, three shapes, and the
+first useful thing was to stop treating them as one problem.
+
+**The framing measurement, and it is the one that decided where to spend the session.** One push
+expansion is a whole PF-preserving closure, so the honest question about a long level is whether
+its *budget* or its *ranking* is binding, and `--push-trace` answers it directly: `closure~` times
+the width times the board-change count is what a perfect beam would cost.
+
+| lvl | board changes | runs, compressed | closure | a perfect beam at width 8 | at 80M nodes |
+|---:|---:|---:|---:|---:|---|
+| 6 Cascade | 168 | 142 | ~800 | 3.5M | unsolved |
+| 8 castle siege | 52 | 50 | ~100 | 0.3M | unsolved |
+| 9 Grid Lock | 27 | 24 | ~100 | 0.3M | unsolved |
+| 10 Valley of Death | 53 | 35 | ~500 | 1.0M | unsolved |
+
+**All four are ranking-limited by two orders of magnitude at the shipped width**, which is why
+sixteen configurations at 80M nodes solved none of them. Read the last column of that table as the
+warning it turned out to be, though: it is the cost of a perfect beam *at width 8*, and every level
+that fell in the end fell at a width between 512 and 19,200, where the same arithmetic runs to
+hundreds of millions. Ranking-limited was the right diagnosis and "therefore not budget-limited" was
+not the right corollary — fixing the ranking moved the binding constraint to width and put it
+straight back into the budget.
+
+(The run column is what `--push-shot-run` can compress the board-change count to — worth knowing
+before reaching for it, because on three of the four it compresses almost nothing.)
+
+The other framing number is the ascent, `tools/basin.py`'s, at push granularity: the longest stretch
+the human line spends at or above its own best score. The solved population is p50 1 / p90 8 board
+changes. These four start at 33, 31, 7 and 15 — and *that* is what the derivations below move.
+
+#### One: an anti-tank on the route is a wall, not a threat  ☑ (a correctness fix, and free)
+
+`FrontierObstacles` returns two kinds of cell and they arrive interleaved: a cell **of** the route
+that costs more than an empty step, and — for a route cell that costs nothing and is still not
+reached — the anti-tanks *aligned* with it, which are targets rather than terrain. `ReadDerive` and
+`--analyze` both dropped every anti-tank in the list to keep the second kind out of the barrier, and
+so threw the first kind out with it.
+
+`LaserTank.lvl` 9 "Grid Lock" is the level that makes that visible, because **every wall on it is an
+anti-tank**: a 4x4 grid of rooms whose partitions are rows and columns of `^>v<`, none of which can
+ever fire, because the only cells they look at are each other. The read called it
+`GAUNTLET: the route crosses nothing that has to be cleared and 28 anti-tanks cover it`, with an
+empty barrier — so `ReadAdvances` returned false for every successor at every depth and the read
+said **nothing at all for the whole level**. It now reads
+`DEMOLITION: 1 of the 5 available board changes land on the barrier`, and names the six anti-tanks
+the route has to go through.
+
+`FrontierObstacles` takes an optional `onRoute` flag array; both callers use it. Measured three ways:
+
+- **The two banked benches are unmoved** — ferry 19/50, deep 21/50, the session-20 numbers to the
+  level. It costs nothing.
+- **`--read-dump` over the twenty hand recordings**: 800/800 still in the enumeration (the check on
+  the enumeration itself), and the read names **667 of 800 against 666**, with ten board changes
+  moving from `opens` to the two free derivations, where they belong.
+- **Over the corpus it reclassifies 179 of the 4,185-level stride sample (4.3%)**, 164 of them out
+  of GAUNTLET: 828 -> 664, DEMOLITION 360 -> 457, SETUP 324 -> 391. A sixth of everything the read
+  called crossfire was terrain.
+
+#### Two: the fire map, which is `AntiTank()` asked of every cell at once  ☑ (`--push-fire N`)
+
+A ferry level's obstacle is terrain and the price list sees it. A gauntlet's obstacle is fire, and
+nothing in this project could see that at all: `LaserTank.lvl` 10 "The Valley of Death" is an empty
+16x16 field with ten anti-tanks along the walls, `WorkDistance` 16 with **nothing in the way**, and
+the tank can stand in eighteen cells of the board.
+
+**It is a derivation and not a model, and that is the whole reason it is trustworthy.**
+`Engine.AntiTank()` (`Engine.cs:1033`) decides whether an anti-tank fires by walking outward *from
+the tank's own cell* with `CheckLoc` and asking whether the first cell the tank could not enter is
+an anti-tank pointing back — `PF[x] == 10` to the right, 8 to the left, 7 below, 9 above. That reads
+nothing but the board, so the answer for all 256 cells is four line sweeps: walking a row inward from
+the edge, the cell each scan stops at is the previous cell's answer when this one is enterable and
+this cell itself when it is not. `Heuristic.BuildFire` is that and nothing else, down to repeating
+`CheckArray` verbatim as `Enters` — **`Passable` is the wrong table here and the difference is
+water**, which a tank may be told to drive into, so an anti-tank scan looks straight over a lake.
+
+Deliberately not `Threats()`, which scans for any anti-tank in four directions and stops only at
+Solid. That superset is right for picking subgoal targets and wrong for a price twice over: it
+charges for fire that never comes, and it cannot see the mechanism the gauntlets are built on — a
+block, a mirror or **another anti-tank** dropped into a lane stops the scan and shields everything
+behind it. Level 10's hint is *"move the bottom right tank left 8 spaces then up 4"*, which is a
+player saying exactly that.
+
+**Checked against the engine rather than asserted.** The fire-aware flood of §3 below is the set of
+cells the tank can safely walk to, and `--analyze` already prints the *executed* pose closure's
+answer to the same question. On levels 8, 9 and 10 they agree exactly: 3, 6 and 18 cells.
+
+Priced *inside* the route Dijkstra rather than counted on the route afterwards, so that the route
+goes round the fire instead of reporting how much of it the shortest blind route crosses.
+On level 10 the ascent goes **29 board changes -> 6**, the first time this level has been inside the
+solved population's p90.
+
+#### Three: the safe flood, because a sum can be lowered without progress  ☑ (`--push-reach`)
+
+The fire price alone is not enough and `--push-trace` says why in one column: on level 10 the beam's
+best score went 28 -> 23 in one board change and then **sat at 23 for fifteen depths**, shuffling
+anti-tanks around the edges of the board. A price is a sum, and nothing in a sum distinguishes a
+cheaper route from a walkable one.
+
+`--push-reach` prices the route from the flag to the nearest cell of the **fire-aware flood from the
+tank** rather than to the cell the tank stands on. That is layer 2's premise — price what stands
+between the flag and where the tank can demonstrably get — as a ranking key that has to answer per
+successor, so the reached set is a flood rather than an executed closure. It is a hard test: a swept
+cell is not in the flood at all, so the number moves only when somewhere new becomes safe to stand,
+which on level 10 is one row per shield.
+
+The flood is deliberately the pessimistic one — four-neighbour walking over `Passable` cells, so ice,
+conveyors and tunnels are crossings it does not know about. Under-counting the reach makes the route
+look longer than it is and costs search order; over-counting would report a level as good as won.
+
+#### Four: the frozen block  ☑ (`--push-dead N`, and a tier)
+
+`LaserTank.lvl` 6 "Cascade" is a Sokoban with six blocks and six holes — the read says so, *"as many
+blocks as holes, so every one of them is needed"* — and **the beam lost it on its first expansion**.
+`--push-trace-board` printed the board: a block shot from (5,11) to (6,12), a pocket with walls on
+three sides and, on the fourth, a cell no tank can ever stand behind. Scored **68 against the root's
+73**, because filling holes is all `WorkDistance` can see and a block in a pocket is out of the way.
+
+*Can this block still be moved?* is answerable from two things already in this file. The far side is
+`CheckLoc` — `Engine.cs:797` pushes with exactly that test, so `Enters` is the whole rule — and the
+near side is `BuildRays`' `_rayOk`, layer 7's sweep: somewhere behind the block, with nothing
+impassable in between, a cell the tank can come to rest on. That covers the drive push and the shot
+alike, which is why it is a ray and not the one adjacent cell. It errs towards *alive* everywhere it
+errs, which is the only safe direction for something that says a level is lost.
+
+`RouteDead` is then the water cells on the route with no live block left, and it is a **cliff rather
+than a gradient** because what it reports is a lost level rather than a dear one. Zero on nearly
+every board in the corpus, which is the point.
+
+**A weight was not enough, and the trace says exactly why.** With `--push-dead 20` the beam's best
+score *rose*, 155 -> 300 over sixty depths: once each of the eight boards it was holding had frozen a
+block, every successor of every one of them had frozen one too, and **a penalty they all pay is not
+a penalty**. `TierLost` is a tier below the truncation escape hatch, set at emission, so a live board
+is preferred to a lost one at any score at all — and it is still only an ordering, so when everything
+on offer is lost they are all still there and a conservative test can never refuse a level. With it
+the rise stops dead: 155 -> 152, flat.
+
+#### Five: the ferry as an assignment, through the maze  ☑ (`--push-ferry-match`, `--push-ferry-maze`)
+
+`RouteFerry` is "for each hole on the route, the Manhattan distance to the nearest movable block",
+and on a Sokoban both halves of that are wrong.
+
+- **Nearest-per-hole lets every hole name the same block.** Six holes and six blocks read as one
+  carry, and finishing that carry barely moves the number. `--push-ferry-match` spends each block
+  once — the classic Sokoban lower bound, greedy over the smallest remaining pair rather than a real
+  minimum-cost matching, because this only orders states the engine already produced.
+- **Manhattan is wrong about walls.** Level 6's block at (11,2) is thirteen cells from its hole as
+  the crow flies and forty through the corridors, so the term was rewarding shoves at the wall
+  between them. `--push-ferry-maze` measures it with a BFS over cells a block can occupy. That is
+  still not a pushability search — whether a block can *actually* be pushed along a route is the
+  MoveObj question this project will not answer for a tie-break — it just stops the estimate being
+  wrong about the maze.
+
+**Two ways to get it wrong, both found by the beam and both the same mistake this file has now made
+four times.** Water is not traversable in that BFS, on the reasoning that a block pushed into a lake
+sinks in it — and level 6's six holes are a *strip*, so four of them had no block reachable at all
+and the term collapsed to a constant. And a hole with no block matched to it returned **0**, the best
+score there is, which is `WorkDistance`'s buried-flag bug wearing a different hat; unmatched holes
+are now priced at `Unfillable`.
+
+**What it is worth on the level it was built for**: level 6's ascent goes **30 board changes -> 11**,
+its deepest rise 35 -> 7, and the human line's score becomes a descent, 156 -> 3. The beam's own best
+follows: 184 -> 95 in thirty-five depths, two of the six holes filled. And `--push-line`, which is the
+measurement that matters, goes from **losing the line at board change 2 to following it to board
+change 26** at width 128.
+
+#### Six: RouteFerry for fire  ☑ (`--push-shield N`)
+
+`--push-fire` says what is wrong with a gauntlet's board and `--push-reach` refuses to walk onto it.
+Neither says anything about the twelve board changes it takes to *fix* it, and level 10's hint is a
+player spelling those out: *"move the bottom right tank left 8 spaces then up 4."* Across all twelve
+the priced route, the flood and the read sit still — the anti-tank being dragged is not on the route,
+it shields nothing yet, and it opens nowhere new to stand. Which is word for word the sentence
+`RouteFerry` and `RouteStop` were each written to end.
+
+So: take **the first swept cell the route has to cross**, ask which anti-tank covers it —
+`Engine.AntiTank()`'s own scan order, right/left/down/up, first match wins, because quirk #5 is that
+only the first one fires and the order is the rule rather than the distance — and price the nearest
+pushable object against the nearest cell on the ray between the two. Anything dropped in there stops
+the scan.
+
+**One requirement at a time, and that is session 20's first wrong version paid for in advance.**
+Pricing every conveyor on the route made `RouteStop` *rise* along the winning line, because
+satisfying one requirement reroutes the Dijkstra through fresh ones faster than it retires old ones.
+One swept cell cannot do that, and it cannot spend one object on two requirements either, which was
+wrong version four.
+
+**It still went in wrong once, and in the one way this file has now been bitten by three times in a
+day.** An unshieldable cell was priced at a constant, by analogy with `Unfillable`. The analogy is
+false: a water hole *must* be filled, so a hole nothing can reach is a lost board and has to read as
+one, while a swept cell has alternatives — move the anti-tank off the line, or shoot it in the face,
+both of which the route price already scores. Priced at 40 it put a 40-point cliff in the middle of
+level 10's winning line, and the two halves of the measurement said so in opposite directions: the
+ascent came down 12 -> 6 and the deepest rise went **1 -> 34**. A term that shortens the plateau by
+telling the beam to avoid the manoeuvre it was written for is not an improvement. Zero is the answer.
+
+**Corrected, at weight 1**, which is the setting and the only one:
+
+| `--push-shield` | lvl 10 ascent | rise | lvl 9 | lvl 8 | lvl 6 |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 12 | 1 | 7 | 32 | 28 |
+| **1** | **7** | 2 | **6** | 32 | 28 |
+| 2 | 18 | 6 | 6 | 32 | 28 |
+| 4 | 19 | 14 | 6 | 32 | 28 |
+
+Past 1 it is worse than nothing on the level it was built for, which is the same shape the ferry
+weight has (*"a weight past 2 makes the ascent shorter and deeper"*) and the reason both are knobs.
+
+**And it is not in a rung, because the benches say it earns nothing.** Solo it is **15/50 ferry and
+20/50 deep** against the work kit's 18 and 21 — and, which is the statistic that actually decides a
+portfolio member, it adds **zero** levels to `push` | `push-ferry` | `push-ferry-work` on either
+bench. A shorter ascent on one level and no union movement is exactly the evidence that says *keep
+the flag, do not spend a core*. `--push-shield` is off by default and off in the ladder; the case
+for it is one level's basin measurement and nothing else, and it is recorded here so that the next
+session does not have to re-derive it to find that out.
+
+#### Seven: the number `--push-line` prints is not a distance, and that mattered  ☑
+
+Half a session of ascent measurements were read off the wrong scale, and the tell was there the
+whole time: `LaserTank.lvl` 9's *winning* line ends at **70**. A line that ends on the flag ought to
+end at 0, so whatever that column is, it is not the distance to the flag.
+
+It is `Learn.Rank(work)`: `--push-eval` defaults to `learned` in this layer, so `PushH` is a
+seventeen-feature linear model in which `work` is one term at weight 157 — and `RouteFerry`,
+`RouteStop` and everything added this session are added *outside* it. The model is doing something
+reasonable (`antitanks` at 897 is "destroying one is worth about six steps of route"), but it is
+fitted on a corpus that predates all of these terms, its scale is not the route's, and it flattens
+them.
+
+The same four lines on `--push-eval work`, which is `WorkDistance` plus the terms and therefore
+reaches 0 on a win:
+
+| lvl | ascent, `learned` | ascent, `work` + the terms | line reads |
+|---:|---:|---:|---|
+| 6 | **11** | 21 | 156 -> 3 / 217 -> 7 |
+| 8 | **11** | 32 | 51 -> 13 / 49 -> 0 |
+| 9 | 8 (of 84 -> 70) | **7** | 56 -> 1 |
+| 10 | 29 | **12** | 15 -> 0 |
+
+Level 9's line on `work --push-reach` is a clean descent, 56 -> 1, whose longest plateau is **seven
+board changes** — inside the solved population's p90 of 8, on the level that had looked the most
+hopeless of the four. And the split is real rather than noise: 6 and 8 want the learned key, 9 and
+10 want the raw one, which is the same portfolio argument every layer since 4 has ended in.
+
+#### The width, which is not a derivation but is half the answer
+
+Every one of these four levels is bigger than anything either bench contains, and the push beam's
+default width of 8 was measured on `Beginner-I`. With the terms above in place `--push-line` follows
+the human line this far:
+
+| lvl | width 8, before this session | width 128 | width 512 |
+|---:|---:|---:|---:|
+| 6 | 1 of 168 | 26 | 26+ (budget) |
+| 8 | 3 of 52 | 7 | **15** |
+| 9 | 2 of 27 | 5 | 5 |
+| 10 | 3 of 53 | 13 | 13 |
+
+Level 9 is the one that does not answer to width, and `--push-line` says why in one row: at width
+1024 the line is rank 575 of 2,584 and kept at depth 1, and at depth 2 the cutoff is 82 against the
+line's 83. More than a thousand boards score at least as well as the winning line, one point apart,
+because every one of seventy-eight anti-tanks can be shoved four ways and almost all of them are the
+same shuffle. That is not a width problem and not a budget problem; it wants a derivation nobody has
+yet.
+
+#### What the whole of it is worth, and it is two rungs  ☑
+
+Read solo the kit looks like a loss, which is by now the expected shape for a specialist here. Read
+as a portfolio member against the plain push rung's own solved set at 4M nodes, which is the only
+honest way:
+
+| configuration | ferry, solo | adds | deep, solo | adds |
+|---|---:|---:|---:|---:|
+| `push` (the shipped rung) | 19/50 | — | 21/50 | — |
+| **`push-ferry`** — reach + fire + dead + match + maze, learned, width 128 | 17/50 | **+3** | 21/50 | **+6** |
+| **`push-ferry-work`** — the same on `--push-eval work` | 18/50 | +4 | 21/50 | +6 |
+| all three as a portfolio | **23/50** | | **29/50** | |
+
+Six deep levels is the largest addition any specialist in this ladder makes — `push-enables` adds 4
+and 5, `push-stop` 3 and 5 — and the two keys are not redundant: `push-ferry-work` adds one ferry
+and two deep levels on top of `push` and `push-ferry` together. So they went in the way the last two
+sessions' specialists did, as **two more rungs of the interactive driver**, nine now.
+
+Both widen from 128 to 512 at round 3, the same shape `push-enables` uses and for the same reason:
+by then the budget is 25.6M and everything either bench solves at 4M has had three chances, so from
+there the rung should take the width the *population it was built for* wants. That half is
+`--push-line`'s number rather than a bench's — level 8's human line survives to board change 7 at
+width 128 and to 15 at 512 — and it is labelled as such, because a bench at 4M nodes cannot say
+anything about a width a round-3 budget pays for.
+
+**And the silent cap that had to go with them.** `MaxKeys` defaults to 1,200 and `ExpandPush` drops
+any state past it. `LaserTank.lvl` 6's *hand* recording is 904 keypresses and a solver route is
+longer than a human's, so on this population the search was quietly discarding the end of the level
+and reporting `budget`. The two new rungs raise it to 5,000.
+
+#### Levels 8 and 9 are solved, and the credit for them goes to different places  ☑
+
+| lvl | what solves it | nodes | width | keys | ratio |
+|---|---|---:|---:|---:|---:|
+| 8 castle siege | `push-ferry-work` | **57.5M** | 512 | 335 = 206 + 46 | 1.5x |
+| 9 Grid Lock | **layer 0's beam, round 5** | **94.3M** | 19,200 | 294 = 135 + 72 | 5.0x |
+| 9 Grid Lock | `push-ferry-work` also gets it | 162.8M | 2048 | **127 = 65 + 31** | **2.2x** |
+
+Both verified through both engines and banked under `data/solutions/LaserTank/` — level 9 from the
+layer-8 run, because 127 keys against 294 is not close.
+
+**Level 8 is layer 8's.** Unsolved at 400M at width 512 with the *learned* key, at 150M at width 128
+on either key, and at 80M without the new terms.
+
+**Level 9 was never layer 8's, and that is worth saying loudly.** It falls to `--no-ida --beam 19200`
+with **nothing else at all** in 94.3M nodes — measured directly, not inferred from which rung won the
+round — which is the driver's round 5 and exactly one round past where the session that asked for it
+had stopped. Layer 8 gets it independently and produces a solution less than half as long, so the
+level is genuinely inside two searchers now; but *"it is unsolved"* was, for this one, a statement
+about the budget and not about the solver. The lesson is the cheap one: **before deriving anything
+for a level, let the driver finish a round.**
+
+**Both steps of the rungs' width ladder are still paid for by a level rather than an argument** —
+128 -> 512 at round 3 because level 8 needs 512 and is unsolved at 400M at 128, and 512 -> 2048 at
+round 5 because layer 8's route to level 9 needs 2048 and is unsolved at 400M at 512 *and* at 100M
+at 8,192. That last pair is the part worth keeping: the width that works is neither the smallest that
+does nor the largest available, because at 8,192 the same budget buys a tenth of the depth.
+
+What `--push-line` contributed was the advance warning on level 8: line survival 3 -> 15 of 52 with
+the terms in and nothing else changed, and the beam's own score descending 51 -> 27 the whole way
+while the human line sat at 40 — it was already finding a *better* route than the recording and had
+only not been given the width to finish it.
+
+#### What has not fallen, stated plainly
+
+**Levels 6 and 10 are not solved.** Twenty-two configurations at 60M to 150M nodes each, across every
+combination of the derivations, five widths from 8 to 8,192, both ranking keys and the run
+compression, and neither of them fell — 8 and 9 both needed 400M-node runs at widths those twenty-two
+never reached. What moved on the two that remain is every number that says whether they are
+*reachable*:
+
+| lvl | ascent, before | after | `--push-line` follows, before | after | |
+|---:|---:|---:|---:|---:|---|
+| 6 Cascade | 30 | **11** | 1 of 168 | **26** | open |
+| 8 castle siege | 11 | 9 | 3 of 52 | **15** | solved |
+| 9 Grid Lock | 8 (on a scale that ends at 70) | **7**, ending at 1 | 2 of 27 | 5 | solved |
+| 10 Valley of Death | 29 | **6** | 3 of 53 | **13** | open |
+
+**And the two solved rows are the warning about reading this table too hard.** Level 8's 3 -> 15 was
+what a level about to fall looked like hours in advance; level 9's 2 -> 5 was the *least* movement of
+the four and it fell too, on width. So the ascent and the line survival say when the ranking has
+stopped being the binding constraint — they do not rank what is left. Level 6's numbers are the best
+of the two that remain and it is the one furthest from falling.
+
+**And the level-9 lesson was then applied to both of them, which is the cheapest measurement in this
+section.** `--no-ida --beam 19200` — layer 0 alone at the width and budget of the driver's round 5,
+the configuration that turned out to own level 9 — is **unsolved on 6 and on 10 at 409.6M nodes**. So
+neither of these two is one more round; they are the levels this section is actually about. (Going
+wider than that is not a thing the driver can do: the beam rung caps at 19,200, and a 76,800-wide
+run was 1.1 GB resident and climbing, which is its own answer.)
+
+Where the two that are left now stop, measured rather than guessed:
+
+- **6** is a 142-push Sokoban and the beam is a greedy level-synchronous beam. With the assignment
+  key its own best score descends 184 -> 95 and fills two of the six holes, then it is in a region
+  where every successor of every board it holds is worse. `--push-ferry-stage` (holes left first,
+  cheapest carry as the tie-break) was the attempt at forcing one carry at a time; it fills one hole
+  and stalls. The shape that is missing is layer 2's, one level out: **commit to one (block, hole)
+  pair, search only for that, then re-derive** — a subgoal chain over board changes rather than one
+  beam over the whole level.
+- **10** has the cleanest ranking profile of the four — a descent 15 -> 0 with a deepest rise of 1,
+  and 7 board changes of plateau with `--push-shield 1` — and it is the one that is now most clearly
+  **budget**-limited rather than ranking-limited. Its closures are ~1,000 poses against level 9's
+  ~150, so width 2048 costs ~10M nodes a depth and 35 depths of it is 360M: a 400M run at that width
+  is barely one pass, and it came back unsolved having never finished one. Width 512 is ~90M for the
+  level and fails on ranking; 2048 is the right width and wants **a billion nodes**, which is the
+  one thing here that is a straightforward thing to buy.
+
 ### Phase 4 addendum — polishing a solution so it reads like a person played it  ☑
 
 **The complaint, and it is not about length.** *"Get rid of repeated turns in place (like facing
@@ -3463,3 +3873,93 @@ level being nearly done.
 confirms it: 187 replayed / 181 win / 6 documented non-winners / 0 unexpected. Last session's
 *left for the next session* is also cleared — `bash src/build.sh` ran clean, so `build/` is current
 and `build/rp/` is stale and can go.
+
+**2026-09-07, session 22 — six derivations for four levels, and two of the four fell.** The ask was
+`LaserTank.lvl` 6, 8, 9 and 10, all four with hand recordings. **8 "castle siege" and 9 "Grid Lock"
+are solved** — 57.5M nodes at width 512 and 162.8M at width 2048, both on the same new rung, both
+verified through both engines and banked; `--from 8 --to 8` with no flags lands 8 at round 4 in
+9m51s. **6 and 10 are not.** The whole of the reasoning is in the new **Phase 4 — layer 8**
+section.
+
+**What was built, and every one of them is a *derivation* rather than a model.** An anti-tank on the
+route is a wall and was being thrown out of the read with the ones merely aligned with it — a
+correctness fix that costs nothing on either bench and reclassifies **179 of the 4,185-level sample
+(4.3%)**, 164 out of GAUNTLET. `BuildFire` is `Engine.AntiTank()`'s own scan asked of all 256 cells
+at once, so *does an anti-tank fire the moment the tank stands here* is answered exactly rather than
+estimated, and the shield — a block or another anti-tank dropped in a lane — falls out of it for
+free. `--push-reach` prices the route to the nearest cell of the flood that scan makes possible,
+because a *sum* can be lowered by shuffling anti-tanks anywhere and a flood cannot. `--push-dead` is
+"can this block still be moved at all", from `CheckLoc` on one side and layer 7's `_rayOk` on the
+other. And `--push-ferry-match` / `--push-ferry-maze` fix both halves of the ferry term for a
+Sokoban: spend each block once, and measure through the corridors rather than as the crow flies.
+
+**Three things are worth carrying forward more than the flags are.**
+
+*The framing measurement.* `closure~` times width times board-change count says what a *perfect*
+beam would cost, and on all four levels it is two orders of magnitude under the budget already
+spent. They are ranking-limited, not budget-limited — which is why sixteen configurations at 80M
+nodes were the wrong way to spend the middle of the session and one `--push-trace` column would have
+said so at the start.
+
+*The number `--push-line` prints is not a distance.* `--push-eval` defaults to `learned` in this
+layer, so the column is a seventeen-feature model in which `work` is one term at weight 157 and
+everything layers 5-8 add is added outside it. The tell was there all along: level 9's *winning*
+line ends at **70**. On `--push-eval work` the same line reads 56 -> 1 with a longest plateau of
+seven board changes, inside the solved population's p90 — and the two keys disagree per level, which
+is why layer 8 ships as two rungs.
+
+*A penalty every board pays is not a penalty.* `--push-dead 20` alone made the beam's best score
+**rise** 155 -> 300 over sixty depths on level 6: once all eight boards it held had frozen a block,
+so had every successor of every one of them. `TierLost` — a tier below the truncation escape hatch,
+set at emission — is what actually acts, and it is still only an ordering, so a conservative test
+can never refuse a level. Two other old traps repeated themselves and were caught by the same reflex
+as session 20's buried flag: a hole with no block matched to it returned **0**, the best score there
+is, and the ferry BFS refused to cross water, which walled four of level 6's six holes off behind
+their own neighbours.
+
+**What it is worth.** Solo, the kit is 17/50 ferry and 21/50 deep against the plain push rung's 19
+and 21. As portfolio members the two new rungs add **3+1 ferry and 6+2 deep** levels to that rung's
+solved set — 23/50 and 29/50 for the three together, the largest addition any specialist in this
+ladder makes. `push-ferry` and `push-ferry-work` are rungs eight and nine. They also raise `MaxKeys`
+from 1,200, which was a silent cap on this population: level 6's *hand* recording is 904 keypresses.
+
+**Level 8 is layer 8's, and level 9 was never anybody's derivation.** 8 falls to the layer-8 kit on
+`--push-eval work` at width 512 in 57.5M, and is unsolved at 150M at width 128 on either key, at 400M
+at width 512 on the *learned* key, and at 80M on anything without the new terms. **9 falls to
+`--no-ida --beam 19200` with nothing else at all in 94.3M** — measured on its own, not inferred from
+which rung won the round — which is the driver's round 5, exactly one round past where the run that
+asked for it had stopped. Layer 8 gets 9 too, independently, at width 2048 in 162.8M and with a
+solution less than half as long (127 keys / 2.2x against the beam's 294 / 5.0x, which is what is
+banked); but the honest sentence about that level is *let the driver finish a round before deriving
+anything*. Both steps of the rungs' width ladder are still paid for by a level rather than an
+argument — 8 needs 512, layer 8's route to 9 needs 2048 and is unsolved at 400M at 512 and at 100M
+at 8,192.
+
+**Twenty-two configurations at 60M-150M had failed on all four before that**, which is the lesson
+worth carrying more than the flags are: with the ranking fixed, these levels became a *width*
+problem, and no amount of the 80M-node grid that filled the middle of the session was going to say
+so. `--push-line` did say it — level 8's line survival went 3 -> 15 of 52 with the terms in and
+nothing else changed — and level 9's went 2 -> 5, the *least* movement of the four, and it fell too.
+The instrument says when the ranking has stopped binding; it does not rank what is left.
+
+**And what is still not solved.** 6 and 10. Level 6's numbers are the best of the two (ascent
+30 -> 11, line survival 1 -> 26 of 168) and it is the further away: 142 pushes of Sokoban for a
+greedy level-synchronous beam, and what it wants is layer 2's decomposition one level out — commit
+to one block-and-hole pair, search only that, re-derive. Level 10 is now the *budget* case rather
+than the ranking one: its closures are ~1,000 poses against level 9's ~150, so width 2048 costs
+~10M nodes a depth and one pass over the level is 360M, and three 400M runs came back never having
+finished a pass. It wants about a billion nodes at width 1024-2048, which is the one thing left here
+that is simply a thing to buy.
+
+**The one term that did not earn its place, recorded so nobody re-derives it.** `--push-shield` is
+RouteFerry for fire and it does what it was built to do to level 10's basin — ascent 12 -> 7 — and
+it adds **zero** levels to the three-rung portfolio on either bench while losing three ferry levels
+solo. So it ships as a flag, off, out of the ladder. It also went in wrong once in the way this file
+has now been bitten three times in one day: an unshieldable cell priced at a constant, by false
+analogy with `Unfillable`. A hole *must* be filled; a swept cell has alternatives the route price
+already scores. At 40 it put a 40-point cliff in the middle of level 10's winning line and the two
+halves of the measurement disagreed in the tell-tale way — ascent 12 -> 6, deepest rise 1 -> 34.
+
+`Heuristic.cs`, `Analyze.cs`, `Push.cs`, `Search.cs`, `Program.cs` and `Auto.cs`. **Nothing in
+`LaserTank.Core` was touched** — `Engine.cs` still differs from layer 0 by one word and
+`Engine.Search.cs` is unchanged since layer 0, eight layers now.

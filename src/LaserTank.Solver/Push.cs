@@ -122,6 +122,13 @@ namespace LaserTank.Solver
             return fresh;
         }
 
+        /// Whether the board PushH last scored has a hole on its route that
+        /// no live block can fill.  Set by PushH and read by the Node it is
+        /// scoring, which is the only caller and reads it immediately: an
+        /// object initializer assigns in source order, so `H = PushH()` runs
+        /// before `Tier = _lastDead ? ...`.  See TierLost.
+        private bool _lastDead;
+
         /// The ranking key.
         ///
         /// WorkDistance, plus PushFerry times Heuristic.RouteFerry -- the term
@@ -133,12 +140,30 @@ namespace LaserTank.Solver
         private int PushH()
         {
             _h.WantStop = _opt.PushStop > 0;
+            _h.WantReach = _opt.PushReach;
+            // The flood is a fire scan away, so asking for it asks for that.
+            _h.WantShield = _opt.PushShield > 0;
+            _h.WantFire = _opt.PushFire > 0 || _opt.PushReach || _opt.PushShield > 0;
+            _h.FirePrice = _opt.PushFire;
+            _h.WantDead = _opt.PushDead > 0;
+            _h.WantMaze = _opt.PushFerryMaze;
+            _h.WantStage = _opt.PushFerryStage;
+            _h.WantMatch = _opt.PushFerryMatch || _opt.PushFerryStage;
             int work = _h.WorkDistance(_e);
             int ferry = _opt.PushFerry > 0 && _h.RouteFerry > 0
                       ? _opt.PushFerry * _h.RouteFerry : 0;
             int stop = _opt.PushStop > 0 && _h.RouteStop > 0
                      ? _opt.PushStop * _h.RouteStop : 0;
-            return (_opt.PushLearned ? Rank(work) : work) + ferry + stop;
+            // The fire price is already inside `work` -- it is a price and not
+            // a term, so that the route goes *round* the fire rather than
+            // reporting how much of it the cheapest blind route crosses.
+            int dead = _opt.PushDead > 0 ? _opt.PushDead * _h.RouteDead : 0;
+            int shield = _opt.PushShield > 0 ? _opt.PushShield * _h.RouteShield : 0;
+            // Published for the tier, because a weight is not enough on its own:
+            // see TierLost.  Valid until the next call, like everything else the
+            // heuristic publishes.
+            _lastDead = dead > 0;
+            return (_opt.PushLearned ? Rank(work) : work) + ferry + stop + dead + shield;
         }
 
         // ---- restarts ------------------------------------------------------
@@ -368,6 +393,7 @@ namespace LaserTank.Solver
                 next.Add(new Node
                 {
                     S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = after,
+                    Tier = _lastDead ? TierLost : 0,
                 });
             }
 
@@ -503,6 +529,7 @@ namespace LaserTank.Solver
                     next.Add(new Node
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
+                        Tier = _lastDead ? TierLost : 0,
                     });
 
                 if (k >= _opt.PushRun) return false;
@@ -551,6 +578,7 @@ namespace LaserTank.Solver
                     next.Add(new Node
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
+                        Tier = _lastDead ? TierLost : 0,
                     });
 
                 if (k >= _opt.PushShotRun) return false;
@@ -663,6 +691,21 @@ namespace LaserTank.Solver
         private const int TierOpens = 2;     // ...or it puts the tank somewhere new to stand
         private const int TierOther = 3;     // a board change the read is silent about
         private const int TierPose = 4;      // the truncation escape hatch
+        private const int TierLost = 5;      // ...and a board that cannot win
+
+        // TierLost is set at emission rather than by the read, because it is
+        // the one thing here that is not an opinion about which successor is
+        // most promising: a hole on the route with no live block left to fill
+        // it is a board no continuation wins from.  A weight on RouteDead alone
+        // was not enough on `LaserTank.lvl` 6, and the trace says exactly why --
+        // the beam's best score *rose*, 155 -> 300 over sixty depths, because
+        // once the eight boards it was holding had each frozen a block every
+        // successor of every one of them had frozen one too, and a penalty they
+        // all pay is not a penalty.  A tier below the escape hatch means a live
+        // board is preferred to a lost one at any score at all, and it is still
+        // only an ordering: when everything on offer is lost they are all still
+        // there, which is what keeps a conservative test from being able to
+        // refuse a level.  Off unless --push-dead is.
 
         /// Tier this expansion's successors by the read.
         ///
@@ -695,7 +738,7 @@ namespace LaserTank.Solver
             for (int i = first; i < next.Count; i++)
             {
                 Node n = next[i];
-                if (n.Tier == TierPose) continue;
+                if (n.Tier == TierPose || n.Tier == TierLost) continue;
                 n.Tier = ReadAdvances(before, n.S.PF) ? TierAdvance : TierOther;
                 if (n.Tier == TierOther) untiered++;
             }

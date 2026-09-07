@@ -105,6 +105,93 @@ namespace LaserTank.Solver
         /// over-asking costs search order and can never admit anything.
         public int RouteStop;
 
+        /// The GAUNTLET analogue of the two terms above, and the only one of
+        /// the three that is a *derivation* rather than an estimate: the cells
+        /// on the settled route an anti-tank would fire on, priced.
+        ///
+        /// A ferry level's obstacle is terrain and the price list can see it.
+        /// A gauntlet's obstacle is fire, and the price list is blind to it by
+        /// construction -- `LaserTank.lvl` 9 "Grid Lock" prices its whole route
+        /// at 57 with *nothing in the way*, and the tank can stand in six cells
+        /// of the board.  Every board change on those levels moves an anti-tank
+        /// one square, and WorkDistance goes 84 -&gt; 70 over the twenty-seven of
+        /// them the hand recording makes: a plateau, exactly as a ferry is
+        /// without RouteFerry.
+        ///
+        /// **What makes it a derivation.** Engine.AntiTank() decides whether a
+        /// given anti-tank fires by walking outward *from the tank's own cell*
+        /// with CheckLoc and asking whether the first cell the tank could not
+        /// enter is an anti-tank pointing back.  That is a statement about the
+        /// board alone, so it can be evaluated for every cell at once, and
+        /// BuildFire below is that scan and nothing else -- same four
+        /// directions, same CheckLoc table (Engine.cs:621), same "first
+        /// blocker" rule.  So `_fire[c]` is not a model of danger: it is the
+        /// answer to *does an anti-tank fire the moment the tank stands on c*,
+        /// and it is exact.  Water, ice and conveyors are enterable and do not
+        /// stop the scan; a block, a brick, a mirror and another anti-tank all
+        /// do, which is why pushing an anti-tank into a lane **shields** every
+        /// cell behind it -- the whole of what `LaserTank.lvl` 10 "The Valley
+        /// of Death" asks for, and a thing no ranking key in this project could
+        /// see before.
+        ///
+        /// It is priced *inside* the Dijkstra rather than counted on the route
+        /// afterwards, which is the difference between a route that goes round
+        /// the fire and a number that says how much fire the shortest route
+        /// happens to cross.  RouteFire is the count that fell out of the
+        /// settled route, published for the instrument; the weight that acted
+        /// is FirePrice.
+        public int RouteFire;
+
+        /// The SOKOBAN term, and it is a cliff rather than a gradient because
+        /// what it reports is a lost level rather than a dear one.
+        ///
+        /// A block that cannot be moved in any direction is not a block any
+        /// more, and on a level with as many blocks as holes -- which is what
+        /// the read calls SOKOBAN, and what `LaserTank.lvl` 6 "Cascade" is --
+        /// freezing one loses the game outright.  The beam did exactly that on
+        /// its *first* expansion of level 6, pushed a block into a pocket at
+        /// (6,12) whose four neighbours are three walls and a cell no tank can
+        /// stand behind, and scored the result 68 against the root's 73,
+        /// because filling holes is all WorkDistance can see and a block in a
+        /// pocket is out of the way.
+        ///
+        /// So: how many of the water cells on the route have no live block left
+        /// to fill them.  Zero on every board where there are spare blocks,
+        /// which is most of the corpus, and that is the point -- it says
+        /// nothing until something has actually been lost.
+        public int RouteDead;
+
+        /// RouteFerry for fire, and the term `LaserTank.lvl` 10 asks for by
+        /// name: *how far is the nearest pushable thing from the cell that
+        /// would block this shot?*
+        ///
+        /// `--push-fire` prices a swept cell and `--push-reach` refuses to walk
+        /// onto one, and between them they say what is wrong with the board.
+        /// Neither says anything at all about the twelve board changes it takes
+        /// to *fix* it. Level 10's hint is a player spelling the manoeuvre out --
+        /// *"move the bottom right tank left 8 spaces then up 4"* -- and every
+        /// one of those twelve pushes leaves the priced route, the flood and the
+        /// read exactly where they were: the anti-tank being dragged is not on
+        /// the route, it shields nothing yet, and it opens nowhere new to stand.
+        /// The whole manoeuvre is a plateau, which is the same sentence
+        /// RouteFerry and RouteStop were each written to end.
+        ///
+        /// So: take the first swept cell the route has to cross, ask which
+        /// anti-tank covers it -- Engine.AntiTank()'s own scan order, so the
+        /// answer is the one that would actually fire -- and price the nearest
+        /// pushable object against the nearest cell on the ray between the two.
+        /// A block, a mirror or another anti-tank dropped anywhere in there
+        /// stops the scan and the cell stops being swept.
+        ///
+        /// **Scoped to one requirement on purpose**, and that is session 20's
+        /// first wrong version paid for in advance: pricing every conveyor on
+        /// the route made RouteStop *rise* along the winning line, because
+        /// satisfying one requirement reroutes the Dijkstra through fresh ones
+        /// faster than it retires old ones. One swept cell at a time cannot do
+        /// that, and it also cannot spend one object on two requirements, which
+        /// was wrong version four.
+        public int RouteShield;
+
         private readonly int[] _dist = new int[256];
         private readonly int[] _queue = new int[256];
         private readonly int[] _cost = new int[256];
@@ -300,11 +387,20 @@ namespace LaserTank.Solver
             RouteObstacles = 0;
             RouteFerry = 0;
             RouteStop = 0;
+            RouteFire = 0;
+            RouteDead = 0;
             if (fx < 0) return Unreachable;             // buried; see FlagDistance
             if (tx == fx && ty == fy) return 0;
             RouteObstacles = -1;                        // no route, until one settles
             RouteFerry = -1;
             RouteStop = WantStop ? StopPrice(e, fx * 16 + fy) : 0;
+            // Both of these are one sweep of the board and both are read from
+            // inside the Dijkstra below, so they are built before it and not
+            // per relaxation.  Off unless the searcher asked, which is what
+            // keeps every measurement taken before them reproducible.
+            if (WantFire || WantReach) BuildFire(e);   // BuildReach reads _fire
+            if (WantReach) BuildReach(e);
+            if (WantDead) BuildAlive(e);
 
             int[] cost = _cost;
             for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
@@ -328,7 +424,12 @@ namespace LaserTank.Solver
                 int top = Pop(ref n);
                 int d = top >> 8, c = top & 0xFF;
                 if (d > cost[c]) continue;                  // a stale duplicate
-                if (c == tx * 16 + ty) { RouteObstacles = CountOnRoute(e, c); return d; }
+                // Where the route is priced *to*: the tank's own cell, or
+                // -- with WantReach -- the first cell of the region it can
+                // already walk to safely, which is the same cell layer 2's
+                // FrontierObstacles settles on and for the same reason.
+                if (WantReach ? _reach[c] : c == tx * 16 + ty)
+                { RouteObstacles = CountOnRoute(e, c); return d; }
 
                 int cx = c >> 4, cy = c & 15;
                 for (int k = 0; k < 4; k++)
@@ -336,7 +437,8 @@ namespace LaserTank.Solver
                     int nx = cx + (k == 1 ? 1 : k == 3 ? -1 : 0);
                     int ny = cy + (k == 0 ? -1 : k == 2 ? 1 : 0);
                     if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
-                    Relax(ref n, d, c, nx * 16 + ny, Price(e.Game.PF[nx, ny]), cost);
+                    int at = nx * 16 + ny;
+                    Relax(ref n, d, c, at, Price(e.Game.PF[nx, ny]) + FireAt(at), cost);
                 }
 
                 byte here = e.Game.PF[cx, cy];
@@ -389,7 +491,8 @@ namespace LaserTank.Solver
         ///   nothing to shoot at the cell itself, so the anti-tanks aligned with
         ///   it become the targets instead.  That is Tutor 75, "Pass the
         ///   anti-tanks", derived rather than recognised.
-        public int FrontierObstacles(Engine e, bool[] reached, int[] into)
+        public int FrontierObstacles(Engine e, bool[] reached, int[] into,
+                                     bool[] onRoute = null)
         {
             int fx = -1, fy = -1;
             for (int x = 0; x < 16 && fx < 0; x++)
@@ -443,8 +546,23 @@ namespace LaserTank.Solver
             int used = 0;
             for (int c = _pred[hit]; c >= 0 && used < into.Length; c = _pred[c])
             {
-                if (Price(e.Game.PF[c >> 4, c & 15]) > 1) into[used++] = c;
-                else used = Threats(e, c, into, used);
+                if (Price(e.Game.PF[c >> 4, c & 15]) > 1)
+                {
+                    // A cell of the route itself.  `onRoute` exists to tell
+                    // these from the ones the next line appends, which are not
+                    // on the route at all: an anti-tank *aligned* with a free
+                    // cell of it.  Both are targets for layer 2 and only the
+                    // first is "in the way" for the read -- see ReadDerive.
+                    if (onRoute != null) onRoute[used] = true;
+                    into[used++] = c;
+                }
+                else
+                {
+                    int was = used;
+                    used = Threats(e, c, into, used);
+                    if (onRoute != null)
+                        for (int i = was; i < used; i++) onRoute[i] = false;
+                }
                 if (_pred[c] < 0) break;
             }
             return used;
@@ -485,13 +603,49 @@ namespace LaserTank.Solver
         /// because the pred chain is already built.
         private int CountOnRoute(Engine e, int at)
         {
-            int n = 0;
+            int n = 0, water = 0, firstSwept = -1;
             RouteFerry = 0;
+            RouteFire = 0;
+            RouteShield = 0;
+            _holeLen = 0;
             for (int c = at; c >= 0; c = _pred[c])
             {
                 byte cell = e.Game.PF[c >> 4, c & 15];
                 if (Price(cell) > 1) n++;
-                if (cell == Obj.Water) RouteFerry += ToNearestBlock(e, c);
+                if (WantFire && _fire[c])
+                {
+                    RouteFire++;
+                    // The chain is walked from the tank end, so the first
+                    // one found is the first the tank has to get past.
+                    if (firstSwept < 0) firstSwept = c;
+                }
+                if (cell == Obj.Water)
+                {
+                    water++;
+                    // Capped at _holes.Length; past that the assignment prices
+                    // the first sixteen and RouteDead still counts them all,
+                    // which under-states the work and never over-states it.
+                    if (_holeLen < _holes.Length) _holes[_holeLen++] = c;
+                    if (WantMatch) continue;               // priced together, below
+                    int d = WantMaze ? MazeToBlock(e, c) : -1;
+                    // -1 is "no block can get here at all", which is the
+                    // same board RouteDead is about; fall back rather than
+                    // put a second cliff in the same place.
+                    RouteFerry += d >= 0 ? d : ToNearestBlock(e, c);
+                }
+            }
+            if (WantMatch) RouteFerry = MatchFerry(e);
+            if (WantShield) RouteShield = firstSwept >= 0 ? ShieldPrice(e, firstSwept) : 0;
+            // The holes with nothing left that can reach them.  Counted against
+            // *live* blocks only, which is the whole content of the term: a
+            // frozen block still sits on the board and still reads as a block
+            // to every other number here.
+            if (WantDead)
+            {
+                int live = 0;
+                for (int c = 0; c < 256; c++)
+                    if (e.Game.PF[c >> 4, c & 15] == Obj.Block && _alive[c]) live++;
+                RouteDead = water > live ? water - live : 0;
             }
             return n;
         }
@@ -505,16 +659,26 @@ namespace LaserTank.Solver
         /// straight through one and the price list already treats crystal as
         /// permanently blocking, so calling one a ferry candidate would promise
         /// a bridge the rest of the heuristic says cannot be built.
-        private static int ToNearestBlock(Engine e, int cell)
+        private int ToNearestBlock(Engine e, int cell)
         {
-            int ox = cell >> 4, oy = cell & 15, best = int.MaxValue;
+            int ox = cell >> 4, oy = cell & 15, best = int.MaxValue, any = int.MaxValue;
             for (int x = 0; x < 16; x++)
                 for (int y = 0; y < 16; y++)
                 {
                     if (e.Game.PF[x, y] != Obj.Block) continue;
                     int d = (x > ox ? x - ox : ox - x) + (y > oy ? y - oy : oy - y);
+                    if (d < any) any = d;
+                    // A frozen block is not a ferry candidate, and pointing the
+                    // term at one is worse than pointing it at nothing: the beam
+                    // spends the level trying to fetch a block that cannot move.
+                    // Falling back to `any` when every block is frozen is
+                    // deliberate -- RouteDead is the number that says the level
+                    // is lost, and a cliff here as well would only double-count
+                    // it into the ranking of boards that are all equally lost.
+                    if (WantDead && !_alive[x * 16 + y]) continue;
                     if (d < best) best = d;
                 }
+            if (best == int.MaxValue) best = any;
             return best == int.MaxValue ? 0 : best;
         }
 
@@ -652,6 +816,497 @@ namespace LaserTank.Solver
         /// unless the searcher using it says otherwise -- which also keeps
         /// every measurement taken before it byte-for-byte reproducible.
         public bool WantStop;
+
+        /// Whether the fire scan is wanted, and what a swept cell costs on top
+        /// of its terrain.  Off unless the searcher says otherwise, for
+        /// WantStop's reason: every measurement taken before this term stays
+        /// byte-for-byte reproducible with it off.
+        public bool WantFire;
+        public int FirePrice;
+
+        /// Whether the frozen-block test is wanted.  Same contract.
+        public bool WantDead;
+
+        /// Whether the ferry term measures its distance through the maze
+        /// rather than as the crow flies.  Same contract again.
+        public bool WantMaze;
+
+        /// Whether the route is priced to the tank's *cell* or to the nearest
+        /// cell it could safely walk to.  Needs the fire scan and turns it on.
+        ///
+        /// This is layer 2's premise -- price what stands between the flag and
+        /// where the tank can demonstrably get, not between the flag and where
+        /// it happens to be standing -- brought into a ranking key that has to
+        /// answer per successor, so the reached set is the fire-aware flood
+        /// below rather than an executed closure.
+        ///
+        /// **Why the flood and not just the fire price.** A price is a sum, so
+        /// a beam ranking by it lowers the number by shuffling anti-tanks
+        /// *anywhere*: on `LaserTank.lvl` 10 "The Valley of Death" the priced
+        /// route went 28 -> 23 in one board change and then sat there for
+        /// fifteen depths, because nothing in a sum distinguishes a cheaper
+        /// route from a walkable one.  The flood is a hard test -- a swept cell
+        /// is not in it at all -- so the number moves only when the tank can
+        /// actually stand somewhere new, and on that level it moves by a row
+        /// each time an anti-tank is dragged into a lane to shield the one
+        /// behind it, which is the whole level.
+        public bool WantReach;
+
+        /// Whether the ferry term spends each block once.  See MatchFerry.
+        public bool WantMatch;
+
+        /// Whether the ferry is priced one carry at a time.
+        ///
+        /// The assignment sum is the right *estimate* of the work left and the
+        /// wrong thing to steer a beam by on a long Sokoban, because it is
+        /// indifferent about which carry the next push belongs to: a board that
+        /// has moved six blocks one cell each scores exactly like one that has
+        /// moved a single block six cells, and the second is the one that ends
+        /// in a filled hole. Staged, the key is lexicographic -- holes left
+        /// first, then how far the *cheapest* remaining carry still has to go --
+        /// so the beam finishes a carry before it starts another, and every push
+        /// along the one it has chosen is a descent.
+        ///
+        /// `LaserTank.lvl` 6's hand recording does not play that way (it moves
+        /// four blocks in the first five board changes), so this is deliberately
+        /// a bet against the line rather than a fit to it: what it buys is a
+        /// gradient the beam can hold for 142 board changes, not agreement with
+        /// the human.
+        public bool WantStage;
+
+        /// Whether the shield term is wanted.  Needs the fire scan and turns it
+        /// on, like WantReach.
+        public bool WantShield;
+
+
+        /// What a hole no block can fill is priced at: the far side of a
+        /// 16x16 board and then some, so that filling one that *can* be
+        /// filled always beats it, and no board is ever scored as though a
+        /// hole it cannot fill were already dealt with.
+        private const int Unfillable = 40;
+
+        /// _reach[c]: the tank can walk from where it is to `c` without being
+        /// fired on.  Deliberately the *pessimistic* flood: four-neighbour
+        /// walking over Passable cells, so ice, conveyors and tunnels are
+        /// crossings it does not know about.  Under-counting the reach makes
+        /// the route look longer than it is, which costs search order; the
+        /// opposite error would report a level as good as won.
+        private readonly bool[] _reach = new bool[256];
+        private readonly int[] _rqueue = new int[256];
+
+        /// Which anti-tank fires on `cell`, and how far away it is along the
+        /// ray, or -1.  BuildFire's four sweeps say *whether*; this says
+        /// *which*, in Engine.AntiTank()'s own order -- right, left, down, up,
+        /// first match wins -- because quirk #5 is that only the first one
+        /// fires and the order is the rule rather than the distance.
+        private int Coverer(Engine e, int cell, out int dir)
+        {
+            dir = -1;
+            // AntiTank()'s order, and the cell type each scan is looking for.
+            int[] order = { 1, 3, 2, 0 };
+            byte[] want =
+            {
+                Obj.AntiTankLeft,     // to the right, facing back
+                Obj.AntiTankRight,    // to the left
+                Obj.AntiTankUp,       // below
+                Obj.AntiTankDown,     // above
+            };
+            int ox = cell >> 4, oy = cell & 15;
+            for (int i = 0; i < 4; i++)
+            {
+                int k = order[i];
+                Step(k, out int dx, out int dy);
+                for (int x = ox + dx, y = oy + dy;
+                     x >= 0 && x < 16 && y >= 0 && y < 16;
+                     x += dx, y += dy)
+                {
+                    byte c = e.Game.PF[x, y];
+                    if (Enter(c)) continue;                  // the scan walks on
+                    if (c == want[i]) { dir = k; return x * 16 + y; }
+                    break;                                   // something else stopped it
+                }
+            }
+            return -1;
+        }
+
+        /// How far the nearest pushable object is from the nearest cell that
+        /// would shield `cell` from whatever fires on it.
+        ///
+        /// Manhattan, and it says so for RouteFerry's reason: whether the object
+        /// can actually be pushed there is a MoveObj question.  The shield cell
+        /// has to be one an object can come to rest on -- Enter is the push
+        /// test (Engine.cs:797) -- and the covering anti-tank is excluded from
+        /// the candidate objects, because moving *it* is a different manoeuvre
+        /// that the route price already scores.
+        private int ShieldPrice(Engine e, int cell)
+        {
+            int at = Coverer(e, cell, out int dir);
+            if (at < 0) return 0;                            // nothing fires here after all
+
+            Step(dir, out int dx, out int dy);
+            int best = int.MaxValue;
+            for (int x = (cell >> 4) + dx, y = (cell & 15) + dy;
+                 x * 16 + y != at; x += dx, y += dy)
+            {
+                if (x < 0 || x > 15 || y < 0 || y > 15) break;
+                if (!Enter(e.Game.PF[x, y])) continue;
+                for (int c = 0; c < 256; c++)
+                {
+                    if (c == at) continue;
+                    byte o = e.Game.PF[c >> 4, c & 15];
+                    bool pushable = o == Obj.Block
+                                 || (o >= Obj.AntiTankUp && o <= Obj.AntiTankLeft)
+                                 || (o >= Obj.MirrorUL && o <= Obj.MirrorDL);
+                    if (!pushable) continue;
+                    int d = System.Math.Abs((c >> 4) - x) + System.Math.Abs((c & 15) - y);
+                    if (d < best) best = d;
+                }
+            }
+            // Nothing to shield with, or nowhere to put it: **zero, not a
+            // constant**, and this is the one place where that is right rather
+            // than the bug it was twice today.  A water hole *must* be filled,
+            // so a hole nothing can reach is a lost board and has to read as
+            // one.  A swept cell has alternatives -- move the anti-tank off the
+            // line, or shoot it in the face -- and both of those the route price
+            // already scores.  Priced at Unshieldable it put a 40-point cliff in
+            // the middle of level 10's winning line: the ascent came down 12 ->
+            // 6 and the deepest rise went 1 -> 34, which is a term telling the
+            // beam to avoid the very manoeuvre it was written for.
+            return best == int.MaxValue ? 0 : best;
+        }
+
+        private void BuildReach(Engine e)
+        {
+            System.Array.Clear(_reach, 0, 256);
+            int start = e.Game.Tank.X * 16 + e.Game.Tank.Y;
+            int head = 0, tail = 0;
+            _reach[start] = true;
+            _rqueue[tail++] = start;
+            while (head < tail)
+            {
+                int c = _rqueue[head++];
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    Step(k, out int dx, out int dy);
+                    int nx = cx + dx, ny = cy + dy;
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    int m = nx * 16 + ny;
+                    if (_reach[m] || _fire[m]) continue;
+                    if (!Passable(e.Game.PF[nx, ny])) continue;
+                    _reach[m] = true;
+                    _rqueue[tail++] = m;
+                }
+            }
+        }
+
+        /// _fire[c]: an anti-tank fires the moment the tank stands on cell `c`.
+        private readonly bool[] _fire = new bool[256];
+
+        /// _alive[c]: the block on cell `c` can still be moved somewhere.
+        private readonly bool[] _alive = new bool[256];
+
+        private readonly int[] _fdist = new int[256];
+        private readonly int[] _fq = new int[256];
+        private readonly int[] _holes = new int[16];
+        private readonly int[] _blocks = new int[64];
+        private readonly int[] _cell = new int[16 * 64];
+        private readonly bool[] _taken = new bool[64];
+        private readonly bool[] _done = new bool[16];
+        private int _holeLen;
+
+        /// Engine.cs:621 CheckArray, which *is* CheckLoc's whole body, and the
+        /// reason this table is repeated rather than approximated by Passable:
+        /// the two disagree about water, and every scan below is a CheckLoc
+        /// walk.  A tank can be told to drive into water (it drowns there); an
+        /// anti-tank scan therefore looks straight over a lake, and a block
+        /// pushed at one goes in.  Passable answers a different question --
+        /// where can the tank usefully be -- and says no.
+        ///
+        /// Tunnels are enterable and are not in the table (CheckLoc returns
+        /// true for them before it indexes), so they go through IsTunnel.
+        private static readonly int[] Enters =
+        {
+            //  0 Dirt  1 Tank  2 Flag  3 Water  4 Solid  5 Block  6 Bricks
+                 1,       0,      1,      1,       0,       0,       0,
+            //  7..10 anti-tanks         11..14 mirrors
+                 0, 0, 0, 0,             0, 0, 0, 0,
+            // 15..18 conveyors          19 Crystal
+                 1, 1, 1, 1,             0,
+            // 20..23 rotary mirrors     24 Ice  25 ThinIce
+                 0, 0, 0, 0,             1,      1,
+        };
+
+        private static bool Enter(byte cell) =>
+            Obj.IsTunnel(cell) ? true : (cell <= 25 && Enters[cell] != 0);
+
+        private int FireAt(int c) => WantFire && _fire[c] ? FirePrice : 0;
+
+        /// Engine.AntiTank(), asked of every cell at once.
+        ///
+        /// The original walks outward from the tank with CheckLoc and fires if
+        /// the first cell the tank could not enter is an anti-tank pointing
+        /// back -- `PF[x] == 10` to the right, 8 to the left, 7 below, 9 above.
+        /// That test reads nothing but the board, so the answer for every cell
+        /// is four line sweeps: walking a row from the right-hand edge inward,
+        /// the cell each scan would stop at is the previous cell's answer when
+        /// this one is enterable and this cell itself when it is not.
+        ///
+        /// Deliberately *not* Threats() above, which scans four directions for
+        /// any anti-tank and stops only at Solid.  That is a superset used to
+        /// pick subgoal targets, where naming one anti-tank too many costs a
+        /// wasted target.  This one is priced into a route, so a superset would
+        /// charge for fire that never comes -- and it would miss the whole
+        /// mechanism the gauntlets are built on, because it does not know that
+        /// a block, a mirror or *another anti-tank* dropped into the lane stops
+        /// the scan and shields everything behind it.
+        private void BuildFire(Engine e)
+        {
+            System.Array.Clear(_fire, 0, 256);
+            byte[,] pf = e.Game.PF;
+            for (int i = 0; i < 16; i++)
+            {
+                // Look to the right: PF[stop] == AntiTankLeft.
+                int stop = 16;
+                for (int x = 15; x >= 0; x--)
+                {
+                    byte cell = pf[x, i];
+                    if (!Enter(cell)) { stop = x; continue; }
+                    if (stop < 16 && pf[stop, i] == Obj.AntiTankLeft) _fire[x * 16 + i] = true;
+                }
+                // ...to the left: AntiTankRight.
+                stop = -1;
+                for (int x = 0; x < 16; x++)
+                {
+                    byte cell = pf[x, i];
+                    if (!Enter(cell)) { stop = x; continue; }
+                    if (stop >= 0 && pf[stop, i] == Obj.AntiTankRight) _fire[x * 16 + i] = true;
+                }
+                // ...down: AntiTankUp.
+                stop = 16;
+                for (int y = 15; y >= 0; y--)
+                {
+                    byte cell = pf[i, y];
+                    if (!Enter(cell)) { stop = y; continue; }
+                    if (stop < 16 && pf[i, stop] == Obj.AntiTankUp) _fire[i * 16 + y] = true;
+                }
+                // ...and up: AntiTankDown.
+                stop = -1;
+                for (int y = 0; y < 16; y++)
+                {
+                    byte cell = pf[i, y];
+                    if (!Enter(cell)) { stop = y; continue; }
+                    if (stop >= 0 && pf[i, stop] == Obj.AntiTankDown) _fire[i * 16 + y] = true;
+                }
+            }
+        }
+
+        /// Which blocks can still be moved at all.
+        ///
+        /// A block moves when something applies force from one side and the
+        /// cell on the other side will take it, and both halves of that are
+        /// already answered elsewhere in this file: the far side is CheckLoc
+        /// (Engine.cs:797 pushes with exactly that test, so Enter above is the
+        /// whole rule), and the near side is BuildRays' _rayOk -- somewhere
+        /// behind the block, with nothing impassable in between, a cell the
+        /// tank can come to rest on.  That covers the drive push and the shot
+        /// alike, which is why it is a ray and not the one adjacent cell.
+        ///
+        /// It errs towards *alive* in every direction it errs: blocks are
+        /// transparent to the ray sweep, so a block queued behind another one
+        /// still counts as pushable, and a mirror that could route a laser in
+        /// from a side no tank can reach is a non-solid cell the ray already
+        /// walks. A frozen block wrongly called live costs the term nothing;
+        /// the opposite mistake would penalise a board that is still winnable,
+        /// which is the one thing a cliff must never do.
+        /// Steps from `from` to the nearest live block, over cells a block
+        /// could occupy, or -1 when no block can be reached at all.
+        ///
+        /// RouteFerry's Manhattan is honest about being an estimate and says
+        /// why -- whether a block can actually be pushed along a route is a
+        /// MoveObj question this project will not answer for a tie-break.  This
+        /// does not answer it either.  It only stops the estimate being wrong
+        /// about the *maze*, which is a question about walls and needs no
+        /// theory of pushing at all: on `LaserTank.lvl` 6 "Cascade" the block
+        /// at (11,2) is thirteen cells from the water it has to fill as the
+        /// crow flies and forty through the corridors, and the whole level is
+        /// six such carries -- so the term the beam ranks by was reporting
+        /// progress for shoving blocks at the wall between them and the hole.
+        ///
+        /// A block is traversable, for BuildRays' reason: the block being
+        /// priced is on the line, and so is every other one queued behind it.
+        /// So is water, which reads wrong and is not -- a block pushed into a
+        /// lake sinks in it rather than crossing it, but the holes on a route
+        /// are usually a *strip* of water, and the first version of this walled
+        /// each hole off behind its neighbours: on `LaserTank.lvl` 6 four of the
+        /// six holes had no block reachable at all and the whole term collapsed
+        /// to a constant.  Filling a strip in order is the normal way to cross
+        /// one, so a route through water is the estimate this wants.
+        /// The holes on the settled route, and the ferry priced as an
+        /// assignment over them rather than a nearest-block per hole.
+        ///
+        /// The difference is the whole of a Sokoban.  `LaserTank.lvl` 6
+        /// "Cascade" has six holes and six blocks, and per-hole-nearest lets
+        /// every one of the six holes name the *same* block: the term reads
+        /// small on a board where five carries have not been started, and
+        /// finishing the first carry barely moves it.  An assignment -- each
+        /// block spent once -- is the classic Sokoban lower bound and it reads
+        /// the whole job.
+        ///
+        /// Greedy over the smallest remaining pair rather than a real
+        /// minimum-cost matching, and that is deliberate: this orders states
+        /// the engine already produced, the matrix is at most a handful of
+        /// holes by the blocks on the board, and greedy is monotone in the
+        /// thing that matters -- carrying a block one cell nearer the hole it
+        /// is nearest to lowers the sum by one.
+        private int MatchFerry(Engine e)
+        {
+            if (_holeLen == 0) return 0;
+
+            int nb = 0;
+            for (int c = 0; c < 256; c++)
+            {
+                if (e.Game.PF[c >> 4, c & 15] != Obj.Block) continue;
+                if (WantDead && !_alive[c]) continue;
+                if (nb < _blocks.Length) _blocks[nb++] = c;
+            }
+            // No live block for any of them.  Zero is the answer the rest of
+            // this file has been bitten by twice -- "nothing to steer by" is
+            // the *best* score there is, and a beam handed it parks on the
+            // board it was handed for.  A hole with nothing to fill it is the
+            // far side of the board away from being filled.
+            if (nb == 0) return _holeLen * Unfillable;
+
+            for (int h = 0; h < _holeLen; h++)
+            {
+                if (WantMaze) MazeFill(e, _holes[h]);
+                for (int b = 0; b < nb; b++)
+                {
+                    int hb = _holes[h], bb = _blocks[b];
+                    int d = WantMaze ? _fdist[bb]
+                          : System.Math.Abs((hb >> 4) - (bb >> 4))
+                            + System.Math.Abs((hb & 15) - (bb & 15));
+                    // A hole no block can walk to is not a distance the search
+                    // can shorten; price it as the far side of the board so the
+                    // assignment prefers the ones it can serve.
+                    _cell[h * 64 + b] = d < 0 ? Unfillable : d;
+                }
+            }
+
+            if (WantStage)
+            {
+                // Holes left dominates; the cheapest carry breaks the tie.
+                int cheapest = int.MaxValue;
+                for (int h = 0; h < _holeLen; h++)
+                    for (int b = 0; b < nb; b++)
+                        if (_cell[h * 64 + b] < cheapest) cheapest = _cell[h * 64 + b];
+                return _holeLen * Unfillable + (cheapest == int.MaxValue ? 0 : cheapest);
+            }
+
+            for (int b = 0; b < nb; b++) _taken[b] = false;
+            int sum = 0, left = _holeLen;
+            while (left-- > 0)
+            {
+                int bestH = -1, bestB = -1, best = int.MaxValue;
+                for (int h = 0; h < _holeLen; h++)
+                {
+                    if (_done[h]) continue;
+                    for (int b = 0; b < nb; b++)
+                    {
+                        if (_taken[b]) continue;
+                        if (_cell[h * 64 + b] >= best) continue;
+                        best = _cell[h * 64 + b]; bestH = h; bestB = b;
+                    }
+                }
+                // More holes than live blocks: everything still unmatched is
+                // unfillable, and priced as such rather than as free.
+                if (bestH < 0) { sum += (left + 1) * Unfillable; break; }
+                _done[bestH] = true; _taken[bestB] = true; sum += best;
+            }
+            for (int h = 0; h < _holeLen; h++) _done[h] = false;
+            return sum;
+        }
+
+        /// MazeToBlock's sweep without the early return: fills _fdist for the
+        /// whole board so an assignment can read every block off one BFS.
+        private void MazeFill(Engine e, int from)
+        {
+            for (int i = 0; i < 256; i++) _fdist[i] = -1;
+            int head = 0, tail = 0;
+            _fq[tail++] = from;
+            _fdist[from] = 0;
+            while (head < tail)
+            {
+                int c = _fq[head++];
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    Step(k, out int dx, out int dy);
+                    int nx = cx + dx, ny = cy + dy;
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    int at = nx * 16 + ny;
+                    if (_fdist[at] >= 0) continue;
+                    byte cell = e.Game.PF[nx, ny];
+                    if (cell != Obj.Block && !Enter(cell)) continue;
+                    _fdist[at] = _fdist[c] + 1;
+                    _fq[tail++] = at;
+                }
+            }
+        }
+
+        private int MazeToBlock(Engine e, int from)
+        {
+            for (int i = 0; i < 256; i++) _fdist[i] = -1;
+            int head = 0, tail = 0;
+            _fq[tail++] = from;
+            _fdist[from] = 0;
+            while (head < tail)
+            {
+                int c = _fq[head++];
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    Step(k, out int dx, out int dy);
+                    int nx = cx + dx, ny = cy + dy;
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    int at = nx * 16 + ny;
+                    if (_fdist[at] >= 0) continue;
+                    byte cell = e.Game.PF[nx, ny];
+                    if (cell == Obj.Block)
+                    {
+                        _fdist[at] = _fdist[c] + 1;
+                        if (!WantDead || _alive[at]) return _fdist[at];
+                        _fq[tail++] = at;                   // frozen: walk past it
+                        continue;
+                    }
+                    if (!Enter(cell)) continue;
+                    _fdist[at] = _fdist[c] + 1;
+                    _fq[tail++] = at;
+                }
+            }
+            return -1;
+        }
+
+        private void BuildAlive(Engine e)
+        {
+            System.Array.Clear(_alive, 0, 256);
+            BuildRays(e);
+            byte[,] pf = e.Game.PF;
+            for (int c = 0; c < 256; c++)
+            {
+                int x = c >> 4, y = c & 15;
+                if (pf[x, y] != Obj.Block) continue;
+                for (int k = 0; k < 4; k++)
+                {
+                    Step(k, out int dx, out int dy);
+                    int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    if (!_rayOk[k][c] || !Enter(pf[nx, ny])) continue;
+                    _alive[c] = true;
+                    break;
+                }
+            }
+        }
 
         /// _rayOk[d][c]: somewhere strictly behind `c` in direction `d` there is
         /// a cell the tank can *stand* on, with nothing in between.

@@ -267,6 +267,18 @@ namespace LaserTank.Solver
         public int PushRun = 8;            // cells one ferry may push in a row
         public int PushShotRun = 1;        // cells one *shot* may push in a row; 1 is off
         public int PushStop = 0;           // weight on Heuristic.RouteStop; 0 is off
+        public int PushFire = 0;           // price of a swept cell in the route
+                                           // Dijkstra; 0 is off
+        public int PushDead = 0;           // weight on Heuristic.RouteDead; 0 is off
+        public bool PushFerryStage = false;// one carry at a time; implies match
+        public bool PushFerryMatch = false;// spend each block once: the ferry
+                                           // term as an assignment
+        public int PushShield = 0;         // weight on Heuristic.RouteShield;
+                                           // 0 is off.  Implies the fire scan
+        public bool PushReach = false;     // price the route to where the tank
+                                           // can safely get, not to its cell
+        public bool PushFerryMaze = false; // ferry distance through the maze,
+                                           // not as the crow flies
         public bool PushTraceBoard;        // --push-trace: also print the best board
         public int PushMoveOnlyK = 4;      // pure-movement successors, and only
                                            // when the closure truncated
