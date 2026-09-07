@@ -38,7 +38,7 @@ supported combination.
 | **MinGW-w64** (WinLibs, UCRT; gcc 16.1 verified) | `winget install BrechtSanders.WinLibs.POSIX.UCRT` | `oracle/build.sh` — the C reference oracle |
 | **.NET SDK 10** (10.0.400 verified) | `winget install Microsoft.DotNet.SDK.10` | `src/build.sh` — the C# core and solver |
 | **Python 3.12+** (3.12.7 and 3.14.7 verified) | either alias works, `python` or `python3` | everything in `tools/` |
-| Godot 4.7.2 **.NET/Mono** build | `winget install GodotEngine.GodotEngine.Mono` | Phase 5 only — **not started, skip it for now** |
+| Godot 4.7.2 **.NET/Mono** build | `winget install GodotEngine.GodotEngine.Mono` | Phase 5 — the playable game and its four gates.  Skip it if you only care about the engine and the solver |
 
 Notes that save an afternoon:
 

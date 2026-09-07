@@ -196,6 +196,7 @@ namespace LaserTank.Game
         public const string PsGM = "Graphics_Mode";             // 0 int, 1 ext, 2 ltg
         public const string PsGFN = "Graphics_File";
         public const string PsGDN = "Graphics_Dir";
+        public const string PsSound = "Sound";                  // Yes / No
         public const string PsRllOn = "RLL";
         public const string PsRllN = "RLLFilename";
         public const string PsRllL = "RLLLevel";
@@ -230,6 +231,17 @@ namespace LaserTank.Game
                 _ini.Set(SecScreen, PsGDN, GraphicsDir);
             }
 
+            // LTANK.C:411 -- Sound defaults to Yes, and the original's test is
+            // `if (strcmp(temps, psYes)) Sound_On = FALSE;`, i.e. **exactly
+            // "Yes" or the sound is off**.  Case-sensitive, so a hand-edited
+            // `sound=yes` really does mute the 2010 binary.  Kept as it is: it
+            // is one line, it is observable, and there is no argument for
+            // leniency beyond taste.  (The RLL reader just below is the looser
+            // reading -- it went in with step 2 and its gate now pins it.  The
+            // two disagreeing is worth knowing about, not worth harmonising by
+            // guess.)
+            SoundOn = _ini.Get(SecOpt, PsSound, PsYes) == PsYes;
+
             // LTANK.C:439 -- Remember Last Level defaults to Yes.
             RememberLastLevel = !string.Equals(_ini.Get(SecOpt, PsRllOn, PsYes), "No",
                                                StringComparison.OrdinalIgnoreCase);
@@ -242,6 +254,10 @@ namespace LaserTank.Game
         public int GraphicsMode { get; private set; }
         public string GraphicsFile { get; private set; }
         public string GraphicsDir { get; private set; }
+        /// lt_sfx.c:19 via LTANK.C:411.  Muting is the *player's* state, never
+        /// the engine's: SoundPlay's ids are recorded whatever this says, so
+        /// turning the sound off cannot move a trace.
+        public bool SoundOn { get; private set; }
         public bool RememberLastLevel { get; private set; }
         public string LastLevelFile { get; private set; }
         public int LastLevel { get; private set; }
@@ -269,6 +285,21 @@ namespace LaserTank.Game
         {
             GraphicsDir = dir;
             _ini.Set(SecScreen, PsGDN, dir);
+        }
+
+        /// ToggleOpt (LTANK.C:1489) for command 102, "Toggle Sound": flip it,
+        /// write "Yes" or "No" on the spot.  The same function does Animation,
+        /// Skip Completed Levels, AutoRecord and Disable Warnings, so this is
+        /// the shape the rest of the [OPT] section will take.
+        public bool ToggleSound() => SetSound(!SoundOn);
+
+        /// The write half on its own, so --sound yes|no can persist the same
+        /// value through the same key the menu item does.
+        public bool SetSound(bool on)
+        {
+            SoundOn = on;
+            _ini.Set(SecOpt, PsSound, SoundOn ? PsYes : "No");
+            return SoundOn;
         }
 
         /// LoadLevel's own write (LTANK2.C:1035), gated on RLL exactly there.

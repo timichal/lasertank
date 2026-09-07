@@ -60,14 +60,23 @@ which is the state the real game sits in while that dialog is up.
 
 ## Trace format
 
-One line per tick. `--field` adds full `PF`/`PF2` hex, `--bmf` adds `BMF`/`BMF2`.
+One line per tick. `--field` adds full `PF`/`PF2` hex, `--bmf` adds `BMF`/`BMF2`,
+`--sound` adds `SF`.
 
 ```
 t=<tick> T=<x,y,dir,firing,good> L=<laser x,y,dir,firing,good> S=<moves,shots>
 P=<RecP> C=<ConvMoving> SlT=<x,y,dx,dy,s> SlO=<x,y,dx,dy,s> N=<slide count>
 M<i>=<x,y,dx,dy,s> ...  A=<AniLevel,AniCount> D=<deaths> G=<Game_On>
-H=<fnv1a(PF),fnv1a(PF2)>
+H=<fnv1a(PF),fnv1a(PF2)>  SF=<sound ids this tick, in call order, or ->
 ```
+
+`SF` is Phase 5 step 3's field. `lt_sfx.c` is not compiled here -- `SoundPlay`
+is one of the driver's own stubs -- so what it records is the *sequence* the
+logic asked for rather than any audio: which id, in which order, on which tick,
+with the pump's `S_Die` counted in the tick that posted it. It ignores
+`Sound_On` for the same reason the trace ignores whether a window is open.
+Truncated at 256 ids per tick, marked with a trailing `+`; the C# side truncates
+identically. `tools/sound_check.py` is what diffs it.
 
 `BMF`/`BMF2`/`AniLevel`/`AniCount` are **cosmetic**. Every read of `Game.BMF` in
 the whole program is either a paint call (`UpDateSprite`) or `MoveObj:1293`

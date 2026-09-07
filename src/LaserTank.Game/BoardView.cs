@@ -65,6 +65,7 @@ namespace LaserTank.Game
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
         private GraphicsMenu _menu;
+        private Sfx _sfx;
         private string _error;
 
         /// Off in --shot mode: the shot awaits two frames, and physics would
@@ -83,6 +84,11 @@ namespace LaserTank.Game
             if (Array.IndexOf(args, "--check-sheets") >= 0)
             {
                 GetTree().Quit(SheetCheck.Run());
+                return;
+            }
+            if (Array.IndexOf(args, "--check-sounds") >= 0)
+            {
+                GetTree().Quit(Sfx.Check());
                 return;
             }
 
@@ -124,6 +130,11 @@ namespace LaserTank.Game
                 _size = i >= 0 ? i + 1 : Math.Clamp(Ini.Atoi(zs), 1, 3);
             }
 
+            // --sound yes|no, this run only unless --save-options is given --
+            // the same arrangement --pack and --zoom have.  The player's way in
+            // is the S key, which is command 102.
+            bool? soundArg = ParseYesNo(ArgStr(args, "--sound"));
+
             _packs = Packs.Scan(_opt.GraphicsDir);
             _menu = new GraphicsMenu(this);
             Pack want = Packs.FromOptions(_packs, _opt);
@@ -150,6 +161,7 @@ namespace LaserTank.Game
             {
                 _opt.Ini.ReadOnly = false;
                 _opt.SetSize(_size);
+                if (soundArg.HasValue) _opt.SetSound(soundArg.Value);
                 PersistGraphics();
                 if (gfxDir != null) _opt.SetGraphicsDir(gfxDir);
             }
@@ -210,6 +222,18 @@ namespace LaserTank.Game
             _s = new Session(levels, _opt);
             if (!_s.Load(level)) _error = _s.Error;
             Resize();
+
+            // SFxInit (lt_sfx.c:47), at WM_CREATE where the original does it
+            // (LTANK.C:452).  Not in a headless run: there is nobody to hear
+            // it, and the gates that run headless must not depend on a wave
+            // device existing.  A pack that will not load leaves Sfx.Error set
+            // and the game silent, which is SFXError's own behaviour.
+            if (DisplayServer.GetName() != "headless")
+            {
+                _sfx = new Sfx(Paths.SoundsDir) { SoundOn = soundArg ?? _opt.SoundOn };
+                AddChild(_sfx);
+                if (_sfx.Error != null) _error = "sound: " + _sfx.Error;
+            }
 
             // `--tick-rate SECONDS`: let the real driver run against the clock
             // and report what it measured.  This is the one claim in step 1 the
@@ -274,6 +298,20 @@ namespace LaserTank.Game
         {
             int i = Array.IndexOf(args, name);
             return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+        }
+
+        /// yes/no as the INI spells it, plus the shapes a shell user will
+        /// type.  -> null when the flag was not given at all, which is what
+        /// keeps "not mentioned" different from "no".
+        private static bool? ParseYesNo(string s)
+        {
+            if (s == null) return null;
+            switch (s.Trim().ToLowerInvariant())
+            {
+                case "yes": case "on": case "true": case "1": return true;
+                case "no": case "off": case "false": case "0": return false;
+                default: return null;
+            }
         }
 
         private static int Arg(string[] args, string name, int dflt)
@@ -356,13 +394,15 @@ namespace LaserTank.Game
                 "options size={1} cell={2} laser_offset={3}\n" +
                 "options graphics_mode={4} graphics_file={5} graphics_dir={6}\n" +
                 "options pack={7} label={8} sha256={9}\n" +
-                "options rll={10} rll_file={11} rll_level={12}\n",
+                "options rll={10} rll_file={11} rll_level={12}\n" +
+                "options sound={13}\n",
                 _opt.Ini.Path, _size, Cell, LaserOffset,
                 _pack.Mode, _pack.File.Length > 0 ? _pack.File : "-", _opt.GraphicsDir,
                 _pack.Mode == 1 ? "external" : _pack.Mode == 0 ? "internal" : _pack.File,
                 _atlas.Label, Convert.ToHexString(h).ToLowerInvariant(),
                 _opt.RememberLastLevel ? "Yes" : "No",
-                _opt.LastLevelFile.Length > 0 ? _opt.LastLevelFile : "-", _opt.LastLevel));
+                _opt.LastLevelFile.Length > 0 ? _opt.LastLevelFile : "-", _opt.LastLevel,
+                _opt.SoundOn ? "Yes" : "No"));
             // What the level resolution above settled on -- the collection and
             // the number this run would have opened.
             GD.PrintRaw(string.Format(inv, "options start_file={0} start_level={1}\n",
@@ -391,7 +431,13 @@ namespace LaserTank.Game
         /// level loaded.
         public override void _PhysicsProcess(double delta)
         {
-            if (_driving) _s?.Step();
+            if (!_driving) return;
+            if (_s == null || !_s.Step()) return;
+            // The tick's sounds, after Tick() *and* Pump(): a drowning death
+            // posts WM_Dead, so S_Die belongs to the tick that caused it
+            // (quirk #8).  Only the last is audible -- PlaySound is
+            // monophonic; see Sfx.
+            _sfx?.PlayTick(_s.Sounds);
         }
 
         /// Rendering only.  Nothing here may touch the game.
@@ -446,6 +492,12 @@ namespace LaserTank.Game
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
+                // Command 102, the Options menu's "Sound" (LTANK.C:875).  The
+                // checkmark is the INI here; ToggleOpt writes it immediately.
+                case Key.S:
+                    bool on = _opt.ToggleSound();
+                    if (_sfx != null) _sfx.SoundOn = on;
+                    break;
                 case Key.Escape: GetTree().Quit(); break;
                 default: return;
             }
@@ -672,7 +724,8 @@ namespace LaserTank.Game
                        HorizontalAlignment.Left, w, 16, Colors.White);
             DrawString(font, new Vector2(Margin, y + 20),
                        $"moves {g.ScoreMove}   shots {g.ScoreShot}    " +
-                       $"{_atlas.Label}  {Cell}px  {(_interpolate ? "smooth" : "snap")}",
+                       $"{_atlas.Label}  {Cell}px  {(_interpolate ? "smooth" : "snap")}  " +
+                       $"{(_opt.SoundOn ? "sound" : "muted")}",
                        HorizontalAlignment.Left, w, 14, Colors.White);
 
             (string what, Color tint) = _s.Now switch
@@ -690,7 +743,7 @@ namespace LaserTank.Game
                        "arrows move, space fires, R restart, F6 saves the recording",
                        HorizontalAlignment.Left, w, 12, Colors.Gray);
             DrawString(font, new Vector2(Margin, y + 72),
-                       "[ ] level, G graphics menu, Z size, I smooth, Esc quit",
+                       "[ ] level, G graphics menu, Z size, I smooth, S sound, Esc quit",
                        HorizontalAlignment.Left, w, 12, Colors.Gray);
             if (!string.IsNullOrEmpty(lv.Hint))
                 DrawString(font, new Vector2(Margin, y + 90), lv.Hint.Replace("\r\n", " "),

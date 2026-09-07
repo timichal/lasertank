@@ -44,16 +44,25 @@ namespace LaserTank.Core
 
         public const int ani_delay = 4;      // LTANK.H:95
 
-        // lt_sfx.h:13 -- only the ones the ported logic names so far.  sf is a
-        // real parameter that MoveObj reassigns, so it is carried; SoundPlay
-        // itself does nothing headless (lt_sfx.c:26 returns immediately when
-        // !Sound_On, which is what a headless build is).
-        public const int S_Bricks = 1, S_Fire = 2, S_Head = 4, S_Turn = 5,
-                        S_Anti1 = 8, S_Anti2 = 9, S_Deflb = 10, S_LaserHit = 11,
+        // lt_sfx.h:13, all sixteen and in its own order.  The numbering is not
+        // decorative: it is SFxInit's load order (lt_sfx.c:47), which is
+        // Ltank.rc's resource list, so an id *is* a file name.  sf is also a
+        // real parameter that MoveObj reassigns and FireLaser reads --
+        // `laser.Good = (sf == 2)` -- so these ids are load-bearing for the
+        // rules and not only for the audio.
+        public const int S_Bricks = 1, S_Fire = 2, S_Move = 3, S_Head = 4,
+                        S_Turn = 5, S_EndLev = 6, S_Die = 7, S_Anti1 = 8,
+                        S_Anti2 = 9, S_Deflb = 10, S_LaserHit = 11,
                         S_Push2 = 12, S_Push1 = 13, S_Rotate = 14, S_Push3 = 15,
                         S_Sink = 16;
 
-        private static void SoundPlay(int sn) { }
+        /// lt_sfx.c:26.  Declared here, implemented in Engine.Sound.cs -- which
+        /// is Phase 5 step 3's whole footprint inside the core: the ids the
+        /// tick already computes are handed to whoever is listening, and
+        /// nothing else changes.  This was an empty static method; a partial
+        /// one keeps every call site identical while moving the
+        /// presentation-only body out of the transliteration.
+        partial void SoundPlay(int sn);
 
         // ---- globals owned by LTANK2.C ------------------------------------
         public readonly TGAMEREC Game = new TGAMEREC();
@@ -131,6 +140,13 @@ namespace LaserTank.Core
         private void SendDead()                      // SendMessage(WM_Dead)
         {
             GameOn(false);
+            // LTANK.C:718 in order: GameOn(FALSE), the VHS arm returning
+            // *before* the sound, SoundPlay(S_Die), then the modal DeadBox.
+            // VHSOn is always false here (LTANK.C:26, oracle/driver.c:37), so
+            // the test only records the shape -- but the sound really is inside
+            // the handler, so it belongs to the death rather than to whichever
+            // driver notices one.
+            if (!VHSOn) SoundPlay(S_Die);
             Deaths++;
         }
 
@@ -484,13 +500,15 @@ namespace LaserTank.Core
         }
 
         // ---- LTANK2.C:1216  UpDateTankPos -----------------------------------
-        // SoundPlay, the SetTextAlign/TextOut score readout and UpDateSprite are
-        // paint; UpdateUndo, ScoreMove, the position, Tank.Good and TankDirty
-        // are not.  Called with (0,0) from MoveObj's tunnel path, where "moving
-        // the tank by nothing" exists purely to re-run the tunnel check on the
-        // cell it is already standing on.
+        // The SetTextAlign/TextOut score readout and UpDateSprite are paint;
+        // UpdateUndo, ScoreMove, the position, Tank.Good and TankDirty are not.
+        // Called with (0,0) from MoveObj's tunnel path, where "moving the tank
+        // by nothing" exists purely to re-run the tunnel check on the cell it
+        // is already standing on -- and a zero-distance call still plays
+        // S_Move, which is the original's behaviour and not a slip.
         private void UpDateTankPos(int x, int y)
         {
+            SoundPlay(S_Move);
             UpdateUndo();
             Game.ScoreMove++;
             Game.Tank.Y += y;
@@ -1319,6 +1337,7 @@ MoveObj1:
                     if (Game_On)                     // reached the flag
                     {
                         GameOn(false);
+                        SoundPlay(S_EndLev);
                         // PBOpen is TRUE during playback, so the original skips
                         // CheckHighScore() and LoadNextLevel() here.
                     }

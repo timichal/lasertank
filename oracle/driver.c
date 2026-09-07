@@ -48,7 +48,31 @@ TCHAR szFilterOFN[MAX_PATH];
 TCHAR szFilterPBfn[MAX_PATH];
 int   Sound_On = FALSE;
 
-void SoundPlay(int s) { (void)s; }
+/* ---- SoundPlay, recorded rather than discarded (Phase 5, step 3) ---------
+ *
+ * lt_sfx.c is not compiled here -- these two are the whole sound unit as far
+ * as the oracle is concerned, and the real one would want a wave device.  What
+ * the port needs from the oracle is not audio but the *sequence*: which sound
+ * id LTANK2.C asks for, in which order, on which tick.  That sequence is a
+ * pure consequence of the logic, so recording it turns "does the port play the
+ * right sounds" into the same kind of question as every other one in this
+ * project -- a trace diff.  --sound puts it in the trace; without it nothing
+ * here is printed at all.
+ *
+ * This ignores Sound_On, exactly as the trace ignores whether a window is
+ * open: muting is the player's business.  The real SoundPlay returns early
+ * when !Sound_On, so a *muted* original makes no PlaySound call -- but it
+ * makes the same decisions, and the decisions are what is being compared.
+ */
+#define LT_MAX_SF 256                 /* per tick; SF prints a trailing + past it */
+static int sf_log[LT_MAX_SF];
+static int sf_n = 0;                  /* calls this tick, may exceed LT_MAX_SF */
+
+void SoundPlay(int s)
+{
+    if (sf_n < LT_MAX_SF) sf_log[sf_n] = s;
+    sf_n++;
+}
 void SFxInit(void)    { }
 
 LRESULT CALLBACK LoadTID(HWND h, UINT m, WPARAM w, LPARAM l)
@@ -70,7 +94,12 @@ LRESULT LT_WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     (void)h; (void)wp; (void)lp;
     switch (msg) {
-    case WM_Dead:     GameOn(FALSE); lt_dead++;     return 0;
+    /* LTANK.C:718 plays S_Die here: after GameOn(FALSE), and after the VHS
+     * arm has already returned.  VHSOn is always FALSE headless, but the test
+     * is kept so the shape matches the port's SendDead(). */
+    case WM_Dead:     GameOn(FALSE);
+                      if (!VHSOn) SoundPlay(S_Die);
+                      lt_dead++;                   return 0;
     case WM_GameOver: lt_gameover++;                return 0;
     case WM_NewHS:    lt_newhs++;                   return 0;
     case WM_SaveRec:  lt_saverec++;                 return 0;
@@ -83,6 +112,7 @@ LRESULT LT_WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 static FILE *trace_fp    = NULL;
 static int   trace_field = 0;   /* also dump PF / PF2 */
 static int   trace_bmf   = 0;   /* also dump BMF / BMF2 (cosmetic, see below) */
+static int   trace_sound = 0;   /* also dump the tick's SoundPlay ids */
 
 static unsigned long fnv1a(const void *p, size_t n)
 {
@@ -127,6 +157,15 @@ static void trace_tick(long tick)
                 SlideMem.Objects[i].dx, SlideMem.Objects[i].dy,
                 SlideMem.Objects[i].s);
 
+    /* The tick's SoundPlay ids, in call order; "-" for a silent tick.  Before
+     * the grids, so the line stays readable when those are on. */
+    if (trace_sound) {
+        int n = sf_n < LT_MAX_SF ? sf_n : LT_MAX_SF;
+        fprintf(trace_fp, " SF=");
+        if (n == 0) fputc('-', trace_fp);
+        for (i = 0; i < n; i++) fprintf(trace_fp, "%s%d", i ? "," : "", sf_log[i]);
+        if (sf_n > LT_MAX_SF) fputc('+', trace_fp);
+    }
     if (trace_field) { put_field("PF", Game.PF[0]); put_field("PF2", Game.PF2[0]); }
     if (trace_bmf)   { put_field("BMF", Game.BMF[0]); put_field("BMF2", Game.BMF2[0]); }
     fputc('\n', trace_fp);
@@ -317,14 +356,16 @@ static void usage(void)
 {
     fprintf(stderr,
       "usage: oracle --levels FILE.lvl (--lpb FILE.lpb | --level N --keys STR)\n"
-      "              [--trace FILE] [--field] [--bmf] [--max-ticks N] [--quiet]\n"
+      "              [--trace FILE] [--field] [--bmf] [--sound] [--max-ticks N]\n"
+      "              [--quiet]\n"
       "\n"
       "  --lpb FILE     replay a recorded solution; level number comes from its header\n"
       "  --level N      1-based level number (with --keys)\n"
       "  --keys STR     keystream as characters: u d l r f  (or raw decimal VK codes\n"
       "                 separated by commas)\n"
       "  --field        include full PF / PF2 hex in the trace\n"
-      "  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n");
+      "  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n"
+      "  --sound        include SF, the SoundPlay ids the tick asked for\n");
 }
 
 int main(int argc, char **argv)
@@ -343,6 +384,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--max-ticks") && i + 1 < argc) max_ticks = atol(argv[++i]);
         else if (!strcmp(argv[i], "--field")) trace_field = 1;
         else if (!strcmp(argv[i], "--bmf"))   trace_bmf   = 1;
+        else if (!strcmp(argv[i], "--sound")) trace_sound = 1;
         else if (!strcmp(argv[i], "--quiet")) quiet       = 1;
         else { usage(); return 2; }
     }
@@ -410,6 +452,7 @@ int main(int argc, char **argv)
     trace_tick(0);
     while (Game_On && !lt_dead && tick < max_ticks) {
         tick++;
+        sf_n = 0;                /* SF is per tick, and the pump's S_Die counts */
         LT_Tick();
         lt_stub_pump();          /* dispatch anything PostMessage'd this tick */
         trace_tick(tick);

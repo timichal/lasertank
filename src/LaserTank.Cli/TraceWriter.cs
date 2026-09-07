@@ -5,6 +5,7 @@
 // because tools/difftrace.py compares the two textually.  Any prettier format
 // would turn a real divergence into a parser artefact.  Newlines are "\n" only;
 // driver.c opens the trace with "wb".
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -15,11 +16,16 @@ namespace LaserTank.Cli
     public sealed class TraceWriter
     {
         private readonly TextWriter _w;
-        private readonly bool _field, _bmf;
+        private readonly bool _field, _bmf, _sound;
+
+        /// oracle/driver.c's LT_MAX_SF.  Both sides truncate at the same place
+        /// and mark it the same way, so a tick that somehow made hundreds of
+        /// sounds still compares equal-or-not rather than by accident.
+        private const int MaxSf = 256;
         private readonly byte[] _flat = new byte[256];
         private readonly StringBuilder _sb = new StringBuilder(4096);
 
-        public TraceWriter(string path, bool field, bool bmf)
+        public TraceWriter(string path, bool field, bool bmf, bool sound = false)
         {
             // "\n" line endings and latin-1, matching fopen(path, "wb") + fprintf.
             _w = new StreamWriter(File.Create(path), Encoding.GetEncoding(28591))
@@ -28,6 +34,7 @@ namespace LaserTank.Cli
             };
             _field = field;
             _bmf = bmf;
+            _sound = sound;
         }
 
         /// LTANK2.C has no hash of its own; this is driver.c's fnv1a over the
@@ -93,6 +100,23 @@ namespace LaserTank.Cli
                 TICEREC o = e.SlideMem.Objects[i];
                 _sb.AppendFormat(CultureInfo.InvariantCulture, " M{0}={1},{2},{3},{4},{5}",
                                  i, o.x, o.y, o.dx, o.dy, o.s);
+            }
+
+            // SF: the SoundPlay ids this tick asked for, in call order, "-"
+            // when it was silent.  Before the grids, exactly as driver.c has
+            // it.  e.SoundLog is the driver's -- Program.cs clears it per tick.
+            if (_sound)
+            {
+                var log = e.SoundLog;
+                int n = log == null ? 0 : Math.Min(log.Count, MaxSf);
+                _sb.Append(" SF=");
+                if (n == 0) _sb.Append('-');
+                for (int i = 0; i < n; i++)
+                {
+                    if (i != 0) _sb.Append(',');
+                    _sb.Append(log[i].ToString(CultureInfo.InvariantCulture));
+                }
+                if (log != null && log.Count > MaxSf) _sb.Append('+');
             }
 
             if (_field) { PutField("PF", g.PF); PutField("PF2", g.PF2); }

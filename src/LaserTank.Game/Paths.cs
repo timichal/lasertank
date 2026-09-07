@@ -113,6 +113,11 @@ namespace LaserTank.Game
             }
         }
 
+        /// original/src/Sounds/ -- the sixteen WAVs Ltank.rc compiles into the
+        /// .exe as RCDATA (Phase 5, step 3).  Same arrangement as the internal
+        /// sheet below: original/ is frozen, and this only ever reads it.
+        public static string SoundsDir => Path.Combine(Root, "original", "src", "Sounds");
+
         /// original/src/Game.BMP + Mask.BMP -- the internal sheet.  original/ is
         /// read-only and frozen; this only ever reads it.
         public static string InternalGameBmp => Path.Combine(Root, "original", "src", "Game.BMP");

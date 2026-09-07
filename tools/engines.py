@@ -38,7 +38,14 @@ import difftrace                                        # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ORACLE = ROOT / "oracle" / "build" / "oracle.exe"
-CORE = ROOT / "build" / "lasertank-core.exe"
+# $LT_CORE overrides the published binary, which is what a session run beside a
+# live solve needs: `dotnet publish -o build` cannot replace
+# build/LaserTank.Core.dll while a lasertank-solve.exe holds it open, so the
+# port gets built into its own bin/ instead and pointed at from here.
+#   dotnet build src/LaserTank.Cli/LaserTank.Cli.csproj -c Release
+#   LT_CORE=src/LaserTank.Cli/bin/Release/net8.0/lasertank-core.exe python tools/...
+CORE = pathlib.Path(os.environ.get("LT_CORE")
+                    or ROOT / "build" / "lasertank-core.exe")
 DIFFTRACE = ROOT / "tools" / "difftrace.py"
 
 LEVEL_REC = 576                     # bytes per level record in a .lvl
@@ -145,7 +152,8 @@ def require_engines(oracle=ORACLE, core=CORE):
 # --- running ----------------------------------------------------------------
 
 
-def command(exe, case, trace, field=False, bmf=False, max_ticks=None):
+def command(exe, case, trace, field=False, bmf=False, max_ticks=None,
+            sound=False):
     """The exact argv, so a repro can quote something that actually runs."""
     cmd = [str(exe), "--levels", str(case.levels)]
     lpb = getattr(case, "lpb", None)
@@ -160,26 +168,29 @@ def command(exe, case, trace, field=False, bmf=False, max_ticks=None):
         cmd.append("--field")
     if bmf:
         cmd.append("--bmf")
+    if sound:
+        cmd.append("--sound")
     if max_ticks is not None:
         cmd += ["--max-ticks", str(max_ticks)]
     cmd.append("--quiet")
     return cmd
 
 
-def run_one(exe, case, trace, field=False, bmf=False, max_ticks=None):
+def run_one(exe, case, trace, field=False, bmf=False, max_ticks=None,
+            sound=False):
     trace = pathlib.Path(trace)
     if trace.exists():
         trace.unlink()          # a stale trace would read as a live one
-    p = subprocess.run(command(exe, case, trace, field, bmf, max_ticks),
+    p = subprocess.run(command(exe, case, trace, field, bmf, max_ticks, sound),
                        capture_output=True, text=True, cwd=str(ROOT))
     return Run(p.returncode, p.stdout, p.stderr, trace)
 
 
 def run_pair(case, ta, tb, field=False, bmf=False, max_ticks=None,
-             oracle=ORACLE, core=CORE):
+             oracle=ORACLE, core=CORE, sound=False):
     """Both engines, same input.  A is always the oracle, B always the port."""
-    a = run_one(oracle, case, ta, field, bmf, max_ticks)
-    b = run_one(core, case, tb, field, bmf, max_ticks)
+    a = run_one(oracle, case, ta, field, bmf, max_ticks, sound)
+    b = run_one(core, case, tb, field, bmf, max_ticks, sound)
     return a, b
 
 

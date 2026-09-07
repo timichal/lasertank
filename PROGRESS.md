@@ -16,14 +16,16 @@ validation plan, not a ranking of the two halves.
 **Where the project is.** Phases 1-3 complete: a C reference oracle (`oracle/`), a C#
 transliteration that traces byte-identically to it on the whole recorded corpus
 (`src/LaserTank.Core/`), and a differential fuzzer (`tools/fuzz.py`) with 20,626 cases and no
-divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0, 1 and
-2 are done** — `src/LaserTank.Game/` is a playable game. It draws any level from `Game.BMF` with any
+divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0-3 are
+done** — `src/LaserTank.Game/` is a playable game. It draws any level from `Game.BMF` with any
 of the four sprite sheets, runs a fixed 20 Hz tick, takes the keyboard through the original's own
-`WM_KEYDOWN` filter, writes `.lpb` recordings the 25-year-old C replays byte-identically, and
-remembers its graphics set, its board size and the level you were on in a `LaserTank.ini` with the
-original's own section and key names. `tools/atlas_check.py`, `tools/tick_check.py` and
-`tools/options_check.py` gate those three. Steps 3-6 below are still a plan with exit criteria
-rather than a wish list; **step 3, sound, is the next thing to build.**
+`WM_KEYDOWN` filter, plays the original's sixteen WAVs off the sound ids the tick itself computes,
+writes `.lpb` recordings the 25-year-old C replays byte-identically, and remembers its graphics set,
+its board size, whether the sound is on and the level you were on in a `LaserTank.ini` with the
+original's own section and key names. `tools/atlas_check.py`, `tools/tick_check.py`,
+`tools/options_check.py` and `tools/sound_check.py` gate those four. Steps 4-6 below are still a
+plan with exit criteria rather than a wish list; **step 4, the game around the game — level picker,
+high scores, undo, record/playback UI — is the next thing to build.**
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -47,19 +49,26 @@ listed apart from the four and nothing in Phases 1-4 depends on them:
 python tools/atlas_check.py                    # step 0: 2,347 levels + 4 sprite sheets, ~35 s
 python tools/tick_check.py                     # step 1: 208/208 vs the oracle + the rate, ~20 s
 python tools/options_check.py                  # step 2: the INI, the packs, the laser's width, ~40 s
+python tools/sound_check.py                    # step 3: 208 SoundPlay streams + 16 WAVs, ~60 s
 ```
 
-All three need Godot; `atlas_check` degrades to a loud SKIP without it, the other two need it
-outright. All three **rebuild the Godot project's C# first**, because `godot --path` does not and
-would otherwise report green for the previous session's assembly — see *Environment notes*. None of
-them touches `build/lasertank-solve.exe`, so all are safe to run beside a live solver.
-`options_check` opens three brief windows for its pixel measurements (`--shot` needs a rendering
-device); `--no-window` skips that half.
+All four want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
+the other two need it outright. All four **rebuild the Godot project's C# first**, because
+`godot --path` does not and would otherwise report green for the previous session's assembly — see
+*Environment notes*. None of them touches `build/lasertank-solve.exe`, so all are safe to run
+beside a live solver. `options_check` opens three brief windows for its pixel measurements
+(`--shot` needs a rendering device); `--no-window` skips that half. `sound_check`'s corpus half
+drives `build/lasertank-core.exe`, which a live solve locks against rebuilding — `$LT_CORE` points
+it at a locally built one instead (*Environment notes*).
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
-`src/LaserTank.Core/Engine.cs` differs from a literal transliteration by the single word `partial`,
-and `Engine.Search.cs` has not changed since the solver's first layer. **If a solver change seems to
-need an engine change, that is the signal to stop and re-read.**
+`src/LaserTank.Core/Engine.cs` differs from a literal transliteration by the word `partial`, twice:
+on the class, and on `SoundPlay`, whose body moved to `Engine.Sound.cs` in step 3 while every call
+site stayed identical. Step 3 also *restored* three `SoundPlay` calls Phase 2 had read as paint —
+`S_Move`, `S_EndLev`, `S_Die` — which is a transliteration getting closer to the C, not further
+from it, and the corpus proves it: 208/208 recordings agree with the oracle on the whole sound
+stream. `Engine.Search.cs` has not changed since the solver's first layer. **If a solver change
+seems to need an engine change, that is the signal to stop and re-read.**
 
 **Artifacts live under `build/`, which is gitignored** — they survive a context clear but not a
 `git clean`. Everything there is a measurement that can be re-run.
@@ -68,7 +77,7 @@ need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 started: steps 0, 1 and 2 done, step 3 next.**
+**Phases 1-3 complete. Phase 5 under way: steps 0-3 done, step 4 next.**
 
 | | state |
 |---|---|
@@ -76,16 +85,18 @@ need an engine change, that is the signal to stop and re-read.**
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | **steps 0-2 done**: playable. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter, `.lpb` recordings the oracle replays, a graphics menu and a `LaserTank.ini` that remembers the pack, the size and the level. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` |
+| Presentation (Godot) | **steps 0-3 done**: playable, with sound. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter, the sixteen WAVs off the engine's own `SoundPlay` ids, `.lpb` recordings the oracle replays, a graphics menu and a `LaserTank.ini` that remembers the pack, the size, the sound and the level. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
 moves *and* shots. `test_difftrace.py` 29 passed. `test_fuzz.py` 25 passed. `sweep.py` 2,347/2,347
 identical. `tools/verify_solutions.py` over any solver output — every `.lpb` wins on both engines
-with byte-identical traces. Phase 5's three: `atlas_check.py` OK (2,347 levels clean, 4 sheets
+with byte-identical traces. Phase 5's four: `atlas_check.py` OK (2,347 levels clean, 4 sheets
 cross-checked), `tick_check.py` 208/208 agreeing with the oracle plus 100 ticks in 5 s,
 `options_check.py` OK (20 checks: the INI's semantics and round trip, mode 1 == mode 2 pixels for
-every pack, the three board sizes, the laser bar 4/6/6 px wide).
+every pack, the three board sizes, the laser bar 4/6/6 px wide), `sound_check.py` OK (208/208
+recordings identical *including* the per-tick `SoundPlay` stream, 16/16 WAVs decoding to the same
+PCM in Python and C#, 12 checks on `[OPT] Sound`).
 
 **What is still not ported: `MouseOperation`, and only that.** The mouse buffer is empty headless
 (`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it —
@@ -93,13 +104,12 @@ measured, not assumed: the fuzz campaign reached it zero times. It **throws** ra
 if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
 logic.
 
-**Next action for this half of the project: Phase 5, step 3 — sound.** Steps 0, 1 and 2 are done and
-all three gates are green. Step 3 is the 16 WAVs in `original/src/Sounds/`, and its exit criterion
-is the cheapest of any step's: adding audio must change no trace, so the three gates plus
-`replay_all.py` staying green *is* the proof. `FireLaser`'s `sf` argument is already the sound id
-and is already load-bearing for logic (`laser.Good = (sf == 2)`), so the ids get read from the
-engine and never re-derived. Phase 3's fuzzer can keep running in parallel on new seeds and the 12
-collections its first campaign never touched.
+**Next action for this half of the project: Phase 5, step 4 — the game around the game.** Steps 0-3
+are done and all four gates are green. Step 4 is the level picker, the high scores (`.hs`/`.ghs`,
+already read by `LevelFile`), undo and the record/playback UI; undo needs less than it looks, since
+`UpdateUndo` / `ResetUndoBuffer` and the whole `UndoBuffer` are already ported and maintained and
+only `UndoStep`, the reader, is missing. Phase 3's fuzzer can keep running in parallel on new seeds
+and the 12 collections its first campaign never touched.
 
 **Blocked on:** nothing.
 
@@ -723,10 +733,101 @@ was told to: eight parallel `atlas_check` jobs must not race over one file, and 
 not change what the next player sees or depend on what the last one did. Passing `--ini` says "this
 file is yours" and turns both halves back on, which is how the gate exercises the writing side.
 
-**Step 3 — sound.** The 16 WAVs in `original/src/Sounds/`. The tick already computes *which* sound
-fires: `FireLaser`'s `sf` argument is the sound id and is load-bearing for logic
-(`laser.Good = (sf == 2)`), so sound ids are read from the engine, never re-derived.
-*Exit:* the gates stay green — i.e. adding audio changed no trace.
+**Step 3 — sound. ☑ DONE.** The 16 WAVs in `original/src/Sounds/`, played off the ids the tick
+already computes. The plan called this the cheapest exit criterion of any step — "the gates stay
+green" — and that turned out to be the wrong bar for the same reason "186/186 reach the flag" was in
+Phase 1: it tests that sound changed nothing, never that the sound is *right*. So the ids got a
+differential of their own, and it found a real bug in the first run.
+
+```bash
+"$GODOT" --path src/LaserTank.Game                             # play it; S mutes
+python tools/sound_check.py                                    # the gate, ~60 s
+
+# the ids, from either engine, as a trace field
+build/lasertank-core.exe --levels data/levels/LaserTank.lvl \
+    --lpb data/demos/LaserTank/00001.lpb --trace b.tr --sound
+oracle/build/oracle.exe  --levels data/levels/LaserTank.lvl \
+    --lpb data/demos/LaserTank/00001.lpb --trace a.tr --sound
+python tools/difftrace.py a.tr b.tr
+
+"$GODOT" --headless --path src/LaserTank.Game -- --check-sounds
+"$GODOT" --headless --path src/LaserTank.Game -- --ini D:/tmp/x.ini --sound no --save-options
+```
+
+**`SoundPlay` became a trace field, which is what makes this checkable at all.** `--sound` adds
+`SF=<ids>` to every tick line on *both* engines: the ids that tick asked for, in call order, `-` for
+a silent tick. The oracle records them in its own stub (`oracle/driver.c` — `lt_sfx.c` is not
+compiled there and never was), the port records them in `Engine.SoundLog`, and the two must be
+byte-identical. `tools/sound_check.py` replays all 208 recorded `.lpb` that way: **208/208
+identical, 103,682 of 163,791 ticks make a sound, and all sixteen ids fire at least once** (id 7,
+`DIE`, exactly once — the corpus is nearly all winning play).
+
+**The bug it caught immediately: `SoundPlay(S_Move)` was missing.** Phase 2 read `UpDateTankPos`'s
+opening line as paint, alongside the `SetTextAlign`/`TextOut` score readout it sits next to
+(`LTANK2.C:1216`), and dropped it. Nothing could have noticed before this session — no trace carried
+sound — and nothing about the rules moved, but the tank would have driven around in silence, which
+is 23,808 of the corpus's calls. Two more were restored with it, and both are in `LTANK.C` rather
+than `LTANK2.C`, which is why they were never in the core to begin with: `S_EndLev` in the flag case
+(`:650`, and the oracle's `LT_Tick` had it all along) and `S_Die` in `WM_Dead` (`:718`, now in
+`SendDead` where quirk #8's ordering already lives). Restoring three calls is a transliteration
+getting *closer* to the C, and the corpus is the proof that the set is now complete: a fourth
+missing call would show up as an `SF` divergence on some tick of some recording.
+
+**What it cost the core: one word.** `private static void SoundPlay(int sn) { }` became
+`partial void SoundPlay(int sn);`, with the body in `Engine.Sound.cs`:
+`partial void SoundPlay(int sn) => SoundLog?.Add(sn);`. `SoundLog` is null unless a driver opts in,
+so the solver — millions of `MoveTank`/`FireLaser` calls — pays one null test per `SoundPlay` and
+allocates nothing, and every headless trace without `--sound` behaves exactly as before. An event
+would have cost a delegate invocation; a per-tick array would have cost an allocation per `Engine`.
+
+**Two facts about the original's audio that a nicer implementation would lose**, both hiding in one
+argument — `PlaySound(p, 0, 5)`, i.e. `SND_MEMORY | SND_ASYNC`:
+
+- **It is monophonic.** `PlaySound` owns the process's waveform device and a second call *stops the
+  first* unless `SND_NOSTOP` is passed, which it is not. So the original never mixes two effects:
+  the tank moving cuts off the laser bounce. One `AudioStreamPlayer`, `Play()` every time,
+  reproduces that; sixteen players would be a *nicer* game that does not sound like this one.
+- **A tick that asks for several sounds therefore only ever plays the last one** — and `MoveObj`,
+  `AntiTank` and the laser routinely ask for several. `Session` hands the renderer the whole
+  per-tick list in call order and `Sfx` plays the last of it, so the audible-behaviour choice and
+  the fidelity check stay separate things: the *list* is what the gate diffs.
+
+**Muting lives in the presentation, not the engine.** `lt_sfx.c:29` returns early on `!Sound_On`, so
+a muted original makes no `PlaySound` call at all — but it makes the same decisions, and decisions
+are what the port records. Putting `Sound_On` in the engine would have made a muted game trace
+differently from a loud one. `[OPT] Sound` is therefore read by `Options` and applied by `Sfx`; the
+`S` key is command 102 (`ToggleOpt`, `LTANK.C:875`) and writes `Yes`/`No` on the spot.
+
+**The INI test is the original's, case and all.** `if (strcmp(temps, psYes)) Sound_On = FALSE;`
+(`LTANK.C:411`) means **exactly `Yes` or the sound is off** — a hand-edited `Sound=yes` really does
+mute the 2010 binary. Kept, because it is one line, it is observable, and there is no argument for
+leniency beyond taste. Worth knowing that step 2's `RLL` reader took the looser reading of the same
+idiom and its gate now pins that; the two disagreeing is recorded here rather than harmonised by
+guess.
+
+**The WAVs are read at run time and cross-checked, like the sprite sheets.** All sixteen are PCM
+mono 8-bit, 11025 Hz except `MOVE` and `PUSH3` at 8000; `LaserTank.Core/SoundFile.cs` reads RIFF
+(walking every chunk — these files carry `fact`, `LIST` and `DISP`, and several put `LIST` *after*
+`data`) and converts to signed 8-bit, because **8-bit WAV samples are unsigned and every raw-PCM
+consumer wants them signed**. That xor with `0x80` is the conversion that silently produces a
+DC-offset click rather than an error, so it is checked: `sound_check.py` decodes the same files in
+Python and compares sha256 against C#'s through `--check-sounds`. The id -> name table is carried
+twice for the same reason — `SoundFile.Names` and the tool's own copy — because a table agreeing
+with itself is not a check. Nothing was imported into `res://`: `original/src/Sounds/` is frozen and
+read from where it lies, exactly as the internal sprite sheet is.
+
+*Exit — MET, and by more than was asked.* The four Phase 5 gates and `replay_all.py`, `sweep.py`,
+`test_difftrace.py` are green with the sound in (187/181/112, 2,347/2,347, 208/208, 29 passed), so
+adding audio changed no trace — and `sound_check.py` adds the claim the original criterion could not
+make: the port asks for the same sound, in the same order, on the same tick, as the C, on every
+recording in the corpus. **The one thing no gate covers** is that `AudioStreamPlayer` actually
+makes a noise: the ids, the decode and the option are all checked headless, and the last hop needs a
+human with speakers. That hop was walked at the end of this session -- the game was played and the
+sounds were heard -- so step 3 is closed. It stays the part a future regression would have to be
+noticed rather than measured, which is worth remembering if the audio path is ever refactored.
+
+**Not in step 3, on purpose:** an Options menu (the `S` key is the whole UI, as `G` and `Z` are),
+`Ani_On`'s `[OPT] Animation` twin, and the volume/mixer settings the original never had.
 
 **Step 4 — the game around the game.** Level picker, high scores (`.hs`/`.ghs`, already read by
 `LevelFile`), undo, and record/playback UI. Undo needs less than it looks: `UpdateUndo` /
@@ -753,6 +854,13 @@ formats stay readable *and* writable) is demonstrated rather than asserted.
   (10/13/17). Taking the initialiser for the rule and scaling it drew the laser three times too
   wide, and nothing but a pixel measurement would have said so. Same species as re-deriving `BMF`
   from `PF` (hazard #2).
+- **An exit criterion that only says "nothing changed" is not one.** Step 3 was planned as "adding
+  audio must change no trace, so the gates staying green *is* the proof" — which would have shipped
+  a game whose tank drove around in silence, because `SoundPlay(S_Move)` had been dropped in Phase 2
+  and no trace carried sound. The fix is the same one Phase 1 found when "186/186 reach the flag"
+  turned out to be the wrong bar: make the thing being added *observable*, then diff it against the
+  C. Every step after this one should ask what its own new output is and how the oracle can be made
+  to emit it too.
 - **Measure pixels, do not look at them.** Both step 2 bugs were invisible in a screenshot until
   someone knew the number to expect. Anything geometric — bar widths, outlines, cell rects — gets a
   reader-and-compare in `tools/options_check.py`, whose laser check takes the coordinates from the
@@ -936,6 +1044,8 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
   LaserTank.Core/  Objects.cs GameState.cs LevelFile.cs Engine.cs  (no Godot here)
                    Engine.Search.cs — snapshot/restore, ApplyKey, StateHash
                    GraphicsFile.cs — .ltg + BMP readers, BMSTA/ColorList (Phase 5)
+                   SoundFile.cs — the .wav reader and lt_sfx.c's id->name table
+                   Engine.Sound.cs — SoundPlay's body: SoundLog?.Add, nothing else
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
   LaserTank.Game/  the Godot 4.7 project.  BoardView.cs draws Game.BMF and routes
@@ -943,7 +1053,8 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    WM_Dead, ReStart, WM_SaveRec), PlayMode.cs is that driver with a
                    scripted player, Atlas.cs hands the sheet to the renderer,
                    Options.cs is LaserTank.ini, Packs.cs is GFXInit's three modes,
-                   GraphicsMenu.cs is GraphBox, Paths.cs finds data/.  Built by
+                   GraphicsMenu.cs is GraphBox, Sfx.cs is lt_sfx.c (one player,
+                   monophonic), Paths.cs finds data/.  Built by
                    Godot or `dotnet build`, never published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
@@ -983,6 +1094,12 @@ options_check.py  Phase 5 step 2's gate: LaserTank.ini's semantics and round
                     sizes, and the laser bar measured out of a --shot PNG in
                     the cell the engine names.  Opens three brief windows;
                     --no-window skips that half
+sound_check.py    Phase 5 step 3's gate: every recorded .lpb replayed through
+                    both engines with --sound, so the per-tick SoundPlay id
+                    stream must be identical too; the sixteen .wav files
+                    decoding to the same PCM in Python and in C#; and
+                    [OPT] Sound's semantics, including the original's
+                    case-sensitive test for "Yes"
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1089,19 +1206,20 @@ place despite not winning.
   already in `src/LaserTank.Game/.godot/mono/temp/bin/`, so editing `Session.cs` and running the
   project — or a gate — silently exercises the *previous* build. Only the editor builds on run.
   Verified the ugly way: a changed string on disk did not appear in the output, while the gate
-  still reported a green 208/208. All three Godot-backed gates now call
+  still reported a green 208/208. All four Godot-backed gates now call
   `engines.build_godot_game()` first (`tick_check.py` and `options_check.py` always,
-  `atlas_check.py` in its cross-check half), and anything new that runs the project must do the
-  same. By hand:
+  `atlas_check.py` and `sound_check.py` in their cross-check halves), and anything new that runs the
+  project must do the same. By hand:
   `dotnet build src/LaserTank.Game/LaserTank.Game.csproj`. It builds into `.godot/` and
   `src/LaserTank.Core/bin/`, never `build/`, so it is safe beside a live solve.
 - **A running solver blocks `src/build.sh`, but not the compilers.** `dotnet publish -o build`
   cannot replace `build/LaserTank.Core.dll` while a `lasertank-solve.exe` holds it open, so during
   a long solve build each project into its own `bin/` instead — `dotnet build
-  src/LaserTank.Core/LaserTank.Core.csproj -c Release`, and `replay_all.py --engine
-  src/LaserTank.Cli/bin/Release/net8.0/lasertank-core.exe` to run the corpus against it. That is
-  how Phase 5 step 0 was checked without touching a live solve. The Godot project never publishes
-  into `build/` at all.
+  src/LaserTank.Cli/LaserTank.Cli.csproj -c Release`, and then either `replay_all.py --engine
+  src/LaserTank.Cli/bin/Release/net8.0/lasertank-core.exe` or, for everything built on
+  `tools/engines.py` (`sweep.py`, `atlas_check.py`, `sound_check.py`, `fuzz.py`), **`$LT_CORE`**,
+  which overrides `engines.CORE` for exactly this reason. That is how Phase 5 steps 0 and 3 were
+  checked without touching a live solve. The Godot project never publishes into `build/` at all.
 - **Trap in the oracle's own usage text:** it advertises `--keys` as accepting "raw decimal VK
   codes separated by commas", but `driver.c` only parses the characters `u d l r f` and silently
   skips everything else. `--keys 38,38,32` therefore yields an *empty* keystream and an idle run
@@ -1126,6 +1244,13 @@ place despite not winning.
   through a Python heredoc silently turns `\n` into a real newline and eats `\` line continuations.
   Use the editing tools for anything containing a backslash, or write the replacement text to a
   file first and read it in.
+- **And a *doubled* backslash arrives as a single one even in `cat > f <<'EOF'`** -- measured
+  this session: `a\\nb` in the heredoc lands on disk as `a\nb`, while a lone `a\nb` lands
+  unchanged, so escaping for the inner language is exactly backwards here.  What does work for a
+  Python patch script that has to match C or C# source containing a `\n` escape: write the script
+  with `cat > file <<'EOF'`, single backslashes throughout, and **raw** string literals -- the
+  triple-quoted raw form, switching to the single-quoted one where the text itself contains a
+  double quote.  A patch that fails to match a plausible-looking string is usually this.
 - **The quirk packs mix `.lvl` and `.LVL`**, and the four that ship uppercase are the four biggest
   (`tutor`, `tutor-with-playbacks`, `rotary-mirrors`, `game-objects`). A `glob("*.lvl")` is
   case-insensitive on Windows and silently drops them on Linux — it already cost one campaign four
@@ -1257,6 +1382,29 @@ was also clarified this session and it changes how the rest of the phase should 
 puzzle mechanics have to match the original exactly — the UI is expected to be redesigned later.**
 See the note at the top of Phase 5.
 
+**2026-09-07, session 27 — Phase 5 step 3: sound, and the differential that made it a real step.**
+The sixteen WAVs play, off the ids `Tick()` already computes; `S` mutes and `[OPT] Sound` remembers
+it. The step's planned exit criterion — "the gates stay green, i.e. audio changed no trace" — was
+replaced on the way in, because it can only ever prove that sound changed nothing: `--sound` now
+adds `SF=<ids>` to a trace line on **both** engines (the oracle records them in its own `SoundPlay`
+stub, the port in `Engine.SoundLog`), and `tools/sound_check.py` replays all 208 recordings through
+both: **208/208 identical including the whole per-tick sound stream**, all sixteen ids exercised.
+That found the bug on the first run — `SoundPlay(S_Move)`, dropped from `UpDateTankPos` in Phase 2
+as paint, 23,808 calls in the corpus — plus two more calls that live in `LTANK.C` and so had never
+been in the core: `S_EndLev` at the flag and `S_Die` in `WM_Dead`. Three restored calls, and the
+corpus is now what says the set is complete. The core's cost is one word (`SoundPlay` is a partial
+method; `SoundLog?.Add` is the body, null for the solver and every headless trace). Two properties
+of the original's audio were kept that a nicer implementation drops: `PlaySound` with
+`SND_ASYNC`/no `SND_NOSTOP` is **monophonic**, so one player and last-call-wins — and therefore only
+the last sound of a tick is ever heard, while the *list* is what the gate diffs. Muting stayed out
+of the engine on purpose: `lt_sfx.c` returns before `PlaySound` when `!Sound_On`, but the decisions
+are identical, and a muted game must not trace differently. The WAVs are read from frozen
+`original/src/Sounds/` at run time and cross-checked Python-vs-C# by sha256, like the sprite sheets;
+the id→name table is carried twice for the same reason. One thing no gate covers, and the only
+claim in the step that was checked by ear rather than measured: that `AudioStreamPlayer` actually
+makes a noise -- confirmed by hand at the end of the session.
+
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
-re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the single word
-`partial`, and `Engine.Search.cs` has not changed since the solver's layer 0.*
+re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the word
+`partial` — on the class, and (since step 3) on `SoundPlay`, whose body is in `Engine.Sound.cs` —
+and `Engine.Search.cs` has not changed since the solver's layer 0.*

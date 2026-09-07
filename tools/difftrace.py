@@ -47,7 +47,7 @@ from collections import Counter, deque
 # Reporting order, most primary first.  M1..M15 (the slide stack) sort between
 # N and PF; anything unrecognised sorts last, so a new field is never hidden.
 PRIMARY = ["t", "T", "L", "S", "P", "C", "SlT", "SlO", "N"]
-DERIVED = ["PF", "PF2", "H", "D", "G"]
+DERIVED = ["PF", "PF2", "H", "D", "G", "SF"]
 COSMETIC = ["A", "BMF", "BMF2"]
 ORDER = PRIMARY + ["M*"] + DERIVED + COSMETIC
 
@@ -64,6 +64,7 @@ WHAT = {
     "N": "SlideMem.count", "PF": "playfield", "PF2": "under-playfield",
     "H": "fnv1a(PF),fnv1a(PF2)", "D": "deaths", "G": "Game_On",
     "A": "animation", "BMF": "bitmaps", "BMF2": "under-bitmaps",
+    "SF": "SoundPlay ids this tick (--sound)",
 }
 GRIDS = ("PF", "PF2", "BMF", "BMF2")     # 256 hex bytes; PF[x][y] lives at x*16+y
 

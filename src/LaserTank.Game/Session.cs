@@ -55,6 +55,17 @@ namespace LaserTank.Game
         public bool LaserBounced;
         public int LaserFromDir;
 
+        /// The SoundPlay ids this tick asked for, in call order (Phase 5,
+        /// step 3).  The engine appends; nothing here decides which sound
+        /// fires or when -- Engine.SoundLog is the same list the CLI's --sound
+        /// trace dumps, and tools/sound_check.py diffs that against the C
+        /// oracle's own SoundPlay sequence.  Sfx.PlayTick decides what is
+        /// *audible* out of it, which is a different question.
+        private readonly System.Collections.Generic.List<int> _sounds =
+            new System.Collections.Generic.List<int>();
+
+        public System.Collections.Generic.IReadOnlyList<int> Sounds => _sounds;
+
         private readonly string _lvlPath;
         private readonly Options _opt;
         private int _recBufSize;
@@ -94,6 +105,10 @@ namespace LaserTank.Game
             if (n > _levelCount) n = 1;
 
             var e = new Engine();
+            // Opt in to the sound sink.  Null means SoundPlay does nothing at
+            // all, which is what the solver and every headless trace get.
+            e.SoundLog = _sounds;
+            _sounds.Clear();
             if (!e.LoadLevel(_lvlPath, n))
             {
                 Error = $"cannot load level {n} of {_lvlPath}";
@@ -187,11 +202,15 @@ namespace LaserTank.Game
 
             PrevTankX = E.Game.Tank.X;
             PrevTankY = E.Game.Tank.Y;
+            _sounds.Clear();          // SF is per tick (driver.c: sf_n = 0)
             int oDir = E.laser.Dir, oX = E.laser.X, oY = E.laser.Y;
             bool wasFiring = E.Game.Tank.Firing != 0;
 
             E.Tick();
             E.Pump();               // quirk #8: the deferred deaths land here
+                                    // -- and with them S_Die, so the sounds of
+                                    // a tick are only complete after the pump
+
             Ticks++;
 
             // UpDateLaserBounce's `a` argument, recovered by observation.  The

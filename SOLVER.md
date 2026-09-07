@@ -22,9 +22,17 @@ The gate is not a formality even so: it is the write path, and a solution that f
 rather than banked.
 
 **The standing engine claim, re-checked at the end of every session:** nine layers in,
-`Engine.cs` still differs from a literal transliteration by the single word `partial`, and
+`Engine.cs` still differs from a literal transliteration by the word `partial` -- on the class, and
+(since Phase 5 step 3) on `SoundPlay`, whose empty body moved to `Engine.Sound.cs` -- and
 `Engine.Search.cs` has not changed since layer 0. If a solver change seems to need an engine change,
 stop and re-read.
+
+Step 3 also restored three `SoundPlay` calls Phase 2 had read as paint (`S_Move`, `S_EndLev`,
+`S_Die`). **Nothing the search touches changed:** `SoundPlay`'s body is `SoundLog?.Add(sn)` and
+`SoundLog` is null unless a driver opts in, which the solver never does, so a search pays one null
+test per call and allocates nothing. The corpus was re-verified with the change in -- 187/181/112,
+2,347/2,347, 208/208 -- and the sound ids themselves are now a trace field the oracle emits too
+(`--sound`), gated by `tools/sound_check.py`.
 
 ---
 

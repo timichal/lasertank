@@ -19,20 +19,22 @@ namespace LaserTank.Cli
         {
             Console.Error.WriteLine(
 "usage: lasertank-core --levels FILE.lvl (--lpb FILE.lpb | --level N --keys STR)\n" +
-"                      [--trace FILE] [--field] [--bmf] [--max-ticks N] [--quiet]\n" +
+"                      [--trace FILE] [--field] [--bmf] [--sound] [--max-ticks N]\n" +
+"                      [--quiet]\n" +
 "\n" +
 "  --lpb FILE     replay a recorded solution; level number comes from its header\n" +
 "  --level N      1-based level number (with --keys)\n" +
 "  --keys STR     keystream as characters: u d l r f\n" +
 "  --field        include full PF / PF2 hex in the trace\n" +
-"  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n");
+"  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n" +
+"  --sound        include SF, the SoundPlay ids the tick asked for\n");
         }
 
         public static int Main(string[] argv)
         {
             string levels = null, lpb = null, keys = null, tracePath = null;
             int level = 0;
-            bool quiet = false, field = false, bmf = false;
+            bool quiet = false, field = false, bmf = false, sound = false;
             long maxTicks = 200000, tick = 0;
 
             for (int i = 0; i < argv.Length; i++)
@@ -47,6 +49,7 @@ namespace LaserTank.Cli
                     case "--max-ticks" when i + 1 < argv.Length: maxTicks = long.Parse(argv[++i]); break;
                     case "--field": field = true; break;
                     case "--bmf": bmf = true; break;
+                    case "--sound": sound = true; break;
                     case "--quiet": quiet = true; break;
                     default: Usage(); return 2;
                 }
@@ -95,6 +98,11 @@ namespace LaserTank.Cli
                 return 3;
             }
 
+            // Phase 5, step 3: opt in to the sound sink.  Null means nobody is
+            // listening and SoundPlay does nothing at all, which is what every
+            // run without --sound (and the whole solver) gets.
+            if (sound) e.SoundLog = new System.Collections.Generic.List<int>();
+
             // LoadLevel resets RecP/RB_TOS, so install the keystream after it.
             e.RecBuffer = keystream;
             e.RB_TOS = keystream.Length;
@@ -103,7 +111,7 @@ namespace LaserTank.Cli
             TraceWriter tr = null;
             if (tracePath != null)
             {
-                try { tr = new TraceWriter(tracePath, field, bmf); }
+                try { tr = new TraceWriter(tracePath, field, bmf, sound); }
                 catch (IOException ex)
                 {
                     Console.Error.WriteLine("lasertank-core: " + ex.Message);
@@ -120,6 +128,7 @@ namespace LaserTank.Cli
                 while (e.Game_On && e.Deaths == 0 && tick < maxTicks)
                 {
                     tick++;
+                    e.SoundLog?.Clear();         // SF is per tick, driver.c:sf_n = 0
                     e.Tick();
                     e.Pump();                    // dispatch anything posted this tick
                     tr?.Tick(tick, e);
