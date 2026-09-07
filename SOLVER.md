@@ -198,6 +198,13 @@ attack on it.
 >   the old label was a pre-fix read. Levels were not hand-picked to match the old description.
 
 **1. Layer 4's learned evaluation does not act, and the fix is worth 15 levels of composite.**
+*(In progress, session 26, in a parallel session.)* Two additions from *Pointers from a second
+reader*, item 4: the push-side fix is `Rank(work) + Eval.Scale * (ferry + stop + dead + shield)`
+in `PushH` -- tiers are untouched, the addends keep their relation, and the one new scalar is the
+ratio of learned score to hand terms; and bench the push side against a `--push-eval none`
+control (H = 0, `Tier` then `G`), because at the shipped weights `learned` on the push rungs has
+been sorting mostly by keystream length and that, not a feature, may be what levels 6 and 8
+"wanted".
 Measured, not inferred: `--sg-eval learned` at the shipped `Weights.cs` vector is identical **to the
 node** to plain layer 3 on all 255 `Beginner-I` layer-0 failures at 150k and all 50 deep-bench levels
 at 400k, so the pass adds 0 of 3,714 where this file credits it +30.
@@ -331,9 +338,292 @@ it is not budget. 6 wants layer 2's decomposition one level out: commit to one b
 search only for that, re-derive. **10 was the "just buy the nodes" case until session 23, when the two
 900M-node runs session 22 left going came back unsolved at board-change depth 2** — so its ~1,000-pose
 closure, not its width, is what needs attacking. Do not spend another overnight run on it as-is.
+**Session 26 disputes the premise for 10:** at width 1024 with the layer-8 flags the beam costs
+~5.7M nodes a depth and reached depth 9 in 39M, so 900M is ~150 depths, not 2. Item 8 below is
+the one traced run that settles it, and it comes before any decomposition.
 
 **6. Still worth doing, no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
 harvester.** See *Open question* at the end.
+
+Items 7-12 are session 26's, distilled from *Pointers from a second reader* (next section), which
+carries the evidence and the caveats for each. They are ordered by expected value per hour; 7 and 8
+are runs, not code.
+
+**7. Draw the solved-vs-budget curve over the short-record failures, and bank what it solves.**
+338 unsolved levels in the sample have a `.ghs` record of ≤40 moves+shots, 715 of ≤60, and 95.9% of
+failures stop on `budget`. This is the production number the whole project is measured by, and it
+has never been run above 150k except by accident (`l3n-1m.jsonl`, 3.3x the levels). One list, three
+budgets, every solution through the gate:
+
+```bash
+# the unsolved with a short record, from the chain's final state
+python - <<'EOF'
+import json
+rows=[json.loads(l) for l in open("build/reports/chain.jsonl",encoding="utf-8")]
+with open("bench/short-record-failures.txt","w") as f:
+    for r in rows:
+        if not r["solved"] and 0 < r["ghs_moves"]+r["ghs_shots"] <= 60:
+            f.write(f'{r["collection"]}\t{r["level"]}\n')
+EOF
+# the chain's own four searchers, in its order, each pass over what the previous one failed
+for N in 1000000 10000000 50000000; do
+  R=build/reports/curve-$N; S=solutions/curve-$N
+  NODES=$N bash tools/second_pass.sh build/reports/chain.jsonl $S $R-l0.jsonl  --no-ida
+  NODES=$N bash tools/second_pass.sh $R-l0.jsonl  $S $R-l3.jsonl  --no-ida --no-beam --subgoal
+  NODES=$N bash tools/second_pass.sh $R-l3.jsonl  $S $R-l4.jsonl  --no-ida --no-beam --subgoal --sg-eval learned
+  NODES=$N bash tools/second_pass.sh $R-l4.jsonl  $S $R-l1.jsonl  --no-ida --no-beam --macro --macro-first
+  python tools/verify_solutions.py build/$S
+done
+```
+
+`second_pass.sh` re-attacks a report's failures, so the whole 3,709 run and `--order ghs` puts the
+short records first; `SAMPLE=` or a list through `bench.sh` if only the ≤60 population is wanted.
+Report the solved count per budget as a table in *Status*. **Keep 150k for attribution; this is a
+different question**, and at 50M the push rungs (`--push --push-read`, item 2's five arms) become
+affordable as a fifth pass.
+
+**8. Level 10, one traced run before anything is built for it.** `--push-trace` at width 1024, the
+`push-ferry-work` flags (item 4's level-9 command, `--push-beam 1024`, `--push-restarts 0`), 400M
+nodes, `--jobs 1`, and read the `d=` column. If it climbs past 50 and does not win, level 10 is a
+ranking problem at that width and item 11 applies; if it stalls at a small depth, find the
+multiplier (`--push-enables`, `--push-read-opens N>0`) and record the flags in the report this
+time. 39M nodes reached depth 9 in session 26 with best 62 → 28.
+
+**9. A `--max-round N` for the driver, then run it unattended.** `Auto.cs:609` has no round cap, so
+the portfolio cannot be pointed at a collection and left. With the cap, `--lanes 4 --max-round 3`
+over `Beginner-I` is the overnight run that gives every rung its chances at 25.6M and banks to
+`data/solutions/` through the gate. This is item 7's counterpart for the rungs the chain does not
+contain.
+
+**10. Wall clock on the push rungs: profile, then memoise `PushH` per board.** 166k nodes/s on the
+shipped push rung against 1.4M on layer 0, and the difference is heuristic work repeated for every
+pose of the same playfield. First `dotnet-trace` one `--push --push-read --push-beam 8 --nodes
+6000000 --jobs 1` run on `LaserTank.lvl` 10 to see the split; then cache the flag Dijkstra (and the
+fire map, matching, `Feat` board terms) by `BoardKey` within an expansion, by `(BoardKey, tank
+cell)` under `--push-reach`. **Measure in seconds, never nodes** -- the node count is identical by
+construction, so every bench in this file will report no change.
+
+**11. The closure-dominance prune, instrument first.** Add `sterile=` to `--push-trace` (expansions
+that emitted zero fresh successors). If it is tens of percent on the ferry bench, add
+`seen.UnionWith(local)` after every *untruncated* expansion in `ExpandPush` -- lossless, one line --
+and key the per-board cap on `(BoardKey, TankRegion)` rather than `BoardKey`. Re-bench both lists;
+expect the node count per solved level to fall rather than the solved count to rise.
+
+**12. Per-level `MaxKeys` from the record.** `clamp(5 × (ghs_moves + ghs_shots) + 100, 1200, 8000)`,
+default kept where the record is 0. Two silent truncations in this file already; the third consumer
+of a number `--order ghs` and `--trim-ratio` already read.
+
+Further out, and only after 7-9 have moved the number: a FESS-shaped rung for the Sokoban/ferry
+half of the corpus (pointer 7), and subgoal chaining over board changes with the acceptance tests
+that already exist (pointer 8) -- for 6 and, if item 8 says ranking, for 10.
+
+---
+
+## Pointers from a second reader — session 26
+
+**What this section is.** A pass over this file and the solver source by a different model, looking
+for things the layers above may have walked past. No code was changed. Seven short runs were made
+(all `--jobs 1`, all on the tree as of this session) and every claim below is tagged: **measured**
+means a number from one of those runs or from `build/reports/chain.jsonl`; **in the code** means a
+fact read off the source with a file and line; **hypothesis** means neither, and says what would
+settle it. Ordered by expected value per hour, not by how interesting each is.
+**The actionable subset is *Next actions* items 7-12;** this section is the evidence behind them.
+
+### 1. Spend the budget where the record says the level is short  (measured)
+
+Every number in this file is quoted at 150k nodes so that layers can be attributed. That is the
+right *measurement* budget and the wrong *production* budget, and the two have been conflated:
+the goal is a solved count, the chain fails 95.9% of its levels on `budget`, and the one accident
+that ran a pass at 1M (`l3n-1m.jsonl`) came back 3.3x the levels. `chain.jsonl` says where the
+cheap ones are:
+
+| unsolved in the 4,185-level sample | levels |
+|---|---:|
+| all | 3,709 |
+| `.ghs` moves+shots **≤ 40** | **338** |
+| `.ghs` moves+shots ≤ 60 | 715 |
+| median record of an unsolved level | 149 |
+
+Three hundred and thirty-eight levels whose best-known solution is under forty moves-plus-shots are
+unsolved at 150k nodes. A keypress beam at 10M nodes on that population is 3.4G nodes — at the
+layer-0 rate measured below, **a few minutes at 14 jobs** — and the same for the push rungs is
+about an hour. This is the *solved-count-vs-budget curve, Kids-first ordered by `.ghs` cost* that
+*The bar* says is how progress should be reported; it has not been drawn. Draw it: the whole chain
+at 1M, 10M and 50M over the ≤60 population, banked and verified, then over the rest. The chain's
+scripts already take `NODES=`; the only missing piece is the per-level ordering by record, which
+`--order ghs` (the default) already does inside one collection.
+
+### 2. The node budget hides most of a push rung's wall clock  (measured)
+
+A node is one `ApplyKey`, and on layer 0 that is nearly all of the time. On the push rungs it is
+not. `LaserTank.lvl` 10, width 8, 6M nodes, one thread:
+
+| configuration | seconds | nodes / s |
+|---|---:|---:|
+| layer 0 beam, `Beginner-I` 1581, 4M nodes (process start included) | 2.8 | **~1.4M** |
+| `--push --push-eval work` (no read) | 16.6 | 360k |
+| `--push --push-eval learned` (no read) | 29.9 | 200k |
+| `--push --push-read` (learned, the shipped rung) | 36.2 | **166k** |
+
+The same node count costs **2-8x the seconds**, and none of it is the engine: it is `PushH` per
+emitted successor — a Dijkstra from the flag, the fire map, the reach flood, the ferry matching and
+maze BFS, `Feat.Extract`'s seventeen features — plus a `TankRegion` flood per untiered successor in
+the cheap `opens`. (The `work`/`learned` pair is not a clean ablation: the two beams walked different
+boards, closure ~466 against ~1,022, so the split between key cost and board cost needs a profiler,
+not this table.)
+
+**Where it is recoverable:** the successors of one expansion are, in this file's own words, *four
+boards wearing thirty-nine hats*. Everything in that list except the tank's own cell is a function
+of the playfield alone — the Dijkstra runs *from the flag* and reads the tank cell off its table
+(`Heuristic.cs:379-432`) — and it is recomputed for every hat. Memoise the table by `BoardKey`
+within an expansion (by `(BoardKey, tank cell)` under `--push-reach`, whose flood starts from the
+tank) and the per-successor cost collapses to a lookup for every duplicate. Node counts do not
+move, so **no bench in this file can see this change** — it has to be measured in seconds. Two to
+four times on the rungs that solve the hard levels is the plausible size; a profiler run
+(`dotnet-trace`) on the width-8 level-10 run above is the instrument, and it comes before the
+memo, not after.
+
+### 3. A lossless prune the push beam does not take  (in the code; size is a hypothesis)
+
+Every pose in an *untruncated* PF-preserving closure is dominated by the node it was expanded
+from: movement closure is transitive, so whatever board changes are reachable from pose *p* are
+reachable from the parent, and the parent has already emitted all of them. Yet `ExpandPush` adds
+those poses only to `local` (`Push.cs`, the closure loop) — never to `seen`. So a later successor
+whose state is *exactly* one of those poses — same board, tank somewhere else in the same
+component — is fresh to the closed set, takes a slot in the width, and pays a whole closure
+(~5,000 `ApplyKey` on level 10) to emit successors that are all already closed. Push a block right
+and then, from another side, push it back; turn a roto-mirror through a cycle while the tank
+moves between shots; any reversible pair on a Sokoban level: each is one of these. The per-board
+cap does not catch it, because the parent board is not in *this depth's* frontier.
+
+The fix is one line — after an expansion that did not truncate, `seen.UnionWith(local)` — and it
+is lossless for the search (a dominated state offers nothing the dominator did not). Two caveats:
+it must be skipped when the closure truncated (the parent did not finish emitting), and it changes
+`G` tie-breaks, since the dominated state may have arrived with a shorter keystream — polish and
+replan take that back after the fact. **Instrument first**, because how much it buys is the open
+question: add `sterile=` to `--push-trace`, the count of expansions this depth that emitted zero
+fresh successors. If it is a few percent, leave it; if it is tens of percent on the Sokoban and
+roto levels, ship it and re-bench.
+
+The same reasoning sharpens the per-board cap. Poses of one board are interchangeable *within a
+movement component* and not across one, which is exactly the objection the cap's comment raises.
+`Heuristic.TankRegion` already computes the component cheaply: key the cap on `(BoardKey, region)`
+rather than `BoardKey`, and the cap stops being a number that occasionally drops the one pose on
+the useful side of a newly cut map.
+
+### 4. What `--push-eval learned` ranks by at the shipped weights  (in the code)
+
+`Rank()` returns `Eval.Score` alone (`Learn.cs:291-296`), and `Score` divides by 1024. The `work`
+weight is 157, so one unit of `WorkDistance` is worth **0.15** of the key, and session 25 measured
+the minimum tied in 786 of 815 groups. On the push rungs, whose default this is, the beam is
+therefore sorting on a coarsely quantised score and settling most of it by the `G` tie-break —
+**fewest keypresses first**. Read layer 8's table again with that in mind: *6 and 8 want the
+learned key* may mean *6 and 8 want fewest-keys-first among near-ties*, a uniform-cost flavour
+over board changes, and no feature at all. That is testable for the price of a flag: `--push-eval
+none` (H = 0, so `Cut` orders by `Tier` then `G`), and the two levels' `--push-line` ascent and
+the two benches beside `learned` and `work`. If `none` reproduces `learned`, the shipped push key
+is paying the wall-clock tax in item 2 for nothing, and *Next actions* item 1 has to be benched
+against `none` rather than `work` on the push side.
+
+The push-side fix for item 1 is smaller than the text there suggests: keep `Score` in fixed point
+and multiply the work-unit addends in `PushH` by `Eval.Scale` — `Rank(work) + Scale * (ferry +
+stop + dead + shield)`. Tiers sort before `H` and are untouched; the addends keep their exact
+relation to each other; the one thing that changes is the ratio of learned score to hand terms,
+which was never tuned because the learned term was inert. One scalar to sweep, on the two benches.
+
+### 5. Level 10: this file's arithmetic and the machine disagree  (measured)
+
+*What has not fallen* says two 900M-node runs at width ~1024 came back with the frontier at
+board-change depth **2**, and concludes the ~1,000-pose closure makes every width unaffordable.
+Measured on this tree:
+
+| level 10, `--push-trace` | nodes per depth | reached |
+|---|---:|---|
+| width 8, plain push | 40,880 (= 8 × 1,022 poses × 5 keys) | depth 168 at 6M |
+| **width 1024, the full `push-ferry-work` flag set** | **~5.7M** | **depth 9 at 39.3M**, best 62 → 28 |
+
+At that rate 900M nodes is about **150 depths**, not two, and the level's hand line is 53. So
+either those runs carried a multiplier this file does not record — `--push-enables` or
+`--push-read-opens N>0` are the candidates, each a pose closure *per asked successor*, i.e. up to
+64 closures of ~5,000 nodes on top of one expansion of 5,000 — or the depth was read through the
+`d=`/`at=` trap. (Checked while here: the default `--push-read-opens -1` is the cheap flood, and a
+run with `-1` and one with `0` are node-identical, so the read is *not* the multiplier at
+defaults.) Either way the conclusion drawn from them does not stand on its own, and the level is
+back to being worth exactly one properly instrumented run — `--push-trace` at width 1024-2048,
+the layer-8 flags, 400M nodes, and read the `d=` column — before anything is built for it. The
+descent 62 → 28 in nine depths says the key is not the problem on this configuration.
+
+### 6. The driver cannot be run unattended, and that is the tool item 1 needs  (in the code)
+
+`Auto.cs:609` — `for (round = 0; !won && !lane.Skip && !_quit; round++)` — has no cap. Pointed at
+a collection, it stays on the first level it cannot solve until a human presses the lane's number.
+A `--max-round N` (or a per-level wall clock) turns the portfolio into the batch tool it already
+almost is: `--lanes 4 --max-round 3` over `Beginner-I` overnight, banking to `data/solutions/`
+through the gate, is the production run — every rung, rounds to 25.6M, no hand-tuning — and it is
+the honest denominator for "how much of this corpus can the ladder do".
+
+### 7. Half the corpus is a Sokoban, and Sokoban has a solved literature  (hypothesis)
+
+FERRY + SOKOBAN is 53% of the sample at 5.1% solved, and level 6's diagnosis — *a greedy
+level-synchronous beam in a region where every successor of every held board is worse* — is the
+textbook failure of beam search on Sokoban. The textbook answer is **FESS** (Shoham & Schaeffer,
+*The FESS Algorithm: A Feature Based Approach to Single-Agent Search*, IEEE CoG 2020), the first
+solver to clear all 90 XSokoban levels. The shape: project states into a small **feature space**
+(boxes packed, connectivity = number of regions the player is cut into, room connectivity,
+boxes out of plan); advance by *cycling through the occupied feature cells* and expanding the
+best state in each; weight moves by "advisors" that say which pushes serve which feature. Two
+things about it belong here. It is the general form of two devices this file arrived at by
+measurement — the per-board cap (diversity across boards) and *commit to one block-and-hole pair*
+(a progress cell searched on its own) — so the fit is not speculative. And it respects the
+fidelity rule: the engine still generates every state; the features are `Heuristic.cs` quantities
+that already exist (holes filled, `TankRegion`, ferry-maze distance, `RouteDead`), and the
+advisors are the read's derivations under another name. A rung, measured as a union.
+
+Its second gift is the packing order, derived backwards from the goal: which hole must be filled
+before which, from where a block can still be pushed *after* the others are down. The greedy
+matching in `--push-ferry-match` is the forward half of that; the backward half is what level 6's
+strip of six holes wants.
+
+### 8. Subgoal chaining over board changes, with the acceptance test already written  (arithmetic)
+
+Both open levels ask for layer 2's decomposition one level out, and the pieces exist. The
+acceptance test in `Subgoal.Offer` (`Subgoal.cs:344`) is a board test; for a gauntlet the board
+test is *the safe flood gained a named route cell* (`--push-reach`'s flood, set inclusion rather
+than count), and for a Sokoban it is *block b stands on the next cell of its maze path*
+(`--push-ferry-maze`'s BFS already produces the path). A sub-search for one such subgoal on level
+10 is width 64 × depth ≤ 6 × ~5,100 nodes per expansion ≈ **2M nodes**; ten shields is 20M, the
+budget one round of the driver already spends. The outer search is over the *order* of subgoals,
+depth-first with backtracking, re-deriving the read after each — at most 6! orderings on level 6
+and mostly pruned by the matching. Cheap enough that the first thing to do is not build it but
+run the arithmetic against `--analyze`'s output on the two levels: how many subgoals, and how deep
+each is on the hand line.
+
+### 9. `MaxKeys` from the record, not from a global  (in the code)
+
+The 1,200-key default has silently truncated the end of a level twice in this file (level 6's
+904-key hand line; the layer-8 rungs raising it to 5,000), and a `.ghs` record exists for every
+level in the corpus. `MaxKeys = clamp(5 × (moves + shots) + 100, 1200, 8000)` per level, with the
+default kept where the record is 0, removes the hazard without spending anything on the levels
+that never approached it. `--order ghs` and `--trim-ratio` already read the record; this is a
+third consumer.
+
+### 10. The width ceiling is memory, and the memory is keystreams  (in the code; small)
+
+`Snapshot` copies the whole consumed key prefix (`Engine.Search.cs`, `Array.Copy(RecBuffer,
+s.Keys, s.KeyLen)`) and `Restore` copies it back, so on a 900-key line every node moves ~1.8 KB of
+keys on top of its 1 KB of boards, and a `Node` holds all of it — which is why 76,800 wide was 1.1
+GB. Parent pointers (each node keeps only the keys since its parent; the path is rebuilt on a win)
+cut both the copy and the residency several-fold. Only worth doing if width is ever the wall
+again; it was for level 9.
+
+### Checked, and not opportunities
+
+- **Duplicate boards across the corpus:** 20,914 levels, 20,914 distinct playfields. No solution
+  transfers for free.
+- **Record shots = 0 as a licence to drop the space bar:** only 17 of the 3,709 unsolved have a
+  zero-shot record (and several of those are 0/0, i.e. no record at all). Not worth an action set.
+- **The read's `opens` as level 10's hidden cost:** the default is the cheap flood; with it off
+  the trace is node-identical. See item 5 for what the multiplier might be instead.
 
 ---
 
@@ -1815,3 +2105,12 @@ Three findings, in the order they cost time:
 The session's own lesson is session 24's with a second example: **a measurement that lives only in
 `build/` is not banked either.** Layer 4's +30 was real once and there is now no path in the tree
 that reproduces it.
+
+**session 26 — a second reader.** No code. A different model read this file against the source and
+the machine and wrote *Pointers from a second reader* (after *Next actions*): the record-length
+population the budget should be spent on first (338 unsolved levels with a record <= 40), the 2-8x
+wall clock the node budget cannot see on the push rungs (166k against 1.4M nodes/s), a lossless
+dominance prune the closure does not take, what the push rungs' `learned` key actually sorts by at
+the shipped weights, and one arithmetic disagreement: level 10 at width 1024 runs ~5.7M nodes a
+depth and reaches depth 9 in 39M, so the "depth 2 at 900M" reading needs a `--push-trace` before
+it decides anything.
