@@ -56,12 +56,18 @@ namespace LaserTank.Game
         public int LaserFromDir;
 
         private readonly string _lvlPath;
+        private readonly Options _opt;
         private int _recBufSize;
         private int _levelCount;
 
-        public Session(string lvlPath)
+        /// `options` is the persisted state (Phase 5, step 2) and may be null --
+        /// PlayMode's synthetic player has none, because a gate must not write
+        /// the player's INI.  All it is used for here is [DATA] RLLFilename /
+        /// RLLLevel, which LoadLevel writes (LTANK2.C:1035).
+        public Session(string lvlPath, Options options = null)
         {
             _lvlPath = lvlPath;
+            _opt = options;
             _levelCount = LevelFile.CountLevels(lvlPath);
         }
 
@@ -107,6 +113,11 @@ namespace LaserTank.Game
             // once and reused.  LoadLevel already set RB_TOS = RecP = 0.
             _recBufSize = Math.Max(_recBufSize, RecBufSize0);
             E.RecBuffer = new byte[_recBufSize];
+
+            // LTANK2.C:1035, at the same point in the same function: remember
+            // the level so the next session starts here.  Gated on RLL there
+            // and in Options.RememberLevel.
+            _opt?.RememberLevel(_lvlPath, n);
             return true;
         }
 

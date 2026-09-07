@@ -106,6 +106,34 @@ namespace LaserTank.Core
             return Latin1.GetString(b, off, n);
         }
 
+        /// TLTGREC's three strings, without decoding either bitmap: `Name[40]`,
+        /// `Author[30]`, `Info[245]`, then `ID[5]` and the MaskOffset DWORD.
+        /// GetLTGFiles (LTANK_D.C:1170) fills the graphics dialog's listbox with
+        /// exactly this -- one ReadFile of sizeof(TLTGREC) per pack and no
+        /// bitmap work at all, so a pack with broken bitmaps still lists by
+        /// name.  -> the MaskOffset, which is the one field a caller may want to
+        /// sanity-check before reading the rest.
+        public static uint LtgHeader(string path, out string name, out string author,
+                                     out string info)
+        {
+            byte[] d = new byte[LtgHeaderSize];
+            using (FileStream f = File.OpenRead(path))
+                if (f.Read(d, 0, LtgHeaderSize) != LtgHeaderSize)
+                    throw new IOException(path + ": short header");
+            return LtgHeader(d, path, out name, out author, out info);
+        }
+
+        private static uint LtgHeader(byte[] d, string path, out string name,
+                                      out string author, out string info)
+        {
+            string id = Str(d, 315, 5);
+            if (id != LtgId) throw new IOException(path + ": not an LTG file (ID \"" + id + "\")");
+            name = Str(d, 0, 40);
+            author = Str(d, 40, 30);
+            info = Str(d, 70, 245);
+            return BitConverter.ToUInt32(d, 320);
+        }
+
         /// LoadLTG (LTANK2.C:688): header, then the game bitmap up to
         /// MaskOffset, then the mask bitmap to EOF.  The original checks only
         /// the ID string, and so do we -- everything after it went to
@@ -115,19 +143,17 @@ namespace LaserTank.Core
             byte[] d = File.ReadAllBytes(path);
             if (d.Length < LtgHeaderSize) throw new IOException(path + ": short header");
 
-            string id = Str(d, 315, 5);
-            if (id != LtgId) throw new IOException(path + ": not an LTG file (ID \"" + id + "\")");
-
-            long maskOffset = BitConverter.ToUInt32(d, 320);
+            long maskOffset = LtgHeader(d, path, out string name, out string author,
+                                        out string info);
             if (maskOffset <= LtgHeaderSize || maskOffset >= d.Length)
                 throw new IOException(path + ": MaskOffset " + maskOffset + " outside the file");
 
             SpriteSheet sheet = Build(
                 Bmp.Decode(d, LtgHeaderSize, (int)(maskOffset - LtgHeaderSize), path + " (game)"),
                 Bmp.Decode(d, (int)maskOffset, (int)(d.Length - maskOffset), path + " (mask)"));
-            sheet.Name = Str(d, 0, 40);
-            sheet.Author = Str(d, 40, 30);
-            sheet.Info = Str(d, 70, 245);
+            sheet.Name = name;
+            sheet.Author = author;
+            sheet.Info = info;
             return sheet;
         }
 

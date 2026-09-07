@@ -29,27 +29,42 @@ namespace LaserTank.Game
 {
     public partial class BoardView : Node2D
     {
-        // SetGameSize (LTANK2.C:1729) offers exactly these three.  The original
-        // resamples the whole sheet at load; we scale at draw time instead, so
-        // switching zoom here changes nothing but pixels.  (Hazard #11 lives in
-        // that function -- `if (GFXOn) GFXKill;`, missing its parens.  It stays
+        // SetGameSize (LTANK2.C:1729) offers exactly these three, as sizes 1, 2
+        // and 3 -- which is what [SCREEN] Size persists.  The original resamples
+        // the whole sheet at load; we scale at draw time instead, so switching
+        // size here changes nothing but pixels.  (Hazard #11 lives in that
+        // function -- `if (GFXOn) GFXKill;`, missing its parens.  It stays
         // missing; nothing here calls it.)
         private static readonly int[] Zooms = { 24, 32, 40 };
-        private int _zoom = 1;
-        private int Cell => Zooms[_zoom];
+
+        /// **LaserOffset is a per-size constant, not a fraction of the cell**
+        /// (LTANK2.C:1747, :1756, :1765 -- 10, 13, 17 for the three sizes).  So
+        /// the bar UpDateLaser paints is `SpBm_Width - 2 * LaserOffset` wide:
+        /// **4, 6 and 6 px**, a hairline down the middle of the cell.  Reading
+        /// the initialiser at LTANK2.C:46 as 10-of-32 instead -- which is what
+        /// this file did until the picture was compared with the 2010 binary --
+        /// gives 8, 12 and 14 px and a laser two to three times too fat.  It is
+        /// the same species of mistake as re-deriving BMF from PF: the value is
+        /// in a table in the original, so read the table.
+        private static readonly int[] LaserOffsets = { 10, 13, 17 };
+
+        /// The original's size 1..3, which is [SCREEN] Size.
+        private int _size = 1;
+        private int Cell => Zooms[_size - 1];
+        private int LaserOffset => LaserOffsets[_size - 1];
+
+        internal int Size => _size;
+        internal static int CellOf(int size) => Zooms[Math.Clamp(size, 1, 3) - 1];
 
         private const int Margin = 16;
         private const int HudH = 126;
 
-        /// LaserOffset (LTANK2.C:46) is 10 of a 32 px sprite -- the laser bar is
-        /// 12 px wide down the middle of its cell.  Kept as a fraction so the
-        /// three zooms all get the same picture.
-        private const float LaserFrac = 10f / 32f;
-
         private Session _s;
         private Atlas _atlas;
-        private string[] _packs;
-        private int _pack;
+        private Options _opt;
+        private System.Collections.Generic.List<Pack> _packs;
+        private Pack _pack;
+        private GraphicsMenu _menu;
         private string _error;
 
         /// Off in --shot mode: the shot awaits two frames, and physics would
@@ -79,12 +94,87 @@ namespace LaserTank.Game
                     $"physics_ticks_per_second is {tps}, must be " +
                     $"{1000 / Session.GameDelayMs} (GameDelay = {Session.GameDelayMs} ms)");
 
-            _packs = Paths.GraphicsPacks();
-            LoadPack(Arg(args, "--pack", 0));
-            _zoom = Math.Clamp(Array.IndexOf(Zooms, Arg(args, "--zoom", 32)), 0, Zooms.Length - 1);
+            // ---- the persisted options, and the overrides on top of them ----
+            // An instrument run -- a screenshot, a scripted playthrough, a
+            // check, a clock measurement -- reads the file and writes nothing,
+            // because eight parallel gate jobs must not race over one INI and a
+            // screenshot must not change what the next player sees.  An
+            // explicit --ini says "this file is yours", which is how
+            // tools/options_check.py drives the writing half.
+            string ini = ArgStr(args, "--ini");
+            bool instrument = ArgStr(args, "--shot") != null
+                              || Array.IndexOf(args, "--play") >= 0
+                              || Array.IndexOf(args, "--check-options") >= 0
+                              || Arg(args, "--tick-rate", 0) > 0;
+            // One rule, used twice: **an explicit --ini makes the options
+            // live** -- writable, and allowed to choose the level -- while an
+            // instrument left to find the file on its own gets the settings
+            // read-only and starts wherever it was told to.  That is what keeps
+            // `--shot` reproducible and lets the gate exercise both halves.
+            bool live = !instrument || ini != null;
+            _opt = new Options(new Ini(ini ?? Paths.Ini, readOnly: !live));
 
-            string levels = ArgStr(args, "--levels") ?? Paths.Flagship;
-            int level = Arg(args, "--level", 1);
+            string gfxDir = ArgStr(args, "--gfx-dir");
+            if (gfxDir != null && gfxDir != _opt.GraphicsDir) _opt.SetGraphicsDir(gfxDir);
+
+            _size = _opt.Size;
+            if (ArgStr(args, "--zoom") is string zs)
+            {
+                int i = Array.IndexOf(Zooms, Ini.Atoi(zs));
+                _size = i >= 0 ? i + 1 : Math.Clamp(Ini.Atoi(zs), 1, 3);
+            }
+
+            _packs = Packs.Scan(_opt.GraphicsDir);
+            _menu = new GraphicsMenu(this);
+            Pack want = Packs.FromOptions(_packs, _opt);
+            if (ArgStr(args, "--pack") is string ps)
+            {
+                // A number is step 0's index; a word is `internal`, `external`
+                // or a .ltg by name.
+                want = int.TryParse(ps.Trim(), out int pi)
+                    ? Packs.ByIndex(_packs, pi)
+                    : Packs.ByName(_packs, ps);
+                if (want == null)
+                {
+                    GD.PrintErr($"no graphics pack \"{ps}\" in {_opt.GraphicsDir}");
+                    GetTree().Quit(2);
+                    return;
+                }
+            }
+            ApplyPack(want);
+
+            // The menu is the way in; the command line is the other way, and
+            // --save-options makes it persist what it was given, exactly as the
+            // menu does.  Without it an override is for this run only.
+            if (Array.IndexOf(args, "--save-options") >= 0)
+            {
+                _opt.Ini.ReadOnly = false;
+                _opt.SetSize(_size);
+                PersistGraphics();
+                if (gfxDir != null) _opt.SetGraphicsDir(gfxDir);
+            }
+
+            // [DATA] RLLFilename / RLLLevel: pick up where the last session left
+            // off, which is what command 101 (New Game) does when RLL is on
+            // (LTANK.C:866).  An explicit --levels / --level / --lpb outranks
+            // it, because those name a level on purpose.
+            string levels = ArgStr(args, "--levels");
+            int level = Arg(args, "--level", 0);
+            if (_opt.RememberLastLevel && live)
+            {
+                if (levels == null && _opt.LastLevelFile.Length > 0
+                    && File.Exists(_opt.LastLevelFile))
+                    levels = _opt.LastLevelFile;
+                if (level == 0 && levels == _opt.LastLevelFile) level = _opt.LastLevel;
+            }
+            levels ??= Paths.Flagship;
+            if (level == 0) level = 1;
+
+            if (Array.IndexOf(args, "--check-options") >= 0)
+            {
+                GetTree().Quit(CheckOptions(levels, level));
+                return;
+            }
             byte[] script = Array.Empty<byte>();
             string lpbName = null;
 
@@ -117,7 +207,7 @@ namespace LaserTank.Game
                 return;
             }
 
-            _s = new Session(levels);
+            _s = new Session(levels, _opt);
             if (!_s.Load(level)) _error = _s.Error;
             Resize();
 
@@ -137,6 +227,10 @@ namespace LaserTank.Game
             // `--keys`/`--lpb` and `--ticks N` it runs the script for N ticks
             // first, which is how a rendering change to a *moving* board -- a
             // laser in flight, a pushed block -- gets reviewed without a window.
+            // `--menu` opens the graphics dialog on start, which is the only
+            // way to review the panel with --shot rather than by hand.
+            if (Array.IndexOf(args, "--menu") >= 0) _menu.Show(_packs, _pack);
+
             string shot = ArgStr(args, "--shot");
             if (shot != null)
             {
@@ -204,15 +298,91 @@ namespace LaserTank.Game
             Error err = GetViewport().GetTexture().GetImage().SavePng(path);
             GD.PrintRaw($"shot {path} level {_s?.Level} tick {_s?.Ticks} " +
                         $"pack {_atlas?.Label} zoom {Cell} -> {err}\n");
+            // Where the board is, and what the engine says is on it: a tool
+            // reading the PNG back can then look in the right place without
+            // hardcoding this file's layout.  The laser fields are the trace's
+            // own L=x,y,dir,firing,good -- read out of the engine, while the
+            // pixels come from the renderer, which is what makes comparing the
+            // two a check rather than a tautology.
+            TTANKREC l = _s.E.laser;
+            GD.PrintRaw($"shot-geometry margin={Margin} cell={Cell} " +
+                        $"laser_offset={LaserOffset}\n" +
+                        $"shot-laser x={l.X} y={l.Y} dir={l.Dir} " +
+                        $"firing={_s.E.Game.Tank.Firing} good={l.Good}\n");
             GetTree().Quit(err == Error.Ok ? 0 : 1);
         }
 
-        private void LoadPack(int i)
+        // ---- the graphics set and the size, which are the two persisted -----
+        /// SetUpGraphicsBox (LTANK_D.C:1153): kill the sheet, load the new one,
+        /// repaint.  Loading is Packs.Load, which is GFXInit's three branches
+        /// including its fall back to the internal sheet.
+        internal void ApplyPack(Pack p)
         {
-            _pack = ((i % _packs.Length) + _packs.Length) % _packs.Length;
-            try { _atlas = Atlas.Load(_packs[_pack]); }
-            catch (Exception ex) { _error = ex.Message; }
+            _pack = p;
+            _atlas = Packs.Load(p, _opt.GraphicsDir, out string fallback);
+            _error = fallback;
             QueueRedraw();
+        }
+
+        /// GraphBox's Close and Cancel, which both write the mode and (in mode
+        /// 2) the file name (LTANK_D.C:1247).
+        internal void PersistGraphics()
+        {
+            if (_pack != null) _opt.SetGraphics(_pack.Mode, _pack.File);
+        }
+
+        /// SetGameSize (LTANK2.C:1729), less the window furniture: sizes 1..3,
+        /// persisted to [SCREEN] Size on the spot as it does.
+        internal void SetSize(int size)
+        {
+            _size = Math.Clamp(size, 1, 3);
+            _opt.SetSize(_size);
+            Resize();
+            QueueRedraw();
+        }
+
+        /// `--check-options`: what the options layer resolved to, for
+        /// tools/options_check.py to compare against the INI it wrote.  The
+        /// sheet hash is the part that proves the *pixels* followed the option
+        /// and not just the label -- it is the same sha256 --check-sheets
+        /// prints, so an external pack unpacked out of a .ltg must match that
+        /// .ltg exactly.
+        private int CheckOptions(string levels, int level)
+        {
+            byte[] h = System.Security.Cryptography.SHA256.HashData(_atlas.Sheet.Rgba);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            GD.PrintRaw(string.Format(inv,
+                "options ini={0}\n" +
+                "options size={1} cell={2} laser_offset={3}\n" +
+                "options graphics_mode={4} graphics_file={5} graphics_dir={6}\n" +
+                "options pack={7} label={8} sha256={9}\n" +
+                "options rll={10} rll_file={11} rll_level={12}\n",
+                _opt.Ini.Path, _size, Cell, LaserOffset,
+                _pack.Mode, _pack.File.Length > 0 ? _pack.File : "-", _opt.GraphicsDir,
+                _pack.Mode == 1 ? "external" : _pack.Mode == 0 ? "internal" : _pack.File,
+                _atlas.Label, Convert.ToHexString(h).ToLowerInvariant(),
+                _opt.RememberLastLevel ? "Yes" : "No",
+                _opt.LastLevelFile.Length > 0 ? _opt.LastLevelFile : "-", _opt.LastLevel));
+            // What the level resolution above settled on -- the collection and
+            // the number this run would have opened.
+            GD.PrintRaw(string.Format(inv, "options start_file={0} start_level={1}\n",
+                                      levels, level));
+
+            // The menu's own list, which is GetLTGFiles (LTANK_D.C:1170) plus
+            // the two radio buttons.  Printed so the gate can check the list
+            // itself -- that the .ltg files are found, that they are named by
+            // their header and not their file name, and that "User Graphics"
+            // knows whether the pair is actually there.
+            GD.PrintRaw(string.Format(inv, "options packs={0}\n", _packs.Count));
+            for (int i = 0; i < _packs.Count; i++)
+            {
+                Pack p = _packs[i];
+                GD.PrintRaw(string.Format(inv, "pack {0} mode={1} available={2} file={3} " +
+                                               "label={4}\n",
+                                          i, p.Mode, p.Available ? 1 : 0,
+                                          p.File.Length > 0 ? p.File : "-", p.Label));
+            }
+            return _error == null ? 0 : 1;
         }
 
         // ---- the tick, LTANK.C:579 -----------------------------------------
@@ -230,6 +400,20 @@ namespace LaserTank.Game
         public override void _UnhandledInput(InputEvent ev)
         {
             if (ev is not InputEventKey k || !k.Pressed) return;
+
+            // The graphics menu is a modal dialog: while it is up the main
+            // window has no focus, so no WM_KEYDOWN fires and nothing reaches
+            // AddKBuff -- not even the arrows and space, which is what makes it
+            // safe for the menu to navigate with them.  The *timer* is not
+            // modal, though: command 226 never calls GameOn(FALSE) and
+            // DialogBox's loop still dispatches WM_TIMER, so the game below
+            // keeps ticking and an exposed tank can die while you pick a pack.
+            if (_menu != null && _menu.Open)
+            {
+                _menu.Key(k.Keycode);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
 
             // The game keys first, and untouched: Session.Key is the original's
             // WM_KEYDOWN filter (VK 32..40, auto-repeat dropped only while a
@@ -257,8 +441,10 @@ namespace LaserTank.Game
                     break;
                 case Key.R: _s?.Restart(); break;                    // command 105
                 case Key.F6: SaveRecording(); break;                 // command 117
-                case Key.G: LoadPack(_pack + 1); break;
-                case Key.Z: _zoom = (_zoom + 1) % Zooms.Length; Resize(); break;
+                // Command 226, the Options menu's "Graphics" (LTANK.C:1122).
+                case Key.G: _menu.Show(_packs, _pack); break;
+                // Commands 120/121/122, the Options menu's three sizes.
+                case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
                 case Key.Escape: GetTree().Quit(); break;
                 default: return;
@@ -310,6 +496,11 @@ namespace LaserTank.Game
             DrawTank();
             DrawLaser();
             DrawHud(font);
+            // The graphics dialog, over the board and under nothing: the
+            // original's is a modal window on top of the game, which keeps
+            // playing behind it.
+            if (_menu.Open)
+                _menu.Draw(this, font, new Rect2(Margin, Margin, 16 * Cell, 16 * Cell));
         }
 
         private Rect2 CellRect(int x, int y) =>
@@ -344,8 +535,7 @@ namespace LaserTank.Game
         private void DrawTunnel(Rect2 dst, int id)
         {
             Gfx.Rgb(Gfx.ColorList[id & 7], out byte r, out byte gg, out byte b);
-            DrawRect(dst, Color.Color8(r, gg, b));
-            DrawRect(dst, Colors.Black, false, 1);
+            Fill(dst, Color.Color8(r, gg, b));
             Blit(Gfx.TunnelBM, dst);
         }
 
@@ -413,7 +603,7 @@ namespace LaserTank.Game
             else
             {
                 Rect2 cell = CellRect(l.X, l.Y);
-                float o = Mathf.Round(LaserFrac * Cell);
+                float o = LaserOffset;
                 Fill((l.Dir & 1) == 1
                         ? new Rect2(cell.Position.X + o, cell.Position.Y, Cell - 2 * o, Cell)
                         : new Rect2(cell.Position.X, cell.Position.Y + o, Cell, Cell - 2 * o),
@@ -429,8 +619,8 @@ namespace LaserTank.Game
         private void Bar(int cx, int cy, int dir, bool incoming, Color c)
         {
             Rect2 cell = CellRect(cx, cy);
-            float o = Mathf.Round(LaserFrac * Cell);
-            float h = Mathf.Round(Cell / 2f);
+            float o = LaserOffset;
+            float h = Cell / 2;      // h = SpBm_Width / 2, integer division
             float x = cell.Position.X, y = cell.Position.Y;
             bool far = incoming;                       // the half behind the laser
             Fill(dir switch
@@ -443,11 +633,22 @@ namespace LaserTank.Game
         }
 
         /// GDI Rectangle() is a brush fill plus the default one-pixel black pen,
-        /// which is why the laser has an outline in the original.
+        /// which is why the laser and the tunnels have an outline in the
+        /// original -- and the pen goes **inside** the rectangle: it spans
+        /// left..right-1, so the border eats a pixel of the fill on all four
+        /// sides and never touches the neighbouring cell.
+        ///
+        /// Godot's `DrawRect(filled: false, width: 1)` strokes *centred* on the
+        /// edge, and at width 1 that rounds the outline outside the rect on the
+        /// top and left and inside it on the bottom and right -- an asymmetric
+        /// border that bled a pixel into the cell above and to the left.  Two
+        /// fills instead: the border, then the interior.  Measured rather than
+        /// reasoned about; tools/options_check.py reads the bar back out of a
+        /// PNG and would fail again if this drifted.
         private void Fill(Rect2 rect, Color c)
         {
-            DrawRect(rect, c);
-            DrawRect(rect, Colors.Black, false, 1);
+            DrawRect(rect, Colors.Black);
+            DrawRect(new Rect2(rect.Position + Vector2.One, rect.Size - 2 * Vector2.One), c);
         }
 
         /// The original's own status strip is a bitmap panel beside the board
@@ -489,7 +690,7 @@ namespace LaserTank.Game
                        "arrows move, space fires, R restart, F6 saves the recording",
                        HorizontalAlignment.Left, w, 12, Colors.Gray);
             DrawString(font, new Vector2(Margin, y + 72),
-                       "[ ] level, G graphics, Z zoom, I smooth, Esc quit",
+                       "[ ] level, G graphics menu, Z size, I smooth, Esc quit",
                        HorizontalAlignment.Left, w, 12, Colors.Gray);
             if (!string.IsNullOrEmpty(lv.Hint))
                 DrawString(font, new Vector2(Margin, y + 90), lv.Hint.Replace("\r\n", " "),

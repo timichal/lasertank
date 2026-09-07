@@ -50,17 +50,67 @@ namespace LaserTank.Game
 
         /// The graphics packs that ship with the game, plus the internal pair
         /// the 2007 build carries as resources.  Index 0 is the default.
-        public static string[] GraphicsPacks()
+        ///
+        /// This is the enumeration tools/atlas_check.py cross-checks -- the
+        /// internal pair and every .ltg, by file name -- and the numbering
+        /// `--pack N` has used since step 0.  The graphics *menu* has its own
+        /// list (Packs.Scan), which also carries the external entry.
+        public static string[] GraphicsPacks(string dir = null)
         {
             var list = new System.Collections.Generic.List<string> { "" };   // "" = internal
-            string dir = Data("graphics");
-            if (Directory.Exists(dir))
-            {
-                string[] packs = Directory.GetFiles(dir, "*.ltg");
-                Array.Sort(packs, StringComparer.OrdinalIgnoreCase);
-                list.AddRange(packs);
-            }
+            list.AddRange(LtgFiles(dir ?? DefaultGraphicsDir));
             return list.ToArray();
+        }
+
+        /// Where the .ltg packs live until [SCREEN] Graphics_Dir says otherwise.
+        /// The original's first value is the current directory (LTANK2.C:1785);
+        /// in this repo the packs are content, so they are in data/.
+        public static string DefaultGraphicsDir => Data("graphics");
+
+        /// GetLTGFiles' `FindFirstFile("*.ltg")` (LTANK_D.C:1177), sorted by
+        /// name so the menu order and `--pack N` are stable, and matched
+        /// case-insensitively for the same reason the level loaders are: the
+        /// content in this repo mixes `.ltg` and `.LTG` cases the way it mixes
+        /// `.lvl` and `.LVL`, and Directory.GetFiles' pattern is only
+        /// case-insensitive on Windows.
+        public static string[] LtgFiles(string dir)
+        {
+            if (!Directory.Exists(dir)) return Array.Empty<string>();
+            var hits = new System.Collections.Generic.List<string>();
+            foreach (string f in Directory.GetFiles(dir))
+                if (Path.GetExtension(f).Equals(".ltg", StringComparison.OrdinalIgnoreCase))
+                    hits.Add(f);
+            hits.Sort(StringComparer.OrdinalIgnoreCase);
+            return hits.ToArray();
+        }
+
+        /// One file in `dir` by name, case-insensitively -- GFXInit asks for
+        /// "game.bmp" and "mask.bmp" in lower case (LT32L_US.H:18) and the
+        /// packs people ship are not that careful.  -> null if it is not there.
+        public static string FindFile(string dir, string name)
+        {
+            if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name)) return null;
+            if (!Directory.Exists(dir)) return null;
+            string direct = Path.Combine(dir, name);
+            if (File.Exists(direct)) return direct;
+            foreach (string f in Directory.GetFiles(dir))
+                if (string.Equals(Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase))
+                    return f;
+            return null;
+        }
+
+        /// LaserTank.ini.  The original keeps it beside the .exe (LTANK.C:1411);
+        /// the equivalent here is the repo root, which .gitignore's `/*.ini`
+        /// already expects.  `$LT_INI` overrides it, and so does `--ini`.
+        public static string Ini
+        {
+            get
+            {
+                string env = System.Environment.GetEnvironmentVariable("LT_INI");
+                return !string.IsNullOrEmpty(env)
+                    ? env
+                    : Path.Combine(Root, LaserTank.Game.Ini.FileName);
+            }
         }
 
         /// original/src/Game.BMP + Mask.BMP -- the internal sheet.  original/ is

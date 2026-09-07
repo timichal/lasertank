@@ -16,13 +16,14 @@ validation plan, not a ranking of the two halves.
 **Where the project is.** Phases 1-3 complete: a C reference oracle (`oracle/`), a C#
 transliteration that traces byte-identically to it on the whole recorded corpus
 (`src/LaserTank.Core/`), and a differential fuzzer (`tools/fuzz.py`) with 20,626 cases and no
-divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0 and 1
-are done** — `src/LaserTank.Game/` is a playable game. It draws any level from `Game.BMF` with any
+divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0, 1 and
+2 are done** — `src/LaserTank.Game/` is a playable game. It draws any level from `Game.BMF` with any
 of the four sprite sheets, runs a fixed 20 Hz tick, takes the keyboard through the original's own
-`WM_KEYDOWN` filter, and writes `.lpb` recordings the 25-year-old C replays byte-identically.
-`tools/atlas_check.py` and `tools/tick_check.py` gate those two. Steps 2-6 below are still a plan
-with exit criteria rather than a wish list; **step 2, the graphics menu and persisted options, is
-the next thing to build** — though most of step 2's *machinery* already landed with step 0.
+`WM_KEYDOWN` filter, writes `.lpb` recordings the 25-year-old C replays byte-identically, and
+remembers its graphics set, its board size and the level you were on in a `LaserTank.ini` with the
+original's own section and key names. `tools/atlas_check.py`, `tools/tick_check.py` and
+`tools/options_check.py` gate those three. Steps 3-6 below are still a plan with exit criteria
+rather than a wish list; **step 3, sound, is the next thing to build.**
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -39,18 +40,21 @@ Those four are the fidelity gates and must be green before anything else is beli
 it ever does not, read the line-ending trap in *Environment notes* before anything else. Never run
 it while a solver process is alive (see the same section).
 
-Phase 5 adds two gates of its own, both about the presentation rather than the rules, so they are
+Phase 5 adds three gates of its own, all about the presentation rather than the rules, so they are
 listed apart from the four and nothing in Phases 1-4 depends on them:
 
 ```bash
 python tools/atlas_check.py                    # step 0: 2,347 levels + 4 sprite sheets, ~35 s
 python tools/tick_check.py                     # step 1: 208/208 vs the oracle + the rate, ~20 s
+python tools/options_check.py                  # step 2: the INI, the packs, the laser's width, ~40 s
 ```
 
-Both need Godot; `atlas_check` degrades to a loud SKIP without it, `tick_check` needs it outright.
-Both **rebuild the Godot project's C# first**, because `godot --path` does not and would otherwise
-report green for the previous session's assembly — see *Environment notes*. Neither touches
-`build/lasertank-solve.exe`, so both are safe to run beside a live solver.
+All three need Godot; `atlas_check` degrades to a loud SKIP without it, the other two need it
+outright. All three **rebuild the Godot project's C# first**, because `godot --path` does not and
+would otherwise report green for the previous session's assembly — see *Environment notes*. None of
+them touches `build/lasertank-solve.exe`, so all are safe to run beside a live solver.
+`options_check` opens three brief windows for its pixel measurements (`--shot` needs a rendering
+device); `--no-window` skips that half.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
 `src/LaserTank.Core/Engine.cs` differs from a literal transliteration by the single word `partial`,
@@ -64,7 +68,7 @@ need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 started: steps 0 and 1 done, step 2 next.**
+**Phases 1-3 complete. Phase 5 started: steps 0, 1 and 2 done, step 3 next.**
 
 | | state |
 |---|---|
@@ -72,14 +76,16 @@ need an engine change, that is the signal to stop and re-read.**
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf` |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | **steps 0-1 done**: playable. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter, `.lpb` recordings the oracle replays. Gated by `atlas_check.py` + `tick_check.py` |
+| Presentation (Godot) | **steps 0-2 done**: playable. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter, `.lpb` recordings the oracle replays, a graphics menu and a `LaserTank.ini` that remembers the pack, the size and the level. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
 moves *and* shots. `test_difftrace.py` 29 passed. `test_fuzz.py` 25 passed. `sweep.py` 2,347/2,347
 identical. `tools/verify_solutions.py` over any solver output — every `.lpb` wins on both engines
-with byte-identical traces. Phase 5's two: `atlas_check.py` OK (2,347 levels clean, 4 sheets
-cross-checked), `tick_check.py` 208/208 agreeing with the oracle plus 100 ticks in 5 s.
+with byte-identical traces. Phase 5's three: `atlas_check.py` OK (2,347 levels clean, 4 sheets
+cross-checked), `tick_check.py` 208/208 agreeing with the oracle plus 100 ticks in 5 s,
+`options_check.py` OK (20 checks: the INI's semantics and round trip, mode 1 == mode 2 pixels for
+every pack, the three board sizes, the laser bar 4/6/6 px wide).
 
 **What is still not ported: `MouseOperation`, and only that.** The mouse buffer is empty headless
 (`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it —
@@ -87,12 +93,13 @@ measured, not assumed: the fuzz campaign reached it zero times. It **throws** ra
 if that premise ever breaks the run stops loudly. It is Phase 5 work: a UI entry point, not game
 logic.
 
-**Next action for this half of the project: Phase 5, step 2 — the graphics menu and persisted
-options.** Steps 0 and 1 are done and both their gates are green; step 2's engine-facing half
-(loading all four sheets, the mask fold, draw-time scaling at 24/32/40) already landed with step 0,
-so what is left is the game's own way in — a menu rather than the `G` key, the choice remembered,
-and the external `game.bmp`/`mask.bmp` mode. Phase 3's fuzzer can keep running in parallel on new
-seeds and the 12 collections its first campaign never touched.
+**Next action for this half of the project: Phase 5, step 3 — sound.** Steps 0, 1 and 2 are done and
+all three gates are green. Step 3 is the 16 WAVs in `original/src/Sounds/`, and its exit criterion
+is the cheapest of any step's: adding audio must change no trace, so the three gates plus
+`replay_all.py` staying green *is* the proof. `FireLaser`'s `sf` argument is already the sound id
+and is already load-bearing for logic (`laser.Good = (sf == 2)`), so the ids get read from the
+engine and never re-derived. Phase 3's fuzzer can keep running in parallel on new seeds and the 12
+collections its first campaign never touched.
 
 **Blocked on:** nothing.
 
@@ -362,7 +369,19 @@ replayed tick-for-tick through the 25-year-old C with zero divergences.)
 
 ---
 
-## Phase 5 — Presentation & features  ◐  (step 0 done)
+## Phase 5 — Presentation & features  ◐  (steps 0-2 done)
+
+**Where the fidelity line actually runs, decided out loud in the step 2 session and worth reading
+before the next UI change: the mechanics of the puzzles must be exactly the same — every level has
+to be solvable in exactly the way it was in the old game — and the UI does not.** A redesign of the
+25-year-old interface is expected *later*, on purpose; this phase finishes the port the way it
+started, faithfully, because a faithful port is the cheap way to be sure nothing mechanical moved
+while it is being built. The consequence for everything below: the UI details recorded in these
+steps are **written down rather than locked down.** When one of them is deliberately changed, the
+note explaining what the original did stays (it is why the change is a choice rather than a
+regression), and the gates that must not move are the ones about the rules — `replay_all.py`,
+`sweep.py`, `test_difftrace.py`, `tick_check.py`'s 208/208. `options_check.py`'s pixel arithmetic is
+the one gate that is *expected* to be edited when the look changes on purpose.
 
 **This is the first phase where the deliverable is the game rather than a measurement, and the
 discipline that got the project here still applies: the presentation layer must not become a second
@@ -461,8 +480,10 @@ python tools/tick_check.py                                     # the gate, ~20 s
 ```
 
 Keys: arrows move, space fires, `R` restarts, `F6` saves the recording to `out/recordings/`,
-`Enter` takes the next level once one is solved, `[` `]` walk levels, `G` graphics, `Z` zoom,
-`I` toggles interpolation, `Esc` quits. **The dev keys are all deliberately outside VK 32..40** —
+`Enter` takes the next level once one is solved, `[` `]` walk levels, `G` opens the graphics menu
+(step 2; it used to cycle packs), `Z` cycles the board size, `I` toggles interpolation, `Esc` quits.
+Inside the menu the arrows pick a pack, `1`/`2`/`3` or `Z` set the size, and `Enter` or `Esc`
+closes. **The dev keys are all deliberately outside VK 32..40** —
 see below for why that range and not the five game keys.
 
 *Exit — MET, and by more than was asked.* The criterion was a human playthrough surviving the C
@@ -570,7 +591,7 @@ number in this project that must not drift. `_Process` only calls `QueueRedraw`.
 reader), the level picker and the recording UI (step 4). `F6` writing to `out/recordings/` is the
 placeholder for the last of those, not the finished thing.
 
-**Step 2 — graphics packs and zoom.** `.ltg` is a 324-byte `TLTGREC` header (`Name[40]`,
+**Step 2 — graphics packs and zoom. ☑ DONE.** `.ltg` is a 324-byte `TLTGREC` header (`Name[40]`,
 `Author[30]`, `Info[245]`, `ID[5]` = `"LTG1"`, `MaskOffset` DWORD) followed by two ordinary Windows
 BMPs: the game bitmap from the end of the header to `MaskOffset`, the mask from there to EOF
 (`LoadLTG`, `LTANK2.C:688`). Verified against the three shipped packs: the game bitmap is 320×192
@@ -582,15 +603,125 @@ Zoom is 24/32/40 px (`SetGameSize`, `LTANK2.C:1729`), and the original implement
 `StretchBlt`-ing the whole 320×192 sheet up or down at load. **Do not copy that.** Godot should
 keep the atlas at native 32×32 and scale at draw time, which is the same picture without the
 resample — the sprite size is a presentation choice and no logic reads it.
-*Exit:* all three packs in `data/graphics/` load and render; switching zoom changes nothing but
-pixels. Note hazard #11 lives in this function — `if (GFXOn) GFXKill;` is missing its parens and
-must stay missing.
+*Exit — MET, and the gate found two rendering bugs on the way.* All three packs load and render, so
+does the internal pair, so does the external mode; switching size changes nothing but pixels. Note
+hazard #11 lives in `SetGameSize` — `if (GFXOn) GFXKill;` is missing its parens and must stay
+missing; nothing in the port calls it, and `SetUpGraphicsBox`'s copy of that line *does* have its
+parens, which is why picking a pack in the menu really does reload the sheet.
 
-**Most of this landed with step 0** and is only listed here because the *user-facing* half has not:
-the loading, the mask fold, all four sheets (the three packs plus the internal pair) and the
-draw-time scaling at 24/32/40 all work and are gated. What step 2 still owes is the game's own way
-in — a graphics menu rather than `G`, the choice persisted, and the external `game.bmp`/`mask.bmp`
-mode (`GraphM == 1`) that `GFXInit` also supports.
+```bash
+# from the repo root.  Every path after `--` must be ABSOLUTE: godot --path makes
+# src/LaserTank.Game/ the working directory, and a relative one silently resolves
+# there and hangs the run -- see Environment notes.
+GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/*/Godot_v4.7.2-stable_mono_win64_console.exe)
+
+"$GODOT" --path src/LaserTank.Game                             # play; G opens the menu
+python tools/options_check.py                                  # the gate, ~40 s
+
+# the graphics menu as a picture, which is the only way to review it without a
+# window session: --menu opens the dialog on start, --shot draws one frame and quits
+"$GODOT" --path src/LaserTank.Game -- --shot D:/code/lasertank/out/menu.png \
+         --menu --pack 3 --zoom 40 --level 7
+
+# the options themselves, headless.  --ini is what makes them live (writable, and
+# allowed to pick the level); without it an instrument run gets them read-only
+"$GODOT" --headless --path src/LaserTank.Game -- --ini D:/tmp/x.ini --check-options
+"$GODOT" --headless --path src/LaserTank.Game -- --ini D:/tmp/x.ini --pack external \
+         --gfx-dir D:/some/pack/dir --save-options --check-options
+```
+
+`--pack` takes step 0's number (0 the internal sheet, 1..n the `.ltg` files sorted by name), or a
+word: `internal`, `external`, or a `.ltg` by file name or header name.
+
+**Most of the machinery landed with step 0** — the loading, the mask fold, all four sheets and the
+draw-time scaling at 24/32/40. What step 2 added is the game's own way in and the memory of it:
+
+- **`Options.cs` is `LaserTank.ini`**, in the file and under the key names the original persists
+  them under (`LTANK.H:113-128`): `[SCREEN] Size`, `Graphics_Mode`, `Graphics_File`,
+  `Graphics_Dir`, and `[DATA] RLLFilename` / `RLLLevel` with `[OPT] RLL`. `Ini` is a stand-in for
+  the three profile-string calls rather than an INI library: first match wins, sections and keys
+  match case-insensitively, integers follow **atoi** (a present-but-junk value reads as 0, and only
+  a *missing* key gives the default), and **a write preserves every other line in the file.** That
+  last one is load-bearing, not politeness: the 2010 binary keeps a dozen keys in this same file —
+  `PosX`, `Player`, `Diff_Setting`, `Animation`, `Sound` — and a rewrite that dropped them would
+  silently reset the player's other settings. The gate checks exactly that with a seeded file.
+- **The defaults are the original's**, which changed one thing: `Size` defaults to **1**, the 24 px
+  board (`LTANK.C:1567`), where this port had been starting at 32. `Graphics_Mode` defaults to 0.
+- **`GraphicsMenu.cs` is `GraphBox` (`LTANK_D.C:1202`)**, command 226 on the Options menu, as an
+  overlay: the two radio buttons (internal, user graphics), then the `.ltg` packs **named by the
+  `Name` field in their header** the way `GetLTGFiles` names them — so `Lasertank_Comix.ltg` lists
+  as *Lasertank Comix* — plus the selected pack's `Author` and `Info`. Three of the dialog's
+  properties are kept because they are observable: the choice **applies immediately** (every
+  `WM_COMMAND` branch ends in `SetUpGraphicsBox`, which is `GFXKill(); GFXInit();`), there is **no
+  Cancel** (Close and Cancel run the same code and both write the INI, `LTANK_D.C:1247`), and **the
+  game keeps ticking underneath** — command 226 never calls `GameOn(FALSE)` the way the Difficulty
+  dialog (225) does, and `DialogBox`'s modal loop still dispatches the `WM_TIMER` posted to the main
+  window, so an exposed tank can die while you pick a pack. Keys, though, go to the dialog and never
+  reach `AddKBuff`, which is the only reason the menu may navigate with the arrows and space at all.
+- **`Packs.cs` is `GFXInit`'s three branches**, including the external mode (`GraphM == 1`):
+  `game.bmp` + `mask.bmp` in `Graphics_Dir`, matched case-insensitively because `LT32L_US.H:18`
+  spells them lower case and the packs people ship are not that careful. A pack that will not load
+  falls back to the internal sheet and says so in the HUD, which is `if (!LoadLTG(...)) GraphM = 0;`.
+- **Not ported, on purpose:** "Change Directory" (`ID_GRAPHBOX_09`, a shell folder browser — the key
+  is persisted and `--gfx-dir` sets it) and "View Opening Screen" (`ID_GRAPHBOX_08`, which toggles
+  `QHELP` and paints `Opening.bmp` over the board; that is its own piece of drawing).
+
+**One deliberate deviation, and it is a bug we are not reproducing.** `GFXInit`'s external branch
+reads `if (!(Mh || Gh)) GraphM = 0;` — **`||` where it means `&&`** — so with exactly one of
+`game.bmp` and `mask.bmp` present it stays in mode 1 and hands a NULL bitmap to `SelectObject`, and
+what follows is undefined GDI rather than a picture. There is nothing to transliterate: a decoder
+that throws cannot produce half a sheet. Either file missing means the internal sheet here, which
+is what the working half of that line intends. (Contrast hazard #11, which *is* kept: that one has
+a defined and observable effect — nothing happens.)
+
+**The two bugs the gate found, both of them ours and both invisible without measuring pixels:**
+
+- **`LaserOffset` is a per-size constant, not a fraction of the cell.** `SetGameSize` sets it to
+  **10, 13, 17** for the three sizes (`LTANK2.C:1747`, `:1756`, `:1765`), and `UpDateLaser` paints a
+  bar `SpBm_Width - 2 * LaserOffset` wide — so **4, 6 and 6 px**, a hairline. Step 1 read the
+  initialiser at `LTANK2.C:46` as "10 of a 32 px sprite" and scaled it, which draws 8, 12 and 14 px
+  and a laser two to three times too fat. Reported by eye against the 2010 binary, then pinned by
+  the gate. The lesson is the one hazard #2 teaches about `BMF`: **the value is in a table in the
+  original, so read the table** — an initialiser that happens to equal the first table entry is not
+  the rule.
+- **Godot's `DrawRect(filled: false, width: 1)` strokes *centred* on the edge**, so a 1 px outline
+  rounds *outside* the rect on the top and left and inside on the bottom and right. GDI's
+  `Rectangle()` puts its pen strictly inside (`left..right-1`). The laser's and the tunnels'
+  outlines were therefore bleeding a pixel into the cell above and to the left. `Fill()` now paints
+  the border as the difference of two fills, which is exactly GDI's semantics.
+
+*The gate, `tools/options_check.py`* — 20 checks in four groups, and the pixel half is the part that
+would have caught the laser:
+
+- **ini**: the defaults with no file at all; a write that keeps five foreign keys; the round trip
+  (`--save-options` then a launch with no overrides at all must report what was written); Size
+  likewise; remember-last-level in both directions (`--tick-rate 1` really loads a level, so the
+  write goes through `Session.Load` where the original does it, and a later launch starts there);
+  `RLL=No` honoured; and the `LaserTank.ini` the 2010 binary actually left in `original/bin/` parsed
+  through a copy, agreeing with a plain Python read of the same file.
+- **packs**: the menu lists one entry per `.ltg` under its header name plus the two radios; the
+  internal sheet's sha256 matches `atlas_check`'s independent Python decoder; and **mode 1 and
+  mode 2 of the same pack are byte-identical pixels** for all three, checked by splitting each
+  `.ltg` at its `MaskOffset` into `game.bmp` + `mask.bmp` — which is a byte copy, because that is
+  literally what the container is. A mode 2 naming a deleted file falls back to mode 0.
+- **size**: all three render, the board is 16 cells square in each, and the HUD strip below it keeps
+  its height — "nothing but pixels", asserted rather than assumed.
+- **laser**: the bar is measured **out of the PNG, in the cell the engine says the shot is in.**
+  `--shot` now also prints `shot-geometry` and `shot-laser` lines, so the coordinates come from the
+  trace side and the pixels from the renderer; comparing the two is a check rather than a tautology.
+  The tool carries its own copy of both tables (`{24,32,40}` and `{10,13,17}`), so editing
+  `BoardView`'s copy fails it.
+
+The gate reads PNGs with a ~40-line stdlib decoder (8-bit RGB/RGBA, no interlace — what Godot's
+`SavePng` writes). Nothing in it writes the player's own `LaserTank.ini`: every run is handed its
+own `--ini` under a scratch directory, and the game refuses to write an INI it was not given
+explicitly whenever it is running as an instrument.
+
+**`--ini` is what makes the options live.** A `--shot`, `--play`, `--check-options` or `--tick-rate`
+run left to find `LaserTank.ini` on its own gets it **read-only** and starts on whatever level it
+was told to: eight parallel `atlas_check` jobs must not race over one file, and a screenshot must
+not change what the next player sees or depend on what the last one did. Passing `--ini` says "this
+file is yours" and turns both halves back on, which is how the gate exercises the writing side.
 
 **Step 3 — sound.** The 16 WAVs in `original/src/Sounds/`. The tick already computes *which* sound
 fires: `FireLaser`'s `sf` argument is the sound id and is load-bearing for logic
@@ -614,7 +745,18 @@ formats stay readable *and* writable) is demonstrated rather than asserted.
 ### What to be careful about
 
 - **Do not "fix" anything on the way past.** Hazards #9 and #11 are both real bugs in the original
-  that must survive, and #11 is inside `SetGameSize` — a function this phase has to touch.
+  that must survive, and #11 is inside `SetGameSize` — a function this phase has to touch. The one
+  exception argued for so far is `GFXInit`'s `!(Mh || Gh)` (step 2): a bug whose only effect is
+  undefined GDI has nothing to transliterate into. If a bug has a *defined* effect, keep it.
+- **When the original has a table, read the table.** Step 2's laser bug is the pattern: `LaserOffset`
+  is initialised to 10 at `LTANK2.C:46` and then *reassigned per board size* by `SetGameSize`
+  (10/13/17). Taking the initialiser for the rule and scaling it drew the laser three times too
+  wide, and nothing but a pixel measurement would have said so. Same species as re-deriving `BMF`
+  from `PF` (hazard #2).
+- **Measure pixels, do not look at them.** Both step 2 bugs were invisible in a screenshot until
+  someone knew the number to expect. Anything geometric — bar widths, outlines, cell rects — gets a
+  reader-and-compare in `tools/options_check.py`, whose laser check takes the coordinates from the
+  engine and the pixels from the renderer so the two cannot agree by construction.
 - **The 20 Hz tick is not a rendering rate.** Interpolate sprites between ticks; a 144 Hz display
   must not consume 144 keys a second. Both halves are done and measured — see step 1, and note that
   the key-rate half is the original's own pending-key test rather than anything about frames.
@@ -800,8 +942,9 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    keys, Session.cs is LTANK.C's driver half (WM_TIMER, WM_KEYDOWN,
                    WM_Dead, ReStart, WM_SaveRec), PlayMode.cs is that driver with a
                    scripted player, Atlas.cs hands the sheet to the renderer,
-                   Paths.cs finds data/.  Built by Godot or `dotnet build`, never
-                   published into build/
+                   Options.cs is LaserTank.ini, Packs.cs is GFXInit's three modes,
+                   GraphicsMenu.cs is GraphBox, Paths.cs finds data/.  Built by
+                   Godot or `dotnet build`, never published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
 ```
@@ -833,6 +976,13 @@ tick_check.py     Phase 5 step 1's gate: every recorded .lpb replayed through
                     oracle on result/ticks/moves/shots, must re-record the same
                     keystream, and its own .lpb must replay in the oracle.  Plus
                     --tick-rate: the real driver, timed, must be 20 ticks/second
+options_check.py  Phase 5 step 2's gate: LaserTank.ini's semantics and round
+                    trip (defaults, foreign keys kept, the choice surviving a
+                    restart, remember-last-level), every graphics pack loading
+                    with mode 1 == mode 2 pixel for pixel, the three board
+                    sizes, and the laser bar measured out of a --shot PNG in
+                    the cell the engine names.  Opens three brief windows;
+                    --no-window skips that half
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -929,13 +1079,20 @@ place despite not winning.
   `"$GODOT" --headless --path src/LaserTank.Game --import` before `--path` will run the project,
   and `Godot.NET.Sdk` restores from nuget.org on the first build (the install also ships it under
   `GodotSharp/Tools/nupkgs/` if that machine is offline).
+- **`godot --path` makes the *project* the working directory**, so every relative path handed to the
+  game resolves against `src/LaserTank.Game/` and not the shell's cwd — `--lpb
+  data/demos/LaserTank/00001.lpb` looks for it under `src/LaserTank.Game/data/`. Worse than a wrong
+  answer: `_Ready` throws, Godot logs the exception and **keeps the window open**, so the run hangs
+  instead of failing. Pass absolute paths (`tools/options_check.py` does), and read a hung `--shot`
+  as a path error until proven otherwise.
 - **`godot --path` does not build C#, and says nothing about it.** It loads whatever assembly is
   already in `src/LaserTank.Game/.godot/mono/temp/bin/`, so editing `Session.cs` and running the
   project — or a gate — silently exercises the *previous* build. Only the editor builds on run.
   Verified the ugly way: a changed string on disk did not appear in the output, while the gate
-  still reported a green 208/208. Both Godot-backed gates now call
-  `engines.build_godot_game()` first (`tick_check.py` always, `atlas_check.py` in its
-  cross-check half), and anything new that runs the project must do the same. By hand:
+  still reported a green 208/208. All three Godot-backed gates now call
+  `engines.build_godot_game()` first (`tick_check.py` and `options_check.py` always,
+  `atlas_check.py` in its cross-check half), and anything new that runs the project must do the
+  same. By hand:
   `dotnet build src/LaserTank.Game/LaserTank.Game.csproj`. It builds into `.godot/` and
   `src/LaserTank.Core/bin/`, never `build/`, so it is safe beside a live solve.
 - **A running solver blocks `src/build.sh`, but not the compilers.** `dotnet publish -o build`
@@ -1078,6 +1235,27 @@ touched. Run under a live solve again, so `build/` was never republished; `repla
 and `sweep`/`test_fuzz` were skipped as they could not have — Core is byte-identical. One trap
 found while checking the handoff: **`godot --path` does not compile C#**, so both Godot-backed
 gates now build before they measure.
+
+**2026-09-07, session 26 — Phase 5 step 2: the options, the menu, and two pixel bugs.**
+`LaserTank.ini` under the original's own section and key names, a `GraphBox`-shaped graphics menu on
+`G`, `GFXInit`'s external `game.bmp`/`mask.bmp` mode, remember-last-level, and
+`tools/options_check.py` — 20 checks, green. The session's real find was reported by eye and then
+pinned by the gate: **the laser was two to three times too wide**, because `LaserOffset` was read as
+the initialiser at `LTANK2.C:46` scaled to the cell (10-of-32) when it is actually reassigned per
+board size by `SetGameSize` — 10, 13, 17, giving a bar of 4, 6 and 6 px. Fixing it exposed a second
+one underneath: Godot's `DrawRect(filled: false, width: 1)` strokes *centred* on the edge, so the
+laser's and the tunnels' 1 px outlines were rounding outside the rect on two sides and bleeding into
+the neighbouring cell, where GDI's `Rectangle()` keeps its pen strictly inside. Both are ours, not
+the original's, and neither was visible without a number to expect — hence the gate's laser check,
+which takes the coordinates from the engine and the pixels from the renderer so they cannot agree by
+construction. One bug in the original is deliberately *not* reproduced (`GFXInit`'s
+`!(Mh || Gh)`, a `||` for an `&&`, whose only effect is undefined GDI); hazard #11 next door still
+is. Core gained one method — `SpriteSheet.LtgHeader`, the header without the bitmaps, which is what
+the dialog's listbox reads — and was re-verified against the corpus (187/181/112) built into its own
+`bin/` beside a live solve; `tick_check` 208/208 and `atlas_check` both stayed green. **The scope
+was also clarified this session and it changes how the rest of the phase should be read: only the
+puzzle mechanics have to match the original exactly — the UI is expected to be redesigned later.**
+See the note at the top of Phase 5.
 
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
 re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the single word

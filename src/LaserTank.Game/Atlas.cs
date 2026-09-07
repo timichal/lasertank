@@ -36,6 +36,14 @@ namespace LaserTank.Game
             return new Atlas(s, string.IsNullOrEmpty(s.Name) ? Path.GetFileName(path) : s.Name);
         }
 
+        /// GFXInit's external branch, GraphM == 1 (LTANK2.C:743): a loose
+        /// game.bmp / mask.bmp pair in Graphics_Dir, folded exactly as the
+        /// internal pair is -- same reader, same mask rule, so a pack unpacked
+        /// out of its .ltg renders identically to the .ltg.  That equality is
+        /// what tools/options_check.py checks.
+        public static Atlas External(string gamePath, string maskPath) =>
+            new Atlas(SpriteSheet.FromBmpPair(gamePath, maskPath), "external");
+
         /// GFXInit's BMA[i]: row-major from i = 1, ten per row.  Returns false
         /// for a bitmap number outside the 10x6 grid, which BuildBMField cannot
         /// produce -- see tools/atlas_check.py, which asserts that over the
