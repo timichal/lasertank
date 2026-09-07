@@ -1,0 +1,81 @@
+# bench-levels.txt -- 60 Beginner-I levels the layer-0 beam failed.  Bench 1.
+#
+# Read tools/bench.sh's header before reading a score off this list: it is a
+# population layer 0 already failed, so it flattered layers 1 and 2, overstated
+# layer 3's budget scaling and understated layer 4.  A bench picks parameters;
+# only a campaign decides what ships.
+#
+# Regenerated in session 25 after the machine move (the original lived only in
+# gitignored build/reports/ -- see bench/README.md).  The rule, now recorded so
+# it cannot be lost again: take the Beginner-I levels unsolved in the layer-0
+# campaign report (STRIDE=5 NODES=150000 --no-macro, 255 of the 400 sampled),
+# keep every 4th in level order, take the first 60.
+#
+# Two ways this is a reconstruction and not a recovery, both of which rebase
+# every number ever quoted against "bench 1":
+#   * the levels are not the original 60 -- the report that named them is gone;
+#   * the original was described as GAUNTLET-heavy with almost no ferry.  This
+#     one reads FERRY 30, DEMOLITION 9, GAUNTLET 8, SETUP 4, RIDE 4, SOKOBAN 3, WALLED 1, OPEN 1.
+#     Part of that is the population and part is the read itself: layer 8's
+#     barrier fix moved 164 rows out of GAUNTLET corpus-wide, so the old label
+#     was a pre-fix read.  The ferry population lives in ferry-levels.txt now.
+6
+26
+61
+121
+171
+196
+326
+356
+381
+411
+436
+466
+486
+521
+551
+581
+631
+651
+681
+706
+736
+801
+821
+861
+881
+901
+921
+956
+976
+1001
+1021
+1041
+1086
+1111
+1141
+1171
+1191
+1211
+1241
+1276
+1296
+1321
+1341
+1371
+1391
+1416
+1451
+1486
+1531
+1561
+1591
+1621
+1666
+1701
+1741
+1761
+1796
+1816
+1851
+1886

@@ -34,8 +34,20 @@ A file belongs in `bench/` when all three are true:
   `tools/campaign.sh`. Genuinely disposable, which is why the driver writes to `data/solutions/`
   instead.
 
-## These three files are currently missing
+## All three are here
 
-They did not survive the machine move and are **not** in this directory yet. Regenerating them
-needs a layer-0 campaign; `deep-levels.txt` is the only one derivable from the `.ghs` files alone.
-Until they are back, the bench checks in `SOLVER.md` cannot be run — see the session 24 note there.
+Regenerated in session 25, after the machine move took the originals. Each file's header carries
+the rule that produced it, so the next machine move costs nothing.
+
+They are **reconstructions, not recoveries**: the reports that named the original levels are gone,
+so the levels differ and every bench number ever quoted against the old lists rebases. Two
+specifics worth knowing before comparing anything:
+
+- `ferry-levels.txt` contains 1581, the one ferry-bench level SOLVER.md names -- a check that the
+  rule is the right shape, not a level chosen by hand. `deep-levels.txt` contains 1488 for the same
+  reason.
+- `bench-levels.txt` does **not** reproduce the original's GAUNTLET-heavy, ferry-poor character.
+  Every candidate rule over this campaign's `Beginner-I` failures comes back FERRY-dominated (30 of
+  60). Part of that is the population and part is the read itself -- layer 8's barrier fix moved 164
+  rows out of GAUNTLET corpus-wide -- so the old label was a pre-fix read. The levels were not
+  hand-picked to match the old description; the rule was recorded and the actual mix written down.

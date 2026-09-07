@@ -1,0 +1,72 @@
+# ferry-levels.txt -- 50 Beginner-I levels the shipped chain fails that the read
+# calls FERRY or SOKOBAN.
+#
+# Why it exists: the deep bench cannot decide a ferry question.  The read scores
+# 3 ferries in the 8 of its 50 that the stride sample covers, and half the corpus
+# is a ferry (FERRY + SOKOBAN = 53%, solved at 5.1%), so layer 5's width and
+# ranking questions were being decided on a population that barely contained the
+# thing being tuned.  See SOLVER.md, layer 6.
+#
+# Regenerated in session 25 after the machine move (the original lived only in
+# gitignored build/reports/ -- see bench/README.md).  The rule, now recorded so
+# it cannot be lost again:
+#   * take the Beginner-I levels build/reports/chain.jsonl leaves unsolved
+#     (225 of the 400 in the STRIDE=5 sample, chain at 150k nodes);
+#   * keep those whose --analyze-tsv verdict is FERRY or SOKOBAN (132);
+#   * take 50 evenly spaced across that list in level order.
+# The mix is FERRY 47, SOKOBAN 3, and the span is 41-1996.
+#
+# It contains 1581, the level SOLVER.md names as the one the buried-flag fix
+# costs -- a check on the rule, not a level chosen by hand.  It is still a
+# *reconstruction*: the report that named the original 50 is gone, so the 19/50
+# and 21/50 figures quoted against the old list rebase from this session on.
+41
+191
+326
+366
+431
+441
+471
+486
+506
+546
+601
+631
+661
+796
+816
+861
+876
+901
+916
+946
+961
+986
+1016
+1026
+1086
+1111
+1161
+1191
+1236
+1276
+1296
+1331
+1376
+1391
+1416
+1451
+1461
+1501
+1556
+1581
+1656
+1701
+1726
+1766
+1806
+1856
+1886
+1911
+1941
+1996

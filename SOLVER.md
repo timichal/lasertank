@@ -53,15 +53,25 @@ the machine without changing the core budget. Press a lane's number to give up o
 **The whole shipped batch chain** — a layer-0 campaign, then three passes that each attack only what
 the previous one failed. `STRIDE=5` gives the 4,185-level sample every number below is quoted
 against; each pass over ~3,700 failures is 6-8 minutes at 14 jobs, and the campaign is the longer
-half. `STRIDE=1` is the whole 20,914-level corpus and is hours:
+half. `STRIDE=1` is the whole 20,914-level corpus and is hours.
+
+**The passes' `NODES=150000` is not optional, though it reads like it.** `second_pass.sh`
+defaults to **1M**, 6.7x the campaign budget, and every pass number in this file is measured at
+150k -- the 441/444/472 composites, the per-tier curve below, the +44/+30/+3 in
+`second_pass.sh`'s own header. Session 25 ran the first pass at the default over the whole
+population by accident and it came back **147 of 3,787** against the table's 44 -- 3.3x the
+levels for 6.7x the nodes, which is not a better chain, only a different budget, and is not
+comparable with anything here. (That run is kept as `build/reports/l3n-1m.jsonl`; it is the
+cheapest evidence on file that the shipped chain is budget-bound rather than structure-bound,
+and it is an argument for *Next actions* item 1.) The variable now lives in the command:
 
 ```bash
 STRIDE=5 NODES=150000 tools/campaign.sh solutions/l0 build/reports/l0.jsonl --no-macro
-tools/second_pass.sh build/reports/l0.jsonl  solutions/l34 build/reports/l3n.jsonl \
+NODES=150000 tools/second_pass.sh build/reports/l0.jsonl  solutions/l34 build/reports/l3n.jsonl \
                      --no-ida --no-beam --subgoal
-tools/second_pass.sh build/reports/l3n.jsonl solutions/l34 build/reports/l34.jsonl \
+NODES=150000 tools/second_pass.sh build/reports/l3n.jsonl solutions/l34 build/reports/l34.jsonl \
                      --no-ida --no-beam --subgoal --sg-eval learned
-tools/second_pass.sh build/reports/l34.jsonl solutions/l34 build/reports/l34pass4.jsonl \
+NODES=150000 tools/second_pass.sh build/reports/l34.jsonl solutions/l34 build/reports/l34pass4.jsonl \
                      --no-ida --no-beam --macro --macro-first
 python tools/verify_solutions.py build/solutions/l0     # layer 0's own solutions
 python tools/verify_solutions.py build/solutions/l34    # everything the three passes added
@@ -105,8 +115,8 @@ These are the reason the numbers in this file can be trusted.
 
 | | state |
 |---|---|
-| Layers 0-4, the chain | **472 of the 4,185-level stride sample (11.3%)**, every solution verified through both engines |
-| Layer 5 — push macros | board-change search. Ferry bench **20/50**, deep **21/50** (from 11 and 14 before the pose-duplicate fix) |
+| Layers 0-4, the chain | **476 of the 4,185-level stride sample (11.4%)**, every solution verified through both engines -- re-measured from scratch in session 25 against the 472 the four passes banked before the machine move. **491 (11.7%) with layer 4's weight vector scaled by `Eval.Scale`**, which is a defect rather than a tuning knob -- see *Next actions* item 1 |
+| Layer 5 — push macros | board-change search. Ferry bench **18/50**, deep **25/50** on the session-25 lists (9 and 17 in the session-17 configuration); 20/50 and 21/50 on the lost originals |
 | Layer 6 — the read | derives what is in the way and what can change it. Ships inside layer 5's rung (15/50 against 9/50 without it). Its anti-tank-on-the-route rule is `--read-antitank-wall`, **off by default** — see *Layer 8* |
 | Layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`; own rung, adds 4 ferry / 5 deep, **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
@@ -119,6 +129,8 @@ where earlier sessions banked 20/50. That is session 20's buried-flag fix, attri
 assumed — reverting it alone reproduces 20/50 exactly, so everything else since is inert at default
 flags, and the level it costs (`Beginner-I` 1581) never buries a flag on its own line. A correct
 ranking that costs one level is still the correct ranking; compare future runs against 19.*
+*(Session 25: that list is gone and the regenerated one gives **18**, so 18 is the number to compare
+against from here — the two are not the same fifty levels and the difference is not a code change.)*
 
 The per-tier and per-collection curve at 150k nodes:
 
@@ -131,6 +143,27 @@ The per-tier and per-collection curve at 150k nodes:
 | Deadly | 56 | 1 | 1 | 1 | 1 | **1** | — |
 | **all** | **4,185** | 395 (9.4%) | 416 | 441 | 444 | **472 (11.3%)** | **1.6×** |
 
+**Re-measured from scratch in session 25** -- new machine, empty `build/`, same commands and the
+same 150k budget -- and the chain reproduces to four levels:
+
+| | layer 0 | + L3 pass | + L4 pass | + L1 pass | composite |
+|---|---:|---:|---:|---:|---:|
+| the four passes as banked | 395 | +44 | +30 | +3 | **472 (11.3%)** |
+| session 25, this tree | **398** | **+73** | **+0** | **+5** | **476 (11.4%)** |
+| ...with layer 4's vector x `Eval.Scale` | 398 | +73 | **+17** | +3 | **491 (11.7%)** |
+
+Kids 364 (37.9%), Easy 103 (4.9%), Medium 8, Hard 0, Deadly 1; 476 of 476 solutions through the
+two-engine gate, zero divergences. **The total reproduces and the attribution does not.** Layer 3's
+pass gained 29 and layer 4's pass lost all 30. Layer 4's loss is explained and measured (item 1
+below); layer 3's gain is **not attributed yet**. What it is not: nondeterminism -- the same pass run
+twice is identical to the node on all 255 `Beginner-I` failures. The candidate is that layers 6-8
+edited `Heuristic.cs`, which `Subgoal.cs` reaches through `FrontierObstacles` (`Subgoal.cs:223`), so
+the subgoal pass may not be the searcher that scored 44; a revert-one-thing run over the same
+population would settle it, the way session 20's buried-flag fix was settled.
+
+`build/reports/chain.jsonl` is rebuilt — by `tools/chain_union.py` now, so the recipe is a script
+rather than a sentence — and the three `bench/` lists are back, regenerated and committed.
+
 **The unsolved are unsolved on budget, not on structure:** 3,636 of layer 0's 3,790 failures stopped
 at `budget` (95.9%), only 154 at a beam dead end. No errors, no `NOTPORTED`, no crashes in 8,370
 level-solves. `Hard` at 0/257 is not the search failing to find a route, it is the search never
@@ -141,20 +174,63 @@ attack on it.
 
 ## Next actions
 
-> **Read this first — session 24.** `build/` is empty on this machine (Michal moved machines; it is
-> gitignored, so nothing in it travelled). That makes **items 1, 2 and 3 below unrunnable exactly as
-> written**: the level lists, `chain.jsonl` and every banked campaign solution are gone. The
-> ordering has changed accordingly — **item 0 now comes before all of them**, because it is what
-> makes the rest possible again.
+> **Session 24's item 0 is done — session 25.** The layer-0 campaign and all three passes have been
+> re-run on this machine, `build/reports/{l0,l3n,l34,l34pass4,chain}.jsonl` and
+> `build/solutions/{l0,l34}` are rebuilt, and the three level lists are regenerated and **committed
+> to `bench/`** with the rule that made each one in its own header. Items 1-4 below are runnable
+> again. Two caveats that travel with them:
 >
-> **0. Re-run the layer-0 campaign, and commit the three level lists to `bench/` this time.** The
-> chain at the top of this file rebuilds `build/reports/*.jsonl` and `build/solutions/`;
-> `chain.jsonl` is then the union of the four. `deep-levels.txt` is the only list derivable without
-> a campaign (it is a `.ghs` total filter). Until this is done, no number in the tuning tables can
-> be re-checked, and the *19/50 and 21/50* bench check in item 1 has nothing to run against. See
-> `bench/README.md`.
+> * **The lists are reconstructions, not recoveries.** Same rules, different levels, so every bench
+>   number ever quoted against them rebases — the *19/50 and 21/50* check in item 2 has nothing to
+>   be equal to any more, and the honest version of it is to re-measure and write the new pair down.
+>   `ferry-levels.txt` contains 1581, which this file names, so the rule is at least the right shape.
+> * **`bench-levels.txt` does not reproduce its old character.** It was GAUNTLET-heavy with almost
+>   no ferry; every candidate rule over this campaign's `Beginner-I` failures comes back FERRY 30 of
+>   60. Part is the population and part is layer 8's barrier fix moving 164 rows out of GAUNTLET, so
+>   the old label was a pre-fix read. Levels were not hand-picked to match the old description.
 
-**1. The fourth pass, at a budget that matches what layer 5 costs.** The decision pass came out
+**1. Layer 4's learned evaluation does not act, and the fix is worth 15 levels of composite.**
+Measured, not inferred: `--sg-eval learned` at the shipped `Weights.cs` vector is identical **to the
+node** to plain layer 3 on all 255 `Beginner-I` layer-0 failures at 150k and all 50 deep-bench levels
+at 400k, so the pass adds 0 of 3,714 where this file credits it +30.
+
+**The vector is right and the arithmetic that reads it is wrong.** `tools/fit_eval.py` writes
+`round(w * SCALE)` (line 307), so `Weights.cs` is in `Eval.Scale` fixed point exactly as its header
+says, and `Eval.Score`'s `s /= Scale` (`Learn.cs:248`) is the intended inverse -- but it is an
+*integer* divide, and the model's whole dynamic range is smaller than one unit of its own output.
+`--sg-trace` on `Beginner-I` 6 reports `work=6..15`, against a `work` weight of 157, i.e. 0.15 per
+work unit. So the divide rounds the ranking away and the key ties: over the instrument's own
+expansion groups the minimum score is tied in **786 of 815**, and breaking those ties by `work` cuts
+the disagreement with `WorkDistance` from 611 groups to 127. **A key that ties everywhere is decided
+by the beam's tie order, not by the model** -- and the beam's tie order here is the order the
+expansion offered, which is `WorkDistance`'s.
+
+Undo the divide -- session 25 did it by handing the same vector x 1024 to `--eval-weights`, which is
+numerically identical and needed no rebuild -- and it acts: 28 of the 255 levels take a different
+path, the pass adds **17**, and the composite goes **476 -> 491 of 4,185**
+(`build/reports/chain-scaled.jsonl`, 20 of 20 new solutions verified).
+
+Two things to know before fixing it, which is why session 25 measured it and did not ship it:
+
+* **The documented equivalence check cannot be run as written.** *Layer 4* offers the seed vector
+  `{work: 1, work_far: 1000, far_man: 1}` as the check that the learned key reproduces layer 3
+  exactly. In `fit_eval.py`, which is float throughout, that vector **is** `WorkDistance`. Handed to
+  `--eval-weights` it is a flat key -- every score divides to zero -- and scores 11/255 where plain
+  scores 27. The seed file has to be written x `Scale` like any other; scaled, it reproduces
+  `WorkDistance` exactly (0 of 815 groups disagree). Worth fixing in the text either way: the
+  equivalence is the only check that says the ranking hook is still a ranking hook.
+* **The fix is not a one-liner, because `Push.cs:167` mixes `Rank()`'s output with work-unit
+  addends** (`+ ferry + stop + dead + shield`). Scaling the vector -- or dropping the divide, which is
+  numerically the same -- makes the learned term 1024x larger and swamps every layer 5-8 tier. So the
+  campaign above licenses the subgoal side only; the push side needs the two benches first.
+
+`Weights.cs` and the `/= Scale` divide arrived in the *same* commit (`8752317`), and neither has
+changed since, so **no committed revision of this tree has a learned key that acts** -- the +30 was
+not measured through the path that ships. How it *was* measured is not recoverable: it would have
+been an `--eval-weights` file written by `fit_eval.py --fit` into `build/`, and `build/` is gone.
+Session 24's lesson a second time, one layer down.
+
+**2. The fourth pass, at a budget that matches what layer 5 costs.** The decision pass came out
 positive — 15 of 255 (5.9%) of the levels the shipped chain fails, all verified — so the open
 question is not *whether* layer 5 pays but *how much of the corpus is worth spending on it*. One push
 expansion is a whole closure, so this is the one pass that has to be budgeted in tens of millions of
@@ -170,9 +246,9 @@ python tools/verify_solutions.py build/solutions/l5
 ```
 
 Budget it as hours: 3,713 levels at 40M nodes is 10x the sample pass at 10x the budget. `SAMPLE=15`
-first if a rehearsal is wanted (~20 minutes at 12 jobs). If `build/reports/chain.jsonl` is gone,
-rebuild it by unioning the four chain reports (`l0`, `l3n`, `l34`, `l34pass4`) on
-`(collection, level) -> solved`.
+first if a rehearsal is wanted (~20 minutes at 12 jobs). `build/reports/chain.jsonl` exists again;
+if it is gone, `tools/chain_union.py` rebuilds it from the four chain reports rather than a
+hand-retyped union.
 
 **Run it in five arms and compare unions, not solo counts.** Layers 7 and 8 have *never* seen the
 corpus — two benches and an ablation is all that is behind them — so those arms are the measurement
@@ -189,12 +265,20 @@ they are missing, not a nice-to-have:
 Note the raised `--max-keys`: 1,200 is a silent cap on any level whose solution runs long, which is
 exactly the population this pass is.
 
-**And the benches as a check, not as a decision:** `bench.sh` on `bench/ferry-levels.txt`
-and `deep-levels.txt` at 4M nodes with `--no-ida --no-beam --push --push-read` should give **19/50**
-and **21/50**; adding `--push-beam 48 --push-per-board 0 --push-eval work --push-depth 400` (the
-session-17 configuration) should still give 11/50 and 14/50.
+**And the benches as a check, not as a decision — rebased in session 25.** The lists are
+reconstructions, so the old pair has nothing to be equal to; these four numbers are the new ones,
+measured on the committed lists at 4M nodes and 16 jobs:
 
-**2. Refresh the banked solutions.** *(Blocked on item 0: `build/solutions/` is empty.)*
+| `bench.sh` at 4M | ferry-levels | deep-levels |
+|---|---:|---:|
+| `--no-ida --no-beam --push --push-read` | **18/50** (was 19 on the old list) | **25/50** (was 21) |
+| ...plus `--push-beam 48 --push-per-board 0 --push-eval work --push-depth 400` | **9/50** (was 11) | **17/50** (was 14) |
+
+The shape survives the rebase, which is the only thing the old pair was being used for: the shipped
+width beats the session-17 configuration on both lists, by 9 on ferry and 8 on deep.
+
+**3. Refresh the banked solutions.** *(Unblocked: `build/solutions/l0` and `l34` are rebuilt, 476
+solutions.)*
 `Trim.Polish` removes 47% of a subgoal solution's keypresses and
 `Replan.Improve` another slice on top, so **every banked `.lpb` under `build/solutions/` is longer
 than it needs to be** — they all predate the replan pass. `--polish DIR` runs both over each of them.
@@ -202,7 +286,7 @@ This is not cosmetic: shorter trajectories change the ascent statistics the whol
 rests on, and they are what layer 4 is fit on. Measured on the 416 solutions in
 `build/solutions/l0`: 11,060 → 10,249 keypresses in about 150 s.
 
-**3. Levels 8 and 9 — Michal re-banks these himself, and a missing `.lpb` is not a missing solution.**
+**4. Levels 8 and 9 — Michal re-banks these himself, and a missing `.lpb` is not a missing solution.**
 **Read this before concluding anything from the contents of `data/solutions/`:** he deletes a banked
 `.lpb` on purpose in order to re-run the solver by hand and watch the solution replay, and re-banks it
 afterwards. That is the normal working loop, not a lost result — so a level named as banked in this
@@ -234,13 +318,13 @@ build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 9   --no-id
 `push-ferry-work` needs 162.8M, so the beam always gets there first and cancels it. Level 8's 308 has
 not been re-derived.
 
-**4. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both now want the same thing, and
+**5. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both now want the same thing, and
 it is not budget. 6 wants layer 2's decomposition one level out: commit to one block-and-hole pair,
 search only for that, re-derive. **10 was the "just buy the nodes" case until session 23, when the two
 900M-node runs session 22 left going came back unsolved at board-change depth 2** — so its ~1,000-pose
 closure, not its width, is what needs attacking. Do not spend another overnight run on it as-is.
 
-**5. Still worth doing, no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
+**6. Still worth doing, no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
 harvester.** See *Open question* at the end.
 
 ---
@@ -545,6 +629,12 @@ frontier but can never admit a state the shipped search refused. The check: the 
 `{work: 1, work_far: 1000, far_man: 1}` **is** `WorkDistance` written in these features, and
 `--sg-eval learned` with it reproduces layer 3 exactly — identical keystreams, node counts and stop
 reasons on all 50 deep-bench levels. `far_man` exists only so that equivalence can be exact.
+
+> **Session 25: write that seed vector x `Eval.Scale` before handing it to `--eval-weights`.** These
+> are float weights and the C# path is fixed point, so `{1, 1000, 1}` reaches `Eval.Score` as a flat
+> key rather than as `WorkDistance` — 11 of 255 against plain's 27. `{1024, 1024000, 1024}` is the
+> equivalence, exactly (0 of 815 instrument groups disagree). The same divide is why the *shipped*
+> vector no longer acts at all: *Next actions* item 1.
 
 **The campaign: 69 against layer 3's 44 over the same 3,790 failures — and it is not a superset.**
 Three of layer 3's are lost, which is the structural difference: a *restart* is additive by
@@ -1486,6 +1576,9 @@ bench.sh          one labelled configuration over one banked level list.  Its he
                     repeats the warning: a bench picks parameters, a campaign ships
 report_stats.py   read a campaign .jsonl: per-tier and per-collection rates, stop
                     reasons.  --diff compares two layers
+chain_union.py    union the chain's four per-pass reports into chain.jsonl -- the
+                    shipped chain's per-level state, and what the fourth pass has
+                    to be pointed at.  Was a sentence in this file until session 25
 rankdump.py       layer 4's instrument: replay every winning .lpb and dump the group
                     of successors the shipped expansion offered at each shot boundary
 fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regenerate
@@ -1496,25 +1589,26 @@ basin.py          read a --profile dump: how far uphill a winning line goes, per
 verify_solutions.py  the gate.  Both engines, WIN on each, byte-identical traces
 ```
 
-> **Session 24: `build/` is empty on this machine, and it held more than artefacts.** Michal moved
-> machines; `build/` is gitignored, so nothing in it travelled. `build/reports/` and
-> `build/solutions/` are both gone — the three level lists, `chain.jsonl`, and every banked campaign
-> solution with them. That makes the *19/50 and 21/50* check in *Next actions* item 1, the fourth
-> pass (which needs `chain.jsonl`), the `--polish` pass in item 2, and the shorter `.lpb` files in
-> item 3 all **unrunnable as written**, and the tuning tables below not reproducible on this tree
-> until a layer-0 campaign has been re-run.
+> **Session 25: `build/` has been rebuilt and the three level lists are committed.** Session 24
+> found `build/` empty after a machine move -- it is gitignored, so `build/reports/`,
+> `build/solutions/`, the three level lists and `chain.jsonl` had all gone with it, and none of the
+> tuning tables could be re-checked. The campaign and all three passes have since been re-run
+> (see *Status*), `chain.jsonl` is rebuilt by `tools/chain_union.py`, and the lists now live in
+> **`bench/`**, in git, each carrying the rule that generated it. They are reconstructions, so
+> bench numbers quoted against the old lists rebase.
 >
-> **The rule it pays for: a list that only lives in a gitignored directory is not banked.** The
-> curated lists are small, hand-picked and are what every number in this file is measured against —
-> a machine move should not be able to take them. They now belong in **`bench/`**, committed; see
-> the README there for what does and does not go in it.
+> **The rule it paid for: a list that only lives in a gitignored directory is not banked.** Nor is
+> a measurement -- layer 4's +30 was measured through a weights file in `build/` and does not
+> reproduce through the path that ships (*Next actions* item 1).
 
 The banked level lists live in **`bench/`**, committed — see the README there for why, and for what
 belongs beside them. The reports they are compared through stay in `build/reports/`, which is
-gitignored and machine-local. The lists: `bench-levels.txt` (60 levels layer 0 failed,
-GAUNTLET-heavy), `deep-levels.txt` (50 `Beginner-I` levels with a `.ghs` total of 40-150),
-and `ferry-levels.txt` (50 the chain fails that the read calls FERRY or SOKOBAN — banked because the
-two older lists contain almost no ferry). `build/reports/chain.jsonl` is *not* one of them: it is the
+gitignored and machine-local. The lists, all `Beginner-I` and all regenerated in session 25 with
+their rules in their own headers: `bench-levels.txt` (60 levels layer 0 failed — described as
+GAUNTLET-heavy when it was first cut, FERRY 30 of 60 through today's read, which is partly the
+population and partly layer 8's barrier fix), `deep-levels.txt` (50 levels with a `.ghs` total of
+40-150), and `ferry-levels.txt` (50 the chain fails that the read calls FERRY or SOKOBAN — banked
+because the two older lists contain almost no ferry). `build/reports/chain.jsonl` is *not* one of them: it is the
 shipped chain's final per-level state, so `second_pass.sh` can be pointed at everything it still
 fails, and it is an output tied to one code version rather than a curated input.
 
@@ -1686,3 +1780,30 @@ two complaints, and both were real:
 And one thing that is not a bug and was worth measuring anyway: **level 9's 5.0x is the route, not
 missing polish.** 73 board changes against the hand recording's 26, and `Replan.Improve` moves it by
 nothing at width 64 and 50M nodes. Post-processing does not substitute for a better search.
+
+**session 25 — the chain rebuilt on a bare machine, and layer 4 found inert.** Session 24's item 0,
+start to finish: the layer-0 campaign and all three passes re-run at 150k from an empty `build/`,
+`chain.jsonl` rebuilt (now by `tools/chain_union.py`, because the recipe was a sentence), and the
+three level lists regenerated and **committed to `bench/`** with their rules in their headers.
+**The composite reproduces: 472 —> 476 of 4,185**, 476 of 476 solutions through the two-engine gate.
+Three findings, in the order they cost time:
+
+- **The documented chain omitted `NODES` on its three passes**, so a copy-paste runs them at
+  `second_pass.sh`'s 1M default — 6.7x the budget every number in this file is quoted at. The
+  accidental run is kept (`l3n-1m.jsonl`): **147 of 3,787 against 44**, 3.3x the levels for 6.7x
+  the nodes, over the whole failure population rather than a sample. The commands now carry the
+  variable.
+- **Layer 4's learned key does not act at the shipped weights** — identical *to the node* to layer 3
+  on 255 levels at 150k and 50 at 400k, so its pass adds 0 where this file credits +30. `Eval.Score`
+  divides the fixed-point score by 1024 and the model's whole range is smaller than one unit of its
+  own output, so the ranking rounds away: the minimum ties in 786 of 815 instrument groups. Undone,
+  the pass adds 17 and the composite is **491**. Measured and written down rather than shipped,
+  because `Push.cs` mixes that score with work-unit addends. *Next actions* item 1.
+- **The attribution inside the chain has moved even though the total has not**: layer 3's pass is
+  +73 where it was +44, and that is *not* nondeterminism (the same pass twice is identical to the
+  node). Unattributed, deliberately — a revert-one-thing run over the same population is what would
+  settle it.
+
+The session's own lesson is session 24's with a second example: **a measurement that lives only in
+`build/` is not banked either.** Layer 4's +30 was real once and there is now no path in the tree
+that reproduces it.

@@ -5,12 +5,18 @@
 #   tools/second_pass.sh <first-report.jsonl> <out-subdir> <report.jsonl> [args...]
 #
 #   tools/campaign.sh     solutions/l0 build/reports/l0.jsonl --no-macro
-#   tools/second_pass.sh  build/reports/l0.jsonl solutions/l34 \
+#   NODES=150000 tools/second_pass.sh  build/reports/l0.jsonl solutions/l34 \
 #                         build/reports/l3n.jsonl --no-ida --no-beam --subgoal
-#   tools/second_pass.sh  build/reports/l3n.jsonl solutions/l34 \
+#   NODES=150000 tools/second_pass.sh  build/reports/l3n.jsonl solutions/l34 \
 #                         build/reports/l34.jsonl --no-ida --no-beam --subgoal --sg-eval learned
-#   tools/second_pass.sh  build/reports/l34.jsonl solutions/l34 \
+#   NODES=150000 tools/second_pass.sh  build/reports/l34.jsonl solutions/l34 \
 #                         build/reports/l34pass4.jsonl --no-ida --no-beam --macro --macro-first
+#
+# NODES matters more than it looks: the default below is 1M, and every number
+# quoted for these passes -- the +44 / +30 / +3 further down, the 441/444/472
+# composites -- is measured at the campaign's own 150k.  Run at the default and
+# the first pass adds three times as many levels, which is a different budget
+# rather than a better chain.
 #
 # Layer 5 (--push) is *not* in that chain, and the reason is a number rather
 # than an omission: one push expansion is a whole PF-preserving closure, some

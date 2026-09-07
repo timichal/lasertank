@@ -1,0 +1,64 @@
+# deep-levels.txt -- 50 Beginner-I levels with a .ghs total (moves+shots) of 40-150.
+#
+# The deep bench: levels whose *best known* solution is long, which is the
+# population depth-bound search fails on.  Not filtered by what any layer
+# solved, so it is the one list a code change cannot bias.
+#
+# Regenerated in session 25 after the machine move (the original lived only in
+# gitignored build/reports/ -- see bench/README.md).  The rule, now recorded so
+# it cannot be lost again: take every Beginner-I level whose .ghs record has a
+# non-zero move count and 40 <= moves+shots <= 150 (781 of the 2,000), keep
+# every 15th in level order, take the first 50.  Contains 1488, which SOLVER.md
+# quotes as a deep-bench level, and totals are 41-150 -- but this is a
+# *reconstruction* of the original list, not a recovery of it, so bench numbers
+# measured against it rebase from this session on.
+9
+41
+128
+169
+204
+315
+358
+388
+431
+469
+514
+566
+616
+659
+711
+755
+797
+818
+854
+903
+952
+988
+1026
+1058
+1102
+1135
+1160
+1189
+1214
+1242
+1274
+1308
+1337
+1370
+1390
+1422
+1458
+1488
+1523
+1552
+1575
+1611
+1653
+1693
+1726
+1751
+1803
+1831
+1885
+1913
