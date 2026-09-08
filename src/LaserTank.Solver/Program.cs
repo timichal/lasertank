@@ -46,7 +46,9 @@ namespace LaserTank.Solver
 "  searcher that ships runs side by side on its own thread and the node budget\n" +
 "  quadruples each round, until the level falls or you press a key to give up\n" +
 "  on it (q quits) -- or --max-round N rounds have gone by, which is how it is\n" +
-"  run unattended.  A solution is kept only once tools/verify_solutions.py\n" +
+"  run unattended.  The first win ends the round unless --best-of-round says\n" +
+"  otherwise, and a round that came back worse than the .lpb already on disk is\n" +
+"  refused by default (--no-beat-banked).  A solution is kept once\n" +
 "  has replayed it through both engines.  --from/--to/--out/--force/--author/\n" +
 "  --trim-ratio/--jobs apply; --nodes sets round 0's budget, not a cap.\n" +
 "  --lanes N works N levels at once and the lanes share the same --jobs\n" +
@@ -101,6 +103,34 @@ namespace LaserTank.Solver
 "    --jobs N             parallel workers, default = processor count\n" +
 "    --lanes N            interactive only: levels to work on at once,\n" +
 "                         default 1; every lane draws on the --jobs slots\n" +
+"    --best-of-round [R]  interactive only: a win does not end the round -- every\n" +
+"                         rung runs out the budget the round gave it and the\n" +
+"                         SHORTEST of however many win is banked.  The first\n" +
+"                         rung to finish is not the one with the best route:\n" +
+"                         LaserTank.lvl 9 falls to the raw beam at 94.3M nodes\n" +
+"                         at 294 keys / 5.0x and to push-ferry-work at 162.8M\n" +
+"                         at 127 / 2.2x, and cancelling on the first win throws\n" +
+"                         the second away before it exists.  Costs at most what\n" +
+"                         a round nobody wins already costs.  R is a record\n" +
+"                         ratio, default 2.0: a win already inside it ends the\n" +
+"                         round as before, so the cost is only paid where the\n" +
+"                         route looks bad.  A level with no .ghs record always\n" +
+"                         keeps the round open\n" +
+"    --no-beat-banked     interactive only: turn OFF the default, which is that\n" +
+"                         a round whose best route is LONGER than the .lpb\n" +
+"                         already banked is not accepted -- the candidate is\n" +
+"                         dropped and the budget quadruples instead, and the\n" +
+"                         round is held open from then on (a refusal proves a\n" +
+"                         shorter route exists, since it is on disk).  So a\n" +
+"                         re-solve converges on the best route ever banked for\n" +
+"                         the level rather than on whatever this run reached\n" +
+"                         first.  It can only bite under --force, because an\n" +
+"                         already-solved level is otherwise skipped.  Use\n" +
+"                         --max-round with it, or a level whose banked route\n" +
+"                         the ladder cannot reach escalates until a key is\n" +
+"                         pressed -- reporting \"not yet\" and keeping the\n" +
+"                         banked file, which is the honest answer but not a\n" +
+"                         terminating one\n" +
 "    --max-round N        interactive only: give up on a level after round N\n" +
 "                         instead of never.  Rounds are numbered from 0 and\n" +
 "                         round r gets 4^r x --nodes, so --max-round 3 is four\n" +
@@ -397,6 +427,13 @@ namespace LaserTank.Solver
             public int Lanes = 1;
             public int MaxRound = int.MaxValue;
             public bool MaxKeysRecord;
+            public bool BestOfRound;
+            // ON by default: a re-solve that comes back worse than the .lpb
+            // already banked has not finished the level.  It can only bite
+            // under --force, because without it an already-solved level is
+            // skipped before a searcher starts.
+            public bool BeatBanked = true;
+            public double BestRatio = 2.0;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
             public bool Polish = true;
@@ -451,6 +488,19 @@ namespace LaserTank.Solver
                         case "--beam": a.Opt.BeamWidth = int.Parse(V()); break;
                         case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); break;
                         case "--max-keys-record": a.MaxKeysRecord = true; break;
+                        case "--best-of-round":
+                            a.BestOfRound = true;
+                            // The ratio is optional, so it is only consumed
+                            // when the next token parses as one -- otherwise a
+                            // bare --best-of-round would eat the flag after it.
+                            if (i + 1 < argv.Length
+                                && double.TryParse(argv[i + 1], NumberStyles.Float,
+                                                   CultureInfo.InvariantCulture,
+                                                   out double br))
+                            { a.BestRatio = br; i++; }
+                            break;
+                        case "--beat-banked": a.BeatBanked = true; break;
+                        case "--no-beat-banked": a.BeatBanked = false; break;
                         case "--ida-depth": a.Opt.IdaMaxDepth = int.Parse(V()); break;
                         case "--no-ida": a.Opt.RunIda = false; break;
                         case "--no-beam": a.Opt.RunBeam = false; break;

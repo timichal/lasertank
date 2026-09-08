@@ -407,7 +407,7 @@ namespace LaserTank.Solver
             public int Count, Lanes;
             public string OutDir, Work, Ghs, Python, Gate, Root;
             public SemaphoreSlim Slots;
-            public int Solved, Skipped, Already, Rejected;
+            public int Solved, Skipped, Already, Rejected, Worse;
             public readonly List<int> Unsolved = new List<int>();
         }
 
@@ -575,6 +575,11 @@ namespace LaserTank.Solver
                 ctx.Rejected > 0
                     ? ", " + Ansi.Red(ctx.Rejected + " REJECTED by the gate") : "",
                 Progress.Span((DateTime.UtcNow - t0).TotalSeconds));
+            if (ctx.Worse > 0)
+                Console.WriteLine(Ansi.Yellow(string.Format(
+                    "  {0} {1} LONGER than the {2} replaced -- check `git diff`",
+                    ctx.Worse, ctx.Worse == 1 ? "solution came back" : "solutions came back",
+                    ctx.Worse == 1 ? "one it" : "ones they")));
             ctx.Unsolved.Sort();
             if (ctx.Unsolved.Count > 0)
                 Console.WriteLine(Ansi.Dim("  still unsolved: "
@@ -624,12 +629,64 @@ namespace LaserTank.Solver
                 bool won = false;
                 DateTime lt0 = DateTime.UtcNow;
                 int rounds = 0;
+                // Set the first time a round is refused for being longer than
+                // the banked route.  From then on the level's rounds are held
+                // open regardless of `--best-of-round`, because a refusal is
+                // *positive evidence that a shorter route exists* -- it is on
+                // disk -- and the whole reason the round was cancelling early
+                // was the assumption that the first win was as good as it gets.
+                // This is what makes the default productive rather than merely
+                // protective: without it, a level whose better route belongs to
+                // a slower rung escalates for ever and never banks anything,
+                // since every round is won early by the same rung with the same
+                // long answer and then refused.
+                // 0 until --beat-banked refuses a round; then the banked
+                // length the level's later rounds are chasing.
+                int beatTarget = 0;
                 for (int round = 0; !won && !lane.Skip && !_quit
                                     && round <= ctx.A.MaxRound; round++)
                 {
                     rounds = round + 1;
-                    Program.Outcome o = Round(ctx, lane, info, lv, round, lt0);
+                    Program.Outcome o = Round(ctx, lane, info, lv, round, lt0,
+                                              beatTarget);
                     if (o == null) continue;                       // nobody won
+
+                    // **`--beat-banked`: a round that came back worse than the
+                    // solution already on disk has not finished the level.**
+                    // This is the other half of the property `--best-of-round`
+                    // is for.  That flag makes one round produce the best route
+                    // the ladder can find at this budget; this one refuses to
+                    // call the level done while the best route the *project*
+                    // has ever found is still better, and goes round again with
+                    // four times the nodes and wider rungs instead.  Together
+                    // they are what makes a re-solve converge on the history
+                    // rather than on whatever the first rung happened to reach.
+                    //
+                    // The candidate is dropped rather than gated, because there
+                    // is nothing to learn from verifying a route that is not
+                    // going to be banked -- the gate costs a python process and
+                    // a second or two, and the banked file has already been
+                    // through it. `--max-round` is what stops this, and without
+                    // one a level whose banked route the driver cannot reach
+                    // will escalate until a key is pressed. That is the honest
+                    // behaviour: it says "not yet", not "solved".
+                    if (ctx.A.BeatBanked)
+                    {
+                        int banked = BankedKeys(lpb);
+                        if (banked > 0 && o.Keys > banked)
+                        {
+                            File.Delete(o.J.LpbPath);
+                            block.Add("  " + Ansi.Dim(string.Format(
+                                CultureInfo.InvariantCulture,
+                                "round {0}: {1} keys, longer than the banked {2}"
+                                + " -- not accepted, escalating{3}",
+                                round, o.Keys, banked,
+                                beatTarget > 0 ? ""
+                                  : "; holding the round open now")));
+                            beatTarget = banked;
+                            continue;
+                        }
+                    }
 
                     // The gate is a python process and takes a second or two on
                     // a long solution, which is a second or two of a lane's line
@@ -640,7 +697,8 @@ namespace LaserTank.Solver
                         T0 = lt0, Note = "verifying",
                     };
                     string why = Gate(ctx.Python, ctx.Gate, ctx.Root, ctx.A.Levels,
-                                      o.J.LpbPath, lane.VerifyDir, lpb);
+                                      o.J.LpbPath, lane.VerifyDir, lpb,
+                                      out int wasKeys);
                     if (why == null)
                     {
                         won = true;
@@ -649,6 +707,22 @@ namespace LaserTank.Solver
                                   + Detail(o, round, lt0));
                         block.Add("  " + Ansi.Dim(
                             "verified through both engines -> " + lpb));
+                        if (wasKeys > 0)
+                        {
+                            // A --force re-solve that got worse.  Said in
+                            // yellow rather than dim because it is the one
+                            // line in a long run that wants reading: the file
+                            // is overwritten by design, so this and the git
+                            // diff are the whole of how the regression gets
+                            // noticed.
+                            Interlocked.Increment(ref ctx.Worse);
+                            block.Add("  " + Ansi.Yellow(string.Format(
+                                CultureInfo.InvariantCulture,
+                                "LONGER than the solution it replaced "
+                                + "({0} keys -> {1}, +{2}) -- git has the old "
+                                + "one; `git diff` to see it",
+                                wasKeys, o.Keys, o.Keys - wasKeys)));
+                        }
                     }
                     else
                     {
@@ -695,7 +769,8 @@ namespace LaserTank.Solver
         /// finishing together would otherwise race on one path.  The winner's
         /// file is the one the gate is handed; the rest are deleted here.
         private static Program.Outcome Round(Ctx ctx, Lane lane, TLEVEL info,
-                                             int lv, int round, DateTime lt0)
+                                             int lv, int round, DateTime lt0,
+                                             int beatTarget)
         {
             Program.Args a = ctx.A;
 
@@ -778,11 +853,63 @@ namespace LaserTank.Solver
                                     ? "lane " + lane.Index + ", lv " + lv + ": " : "",
                                   round, Num(nodes), Ladder.Length));
 
+            // **Whether the first win ends the round.**  It always did, and on
+            // one level that is measurably the wrong trade: `LaserTank.lvl` 9
+            // falls to the raw beam at 94.3M nodes with a 294-key / 5.0x route
+            // and to `push-ferry-work` at 162.8M with a **127-key / 2.2x** one,
+            // so the rung that gets there first is the rung with the worse
+            // answer and cancelling on it throws the better answer away before
+            // it exists.  `--best-of-round` does not cancel: every rung runs
+            // out the budget this round already gave it, and the shortest of
+            // however many win is the one that is banked.
+            //
+            // **What it costs is bounded by a round that nobody wins**, which
+            // is the argument for it: the rungs are already sized to spend
+            // `nodes` each and a failed round spends exactly that, so keeping a
+            // won round open cannot cost more than the round before it did.
+            // What it buys is the property the driver is supposed to have --
+            // that one run reproduces the best route the project has ever found
+            // for a level, rather than the first one some rung stumbles into.
+            //
+            // `--best-of-round RATIO` spends it only where it can pay: a win
+            // already inside RATIO x the record is a good route and the round
+            // ends on it as before.  A level with no record cannot be judged
+            // that way and keeps the round open, because an unknown ratio is
+            // the case this flag exists for.
             Task all = Task.WhenAll(tasks);
+            bool settled = false, said = false;
             while (!all.Wait(120))
             {
-                foreach (Task<Program.Outcome> t in tasks)
-                    if (t.IsCompletedSuccessfully && t.Result.Solved) Stop(lane);
+                Program.Outcome best = Best(tasks);
+                if (best != null && !settled)
+                {
+                    if (beatTarget > 0)
+                    {
+                        // **Chasing a route that is known to exist**, because
+                        // it is the banked one -- so there is nothing to settle
+                        // for until it is beaten, and every reason to stop the
+                        // moment it is.  Without this the round would run to
+                        // its whole budget past the win that was the point of
+                        // keeping it open, which on a round-6 budget is hours
+                        // of nothing.
+                        if (best.Keys < beatTarget) { settled = true; Stop(lane); }
+                        else if (!said)
+                        {
+                            said = true;
+                            Note(lane, string.Format(CultureInfo.InvariantCulture,
+                                "won at {0} keys -- round open, chasing the "
+                                + "banked {1}", best.Keys, beatTarget));
+                        }
+                    }
+                    else if (KeepOpen(a, best))
+                    {
+                        settled = true;
+                        Note(lane, string.Format(CultureInfo.InvariantCulture,
+                            "won at {0} keys ({1:F1}x) -- round open for a "
+                            + "shorter one", best.Keys, best.Ratio));
+                    }
+                    else { settled = true; Stop(lane); }
+                }
                 if (_quit || lane.Skip) Stop(lane);
             }
 
@@ -818,7 +945,75 @@ namespace LaserTank.Solver
                 }
                 File.Delete(o.J.LpbPath);          // loser, or a longer win
             }
+
+            // **What keeping the round open actually bought, in one line.**
+            // Without it the flag's effect is invisible: the result line names
+            // the winning rung and its keys either way, and the fact that four
+            // other rungs also landed -- one of them 167 keys longer -- is the
+            // whole of the evidence for paying for the rest of the round.
+            // Only printed when more than one rung won, which is the only case
+            // where there was a choice to make.
+            if (win != null)
+            {
+                int wins = 0, longest = 0;
+                foreach (Task<Program.Outcome> t in tasks)
+                {
+                    if (!t.IsCompletedSuccessfully || !t.Result.Solved) continue;
+                    wins++;
+                    if (t.Result.Keys > longest) longest = t.Result.Keys;
+                }
+                if (wins > 1)
+                    Say("  " + Ansi.Dim(string.Format(CultureInfo.InvariantCulture,
+                        "{0} rungs solved this round; kept the shortest at {1} keys"
+                        + " against {2}", wins, win.Keys, longest)));
+            }
             return win;
+        }
+
+        /// Replace a lane's live line with a one-off note.  Null-guarded
+        /// because the snapshot is cleared the moment the level ends.
+        private static void Note(Lane lane, string note)
+        {
+            Snapshot s = lane.Cur;
+            if (s != null) s.Note = note;
+        }
+
+        /// The shortest win among the rungs that have finished, or null.  Used
+        /// twice: once inside the wait loop to decide whether the round is
+        /// settled, and once after it to pick what gets banked.  Reading a
+        /// task's Result is only safe once it has completed, which is what
+        /// IsCompletedSuccessfully is checked for.
+        private static Program.Outcome Best(Task<Program.Outcome>[] tasks)
+        {
+            Program.Outcome best = null;
+            foreach (Task<Program.Outcome> t in tasks)
+            {
+                if (!t.IsCompletedSuccessfully) continue;
+                Program.Outcome o = t.Result;
+                if (o.Solved && (best == null || o.Keys < best.Keys)) best = o;
+            }
+            return best;
+        }
+
+        /// Whether a round that has a winner should keep running anyway.
+        ///
+        /// Only under `--best-of-round`, and then only when the win is worse
+        /// than the ratio it was given -- a route already inside it is a good
+        /// route and there is nothing to buy by paying for the rest of the
+        /// round.  `Ratio` is 0 when the level has no `.ghs` record to divide
+        /// by, and that keeps the round open on purpose: a level whose quality
+        /// cannot be judged is the one where settling for the first win is
+        /// least defensible.
+        ///
+        /// The caller's `beatTarget` overrides all of this and is the ordinary
+        /// path rather than the exotic one: `--beat-banked` sets it after it
+        /// refuses a round, where a shorter route is known to exist because it
+        /// is on disk.  This function is only consulted when nothing is known,
+        /// which is why its ratio has to guess and `beatTarget` does not.
+        private static bool KeepOpen(Program.Args a, Program.Outcome best)
+        {
+            if (!a.BestOfRound) return false;
+            return best.Ratio <= 0 || best.Ratio > a.BestRatio;
         }
 
         /// Stop the searchers of one lane -- what a digit key means.
@@ -1104,10 +1299,16 @@ namespace LaserTank.Solver
         /// that directory is emptied first: a leftover from a previous level
         /// would otherwise be re-verified, and worse, could fail the run for a
         /// solution this one did not produce.
+        ///
+        /// `wasKeys` is the keystream length this write *replaced* when the
+        /// new route is longer than it, and 0 otherwise -- the candidate is
+        /// banked either way.  See BankedKeys.
         private static string Gate(string python, string gate, string root,
                                    string levels, string candidate,
-                                   string verifyDir, string finalPath)
+                                   string verifyDir, string finalPath,
+                                   out int wasKeys)
         {
+            wasKeys = 0;
             if (!File.Exists(candidate)) return "the winning searcher wrote no file";
             foreach (string old in Directory.GetFiles(verifyDir, "*.lpb"))
                 File.Delete(old);
@@ -1138,6 +1339,23 @@ namespace LaserTank.Solver
             }
             if (rc == 0)
             {
+                // **--force always overwrites, and the regression is the
+                // point.**  A re-solve can come back with a worse route than
+                // the one already banked -- on LaserTank.lvl 9 the raw beam
+                // wins at 94.3M nodes and cancels the push rung that needs
+                // 162.8M and would have brought back 127 keys against the
+                // beam's 294 -- and the thing to do with that is *see* it, not
+                // to suppress it.  git holds the better file, so the working
+                // tree diff is the regression detector and refusing the write
+                // would only hide the run that caused it.
+                //
+                // What the comparison is for is saying so out loud, because a
+                // diff nobody looks at is a diff: `wasKeys` is the length of
+                // what this write replaced, and 0 when it replaced nothing or
+                // improved on it.
+                int had = BankedKeys(finalPath);
+                int got = BankedKeys(staged);
+                if (had > 0 && got > had) wasKeys = had;
                 File.Move(staged, finalPath, overwrite: true);
                 return null;
             }
@@ -1146,6 +1364,27 @@ namespace LaserTank.Solver
                 if (line.Contains("FAIL") || line.Contains("NOT checked"))
                     return line.Trim();
             return "verify_solutions.py exited " + rc + "\n" + output.Trim();
+        }
+
+        /// Keystream length of a .lpb, or 0 if there is not a readable one
+        /// there.  Keys is the number the result line prints, the number the
+        /// round's winner is chosen by and the number `--polish` is measured
+        /// in, so it is the number a re-solve is compared against too.
+        ///
+        /// A missing file is the ordinary case (nothing banked yet) and an
+        /// unreadable one is treated the same way on purpose: 0 means "no
+        /// opinion", so nothing is claimed about a write there.  It never
+        /// blocks one -- Gate always banks a verified candidate; this only
+        /// decides whether the run says the route got worse.
+        private static int BankedKeys(string path)
+        {
+            if (!File.Exists(path)) return 0;
+            try
+            {
+                LevelFile.ReadPlayback(path, out byte[] keys);
+                return keys.Length;
+            }
+            catch (IOException) { return 0; }
         }
 
         // ---- odds and ends --------------------------------------------------

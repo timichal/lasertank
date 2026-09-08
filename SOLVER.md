@@ -37,6 +37,29 @@ test per call and allocates nothing. The corpus was re-verified with the change 
 
 ---
 
+## What is in this file
+
+Read in this order the first time; after that, come in by the row you want.
+
+| | |
+|---|---|
+| [Start here](#start-here) | the three commands — one level, the driver, the whole batch chain |
+| [Six rules the sessions each paid to learn](#six-rules-the-sessions-each-paid-to-learn) | why the numbers below can be trusted. The shortest section and the one to re-read |
+| [Status](#status) | what ships, what it solves, and the honest corpus percentage |
+| [Next actions](#next-actions) | **what is open** — two runs, one profile, one level — and what each costs |
+| [Tree and build state](#tree-and-build-state-session-by-session) | what `build/` holds and what its names mean, newest session first |
+| [Closed items](#closed-items--the-measurements-including-the-ones-that-came-back-negative) | finished work, kept for its measurements and its negative results |
+| [Pointers from a second reader](#pointers-from-a-second-reader--session-26) | session 26's twelve leads, with the evidence for each. *Next actions* is the distillate |
+| [The bar](#the-bar-measured-before-building-anything) | the acceptance test a layer has to pass to ship |
+| [The layers](#the-layers) | layers 0-8, one subsection each: what it is, what it measured, what it ships as |
+| [The interactive driver](#the-interactive-driver) | the portfolio, the rounds, the lanes, and the two-engine write path |
+| [Post-solve](#post-solve-polish-and-replan) | `Trim.Polish` and `Replan.Improve` — shortening a route after it wins |
+| [The instruments](#the-instruments-and-which-question-each-answers) | every flag that reports rather than searches, in cost order, plus the source map and the tools |
+| [Open question](#open-question--the-blogspot-goal-board-harvester) | the goal-board harvester, still unbuilt |
+| [Session log](#session-log) | one paragraph a session, oldest first |
+
+---
+
 ## Start here
 
 **Solve one level and watch it:**
@@ -241,228 +264,240 @@ attack on it.
 
 **What is open, and what each one costs.** Items 1, 3, 8, 9, 11 and 12 are done — **session 29
 closed 3, 8 and 11 in one sitting and two of the three came back negative**, which is the cheap
-half of this list doing its job. What is left is two runs, one profile and one level:
+half of this list doing its job. Item 4's *code* is done as of session 30 and its *runs* are not,
+which is why it is back in this table rather than in *Closed items*. Six items are open, **in this
+order and not in numeric order** — the reordering is session 30's and the reasoning is under the
+table:
 
-| | what it is | cost | why now |
-|---|---|---|---|
-| **2** | the fourth pass, three arms over the whole failure population | **~54 h**, one arm at a time | rehearsed twice, recipe final, biggest single result available (~1,172 levels extrapolated) |
-| **7** | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose. **The population list is generated** — `bench/short-record-failures.txt`, 687 levels |
-| 10 | wall clock: profile, then memoise `PushH` per board | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above. **Item 11's half of this motivation is gone** — see item 11 |
-| 5 | level 6, and level 10 with a named cause at last | 6 wants a decomposition; 10 wants a read | item 8 settled what is wrong with 10: **the read finds nothing on it**, so the beam ranks 1,024 distinct boards by work distance alone |
+| # | order | what it is | cost | why it sits here |
+|---|---|---|---|---|
+| **4** | **1st** | the level-9 acceptance run, then the campaign that decides whether `--best-of-round` is a default too | one round-5 level (**hours**); then a stride campaign with the flag against one without | **the only item that closes a *property* rather than adding levels**, and the cheapest one on the list. `--beat-banked` shipped ON in session 30 and has never been run on the level it was built for; until it is, the driver's core claim — one run finds the best route the project has ever found — is asserted, not measured. `--from 9 --to 9 --force --best-of-round --max-round 5` is the whole test |
+| **5** | **2nd** | **level 10's fire-map tier** (level 6's decomposition is last, not here) | one code change, hours; `--analyze` falsifies it in a second and `--push-trace`'s `best=` in minutes | the only design item in this file a *measurement* asked for. Item 8 named the cause — `on the barrier: 0`, the read inert by construction, the beam ranking 1,024 boards by work distance alone — and this file's own rule says the fix is a **tier**, not the addend `--push-fire` already is. Layer 8 computes the fire map, so the change is a promotion. **Population: the 537 unsolved GAUNTLETs** at median record 138, 138 of them at <= 60 |
+| **7** | 3rd | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose. **The population list is generated** — `bench/short-record-failures.txt`, 687 levels. It produces a *number*, which is why it now sits behind the two items that produce a property and a level |
+| 10 | 4th | wall clock: profile, then memoise `PushH` per board | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above, and item 4's acceptance run pays it too. **Item 11's half of this motivation is gone** — see item 11 |
+| **2** | 5th | the fourth pass, three arms over the whole failure population | **~54 h**, one arm at a time | rehearsed twice, recipe final, biggest single result available (~1,172 levels extrapolated) — and the one thing here that should not be started without deciding to give up the machine for two days. Everything above it is cheaper *and* answers a question this run cannot |
+| 6 | last | the `lasertanksolutions.blogspot.com` goal-board harvester | scraping, not solving | not a solver change at all, and nothing above it is blocked on it |
 
-*(Items 3, 8 and 11 are kept below rather than deleted: two of them are negative results, and a
-negative result that is deleted gets re-run. That is this file's own lesson from `bench/`.)*
+*(Items 3, 8 and 11 are kept in *Closed items* rather than deleted: two of them are negative
+results, and a negative result that is deleted gets re-run. That is this file's own lesson from
+`bench/`.)*
 
-**Item 8 has been run (session 29) and the advice it was given is worth keeping as a rule:** it was
-*"run 8 before 2 — it is the only one that can change what the other two are for, and it is an hour
-against 54"*, and that was correct twice over. It cost **27 minutes**, well under the hour, it changed
-nothing about item 2, and it closed the oldest open level in the file — **and the cheap items 3 and
-11 beside it retired two planned code changes for twenty minutes between them.** The ordering rule
-that produced that is: *runs and instruments before builds, cheapest first, and a negative result
-counts as a result.*
+**The order changed in session 30, and the rule it was ordered by changed with it.** The old rule was
+*runs and instruments before builds, cheapest first, and a negative result counts as a result* — and
+it was right, and session 29 is the proof: item 8 cost 27 minutes against a budgeted hour, changed
+nothing about item 2, closed the oldest open level in the file, and the cheap items 3 and 11 beside it
+retired two planned code changes for twenty minutes between them.
 
-**What remains is 7 and 2, and 7 still comes first** if the question is the production number
-rather than what layer 5 adds -- they attack the same population from opposite ends, item 2's own
-note says so, and 7's population list now exists. **Item 2 is a ~54-hour machine commitment and is
-the one thing here that should not be started without deciding to give up the machine for two days.**
+**That rule was calibrated when the cheap things were runs. They are not any more.** What is left of
+the runs is a ~54-hour campaign and a three-budget curve; the cheapest falsifiable thing on the list
+is now a *build* — item 5's tier, which `--analyze` can contradict in one second. So the rule is
+restated rather than replaced: **cheapest falsifier first, whatever kind of work it is.** The clause
+that does not survive is *builds last*.
 
-> **The state of the tree and of `build/`, as session 29 left it.** Read this before running
-> anything; `build/` is current and no cleanup is outstanding.
+**And a second ordering key, which is what actually moved 7 and 2 down: prefer work that produces a
+property or a level over work that produces a number.** Twenty-five hours of session-29-and-30 machine
+time went into items that report percentages, and the two levels in front of the project did not move
+and one banked solution got worse. Items 4 and 5 each end with something demonstrable — a driver that
+reproduces its own best routes, and a level that either falls or produces a named reason it did not.
+Item 7's curve is worth having and will still be worth having next week.
+
+*(Item 6 is last because it is not a solver change. Items 7-12 are session 26's, distilled from
+*Pointers from a second reader* below, which carries the evidence and the caveats for each; of the
+six, 8, 9, 11 and 12 are done and three of those four closed **negative**, which is the old ordering
+rule paying off rather than failing.)*
+
+**Where the rest of this section went.** What is open is here and nothing else is. The numbered
+items keep their numbers, because this file refers to them by number: the ones that are finished
+are in [*Closed items*](#closed-items--the-measurements-including-the-ones-that-came-back-negative)
+with their measurements intact, and the per-session notes on what `build/` and the tree hold are in
+[*Tree and build state*](#tree-and-build-state-session-by-session). Both are below this section.
+
+**4. Levels 8 and 9 — Michal re-banks these himself, and a missing `.lpb` is not a missing solution.**
+**Read this before concluding anything from the contents of `data/solutions/`:** he deletes a banked
+`.lpb` on purpose in order to re-run the solver by hand and watch the solution replay, and re-banks it
+afterwards. That is the normal working loop, not a lost result — so a level named as banked in this
+file may be absent from the directory at any given moment, and the way to check whether it is solved
+is this file plus `build/`, never a directory listing.
+
+~~The one thing worth acting on is that shorter verified solutions for both are sitting in `build/`~~
+— **session 24: those files are gone with the rest of `build/`.** What they were:
+
+| lvl | shortest verified file, now lost | keys | ratio | banked now |
+|---:|---|---:|---:|---|
+| 8 | `build/w/w8-2048/LaserTank/00008.lpb` | 308 (262 + 46) | 1.4x | 335 / 1.5x |
+| 9 | `build/w/b9-b/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **127 / 2.2x, re-derived** |
+
+Which configuration produced either is not recorded — the widths in the directory names were the only
+clue — so **neither is reproducible and the 308 and 114 routes are lost**, not merely misplaced. That
+is the same lesson as `bench/`: a verified result that lives only in a gitignored directory is not
+banked.
+
+Level 9's was re-derived in session 24 and is banked again at **127 keys / 2.2x**, verified through
+both engines, from the `push-ferry-work` rung at its round-5 settings run directly — 16m36s:
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 9   --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall   --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16   --push-beam 2048 --max-keys 5000 --push-restarts 30   --nodes 250000000 --budget-ms 3600000 --out build/short9
+```
+
+**This is the command to use for level 9, not the driver.** An unattended driver run finds the beam's
+**294-key / 5.0x** route instead, because the beam reaches its win at 94.3M nodes and
+`push-ferry-work` needs 162.8M, so the beam always gets there first and cancels it. Level 8's 308 has
+not been re-derived.
+
+> **It happened for real in session 30, and this item is what got fixed — session 30.** A `--force`
+> re-solve of the collection replaced the 2.2x route with the 5.0x one and said nothing about it. The
+> file was restored from git, but **restoring a file is not a fix**: the fix is that the driver stops
+> settling for the first win, because the property this driver is supposed to have is that *one run
+> reproduces the best route the project has ever found for a level.* Level 9 is the level that failed
+> that test, and it now has two flags aimed at it.
 >
-> * **What session 29 added:** the five-line `sterile=` instrument in
->   `src/LaserTank.Solver/Push.cs`, and **`bench/short-record-failures.txt`** — item 7's 687-level
->   population, with the rule that made it in its header, in `bench/` for the reason that directory
->   exists at all (the regenerated-lists paragraph two blocks down is what happens otherwise).
-> * **`build/` is rebuilt and carries `sterile=`** (`bash src/build.sh`), verified after the fact by
->   running one traced level. While the level-10 run held `build/` open the instrumented build lived
->   in a scratch `build-item11/` (`dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c
->   Release -o build-item11`), which is where every `sterile=` and `--analyze-tsv` number in this
->   session was measured; that directory is gone. **A side publish dir is not gitignored** — `/build/`
->   is, but nothing matches `build-*`, so use `LT_SOLVE=<exe>` with the three runner scripts where it
->   fits, and remember to remove the scratch dir where it does not.
-> * **Two new measurements, and they went to different places on purpose.**
->   **`bench/trace10.err`** is item 8's whole output — a 27-minute run at `--jobs 1`, with the
->   command and the five load-bearing columns in its header. It is in `bench/` because losing it
->   would cost a result, which is the widened charter `bench/README.md` now states: that directory
->   holds the solver's measurement artefacts, inputs *and* outputs expensive enough to matter, and
->   `data/` stays what it is — the preexisting corpus.
->   **`build/reports/analyze-corpus.tsv`** is all 20,914 levels' read verdicts and stays in `build/`
->   for the opposite reason: it regenerates in ~3 minutes by the loop in item 8. **The cheapness
->   test is the whole of the distinction** — 27 minutes is worth 16 KB in git, 3 minutes is not.
-> * **Nothing measured moved.** The only code is inside `--push-trace`'s existing gate, and all 494
->   banked solutions are byte-identical after item 3's re-polish (0 shortened).
-
-> **The state of the tree and of `build/`, as session 28 left it.**
+> * **`--best-of-round [RATIO]`** — a win no longer ends the round. Every rung runs out the budget
+>   the round already gave it and the **shortest** of however many win is the one banked. On this
+>   level that is the whole difference between 294 and 127 keys: both rungs solve inside round 5's
+>   409.6M, and the only reason the good one never existed is that the beam's win cancelled it 68.5M
+>   nodes early. **The cost is bounded by a round nobody wins** — the rungs are already sized to
+>   spend `nodes` each and a failed round spends exactly that — which is the argument for it being
+>   affordable at all. `RATIO` (default 2.0) spends it only where it can pay: a win already inside
+>   2.0x the record is a good route and the round ends on it as before, so a collection of easy
+>   levels costs nothing. A level with no `.ghs` record always keeps the round open, because an
+>   unjudgeable route is the case the flag exists for.
+> * **`--beat-banked`, and it is ON by default (`--no-beat-banked` turns it off)** — a round whose
+>   best route is longer than the `.lpb` already on disk is *not accepted*: the candidate is dropped
+>   and the budget quadruples instead. So a re-solve converges on the best route ever banked rather
+>   than on whatever this run reached first, and a level the ladder cannot match reports **`unsolved
+>   in N rounds`** with the banked file untouched — "not yet", not "solved". It needs `--max-round`,
+>   or such a level escalates until a key is pressed. **It can only bite under `--force`**, since an
+>   already-solved level is otherwise skipped before a searcher starts, which is what makes a default
+>   safe: no run that used to terminate stops terminating.
+> * **And a refusal turns the round open by itself, which is what makes the default do anything.**
+>   `--beat-banked` alone would refuse level 9's 294 keys every round for ever and never bank
+>   anything, because the same rung keeps winning early with the same long answer. So the first
+>   refusal hands the lane's later rounds the banked length as a **target**, and a round with a target
+>   does not cancel on a win at all: **a refusal is positive evidence that a shorter route exists — it
+>   is on disk** — so the assumption the early cancel rests on is the one just disproved. The cost
+>   lands only on levels that actually regressed.
+> * **A round with a target stops the moment it beats it**, which is what keeps that affordable. The
+>   ratio path has to run the round out because it never knows whether a shorter route exists; the
+>   target path knows exactly what it is chasing, so it cancels on the first win under the target
+>   rather than at the budget. Without that, a refused round 5 would hold round 6 open across its
+>   whole 1.6-billion-node budget long after the win that was the point of opening it.
 >
-> * *(Session 28's own "not committed" note is retired, the same way session 27's was below it: that
->   work -- `SOLVER.md`, `Auto.cs`, `Program.cs` -- is in the history as `24ea3b9`.)*
-> * **`build/` is rebuilt and published** (`bash src/build.sh`), so `build/lasertank-solve.exe`
->   carries `--max-round` and `--max-keys-record`. Both are **off by default** and no number
->   measured before this session changes.
-> * **The `none` arm is `build/reports/l5-s15-l8none.jsonl`**, solutions in `build/l5-s15/l8none`
->   (37, all gated), beside session 26's five as `build/reports/l5-s15-*.jsonl` -- that is the
->   prefix `arms_union.py` wants, and **`chain-s25.jsonl`** (the 476 chain) is the report all six
->   arms were pointed at. The full run in item 2 points at `chain.jsonl` (494) instead, which is
->   why its numbers will not be comparable with the rehearsal's arm-by-arm.
+> **And `--force` still always overwrites when a round *is* accepted**, which is the other half of
+> the same decision: `data/solutions/` is committed, so the diff against git is how a regression gets
+> noticed at all, and a gate that quietly kept the shorter file would leave a clean tree and no
+> evidence. What the gate adds is the sentence nobody should have to infer from a diff — a yellow
+> `LONGER than the one it replaced (127 keys -> 294, +167)` beside the `SOLVED` line, plus a count in
+> the run's last line. `Round()` picking the shortest of the rungs that land *together* is a third
+> rule and was already there: that one settles a tie inside one round, `--best-of-round` creates the
+> tie in the first place, and `--beat-banked` settles it across runs.
 
-> **The state of `build/` as session 27 left it**, which is still what these names mean. Read it
-> before running anything, because two of them changed meaning in that session.
->
-> * *(Session 27's own "not committed" note is retired: that work is `594c63c`, `bench/seed-weights.txt`
->   included.)*
-> * **`build/reports/` is rebuilt under the recipe's own names**: `l0.jsonl`, `l3c.jsonl` (the
->   `--sg-eval coarse` pass, 73), `l34.jsonl` (`--sg-eval learned`, 20), `l34pass4.jsonl` (macro, 3),
->   and **`chain.jsonl` = 494**. Session 25's four are kept beside them as `*-s25.jsonl` — note that
->   `l34.jsonl` and `chain.jsonl` are *not* the files of that name any session before 27 wrote, so a
->   number quoted against them rebases. `build/solutions/l34` holds the 96 the three passes added,
->   all through the gate.
-> * **The push benches live in `build/bench/{ferry,deep}-{coarse,learned,work,none,hs128,hs157}.jsonl`**,
->   which is what item 1's two tables are computed from via `tools/arms_union.py`.
-> * **`LT_SOLVE=<exe>`** overrides the binary in `bench.sh` / `campaign.sh` / `second_pass.sh`, which
->   is how a change gets benched while a long solve holds `build/` open.
+**Both are off by default and the default is the open question, not the flags.** The measurement they
+want is a stride campaign with `--best-of-round` against one without it, read as *keys* rather than as
+solved count — the solved set should be identical and the routes shorter, and how much shorter is the
+number that decides whether this becomes the default. Nothing in this file changes until that is run,
+because every ratio quoted here was measured under first-win-cancels. **The acceptance test is level
+9 itself:** `--from 9 --to 9 --force --best-of-round --beat-banked --max-round 5` should come back at
+127 keys or better, from `push-ferry-work` rather than from the beam, and that is the run that proves
+the property rather than asserting it.
 
-> **Session 24's item 0 is done — session 25.** The layer-0 campaign and all three passes have been
-> re-run on this machine, `build/reports/{l0,l3n,l34,l34pass4,chain}.jsonl` and
-> `build/solutions/{l0,l34}` are rebuilt, and the three level lists are regenerated and **committed
-> to `bench/`** with the rule that made each one in its own header. Items 1-4 below are runnable
-> again. Two caveats that travel with them:
->
-> * **The lists are reconstructions, not recoveries.** Same rules, different levels, so every bench
->   number ever quoted against them rebases — the *19/50 and 21/50* check in item 2 has nothing to
->   be equal to any more, and the honest version of it is to re-measure and write the new pair down.
->   `ferry-levels.txt` contains 1581, which this file names, so the rule is at least the right shape.
-> * **`bench-levels.txt` does not reproduce its old character.** It was GAUNTLET-heavy with almost
->   no ferry; every candidate rule over this campaign's `Beginner-I` failures comes back FERRY 30 of
->   60. Part is the population and part is layer 8's barrier fix moving 164 rows out of GAUNTLET, so
->   the old label was a pre-fix read. Levels were not hand-picked to match the old description.
+*(What was tried first and is not the answer: making the gate refuse the longer write. It fixes the
+file and hides the run — see the block above.)*
 
-**1. Layer 4's learned evaluation did not act. Two defects, both fixed — session 27.**
-*(Done, session 27. The chain question is settled — `coarse` -> `learned`, 476 -> **494** — and
-what is still open is the push side, which the benches below split by population and item 2's arms
-are the place to decide.)*
+**5. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both want a derivation rather
+than a budget, and **session 29 established that they want two different ones.** Session 30 split the
+item by cost as well: **level 10's half is the live one and level 6's is the last thing on the list**,
+because 10's fix is a promotion of something layer 8 already computes and can be contradicted by an
+instrument in one second, while 6's is a layer-sized build on the level this file's own numbers call
+furthest from falling.
 
-**Defect one was the divide, which session 25 found.** `Eval.Score` ended with `s /= Scale` to hand
-the beam a number in work units. Integer, and the model's whole dynamic range is smaller than one
-unit of its own output — the `work` weight is 157, i.e. 0.15 of a key per unit of `WorkDistance` —
-so the ranking rounded away and the minimum tied in 786 of 815 instrument groups. `Eval.Score` now
-leaves the score in fixed point and every caller works there: `Rank()`'s non-learned branch is
-`work * Eval.Scale`, layer 3's jitter is `Eval.Scale * Jitter()`, and `PushH`'s hand-built addends
-are lifted by `--push-hand-scale` (default: the fitted `work` weight — see the sweep below). `--push-trace`'s
-`best=` column and `--push-line`'s `line-h` divide back before printing, so every reading of them
-in this file is still in work units.
+**10 is the live half, and it is settled as a diagnosis and open as a design — item 8.** It is a **GAUNTLET**: the read finds
+a barrier on **0 of 63,454 expansions**, because a GAUNTLET has no terrain to clear and the barrier
+set is empty by construction, so layers 6-8 are all inert on it and the beam ranks 1,024 distinct
+boards by `WorkDistance` alone. Depth, closure and width are all cleared by the same trace
+(`d=63 at 399M`, `trunc=0`, `boards=1024`). **Do not spend another overnight run on it, and do not
+build the decomposition 6 wants either** — the candidate is the fire map, which layer 8 already
+computes, promoted from an addend inside `PushH` to a **tier** in layer 7's shape: prefer a
+successor that reduces the covering anti-tanks or opens a fire-map-safe cell over one that shortens
+the walk. On a GAUNTLET exposure is the quantity that has to fall. **This is the first design item
+in this file that a measurement asked for rather than a level number**, and the honest thing to say
+about it is that it is a hypothesis with a good instrument behind it and no code yet.
 
-**Defect two is why the divide looked like the whole story, and it is the larger one.** `Rank()`
-asked `_eval != null`, not its caller's flag, and `Search.cs` builds `_eval` when *either* beam
-wants the model while `PushLearned` defaulted to true. **So from `4765ae9` on, the subgoal beam
-ranked by the learned key whatever `--sg-eval` said.** Session 25's "`--sg-eval learned` is
-identical *to the node* to plain layer 3" was correct and had a second cause it did not look for:
-they were one searcher. Two consequences beyond the pass:
+**Level 6 is the last item on the list, not the second.** It wants layer 2's decomposition one level
+out: commit to one block-and-hole pair, search only for that, re-derive. Unchanged as a diagnosis, and
+it is still the one of the two furthest from falling on its own numbers — 142 pushes, six holes, and a
+beam that fills two of them and then finds every successor of every board worse. Nothing above it is
+blocked on it, and it is the one open item with no cheap falsifier.
 
-* **`--sg-eval` gated nothing for nine commits**, so every "layer 2", "layer 3" and "layer 4"
-  number measured on this tree since is a number for the same ranking.
-* **The driver ran a duplicate rung.** `Auto.cs`'s `layer 3` and `learned` rungs were the same
-  search, so one lane of the portfolio was spent twice. Fixed.
+**Size it before building it, because the obvious sizing argument cuts the other way.** `barrier ==
+0` is 26.2% of the corpus but is solved at **25.2% against 7.0%** — an artifact of the bucket
+holding OPEN and a mass of 12-key GAUNTLETs, since the sampled GAUNTLETs split 127 solved at a
+median record of 12 against 537 unsolved at a median of 138. **The population worth aiming at is
+those 537** (138 of them with a record <= 60), and the cheap test is a rung over that tail, not a
+campaign. Item 8 has the table.
 
-**The accidental key is not a degenerate one, so it is now a key of its own.** Rounding a learned
-score back to work units is *learned score, ties broken by fewest keypresses* — which is exactly
-what *Pointers* item 4 guessed the push rungs were really sorting by. It is `coarse`, and both
-`--sg-eval` and `--push-eval` now take `work|learned|coarse|none`:
+*(Superseded, so it is not re-derived: "10 was the just-buy-the-nodes case until session 23, when
+two 900M-node runs came back unsolved at board-change depth 2 — so its ~1,000-pose closure is what
+needs attacking." Session 26 disputed the arithmetic and session 29's trace confirms session 26.)*
 
-| key | what it is |
-|---|---|
-| `work` | `WorkDistance` (x `Eval.Scale`). What layers 2-3 are documented to use |
-| `coarse` | `Eval.Score` rounded to work units. What every run from `4765ae9` to now actually used |
-| `learned` | `Eval.Score` at full resolution. What layer 4 was fit to be |
-| `none` | H = 0, so `Cut()` orders by `Tier` then `G`. The control that had never been run |
+**7. Draw the solved-vs-budget curve over the short-record failures, and bank what it solves.**
+**Re-counted in session 28 against the 494 chain** (the 338/715 below were the 476 chain's):
+**314** of the 3,691 unsolved levels in the sample have a `.ghs` record of <= 40 moves+shots,
+**687** of <= 60, 1,037 of <= 80, and **95.9%** of the failures still stop on `budget`. This is the
+production number the whole project is measured by, and it has never been run above 150k except by
+accident (`l3n-1m.jsonl`, 3.3x the levels). One list, three budgets, every solution through the gate:
 
-**`coarse` is the push default and reproduces the old binary to the node** — 0 of 50 differing on
-the ferry bench, 0 of 50 on the deep bench, and `ferry 18/50 / deep 25/50` at the shipped flags,
-which are this file's rebased baselines. **Nothing layers 5-8 measured has moved.** The subgoal
-default is `work`, which restores what layers 2-3 say they do; the chain carries the flag it wants.
+```bash
+# the unsolved with a short record, from the chain's final state
+python - <<'EOF'
+import json
+rows=[json.loads(l) for l in open("build/reports/chain.jsonl",encoding="utf-8-sig")]
+with open("bench/short-record-failures.txt","w") as f:
+    for r in rows:
+        if not r["solved"] and 0 < r["ghs_moves"]+r["ghs_shots"] <= 60:
+            f.write(f'{r["collection"]}\t{r["level"]}\n')
+EOF
+# the chain's own four searchers, in its order, each pass over what the previous one failed
+for N in 1000000 10000000 50000000; do
+  R=build/reports/curve-$N; S=solutions/curve-$N
+  NODES=$N bash tools/second_pass.sh build/reports/chain.jsonl $S $R-l0.jsonl  --no-ida
+  NODES=$N bash tools/second_pass.sh $R-l0.jsonl  $S $R-l3.jsonl  --no-ida --no-beam --subgoal --sg-eval coarse
+  NODES=$N bash tools/second_pass.sh $R-l3.jsonl  $S $R-l4.jsonl  --no-ida --no-beam --subgoal --sg-eval learned
+  NODES=$N bash tools/second_pass.sh $R-l4.jsonl  $S $R-l1.jsonl  --no-ida --no-beam --macro --macro-first
+  python tools/verify_solutions.py build/$S
+done
+```
 
-**The push side, benched as this file asked — and the answer is not the one item 1 predicted.**
-Four keys, both lists, 4M nodes, 16 jobs, on top of `--no-ida --no-beam --push --push-read`:
+**The `--sg-eval coarse` on the second pass is session 28's correction, and without it this run
+measures the wrong chain.** Since session 27 a bare `--subgoal` means `--sg-eval work`, which is
+the ranking that pass is *retired* for — appended after `coarse` -> `learned` it adds 0. The three
+searchers the shipped 494 is made of are `--no-ida` (layer 0), `--subgoal --sg-eval coarse` and
+`--subgoal --sg-eval learned`, in that order, and the script above now says so. Any curve run with
+a bare `--subgoal` is a curve for a chain this tree does not ship.
 
-| push key, 4M | ferry solo | only it | deep solo | only it |
-|---|---:|---:|---:|---:|
-| `coarse` — the shipped key | **18** | 0 | 25 | 1 |
-| `learned` — the fix | 15 | **0** | **28** | 2 |
-| `work` | 15 | 1 | 19 | 0 |
-| `none` — H = 0 | **18** | **6** | 19 | **3** |
-| greedy union of the four | **25** | | **33** | |
+**Session 29 ran the generator and committed its output, and session 28's three counts reproduce
+exactly** off `build/reports/chain.jsonl` — 4,185 rows, 494 solved, 3,691 unsolved, of which
+**314** have a record <= 40, **687** <= 60 and **1,037** <= 80, and `stop` is `budget` on **3,540**
+of 3,691 (**95.9%**) against `beam-dead-end` on 151. The <= 60 list is `bench/short-record-failures.txt`
+with its rule in its header, so this item now starts at the `for N in ...` loop and the snippet
+above is the record of how the list was made. *(The field is `stop`, not `reason` — the schema is
+`collection depth difficulty ghs_moves ghs_shots keys level method moves ms name nodes polished
+ratio raw_keys replanned restarts shots solved stop trimmed`, and a wrong key name reads as
+`'?': 3691` rather than as an error.)*
 
-Three things in that table, in the order they change what to run:
+`second_pass.sh` re-attacks a report's failures, so the whole 3,691 run and `--order ghs` puts the
+short records first; `SAMPLE=` or a list through `bench.sh` if only the <= 60 population is wanted.
+Report the solved count per budget as a table in *Status*. **Keep 150k for attribution; this is a
+different question**, and at 50M the push rungs (`--push --push-read`, item 2's arms) become
+affordable as a fifth pass. Carry `--max-keys 5000 --max-keys-record` from 10M up: at these budgets
+a solution can outrun the default 1,200 cap, and item 12 has the two that did.
 
-* **`none` is the most complementary key on both lists and never wins solo.** It adds **+6** to the
-  ferry union and **+4** to the deep one in greedy order, where the shipped single arm is 18 and 25.
-  *Pointers* item 4 asked whether `none` would *reproduce* `learned`; it does better than that — it
-  is a different searcher of the same strength, and the pair is worth a quarter more than either.
-  **The three-arm fourth pass in item 2 should be benched with a `none` arm before it is started**;
-  it is the cheapest arm in the set to add and the only one with evidence of complementarity from
-  two independent lists. ***Session 28 ran that rehearsal and the transfer failed***: over the
-  fourth pass's 255 corpus levels `none` is **37 solo, the weakest of six arms**, and **+2** on the
-  three-arm union with one exclusive level. The bullet above is a true statement about the two
-  benches and a false prediction about the corpus — see item 2, and rule 1 at the top, which this
-  is now the sharpest example of.
-* **`none` does not buy back the wall clock, and that kills half of item 10's motivation.** 171k
-  nodes/s against `work`'s 173k and `coarse`'s 163k. The tiers still need everything `PushH`
-  derives — the flag Dijkstra, the fire map, the matching, `_lastDead` — so H = 0 turns off the
-  *ranking*, not the cost. Item 10's memoisation is still the way to that.
-* **`learned` splits by population and is dominated on one of them.** Ferry: 15 solo and **0
-  exclusive** against `coarse`'s 18 — strictly worse. Deep: 28 against 25, best solo in the set.
-  Two benches, opposite orders, which is this file's first rule verbatim. The push side is a
-  corpus question and item 2's arms are where it gets answered.
-
-**The one scalar, swept — and `Eval.Scale` is the wrong value for it.** `--push-hand-scale` prices
-one work unit of the ferry/stop/dead/shield terms against the learned score. `Eval.Scale` = 1024 is
-their historic relation, but the learned key prices a work unit at its own `work` weight of **157**,
-so at 1024 the hand terms are 6.5x heavier than the key they are added to — which is the same
-units error as the divide, one level out.
-
-| `--push-hand-scale` under `--push-eval learned` | 128 | **157 — now the default** | 1024 (`Eval.Scale`) | 8192 |
-|---|---:|---:|---:|---:|
-| ferry-levels | **18** | **18** | 15 | 16 |
-| deep-levels | **28** | 27 | **28** | — |
-
-**157 is not a fitted number, it is `Weights.cs`'s `work` weight**, i.e. the value that makes a work
-unit of the hand terms cost what the learned key itself charges for one. At it, `learned` scores
-**18 / 27** against `coarse`'s **18 / 25** — the first configuration in this table that is not worse
-than the shipped key on either list. `Eval.Scale` costs three ferry levels for nothing, so if the
-push side ships a learned key at all it ships with this scalar set — so `--push-hand-scale`
-defaults to it, derived as `Weights.Default[work]` rather than written down, so that a refit moves
-it. Verified node-identical to `--push-hand-scale 157` on all 50 ferry levels.
-
-Two cautions before that reads as a result. It is **two benches of fifty**, and the swept arms carry
-**0 exclusive levels** on either list — 157 and 128 are inside `coarse`'s and `learned`'s unions, so
-what the scalar buys is a better *single* arm and not a better union. The union on both lists is
-still driven by `none`: ferry 18 -> 24 with `coarse`, deep 28 -> 32 with `none` then 33 with
-`coarse`. **The scalar is worth setting; it is not worth a campaign on its own.**
-
-**What the chain does with the two keys — three configurations, one population, one budget.**
-`build/reports/l0.jsonl` is reused throughout: layer 0 never calls `Rank()`, so only the middle
-passes move. All at 150k, all through the two-engine gate.
-
-| chain | pass 2 | pass 3 | + macro | composite |
-|---|---|---|---:|---:|
-| session 25, as it shipped | `--subgoal` +73 | `--sg-eval learned` +0 | +5 | 476 |
-| `work` -> `learned` | +44 | +39 | +3 | 484 |
-| **`coarse` -> `learned`** | **+73** | **+20** | +3 | **494 (11.8%)** |
-
-**494 is a strict superset of 484 and of 476**, which is unusual for a re-ranking and is worth the
-sentence: it happens because pass 2 is unchanged from session 25's and pass 3 only ever attacks what
-pass 2 failed, so nothing is re-ranked out of the result. The `work` chain is *not* a superset of
-476 — it loses 10 and gains 18 — which is layer 4's founding finding again.
-
-**And `WorkDistance` is retired as a ranking for this pass.** A `--sg-eval work` pass appended after
-`coarse` -> `learned` adds **0**: every level it can reach is already in the union. This is
-derivable from the three reports rather than run, because a second pass attacks exactly the previous
-one's failures, so the levels it would add are exactly the ones it solves and `coarse` does not.
-
-**What this cost, stated plainly.** Nothing in `Weights.cs` changed and nothing was refit; the model
-was correct all along and two lines of arithmetic between it and the beam were not. The +30 this
-file credited layer 4 with was never measured through the path that ships (`Weights.cs` and the
-divide arrived in the same commit, `8752317`), and it is still not recovered — **+20 is what the
-learned key is worth on this tree**, on top of a pass 2 that is itself a learned key.
+**10. Wall clock on the push rungs: profile, then memoise `PushH` per board.** 166k nodes/s on the
+shipped push rung against 1.4M on layer 0, and the difference is heuristic work repeated for every
+pose of the same playfield. First `dotnet-trace` one `--push --push-read --push-beam 8 --nodes
+6000000 --jobs 1` run on `LaserTank.lvl` 10 to see the split; then cache the flag Dijkstra (and the
+fire map, matching, `Feat` board terms) by `BoardKey` within an expansion, by `(BoardKey, tank
+cell)` under `--push-reach`. **Measure in seconds, never nodes** -- the node count is identical by
+construction, so every bench in this file will report no change.
 
 **2. The fourth pass — rehearsed in session 26, and the rehearsal changed the shape of it.** The
 decision pass came out positive — 15 of 255 (5.9%) of the levels the shipped chain fails — so the
@@ -647,6 +682,262 @@ measured on the committed lists at 4M nodes and 16 jobs:
 The shape survives the rebase, which is the only thing the old pair was being used for: the shipped
 width beats the session-17 configuration on both lists, by 9 on ferry and 8 on deep.
 
+**6. Still worth doing, no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
+harvester.** See *Open question* at the end.
+
+---
+
+## Tree and build state, session by session
+
+**What `build/` and the tree hold, newest first.** Read the top block before running anything: the
+report and solution names below are what this file's numbers are quoted against, and two of them
+changed meaning mid-history, which is why the superseded blocks are kept rather than collapsed.
+
+> **The state of the tree and of `build/`, as session 30 left it.** Nothing measured moved, and
+> `build/` is current.
+>
+> * **Two new driver flags: `--best-of-round [RATIO]` (off) and `--beat-banked` (ON, opt out with
+>   `--no-beat-banked`).**
+>   `Auto.cs` (the round's wait loop, plus `Best()`, `KeepOpen()`, `BankedKeys()` and the lane's
+>   `openRound`) and `Program.cs` (the flags and their `--help`). `Gate()` also gained an
+>   `out int wasKeys` and the lane prints a yellow `LONGER than the one it replaced` line, counted in
+>   the summary. **No searcher, ranking or budget changed, so every solved count and ratio in this
+>   file stands** — the one behaviour change that is on by default only reaches a `--force` re-solve
+>   of a level that already has a banked `.lpb`, which no campaign or bench in this file does.
+>   `bash src/build.sh` has been run, so `build/lasertank-solve.exe` has all of it.
+> * **What was verified, and what was not.** All four paths were exercised on `LaserTank.lvl` 3 in a
+>   scratch `--out`: the round staying open (`--best-of-round 1.0`, 20M nodes — **3 rungs solved,
+>   shortest 58 against 60, 83s** against **2.6s and one rung** for the same run without the flag,
+>   which is the clock showing the round really does stay open); the ratio gate ending a good round
+>   immediately; the default refusing a 58-key round against a 30-key banked stand-in, printing
+>   `holding the round open now`, escalating through three rounds and reporting `unsolved in 3 rounds`
+>   with the file untouched; `--no-beat-banked` restoring the old overwrite-and-warn; the default
+>   accepting 58 over a 200-key stand-in; and a fresh `--out` with nothing banked behaving exactly as
+>   before. **The level-9 acceptance run has not been done** — it is a round-5 run and hours of
+>   machine — so the property is *implemented and unit-tested, not yet demonstrated on the level it
+>   was built for*. That is item 4 and it is now first on the list.
+> * **`data/solutions/LaserTank/00009.lpb` is the committed 127-key file again.** It was restored
+>   with `git checkout`, not re-derived — the 294-key route that had overwritten it is gone, which
+>   costs nothing, since item 4's command reproduces the good one and *Layer 8* has the bad one's
+>   numbers.
+> * **Gates re-run after the change:** `verify_solutions.py data/solutions` → 8/8, both engines
+>   agreeing on every tick; `replay_all.py` → 187/181/6, 0 unexpected; `test_difftrace.py` → 29
+>   passed; `sweep.py` → 2,347/2,347 identical. `test_fuzz.py` was not re-run — it rebuilds the core
+>   and the change is not in the core.
+> * **A trap this session walked into, worth the line:** `core.autocrlf` is **`true`** on this
+>   machine, against the README's instruction to set it false, so a tool that rewrites a whole file
+>   through Python's text mode converts it to CRLF while `git diff` goes on looking clean. `SOLVER.md`
+>   was written back to LF by hand. Check the bytes, not the diff.
+> * **Nothing is committed.** Michal writes the history; `Auto.cs` and this file are left staged for
+>   him to read.
+
+> **The state of the tree and of `build/`, as session 29 left it.** Read this before running
+> anything; `build/` is current and no cleanup is outstanding.
+>
+> * **What session 29 added:** the five-line `sterile=` instrument in
+>   `src/LaserTank.Solver/Push.cs`, and **`bench/short-record-failures.txt`** — item 7's 687-level
+>   population, with the rule that made it in its header, in `bench/` for the reason that directory
+>   exists at all (the regenerated-lists paragraph two blocks down is what happens otherwise).
+> * **`build/` is rebuilt and carries `sterile=`** (`bash src/build.sh`), verified after the fact by
+>   running one traced level. While the level-10 run held `build/` open the instrumented build lived
+>   in a scratch `build-item11/` (`dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c
+>   Release -o build-item11`), which is where every `sterile=` and `--analyze-tsv` number in this
+>   session was measured; that directory is gone. **A side publish dir is not gitignored** — `/build/`
+>   is, but nothing matches `build-*`, so use `LT_SOLVE=<exe>` with the three runner scripts where it
+>   fits, and remember to remove the scratch dir where it does not.
+> * **Two new measurements, and they went to different places on purpose.**
+>   **`bench/trace10.err`** is item 8's whole output — a 27-minute run at `--jobs 1`, with the
+>   command and the five load-bearing columns in its header. It is in `bench/` because losing it
+>   would cost a result, which is the widened charter `bench/README.md` now states: that directory
+>   holds the solver's measurement artefacts, inputs *and* outputs expensive enough to matter, and
+>   `data/` stays what it is — the preexisting corpus.
+>   **`build/reports/analyze-corpus.tsv`** is all 20,914 levels' read verdicts and stays in `build/`
+>   for the opposite reason: it regenerates in ~3 minutes by the loop in item 8. **The cheapness
+>   test is the whole of the distinction** — 27 minutes is worth 16 KB in git, 3 minutes is not.
+> * **Nothing measured moved.** The only code is inside `--push-trace`'s existing gate, and all 494
+>   banked solutions are byte-identical after item 3's re-polish (0 shortened).
+
+> **The state of the tree and of `build/`, as session 28 left it.**
+>
+> * *(Session 28's own "not committed" note is retired, the same way session 27's was below it: that
+>   work -- `SOLVER.md`, `Auto.cs`, `Program.cs` -- is in the history as `24ea3b9`.)*
+> * **`build/` is rebuilt and published** (`bash src/build.sh`), so `build/lasertank-solve.exe`
+>   carries `--max-round` and `--max-keys-record`. Both are **off by default** and no number
+>   measured before this session changes.
+> * **The `none` arm is `build/reports/l5-s15-l8none.jsonl`**, solutions in `build/l5-s15/l8none`
+>   (37, all gated), beside session 26's five as `build/reports/l5-s15-*.jsonl` -- that is the
+>   prefix `arms_union.py` wants, and **`chain-s25.jsonl`** (the 476 chain) is the report all six
+>   arms were pointed at. The full run in item 2 points at `chain.jsonl` (494) instead, which is
+>   why its numbers will not be comparable with the rehearsal's arm-by-arm.
+
+> **The state of `build/` as session 27 left it**, which is still what these names mean. Read it
+> before running anything, because two of them changed meaning in that session.
+>
+> * *(Session 27's own "not committed" note is retired: that work is `594c63c`, `bench/seed-weights.txt`
+>   included.)*
+> * **`build/reports/` is rebuilt under the recipe's own names**: `l0.jsonl`, `l3c.jsonl` (the
+>   `--sg-eval coarse` pass, 73), `l34.jsonl` (`--sg-eval learned`, 20), `l34pass4.jsonl` (macro, 3),
+>   and **`chain.jsonl` = 494**. Session 25's four are kept beside them as `*-s25.jsonl` — note that
+>   `l34.jsonl` and `chain.jsonl` are *not* the files of that name any session before 27 wrote, so a
+>   number quoted against them rebases. `build/solutions/l34` holds the 96 the three passes added,
+>   all through the gate.
+> * **The push benches live in `build/bench/{ferry,deep}-{coarse,learned,work,none,hs128,hs157}.jsonl`**,
+>   which is what item 1's two tables are computed from via `tools/arms_union.py`.
+> * **`LT_SOLVE=<exe>`** overrides the binary in `bench.sh` / `campaign.sh` / `second_pass.sh`, which
+>   is how a change gets benched while a long solve holds `build/` open.
+
+> **Session 24's item 0 is done — session 25.** The layer-0 campaign and all three passes have been
+> re-run on this machine, `build/reports/{l0,l3n,l34,l34pass4,chain}.jsonl` and
+> `build/solutions/{l0,l34}` are rebuilt, and the three level lists are regenerated and **committed
+> to `bench/`** with the rule that made each one in its own header. Items 1-4 below are runnable
+> again. Two caveats that travel with them:
+>
+> * **The lists are reconstructions, not recoveries.** Same rules, different levels, so every bench
+>   number ever quoted against them rebases — the *19/50 and 21/50* check in item 2 has nothing to
+>   be equal to any more, and the honest version of it is to re-measure and write the new pair down.
+>   `ferry-levels.txt` contains 1581, which this file names, so the rule is at least the right shape.
+> * **`bench-levels.txt` does not reproduce its old character.** It was GAUNTLET-heavy with almost
+>   no ferry; every candidate rule over this campaign's `Beginner-I` failures comes back FERRY 30 of
+>   60. Part is the population and part is layer 8's barrier fix moving 164 rows out of GAUNTLET, so
+>   the old label was a pre-fix read. Levels were not hand-picked to match the old description.
+
+---
+
+## Closed items — the measurements, including the ones that came back negative
+
+**Finished work, kept for its numbers rather than its status.** Every item here is done; they are
+in this file because a measurement that is deleted gets re-measured and a negative result that is
+deleted gets re-run — `bench/`'s own lesson, and the reason items 3, 8 and 11 read as anticlimaxes
+rather than as absences. Numbers are the ones *Next actions* refers to.
+
+**1. Layer 4's learned evaluation did not act. Two defects, both fixed — session 27.**
+*(Done, session 27. The chain question is settled — `coarse` -> `learned`, 476 -> **494** — and
+what is still open is the push side, which the benches below split by population and item 2's arms
+are the place to decide.)*
+
+**Defect one was the divide, which session 25 found.** `Eval.Score` ended with `s /= Scale` to hand
+the beam a number in work units. Integer, and the model's whole dynamic range is smaller than one
+unit of its own output — the `work` weight is 157, i.e. 0.15 of a key per unit of `WorkDistance` —
+so the ranking rounded away and the minimum tied in 786 of 815 instrument groups. `Eval.Score` now
+leaves the score in fixed point and every caller works there: `Rank()`'s non-learned branch is
+`work * Eval.Scale`, layer 3's jitter is `Eval.Scale * Jitter()`, and `PushH`'s hand-built addends
+are lifted by `--push-hand-scale` (default: the fitted `work` weight — see the sweep below). `--push-trace`'s
+`best=` column and `--push-line`'s `line-h` divide back before printing, so every reading of them
+in this file is still in work units.
+
+**Defect two is why the divide looked like the whole story, and it is the larger one.** `Rank()`
+asked `_eval != null`, not its caller's flag, and `Search.cs` builds `_eval` when *either* beam
+wants the model while `PushLearned` defaulted to true. **So from `4765ae9` on, the subgoal beam
+ranked by the learned key whatever `--sg-eval` said.** Session 25's "`--sg-eval learned` is
+identical *to the node* to plain layer 3" was correct and had a second cause it did not look for:
+they were one searcher. Two consequences beyond the pass:
+
+* **`--sg-eval` gated nothing for nine commits**, so every "layer 2", "layer 3" and "layer 4"
+  number measured on this tree since is a number for the same ranking.
+* **The driver ran a duplicate rung.** `Auto.cs`'s `layer 3` and `learned` rungs were the same
+  search, so one lane of the portfolio was spent twice. Fixed.
+
+**The accidental key is not a degenerate one, so it is now a key of its own.** Rounding a learned
+score back to work units is *learned score, ties broken by fewest keypresses* — which is exactly
+what *Pointers* item 4 guessed the push rungs were really sorting by. It is `coarse`, and both
+`--sg-eval` and `--push-eval` now take `work|learned|coarse|none`:
+
+| key | what it is |
+|---|---|
+| `work` | `WorkDistance` (x `Eval.Scale`). What layers 2-3 are documented to use |
+| `coarse` | `Eval.Score` rounded to work units. What every run from `4765ae9` to now actually used |
+| `learned` | `Eval.Score` at full resolution. What layer 4 was fit to be |
+| `none` | H = 0, so `Cut()` orders by `Tier` then `G`. The control that had never been run |
+
+**`coarse` is the push default and reproduces the old binary to the node** — 0 of 50 differing on
+the ferry bench, 0 of 50 on the deep bench, and `ferry 18/50 / deep 25/50` at the shipped flags,
+which are this file's rebased baselines. **Nothing layers 5-8 measured has moved.** The subgoal
+default is `work`, which restores what layers 2-3 say they do; the chain carries the flag it wants.
+
+**The push side, benched as this file asked — and the answer is not the one item 1 predicted.**
+Four keys, both lists, 4M nodes, 16 jobs, on top of `--no-ida --no-beam --push --push-read`:
+
+| push key, 4M | ferry solo | only it | deep solo | only it |
+|---|---:|---:|---:|---:|
+| `coarse` — the shipped key | **18** | 0 | 25 | 1 |
+| `learned` — the fix | 15 | **0** | **28** | 2 |
+| `work` | 15 | 1 | 19 | 0 |
+| `none` — H = 0 | **18** | **6** | 19 | **3** |
+| greedy union of the four | **25** | | **33** | |
+
+Three things in that table, in the order they change what to run:
+
+* **`none` is the most complementary key on both lists and never wins solo.** It adds **+6** to the
+  ferry union and **+4** to the deep one in greedy order, where the shipped single arm is 18 and 25.
+  *Pointers* item 4 asked whether `none` would *reproduce* `learned`; it does better than that — it
+  is a different searcher of the same strength, and the pair is worth a quarter more than either.
+  **The three-arm fourth pass in item 2 should be benched with a `none` arm before it is started**;
+  it is the cheapest arm in the set to add and the only one with evidence of complementarity from
+  two independent lists. ***Session 28 ran that rehearsal and the transfer failed***: over the
+  fourth pass's 255 corpus levels `none` is **37 solo, the weakest of six arms**, and **+2** on the
+  three-arm union with one exclusive level. The bullet above is a true statement about the two
+  benches and a false prediction about the corpus — see item 2, and rule 1 at the top, which this
+  is now the sharpest example of.
+* **`none` does not buy back the wall clock, and that kills half of item 10's motivation.** 171k
+  nodes/s against `work`'s 173k and `coarse`'s 163k. The tiers still need everything `PushH`
+  derives — the flag Dijkstra, the fire map, the matching, `_lastDead` — so H = 0 turns off the
+  *ranking*, not the cost. Item 10's memoisation is still the way to that.
+* **`learned` splits by population and is dominated on one of them.** Ferry: 15 solo and **0
+  exclusive** against `coarse`'s 18 — strictly worse. Deep: 28 against 25, best solo in the set.
+  Two benches, opposite orders, which is this file's first rule verbatim. The push side is a
+  corpus question and item 2's arms are where it gets answered.
+
+**The one scalar, swept — and `Eval.Scale` is the wrong value for it.** `--push-hand-scale` prices
+one work unit of the ferry/stop/dead/shield terms against the learned score. `Eval.Scale` = 1024 is
+their historic relation, but the learned key prices a work unit at its own `work` weight of **157**,
+so at 1024 the hand terms are 6.5x heavier than the key they are added to — which is the same
+units error as the divide, one level out.
+
+| `--push-hand-scale` under `--push-eval learned` | 128 | **157 — now the default** | 1024 (`Eval.Scale`) | 8192 |
+|---|---:|---:|---:|---:|
+| ferry-levels | **18** | **18** | 15 | 16 |
+| deep-levels | **28** | 27 | **28** | — |
+
+**157 is not a fitted number, it is `Weights.cs`'s `work` weight**, i.e. the value that makes a work
+unit of the hand terms cost what the learned key itself charges for one. At it, `learned` scores
+**18 / 27** against `coarse`'s **18 / 25** — the first configuration in this table that is not worse
+than the shipped key on either list. `Eval.Scale` costs three ferry levels for nothing, so if the
+push side ships a learned key at all it ships with this scalar set — so `--push-hand-scale`
+defaults to it, derived as `Weights.Default[work]` rather than written down, so that a refit moves
+it. Verified node-identical to `--push-hand-scale 157` on all 50 ferry levels.
+
+Two cautions before that reads as a result. It is **two benches of fifty**, and the swept arms carry
+**0 exclusive levels** on either list — 157 and 128 are inside `coarse`'s and `learned`'s unions, so
+what the scalar buys is a better *single* arm and not a better union. The union on both lists is
+still driven by `none`: ferry 18 -> 24 with `coarse`, deep 28 -> 32 with `none` then 33 with
+`coarse`. **The scalar is worth setting; it is not worth a campaign on its own.**
+
+**What the chain does with the two keys — three configurations, one population, one budget.**
+`build/reports/l0.jsonl` is reused throughout: layer 0 never calls `Rank()`, so only the middle
+passes move. All at 150k, all through the two-engine gate.
+
+| chain | pass 2 | pass 3 | + macro | composite |
+|---|---|---|---:|---:|
+| session 25, as it shipped | `--subgoal` +73 | `--sg-eval learned` +0 | +5 | 476 |
+| `work` -> `learned` | +44 | +39 | +3 | 484 |
+| **`coarse` -> `learned`** | **+73** | **+20** | +3 | **494 (11.8%)** |
+
+**494 is a strict superset of 484 and of 476**, which is unusual for a re-ranking and is worth the
+sentence: it happens because pass 2 is unchanged from session 25's and pass 3 only ever attacks what
+pass 2 failed, so nothing is re-ranked out of the result. The `work` chain is *not* a superset of
+476 — it loses 10 and gains 18 — which is layer 4's founding finding again.
+
+**And `WorkDistance` is retired as a ranking for this pass.** A `--sg-eval work` pass appended after
+`coarse` -> `learned` adds **0**: every level it can reach is already in the union. This is
+derivable from the three reports rather than run, because a second pass attacks exactly the previous
+one's failures, so the levels it would add are exactly the ones it solves and `coarse` does not.
+
+**What this cost, stated plainly.** Nothing in `Weights.cs` changed and nothing was refit; the model
+was correct all along and two lines of arithmetic between it and the beam were not. The +30 this
+file credited layer 4 with was never measured through the path that ships (`Weights.cs` and the
+divide arrived in the same commit, `8752317`), and it is still not recovered — **+20 is what the
+learned key is worth on this tree**, on top of a pass 2 that is itself a learned key.
+
 **3. Refresh the banked solutions — done, session 29, and it is a no-op. The premise expired.**
 The item read: *every banked `.lpb` under `build/solutions/` is longer than it needs to be — they
 all predate the replan pass.* Run over all 494 (`build/solutions/{l0,l34}`, one collection at a
@@ -676,128 +967,6 @@ Two things worth keeping out of a run that removed nothing:
 *(What this does not retire is the item's reasoning. Shorter trajectories really do change the
 ascent statistics layer 5 rests on and really are what layer 4 is fit on — the point is that the
 solver already emits them that way, so the debt was paid at the source rather than owed.)*
-
-**4. Levels 8 and 9 — Michal re-banks these himself, and a missing `.lpb` is not a missing solution.**
-**Read this before concluding anything from the contents of `data/solutions/`:** he deletes a banked
-`.lpb` on purpose in order to re-run the solver by hand and watch the solution replay, and re-banks it
-afterwards. That is the normal working loop, not a lost result — so a level named as banked in this
-file may be absent from the directory at any given moment, and the way to check whether it is solved
-is this file plus `build/`, never a directory listing.
-
-~~The one thing worth acting on is that shorter verified solutions for both are sitting in `build/`~~
-— **session 24: those files are gone with the rest of `build/`.** What they were:
-
-| lvl | shortest verified file, now lost | keys | ratio | banked now |
-|---:|---|---:|---:|---|
-| 8 | `build/w/w8-2048/LaserTank/00008.lpb` | 308 (262 + 46) | 1.4x | 335 / 1.5x |
-| 9 | `build/w/b9-b/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **127 / 2.2x, re-derived** |
-
-Which configuration produced either is not recorded — the widths in the directory names were the only
-clue — so **neither is reproducible and the 308 and 114 routes are lost**, not merely misplaced. That
-is the same lesson as `bench/`: a verified result that lives only in a gitignored directory is not
-banked.
-
-Level 9's was re-derived in session 24 and is banked again at **127 keys / 2.2x**, verified through
-both engines, from the `push-ferry-work` rung at its round-5 settings run directly — 16m36s:
-
-```bash
-build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 9   --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall   --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16   --push-beam 2048 --max-keys 5000 --push-restarts 30   --nodes 250000000 --budget-ms 3600000 --out build/short9
-```
-
-**This is the command to use for level 9, not the driver.** An unattended driver run banks the beam's
-**294-key / 5.0x** route instead, because the beam reaches its win at 94.3M nodes and
-`push-ferry-work` needs 162.8M, so the beam always gets there first and cancels it. Level 8's 308 has
-not been re-derived.
-
-**5. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both want a derivation rather
-than a budget, and **session 29 established that they want two different ones.**
-
-**6** wants layer 2's decomposition one level out: commit to one block-and-hole pair, search only
-for that, re-derive. Unchanged, and it is still the one of the two that is furthest from falling on
-its own numbers.
-
-**10 is settled as a diagnosis and open as a design — item 8.** It is a **GAUNTLET**: the read finds
-a barrier on **0 of 63,454 expansions**, because a GAUNTLET has no terrain to clear and the barrier
-set is empty by construction, so layers 6-8 are all inert on it and the beam ranks 1,024 distinct
-boards by `WorkDistance` alone. Depth, closure and width are all cleared by the same trace
-(`d=63 at 399M`, `trunc=0`, `boards=1024`). **Do not spend another overnight run on it, and do not
-build the decomposition 6 wants either** — the candidate is the fire map, which layer 8 already
-computes, promoted from an addend inside `PushH` to a **tier** in layer 7's shape: prefer a
-successor that reduces the covering anti-tanks or opens a fire-map-safe cell over one that shortens
-the walk. On a GAUNTLET exposure is the quantity that has to fall. **This is the first design item
-in this file that a measurement asked for rather than a level number**, and the honest thing to say
-about it is that it is a hypothesis with a good instrument behind it and no code yet.
-
-**Size it before building it, because the obvious sizing argument cuts the other way.** `barrier ==
-0` is 26.2% of the corpus but is solved at **25.2% against 7.0%** — an artifact of the bucket
-holding OPEN and a mass of 12-key GAUNTLETs, since the sampled GAUNTLETs split 127 solved at a
-median record of 12 against 537 unsolved at a median of 138. **The population worth aiming at is
-those 537** (138 of them with a record <= 60), and the cheap test is a rung over that tail, not a
-campaign. Item 8 has the table.
-
-*(Superseded, so it is not re-derived: "10 was the just-buy-the-nodes case until session 23, when
-two 900M-node runs came back unsolved at board-change depth 2 — so its ~1,000-pose closure is what
-needs attacking." Session 26 disputed the arithmetic and session 29's trace confirms session 26.)*
-
-**6. Still worth doing, no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
-harvester.** See *Open question* at the end.
-
-Items 7-12 are session 26's, distilled from *Pointers from a second reader* (next section), which
-carries the evidence and the caveats for each. They are ordered by expected value per hour; 7 and 8
-are runs, not code. **Of the six, 8, 9, 11 and 12 are now done and only 7 and 10 are open** — and
-three of those four closed *negative*, which is the ordering paying off rather than failing.
-
-**7. Draw the solved-vs-budget curve over the short-record failures, and bank what it solves.**
-**Re-counted in session 28 against the 494 chain** (the 338/715 below were the 476 chain's):
-**314** of the 3,691 unsolved levels in the sample have a `.ghs` record of <= 40 moves+shots,
-**687** of <= 60, 1,037 of <= 80, and **95.9%** of the failures still stop on `budget`. This is the
-production number the whole project is measured by, and it has never been run above 150k except by
-accident (`l3n-1m.jsonl`, 3.3x the levels). One list, three budgets, every solution through the gate:
-
-```bash
-# the unsolved with a short record, from the chain's final state
-python - <<'EOF'
-import json
-rows=[json.loads(l) for l in open("build/reports/chain.jsonl",encoding="utf-8-sig")]
-with open("bench/short-record-failures.txt","w") as f:
-    for r in rows:
-        if not r["solved"] and 0 < r["ghs_moves"]+r["ghs_shots"] <= 60:
-            f.write(f'{r["collection"]}\t{r["level"]}\n')
-EOF
-# the chain's own four searchers, in its order, each pass over what the previous one failed
-for N in 1000000 10000000 50000000; do
-  R=build/reports/curve-$N; S=solutions/curve-$N
-  NODES=$N bash tools/second_pass.sh build/reports/chain.jsonl $S $R-l0.jsonl  --no-ida
-  NODES=$N bash tools/second_pass.sh $R-l0.jsonl  $S $R-l3.jsonl  --no-ida --no-beam --subgoal --sg-eval coarse
-  NODES=$N bash tools/second_pass.sh $R-l3.jsonl  $S $R-l4.jsonl  --no-ida --no-beam --subgoal --sg-eval learned
-  NODES=$N bash tools/second_pass.sh $R-l4.jsonl  $S $R-l1.jsonl  --no-ida --no-beam --macro --macro-first
-  python tools/verify_solutions.py build/$S
-done
-```
-
-**The `--sg-eval coarse` on the second pass is session 28's correction, and without it this run
-measures the wrong chain.** Since session 27 a bare `--subgoal` means `--sg-eval work`, which is
-the ranking that pass is *retired* for — appended after `coarse` -> `learned` it adds 0. The three
-searchers the shipped 494 is made of are `--no-ida` (layer 0), `--subgoal --sg-eval coarse` and
-`--subgoal --sg-eval learned`, in that order, and the script above now says so. Any curve run with
-a bare `--subgoal` is a curve for a chain this tree does not ship.
-
-**Session 29 ran the generator and committed its output, and session 28's three counts reproduce
-exactly** off `build/reports/chain.jsonl` — 4,185 rows, 494 solved, 3,691 unsolved, of which
-**314** have a record <= 40, **687** <= 60 and **1,037** <= 80, and `stop` is `budget` on **3,540**
-of 3,691 (**95.9%**) against `beam-dead-end` on 151. The <= 60 list is `bench/short-record-failures.txt`
-with its rule in its header, so this item now starts at the `for N in ...` loop and the snippet
-above is the record of how the list was made. *(The field is `stop`, not `reason` — the schema is
-`collection depth difficulty ghs_moves ghs_shots keys level method moves ms name nodes polished
-ratio raw_keys replanned restarts shots solved stop trimmed`, and a wrong key name reads as
-`'?': 3691` rather than as an error.)*
-
-`second_pass.sh` re-attacks a report's failures, so the whole 3,691 run and `--order ghs` puts the
-short records first; `SAMPLE=` or a list through `bench.sh` if only the <= 60 population is wanted.
-Report the solved count per budget as a table in *Status*. **Keep 150k for attribution; this is a
-different question**, and at 50M the push rungs (`--push --push-read`, item 2's arms) become
-affordable as a fifth pass. Carry `--max-keys 5000 --max-keys-record` from 10M up: at these budgets
-a solution can outrun the default 1,200 cap, and item 12 has the two that did.
 
 **8. Level 10, one traced run — done, session 29. Session 26 was right about the depth, and the
 run then answered a question the item did not ask.**
@@ -1005,14 +1174,6 @@ reports `unsolved in 1 round` for 30 and 31, and exits by itself.
 The overnight run is now one command -- `--lanes 4 --max-round 3` over `Beginner-I`, every rung its
 chances at 25.6M, banked to `data/solutions/` through the gate. It is item 7's counterpart for the
 rungs the chain does not contain.
-
-**10. Wall clock on the push rungs: profile, then memoise `PushH` per board.** 166k nodes/s on the
-shipped push rung against 1.4M on layer 0, and the difference is heuristic work repeated for every
-pose of the same playfield. First `dotnet-trace` one `--push --push-read --push-beam 8 --nodes
-6000000 --jobs 1` run on `LaserTank.lvl` 10 to see the split; then cache the flag Dijkstra (and the
-fire map, matching, `Feat` board terms) by `BoardKey` within an expansion, by `(BoardKey, tank
-cell)` under `--push-reach`. **Measure in seconds, never nodes** -- the node count is identical by
-construction, so every bench in this file will report no change.
 
 **11. The closure-dominance prune — instrumented in session 29, and the prune is retired. The
 premise fails by three orders of magnitude.** The item set its own acceptance test: add `sterile=`
@@ -2382,6 +2543,39 @@ core both report WIN with byte-identical traces. A solution that fails is delete
 carries on — loudly, because after Phase 3 that can only mean an engine divergence. Missing engines or
 no python is a startup error, not a discovery made six levels in.
 
+**The first win ends the round, unless it is a bad enough route to be worth not settling for.** A
+rung that finishes first is not a rung with a better answer, and `LaserTank.lvl` 9 is where that costs
+something measurable: the raw beam wins at 94.3M nodes with 294 keys and `push-ferry-work` would have
+won at 162.8M with 127, inside the same round-5 budget, so cancelling on the first win destroys the
+better route before it exists. **`--best-of-round [RATIO]`** does not cancel — every rung spends the
+budget the round gave it, and the shortest of however many win is banked. It cannot cost more than a
+round nobody wins, since that round spends the same `nodes` on every rung anyway, and `RATIO`
+(default 2.0) keeps it from being spent where there is nothing to buy: a win already inside 2.0x the
+record ends the round as it always did. A level with no record keeps the round open, an unjudgeable
+route being exactly the case worth not settling on. **`--beat-banked`** is the same idea across runs
+rather than inside one: a round whose best route is longer than the banked `.lpb` is not accepted at
+all, the budget quadruples, and a level the ladder cannot match back reports `unsolved in N rounds`
+with the banked file untouched. **`--beat-banked` is ON by default** (`--no-beat-banked` opts out)
+and can only bite under `--force`, so no run that used to terminate stops terminating; a refusal also
+holds the level's later rounds open by itself, a refusal being proof that a shorter route exists.
+`--best-of-round` is off by default and the campaign that would make it one has not been run.
+
+**When a round *is* accepted, `--force` overwrites unconditionally, and the run says when that made
+things worse.** A re-solve of an already-banked level does not necessarily come back with the better
+route — `LaserTank.lvl` 9 is
+the case that proves it, where the beam's 294 keys arrive an hour before `push-ferry-work`'s 127, and
+a `--force` pass over the collection duly replaced the good file with the bad one. **The write is
+still unconditional**, because that is what makes the regression *visible*: `data/solutions/` is
+committed, so the diff against git is the detector, and a gate that kept the shorter file would leave
+a clean tree and no evidence that the run had gone backwards. What the gate adds is the sentence
+nobody should have to infer from a diff — it reads the length it is about to overwrite, and if the new
+route is longer it prints `LONGER than the one it replaced (127 keys -> 294, +167)` in yellow beside
+the `SOLVED` line, with a count in the run's last line so an unattended overnight pass cannot bury it
+in scrollback. **Keys is the comparison** for the same reason it is the comparison inside a round: it
+is the number the result line prints and the number `--polish` is measured in. An absent or unreadable
+banked file is "no opinion" — nothing is claimed and nothing is blocked, since the write path never
+refuses a candidate that has just been through both engines.
+
 **The driver writes to `data/solutions`, not `build/`.** A campaign's output is disposable
 (regenerated by `tools/campaign.sh`, thousands of files, gitignored); the driver's output is one
 hand-supervised level at a time, already through the gate, on levels the batch solver could not do.
@@ -3066,3 +3260,70 @@ really were worth running first — the file's own ordering said so and was righ
 instrument before the expensive one"* is not the same rule as *"instrument before theorising"*,
 which this file has had since layer 2 and which session 29 followed to the letter while still
 spending a run to learn something `--analyze` prints in a second.
+
+**session 30 — a regression, and the file it happened to.** A `--force` re-solve of
+`LaserTank.lvl` **banked the beam's 294-key level-9 route over the 127-key one**, which is item 4's
+scenario arriving for real: the gate's write path was `File.Move(overwrite: true)` and it said nothing
+about what it had replaced. The route was recovered from git. **The first fix was the wrong one and is
+worth recording as such, twice over:** first making the gate keep the shorter file, then treating a
+`git checkout` of the good file as the repair. Michal's two corrections are the shape of the real one.
+**"git takes care of keeping the better one — the solver should always replace it with `--force`, that
+way we actually catch the regressions"**: `data/solutions/` is committed, so a refused write leaves a
+clean tree and no evidence — a regression detector turned off — where an unconditional write leaves a
+diff, which is one turned on. And **"the fix isn't to replace the long solution with another one, that
+is like me solving it manually and posting that as a solution"**: restoring a file repairs the
+artefact and leaves the *machine* still unable to produce it.
+
+So the fix is stated as a property the driver either has or does not: **one run should find the best
+route the project has ever found for a level.** Level 9 is where it fails, the cause is that the first
+win cancels the round, and the answer is two flags — **`--best-of-round [RATIO]`** (a win does not end
+the round; every rung spends the budget the round gave it and the shortest is banked, costing at most
+what a round nobody wins already costs, and only paid at all when the win is worse than `RATIO`) and
+**`--beat-banked`** (a round longer than the banked `.lpb` is not accepted; escalate instead, and
+report `unsolved` rather than `solved` if the ladder cannot match history). **`--beat-banked` ships
+ON** — Michal's call, and the right one: it is the half that encodes *"find the best versions of all
+solutions from all previous iterations"*, and it can only bite under `--force`, so nothing that used
+to terminate stops terminating. A refusal also holds the level's later rounds open by itself, without
+which the default would refuse for ever and bank nothing; the cost of the open round is therefore paid
+only on levels that actually regressed. `--best-of-round` stays off pending a campaign. The write path keeps the unconditional overwrite plus a
+yellow `LONGER than the one it replaced (127 keys -> 294, +167)` line and a summary count. All four
+paths tested on level 3 — including 83s and **3 rungs solved** with the round held open against 2.6s
+and one rung without, which is the clock proving the mechanism. 8/8 solutions re-verified, 187/181/6,
+29 passed, 2,347/2,347. **The level-9 acceptance run itself is not done**, and until it is this is an
+implemented property rather than a demonstrated one.
+
+**The order of *Next actions* was rewritten too, and the ordering *rule* with it.** The old rule —
+*runs and instruments before builds, cheapest first, and a negative result counts as a result* — was
+calibrated when the cheap items were runs. What is left of the runs is a 54-hour campaign and a
+three-budget curve, so **the cheapest falsifier on the list is now a build** (item 5's tier, which
+`--analyze` can contradict in a second) and the *builds last* clause does not survive. A second key
+was added and is what actually moved items 7 and 2 down: **prefer work that produces a property or a
+level over work that produces a number.** Twenty-five hours of machine went into percentage-reporting
+items while the two levels in front of the project did not move and one banked solution got worse. The
+new order is 4, 5, 7, 10, 2, 6, and the item bodies were moved to match it — again as a mechanical
+move with no lines lost.
+
+Two generalisations worth more than the bug. **When the artefact is under version control, the diff is
+the alarm and the tool's job is to make sure somebody reads it** — not to prevent the write. And
+**repairing the output is not fixing the producer**; the test of a fix here is whether the solver
+re-derives the good route, not whether the good route is on disk. The bug underneath is a category this
+file had already reasoned about and written down without closing: item 4 predicted this in those
+words, and the driver was run unattended anyway. A known failure mode with no guard is a guard that
+has not been written yet.
+
+Two things that looked like regressions and were not, checked before touching anything:
+**`LaserTank.lvl` 6 and 10 have never been solved** — no `.lpb` for either in any commit, and *What
+has not fallen* has said so across twenty-two configurations — so a run that gives up on them is the
+file's own prediction, not a change. Their **Kids and Easy labels are the pack's, and they measure
+nothing the solver cares about**: 6 is a 142-push Sokoban with a 425+168 record and 10 is a GAUNTLET,
+the two longest records in the first ten levels. And session 29's `sterile=` commit is
+**instrumentation only** (a counter inside `--push-trace`'s existing gate), so nothing between it and
+the regression could have moved a route.
+
+**The file itself was the third finding.** `Next actions` had grown to **846 lines** holding four
+open items, eight closed ones and four session-state blocks under one heading, which is what made the
+level-9 warning unfindable at the moment it mattered. Split into *Next actions* (open only), *Tree
+and build state* and *Closed items*, numbers preserved because this file refers to items by number,
+**zero non-blank lines lost** — a mechanical move, verified as one, not a rewrite. A table of contents
+at the top. **The rule: this file is read under time pressure, and a warning it contains but cannot
+surface is a warning it does not have.**
