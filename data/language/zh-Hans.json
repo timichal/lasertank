@@ -1,7 +1,9 @@
 {
- "code": "Cs",
- "name": "Simplified Chinese (100% complete)",
+ "code": "zh-Hans",
+ "name": "Simplified Chinese",
  "author": "Roy Chen",
+ "sourceDir": "Cs",
+ "sourceName": "Simplified Chinese (100% complete)",
  "sourceEncoding": "gbk",
  "sourceLines": 235,
  "buttons": {

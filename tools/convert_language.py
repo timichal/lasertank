@@ -2,7 +2,7 @@
 """Convert the original Language.dat files into UTF-8 JSON the port can read.
 
 The 2007 distribution ships ten translations, each a `Language\\Language.dat`
-under `original/src/Setups/<code>/`.  The format is *positional*: 240 lines,
+under `original/src/Setups/<dir>/`.  The format is *positional*: 240 lines,
 comments and blanks skipped, in six fixed sections whose sizes live in
 `LT32L_US.H` (SIZE_MMENU 49, SIZE_EMENU 24, SIZE_BUTTON 9, SIZE_TEXT 48,
 SIZE_DIALOGS 96, SIZE_ABOUTMSG 14).  Each file is also in a *different* 8-bit
@@ -53,30 +53,61 @@ OFFSET_TEXT = SIZE_BUTTON                          # 9
 OFFSET_DIALOGS = OFFSET_TEXT + SIZE_TEXT           # 57
 OFFSET_ABOUTMSG = OFFSET_DIALOGS + SIZE_DIALOGS    # 153
 
-# The codepage each translator's machine wrote.  Not recorded anywhere in the
-# distribution -- established by decoding every file under every candidate and
-# reading the result (see PROGRESS.md, step 6).  `Cs`/`Ct` are Simplified and
-# Traditional Chinese, not Czech, despite what the directory names suggest.
-ENCODINGS = {
-    "US": "cp1252",   # English    - Jim Kindley
-    "Fr": "cp1252",   # French     - Yves Maingoy & Donald Drouin
-    "De": "cp1252",   # German     - Manfred Sauke
-    "Du": "cp1252",   # Dutch      - Ron Meijer
-    "Pt": "cp1252",   # Portuguese - Thomaz Lima e J. P. Lima
-    "Sp": "cp1252",   # Spanish    - Sebastian Soto
-    "Sw": "cp1252",   # Swedish    - Charon Direnj
-    "Hr": "cp1250",   # Croatian   - Ivan Hrsto   (c-caron, d-stroke: cp1250)
-    "Cs": "gbk",      # Simplified Chinese  - Roy Chen
-    "Ct": "big5",     # Traditional Chinese - Roy Chen
+# The ten translations, keyed by the **ISO code the port uses**.  Each row is
+# (the `Setups/` directory the frozen artifact keeps it in, the display name,
+# the codepage the translator's machine wrote).
+#
+# The directory names are what the 2007 installer needed and they are not
+# language codes: `Du` is Dutch, `Sp` Spanish, `Sw` Swedish -- and `Cs`/`Ct`
+# are **Simplified and Traditional Chinese**, not Czech, which is what two
+# files of identical size and line count looked like until they were decoded.
+# `original/` is frozen, so those names live on the left of this table and
+# nowhere else in the port.
+#
+# The codepages are not recorded anywhere in the distribution either.  They
+# were established by decoding every file under every candidate and reading the
+# result; a wrong one now fails loudly, because `read_lines` decodes strictly
+# and `lang_check.py` re-encodes every line back to it and compares bytes.
+#
+# The display name is the port's, **not** the translator's own banner string.
+# Those read `"English - ( Example )"`, `"Español ( 85% complete !)"`,
+# `"Croatian - ( 100 %)"` -- a version note, a completeness claim and a stray
+# space, which is a fine thing to write at the top of a file you are editing by
+# hand and a poor thing to put in a picker.  The banner survives verbatim as
+# `sourceName` (with its percentage, which is real information -- four files
+# are labelled 90% or less), and `lang_check.py` checks it against the artifact.
+# It is the English name rather than the endonym because the port draws its UI
+# in `ThemeDB.FallbackFont`, which has no CJK glyphs: `简体中文` would be two boxes.
+LANGUAGES = {
+    #            dir   display name           codepage     translator
+    "en":      ("US", "English",             "cp1252"),  # Jim Kindley
+    "fr":      ("Fr", "French",              "cp1252"),  # Maingoy & Drouin
+    "de":      ("De", "German",              "cp1252"),  # Manfred Sauke
+    "nl":      ("Du", "Dutch",               "cp1252"),  # Ron Meijer
+    "pt":      ("Pt", "Portuguese",          "cp1252"),  # Lima e Lima
+    "es":      ("Sp", "Spanish",             "cp1252"),  # Sebastian Soto
+    "sv":      ("Sw", "Swedish",             "cp1252"),  # Charon Direnj
+    "hr":      ("Hr", "Croatian",            "cp1250"),  # Ivan Hrsto
+    "zh-Hans": ("Cs", "Simplified Chinese",  "gbk"),     # Roy Chen
+    "zh-Hant": ("Ct", "Traditional Chinese", "big5"),    # Roy Chen
 }
 
-# `US` is the base every other language falls back to, key by key.  That is the
+SETUP_DIR = {code: row[0] for code, row in LANGUAGES.items()}
+NAMES = {code: row[1] for code, row in LANGUAGES.items()}
+ENCODINGS = {code: row[2] for code, row in LANGUAGES.items()}
+
+# `en` is the base every other language falls back to, key by key.  That is the
 # original's own behaviour rather than an invention: InitLanguage pre-fills the
 # button and text slots from App_Strings and only *clears* the dialog and
 # about-message ones, and LoadWindowText leaves a dialog control alone when its
 # slot is empty -- which leaves the English text compiled into the .rc.  Four of
 # the ten translations are partial and rely on exactly that.
-BASE = "US"
+BASE = "en"
+
+
+def dat_path(code: str) -> pathlib.Path:
+    """The frozen `Language.dat` behind one ISO code."""
+    return SETUPS / SETUP_DIR[code] / "Language" / "Language.dat"
 
 
 # --------------------------------------------------------------------------
@@ -195,8 +226,7 @@ def read_lines(code: str) -> list[str]:
     terminator.  Nothing else about that loop is reproduced; see the module
     docstring for why.
     """
-    path = SETUPS / code / "Language" / "Language.dat"
-    raw = path.read_bytes()
+    raw = dat_path(code).read_bytes()
     text = raw.decode(ENCODINGS[code])          # raises on a wrong codepage
     return [l for l in text.split("\r\n") if l and not l.startswith("#")]
 
@@ -299,8 +329,7 @@ def apply_menu(items: list[dict], line: str) -> bool:
 # --------------------------------------------------------------------------
 def header_field(code: str, field: str) -> str:
     """Pull `# Language :` / `# Author   :` out of the file's own banner."""
-    path = SETUPS / code / "Language" / "Language.dat"
-    text = path.read_bytes().decode(ENCODINGS[code])
+    text = dat_path(code).read_bytes().decode(ENCODINGS[code])
     for line in text.split("\r\n")[:8]:
         if m := re.match(rf"#\s*{field}\s*:\s*(.*?)\s*#*\s*$", line):
             return m.group(1).strip()
@@ -326,7 +355,7 @@ def build(code: str, names: tuple[list[str], list[str], list[str]]) -> dict:
 
     # Sections 3-6: LANGText[0..166], straight assignment.  A file may simply
     # stop early -- four of the ten do, all of them in the about message -- and
-    # a slot never written stays absent so the fallback to `US` can fill it.
+    # a slot never written stays absent so the fallback to `en` can fill it.
     slots: dict[int, str] = {}
     for i in range(START_BUTTON, min(SIZE_ALL, len(lines))):
         slots[i - START_BUTTON] = convert_escapes(lines[i])
@@ -340,8 +369,10 @@ def build(code: str, names: tuple[list[str], list[str], list[str]]) -> dict:
 
     return {
         "code": code,
-        "name": header_field(code, "Language"),
+        "name": NAMES[code],
         "author": header_field(code, "Author") or header_field(code, "Authors"),
+        "sourceDir": SETUP_DIR[code],
+        "sourceName": header_field(code, "Language"),
         "sourceEncoding": ENCODINGS[code],
         "sourceLines": len(lines),
         "buttons": section(0, buttons),
@@ -362,7 +393,7 @@ def main() -> int:
     names = slot_names()
     OUT.mkdir(parents=True, exist_ok=True)
     stale = []
-    for code in ENCODINGS:
+    for code in LANGUAGES:
         doc = build(code, names)
         blob = json.dumps(doc, ensure_ascii=False, indent=1) + "\n"
         path = OUT / f"{code}.json"
@@ -374,14 +405,14 @@ def main() -> int:
         else:
             path.write_text(blob, encoding="utf-8", newline="\n")
             state = "written"
-        print(f"  {code}  {doc['name'][:34]:<34} "
+        print(f"  {code:<7} {doc['sourceDir']}  {doc['name'][:21]:<21} "
               f"{doc['sourceLines']:>3} lines  {len(blob):>6} B  {state}")
 
     if stale:
         print(f"\nFAIL: {len(stale)} out of date: {' '.join(stale)}"
               "\n      run tools/convert_language.py to regenerate")
         return 1
-    print(f"\nOK: {len(ENCODINGS)} languages -> {OUT.relative_to(ROOT)}")
+    print(f"\nOK: {len(LANGUAGES)} languages -> {OUT.relative_to(ROOT)}")
     return 0
 
 

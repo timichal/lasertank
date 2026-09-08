@@ -1,7 +1,9 @@
 {
- "code": "Fr",
- "name": "French  (100% Complet)",
+ "code": "fr",
+ "name": "French",
  "author": "Yves Maingoy & Donald Drouin",
+ "sourceDir": "Fr",
+ "sourceName": "French  (100% Complet)",
  "sourceEncoding": "cp1252",
  "sourceLines": 240,
  "buttons": {

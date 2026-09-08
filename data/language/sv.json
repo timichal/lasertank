@@ -1,7 +1,9 @@
 {
- "code": "Sw",
- "name": "Swedish  (100% Complete)",
+ "code": "sv",
+ "name": "Swedish",
  "author": "Charon Direnj",
+ "sourceDir": "Sw",
+ "sourceName": "Swedish  (100% Complete)",
  "sourceEncoding": "cp1252",
  "sourceLines": 240,
  "buttons": {

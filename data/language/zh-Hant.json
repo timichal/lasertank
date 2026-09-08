@@ -1,7 +1,9 @@
 {
- "code": "Ct",
- "name": "Traditional Chinese (100% complete)",
+ "code": "zh-Hant",
+ "name": "Traditional Chinese",
  "author": "Roy Chen",
+ "sourceDir": "Ct",
+ "sourceName": "Traditional Chinese (100% complete)",
  "sourceEncoding": "big5",
  "sourceLines": 235,
  "buttons": {

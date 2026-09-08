@@ -17,8 +17,8 @@
 //
 //   * **the choice applies immediately.**  Moving the cursor reloads the
 //     language and every label behind the panel changes, which is the only
-//     honest way to pick one: the file names are `Fr` and `Hr`, and the point
-//     of the preview is that you can read the answer rather than the code.
+//     honest way to pick one: the rows read `fr` and `hr`, and the point of
+//     the preview is that you can read the answer rather than the code.
 //
 //   * **there is no Cancel.**  Esc persists exactly as Enter does, because the
 //     language it would be cancelling is already the one on screen.
@@ -93,6 +93,7 @@ namespace LaserTank.Game
         // ---- drawing --------------------------------------------------------
         private const int Pad = 10;
         private const int Line = 17;
+        private const int CodeCol = 76;      // wide enough for "> zh-Hans" at 13 px
 
         /// A dialog-shaped box over the board, sized from its content.
         ///
@@ -101,6 +102,12 @@ namespace LaserTank.Game
         /// footer change as the cursor moves.  That is the preview: a row that
         /// says "Traditional Chinese" is worth less than a panel that has
         /// already redrawn itself in it.
+        ///
+        /// The rows are `<code>   <name>` -- an ISO code and the display name
+        /// out of the JSON.  The name is deliberately the English one rather
+        /// than the endonym: this draws in ThemeDB.FallbackFont, which has no
+        /// CJK glyphs, so the two Chinese rows would be boxes.  The endonyms
+        /// are worth having the day this gets a font that can render them.
         public void Draw(Node2D n, Font font, Rect2 board, Language lang)
         {
             if (_langs == null || _langs.Count == 0) return;
@@ -128,13 +135,18 @@ namespace LaserTank.Game
                          HorizontalAlignment.Left, w, 15, Colors.White);
             y += Line + 4;
 
+            // Two columns rather than one padded string: the codes are now 2
+            // to 7 characters wide (`en`, `zh-Hans`) and this font is
+            // proportional, so spaces would not line the names up.
             for (int i = 0; i < _langs.Count; i++)
             {
                 bool cur = i == _sel;
+                Color col = cur ? Colors.Yellow : Colors.Gainsboro;
                 n.DrawString(font, new Vector2(x, y),
-                             (cur ? "> " : "  ") + _langs[i].Code + "   " + _langs[i].Name,
-                             HorizontalAlignment.Left, w, 13,
-                             cur ? Colors.Yellow : Colors.Gainsboro);
+                             (cur ? "> " : "  ") + _langs[i].Code,
+                             HorizontalAlignment.Left, w, 13, col);
+                n.DrawString(font, new Vector2(x + CodeCol, y), _langs[i].Name,
+                             HorizontalAlignment.Left, w - CodeCol, 13, col);
                 y += Line;
             }
 

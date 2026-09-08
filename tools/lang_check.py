@@ -54,7 +54,7 @@ the interesting direction is backwards.
 
     python tools/lang_check.py                    # all four, ~25 s
     python tools/lang_check.py --no-godot         # the first three, ~5 s
-    python tools/lang_check.py --lang Fr          # one language, verbosely
+    python tools/lang_check.py --lang fr          # one language, verbosely
 
 Needs Godot for the last half only; without it that half SKIPs loudly.  Nothing
 here touches build/, so it is safe beside a live solve.
@@ -112,13 +112,13 @@ def unconvert_escapes(s, tabs):
 def check_tab_policy():
     """What licenses `unconvert_escapes`'s asymmetry: measure it, all ten files.
 
-    One line in the corpus is why this exists -- Du's about message line 233
+    One line in the corpus is why this exists -- nl's about message line 233
     starts with a real 0x09 byte -- and treating that tab as an escape is
     exactly the kind of silent mangling the round trip is here to catch.  It
     did catch it.
     """
     fails = []
-    for code in conv.ENCODINGS:
+    for code in conv.LANGUAGES:
         lines, _enc = source_lines(code)
         for i, l in enumerate(lines):
             if i < conv.START_BUTTON:
@@ -132,9 +132,13 @@ def check_tab_policy():
 
 
 def source_lines(code):
-    """The original .dat's non-comment lines, and their raw bytes."""
-    path = conv.SETUPS / code / "Language" / "Language.dat"
-    raw = path.read_bytes()
+    """The original .dat's non-comment lines, and their raw bytes.
+
+    `code` is the port's ISO code; the frozen tree is keyed by the 2007
+    installer's directory name, so the path comes from `conv.dat_path` rather
+    than from the code -- `nl` lives under `Setups/Du/`.
+    """
+    raw = conv.dat_path(code).read_bytes()
     enc = conv.ENCODINGS[code]
     text = raw.decode(enc)
     return [l for l in text.split("\r\n") if l and not l.startswith("#")], enc
@@ -298,9 +302,23 @@ def check_structure(docs):
         if len(doc["about"]) > conv.SIZE_ABOUTMSG:
             fails.append("%s/about: %d lines, SIZE_ABOUTMSG is %d"
                          % (code, len(doc["about"]), conv.SIZE_ABOUTMSG))
-        if doc["sourceEncoding"] != conv.ENCODINGS[code]:
-            fails.append("%s: sourceEncoding is %r, the table says %r"
-                         % (code, doc["sourceEncoding"], conv.ENCODINGS[code]))
+        for field, want in (("code", code),
+                            ("name", conv.NAMES[code]),
+                            ("sourceDir", conv.SETUP_DIR[code]),
+                            ("sourceEncoding", conv.ENCODINGS[code])):
+            if doc.get(field) != want:
+                fails.append("%s: %s is %r, convert_language's table says %r"
+                             % (code, field, doc.get(field), want))
+        # The one header field that is artifact data rather than the port's own:
+        # the translator's banner line, which is where the display name used to
+        # come from.  `name` is now the port's (the banners carry completeness
+        # claims and stray spaces), so the banner is checked here instead of
+        # being lost -- it is the only string in the file the round trip cannot
+        # reach, because it lives on a `#` line the original's own loader skips.
+        if doc.get("sourceName") != conv.header_field(code, "Language"):
+            fails.append("%s: sourceName is %r, the .dat's banner says %r"
+                         % (code, doc.get("sourceName"),
+                            conv.header_field(code, "Language")))
     return fails
 
 
@@ -433,16 +451,16 @@ def check_fallback(docs):
             json.dumps(base, ensure_ascii=False), encoding="utf-8")
 
         partial = json.loads(json.dumps(base))       # deep copy
-        partial["code"] = "Zz"
+        partial["code"] = "zz"
         partial["name"] = "Synthetic partial"
         partial["dialogs"][blanked] = ""
         del partial["dialogs"][dropped]
         partial["dialogs"][kept] = "KEPT"
         partial["about"] = partial["about"][:2]
-        (tmp / "Zz.json").write_text(json.dumps(partial, ensure_ascii=False),
+        (tmp / "zz.json").write_text(json.dumps(partial, ensure_ascii=False),
                                      encoding="utf-8")
 
-        out, rc = run_core(["--lang-dir", str(tmp), "--lang-dump", "Zz"])
+        out, rc = run_core(["--lang-dir", str(tmp), "--lang-dump", "zz"])
         if rc != 0:
             fails.append("the synthetic language would not dump (exit %d)" % rc)
             return fails, 0
@@ -546,11 +564,11 @@ def main():
                     help="skip the game half")
     args = ap.parse_args()
 
-    codes = args.lang or list(conv.ENCODINGS)
+    codes = args.lang or list(conv.LANGUAGES)
     for c in codes:
-        if c not in conv.ENCODINGS:
+        if c not in conv.LANGUAGES:
             print("lang_check: no such language %r (have: %s)"
-                  % (c, " ".join(conv.ENCODINGS)))
+                  % (c, " ".join(conv.LANGUAGES)))
             return 2
     if conv.BASE not in codes:
         codes = [conv.BASE] + codes          # the fallback needs it loaded
@@ -585,14 +603,14 @@ def main():
         total_skipped += skipped
         if fails:
             ok = False
-            print("  %-3s FAIL (%d)" % (code, len(fails)))
+            print("  %-7s FAIL (%d)" % (code, len(fails)))
             for i, why, src, back in fails[:6]:
                 print("      line %d: %s" % (i, why))
                 print("        original %r" % src)
                 if back is not None:
                     print("        rebuilt  %r" % back)
         else:
-            print("  %-3s ok   %3d lines rebuilt, %d ignored"
+            print("  %-7s ok   %3d lines rebuilt, %d ignored"
                   % (code, rebuilt, skipped))
     print("  %d lines rebuilt across %d file(s), %d ignored as the original "
           "ignores them" % (total_rebuilt, len(codes), total_skipped))

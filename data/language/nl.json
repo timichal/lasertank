@@ -1,7 +1,9 @@
 {
- "code": "Du",
- "name": "Dutch (95% complete)",
+ "code": "nl",
+ "name": "Dutch",
  "author": "Ron Meijer",
+ "sourceDir": "Du",
+ "sourceName": "Dutch (95% complete)",
  "sourceEncoding": "cp1252",
  "sourceLines": 239,
  "buttons": {

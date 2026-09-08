@@ -1,7 +1,9 @@
 {
- "code": "Hr",
- "name": "Croatian - ( 100 %)",
+ "code": "hr",
+ "name": "Croatian",
  "author": "Ivan Hrsto",
+ "sourceDir": "Hr",
+ "sourceName": "Croatian - ( 100 %)",
  "sourceEncoding": "cp1250",
  "sourceLines": 239,
  "buttons": {

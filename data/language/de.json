@@ -1,7 +1,9 @@
 {
- "code": "De",
+ "code": "de",
  "name": "German",
  "author": "Manfred Sauke",
+ "sourceDir": "De",
+ "sourceName": "German",
  "sourceEncoding": "cp1252",
  "sourceLines": 238,
  "buttons": {

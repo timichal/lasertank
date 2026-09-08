@@ -1,7 +1,9 @@
 {
- "code": "Sp",
- "name": "Español ( 85% complete !)",
+ "code": "es",
+ "name": "Spanish",
  "author": "Sebastian Soto (2002)",
+ "sourceDir": "Sp",
+ "sourceName": "Español ( 85% complete !)",
  "sourceEncoding": "cp1252",
  "sourceLines": 239,
  "buttons": {

@@ -1,7 +1,9 @@
 {
- "code": "US",
- "name": "English - ( Example )",
+ "code": "en",
+ "name": "English",
  "author": "Jim Kindley",
+ "sourceDir": "US",
+ "sourceName": "English - ( Example )",
  "sourceEncoding": "cp1252",
  "sourceLines": 238,
  "buttons": {

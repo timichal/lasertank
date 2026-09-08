@@ -1,7 +1,9 @@
 {
- "code": "Pt",
- "name": "Português (90% complete)",
+ "code": "pt",
+ "name": "Portuguese",
  "author": "Thomaz Lima e J. P. Lima",
+ "sourceDir": "Pt",
+ "sourceName": "Português (90% complete)",
  "sourceEncoding": "cp1252",
  "sourceLines": 240,
  "buttons": {

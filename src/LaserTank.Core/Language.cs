@@ -65,8 +65,14 @@ namespace LaserTank.Core
 
     public sealed class Language
     {
-        /// The code the original's own English file carries, and the fallback
-        /// every other language falls back to key by key.
+        /// The base language every other one falls back to, key by key.
+        ///
+        /// `en`, an ISO 639-1 code, and not the `US` the 2007 installer named
+        /// the directory: those names were never language codes -- `Du` is
+        /// Dutch, `Sp` Spanish -- and two of them were actively wrong, with
+        /// `Cs`/`Ct` turning out to be Simplified and Traditional Chinese
+        /// rather than Czech.  `convert_language.py`'s table is the one place
+        /// the installer's names survive, on the left of the mapping.
         ///
         /// Falling back is the original's behaviour rather than a convenience:
         /// `InitLanguage` pre-fills the button and text slots from
@@ -74,7 +80,7 @@ namespace LaserTank.Core
         /// and `LoadWindowText` leaves a dialog control alone when its slot is
         /// empty -- which leaves the English text compiled into the .rc.  Four
         /// of the ten translations are partial and lean on exactly that.
-        public const string BaseCode = "US";
+        public const string BaseCode = "en";
 
         public const string DirName = "language";
         private const string Ext = ".json";
@@ -110,8 +116,8 @@ namespace LaserTank.Core
         /// leaves the tail empty and the original simply concatenates nothing,
         /// so a short about message is the translator's decision; borrowing the
         /// English tail would put two languages in one paragraph.  Four files
-        /// are short here -- Cs and Ct carry 9 of the 14, and even the English
-        /// one carries 12.
+        /// are short here -- zh-Hans and zh-Hant carry 9 of the 14, and even
+        /// the English one carries 12.
         public string[] About { get; }
 
         public MenuNode[] MainMenu { get; }
@@ -215,6 +221,15 @@ namespace LaserTank.Core
         // ------------------------------------------------------------------
         /// Every `<code>.json` in `dir`, sorted with the base language first
         /// and the rest by name -- the order the picker shows them in.
+        ///
+        /// `name` is the display name `convert_language.py` assigns, not the
+        /// translator's own banner line.  Those carried a version note and a
+        /// completeness claim -- `English - ( Example )`, `Croatian - ( 100 %)`
+        /// -- and the Spanish one was written in Spanish, so sorting on them
+        /// filed Spanish under E and English wherever the dash fell.  Each
+        /// banner is kept verbatim in the JSON as `sourceName`, where
+        /// lang_check checks it against the 2007 file and nothing on screen
+        /// reads it.
         public static List<LanguageInfo> Available(string dir)
         {
             var found = new List<LanguageInfo>();

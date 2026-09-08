@@ -103,13 +103,16 @@ python tools/sweep.py                            # everything on engines.py read
 
 Nothing is blocked. Roughly in the order they are worth doing.
 
-### 1. i18n: ISO language codes  *(do this first — it is a rename, and it gets worse to do later)*
+### ~~1. i18n: ISO language codes~~ — **done 2026-09-08**
 
-`data/language/*.json`, the `code` field inside each, and `[DATA] Language` all use the original's
-**installer-directory** names, which are not language codes and in two cases are actively
-misleading. The mapping, with the codepages that were *measured* rather than guessed:
+`data/language/` is `en.json`, `fr.json`, `de.json`, `nl.json`, `pt.json`, `es.json`, `sv.json`,
+`hr.json`, `zh-Hans.json`, `zh-Hant.json`; the `code` field inside each, `Language.BaseCode`, the
+picker's rows and `[DATA] Language` all carry the same ISO code. What is left of the original's
+**installer-directory** names is the left column of one table, `LANGUAGES` in
+`tools/convert_language.py`, which is where `original/src/Setups/<dir>/` is frozen and therefore
+where the pairing has to live:
 
-| now | ISO | language | source codepage |
+| `Setups/` | ISO | display name | source codepage |
 |---|---|---|---|
 | `US` | `en` | English (the base language) | cp1252 |
 | `Fr` | `fr` | French | cp1252 |
@@ -125,17 +128,30 @@ misleading. The mapping, with the codepages that were *measured* rather than gue
 `Cs`/`Ct` are Roy Chen's two files: 2,348 and 1,833 high bytes, identical in size and line count,
 which is exactly what made them look like a duplicated pair of Czech files until they were decoded.
 
-Touches: the ten file names; the `"code"` field in each; `Language.Base` in
-`src/LaserTank.Core/Language.cs`; `LanguageMenu.cs`; `Options.PsLang`'s default;
-`tools/convert_language.py` (which maps `original/src/Setups/<dir>/Language/Language.dat` to an
-output name — the `Setups/` names stay as they are, `original/` is frozen, so the mapping table
-lives here); and `tools/lang_check.py`, which walks the same pairing.
+**No legacy alias.** An old `Language=US` in a hand-kept INI resolves to nothing and
+`Language.Load` degrades it to the base language — which is `en`, so the player who had English
+still gets English and the player who had Croatian re-picks it once. That was a decision, not an
+oversight: the alias table would be ten dead rows kept alive for one boot.
 
-Two decisions to make while doing it: whether `[DATA] Language=US` from an existing INI should still
-resolve (a one-line legacy alias table is cheap and the key already round-trips), and that the
-picker's display names are the *translators' own* strings — `"English - ( Example )"`,
-`"Croatian - ( 100 %)"`, `"Español ( 85% complete !)"`. Cleaning those up is part of item 2, not
-part of the rename.
+**The display names are the port's now, and that is the other half of what changed.** They used to
+be the translators' own banner lines — `"English - ( Example )"`, `"Croatian - ( 100 %)"`,
+`"Español ( 85% complete !)"` — a version note, a completeness claim and a stray space, which also
+sorted Spanish under E. `LANGUAGES` assigns the name; the banner survives verbatim in each file as
+`sourceName`, percentage included (it is real information — four files are labelled 90% or less),
+and `lang_check.check_structure` now compares it against the `.dat`'s own banner, because it is the
+one string in the file the round trip cannot reach: it lives on a `#` line the original's own loader
+skips. Two more fields joined it, `sourceDir` and the existing `sourceEncoding`, and all four
+header fields plus `code` and `name` are now asserted against `LANGUAGES` rather than merely
+written by it.
+
+They are the **English** names rather than the endonyms because the picker draws in
+`ThemeDB.FallbackFont`, which has no CJK glyphs — `简体中文` would be two boxes. The endonyms are
+worth having the day this gets a font that can render them. The picker also draws the code and the
+name as two columns instead of one padded string, since `en` and `zh-Hans` do not line up under a
+proportional font.
+
+`lang_check.py` is green on all four halves: 2,293 lines rebuilt byte for byte across the ten
+files, ten languages identical in the CLI and in the game, 5 INI checks.
 
 ### 2. i18n: actually use the translations  *(after the UI is polished — not before)*
 
@@ -843,6 +859,21 @@ plus a picker on `Ctrl+L` and a `[DATA] Language` key. The picker and the key ar
 original has neither: the language is chosen by *which of the ten `Setups/` trees you installed*
 (`LANGFile` is built at `LTANK.C:1421` and never varies).
 
+**The codes are ISO, not the installer's directory names.** `en.json`, `fr.json`, `de.json`,
+`nl.json`, `pt.json`, `es.json`, `sv.json`, `hr.json`, `zh-Hans.json`, `zh-Hant.json`, and the same
+string in each file's `code`, in `Language.BaseCode` (`en`) and in `[DATA] Language`. The 2007
+directory names — `US`, `Du`, `Sp`, `Sw`, and the `Cs`/`Ct` that turned out to be Chinese rather
+than Czech — survive in exactly one place, the left column of `LANGUAGES` in
+`tools/convert_language.py`, because `original/` is frozen and that is where the two naming systems have
+to meet. The table is reproduced in *Next steps* item 1 with the codepages.
+
+**The display name is the port's, the banner is kept as data.** `LANGUAGES` assigns `name` (the
+English name of the language, because `ThemeDB.FallbackFont` has no CJK glyphs); each file also
+carries `sourceDir`, `sourceEncoding` and `sourceName` — the translator's own banner line verbatim,
+completeness claim and all. `lang_check.check_structure` asserts all six header fields, and
+`sourceName` against the `.dat`'s banner, which is the one string in the file the round trip below
+cannot reach: it lives on a `#` line the original's own loader skips.
+
 **Why this one file is not a transliteration.** `LANGUAGE.C` exists to read a *positional* file:
 `Language\Language.dat` is 240 lines in six fixed-size sections (`SIZE_MMENU` 49, `SIZE_EMENU` 24,
 `SIZE_BUTTON` 9, `SIZE_TEXT` 48, `SIZE_DIALOGS` 96, `SIZE_ABOUTMSG` 14, `LT32L_US.H:42`), comments
@@ -870,7 +901,8 @@ is checkable **against the artifact**.
   ten files carry the untranslated word `SEPARATOR` in those slots, and the gate asserts they do.
 
 **The codepages were measured, not guessed** — nothing in the distribution records them. The table
-is in *Next steps* item 1, along with the surprise: `Cs`/`Ct` are Chinese, not Czech.
+is in *Next steps* item 1, along with the surprise: `zh-Hans`/`zh-Hant` (`Setups/Cs`, `Setups/Ct`)
+are Chinese, not Czech.
 
 **Two findings worth keeping in view.**
 
