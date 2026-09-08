@@ -26,15 +26,29 @@ namespace LaserTank.Cli
 "  --level N      1-based level number (with --keys / --script)\n" +
 "  --keys STR     keystream as characters: u d l r f\n" +
 "  --script STR   one token per tick: u d l r f press, . idles, z undoes,\n" +
-"                 Z undoes a death and resumes, c/v save/restore position\n" +
+"                 Z undoes a death and resumes, c/v save/restore position,\n" +
+"                 mXY / nXY left/right click cell XY (two hex digits)\n" +
 "  --field        include full PF / PF2 hex in the trace\n" +
 "  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n" +
-"  --sound        include SF, the SoundPlay ids the tick asked for\n");
+"  --sound        include SF, the SoundPlay ids the tick asked for\n" +
+"  --edit STR     level editor, one token per traced step; no tick runs:\n" +
+"                 <oo />oo pick the left/right object, tN the tunnel id,\n" +
+"                 lXY rXY click, sXY Shift+click (rotate), pXY qXY drag,\n" +
+"                 PXY Shift+drag, R L U D shift the board, C clear, E enter,\n" +
+"                 1..5 set the difficulty (Kids/Easy/Medium/Hard/Deadly)\n" +
+"  --save FILE    with --edit: write the edited level as a .lvl record\n" +
+"  --save-level N  ... at this 1-based level number (default: --level)\n" +
+"  --set-name S   type S into the editor's Level Name box before saving\n" +
+"  --set-author S  ... and S into the Author box\n" +
+"  --set-hint S   ... and S into the Hint dialog (only then is Hint rewritten)\n");
         }
 
         public static int Main(string[] argv)
         {
-            string levels = null, lpb = null, keys = null, script = null, tracePath = null;
+            string levels = null, lpb = null, keys = null, script = null,
+                   edit = null, tracePath = null, save = null,
+                   setName = null, setAuthor = null, setHint = null;
+            int saveLevel = 0;
             int level = 0;
             bool quiet = false, field = false, bmf = false, sound = false;
             long maxTicks = 200000, tick = 0;
@@ -47,6 +61,13 @@ namespace LaserTank.Cli
                     case "--lpb" when i + 1 < argv.Length: lpb = argv[++i]; break;
                     case "--keys" when i + 1 < argv.Length: keys = argv[++i]; break;
                     case "--script" when i + 1 < argv.Length: script = argv[++i]; break;
+                    case "--edit" when i + 1 < argv.Length: edit = argv[++i]; break;
+                    case "--save" when i + 1 < argv.Length: save = argv[++i]; break;
+                    case "--save-level" when i + 1 < argv.Length:
+                        saveLevel = int.Parse(argv[++i]); break;
+                    case "--set-name" when i + 1 < argv.Length: setName = argv[++i]; break;
+                    case "--set-author" when i + 1 < argv.Length: setAuthor = argv[++i]; break;
+                    case "--set-hint" when i + 1 < argv.Length: setHint = argv[++i]; break;
                     case "--trace" when i + 1 < argv.Length: tracePath = argv[++i]; break;
                     case "--level" when i + 1 < argv.Length: level = int.Parse(argv[++i]); break;
                     case "--max-ticks" when i + 1 < argv.Length: maxTicks = long.Parse(argv[++i]); break;
@@ -57,7 +78,8 @@ namespace LaserTank.Cli
                     default: Usage(); return 2;
                 }
             }
-            if (levels == null || (lpb == null && keys == null && script == null))
+            if (levels == null
+                || (lpb == null && keys == null && script == null && edit == null))
             {
                 Usage();
                 return 2;
@@ -66,6 +88,19 @@ namespace LaserTank.Cli
             {
                 Console.Error.WriteLine(
                     "lasertank-core: --script cannot be combined with --lpb or --keys");
+                return 2;
+            }
+            if (edit != null && (lpb != null || keys != null || script != null))
+            {
+                Console.Error.WriteLine(
+                    "lasertank-core: --edit is a mode of its own; it runs no ticks");
+                return 2;
+            }
+            if (edit == null && (save != null || setName != null
+                                 || setAuthor != null || setHint != null))
+            {
+                Console.Error.WriteLine(
+                    "lasertank-core: --save and the --set-* flags belong to --edit");
                 return 2;
             }
             if (!File.Exists(levels))
@@ -100,6 +135,10 @@ namespace LaserTank.Cli
                 // long and a silent grow would hide a runaway.
                 keystream = new byte[10000];
             }
+            else if (edit != null)
+            {
+                keystream = new byte[10000];   // unused: the editor presses nothing
+            }
             else
             {
                 keystream = ParseKeys(keys);
@@ -127,7 +166,7 @@ namespace LaserTank.Cli
 
             // LoadLevel resets RecP/RB_TOS, so install the keystream after it.
             e.RecBuffer = keystream;
-            e.RB_TOS = script != null ? 0 : keystream.Length;
+            e.RB_TOS = (script != null || edit != null) ? 0 : keystream.Length;
             e.Game.RecP = 0;
 
             TraceWriter tr = null;
@@ -142,10 +181,35 @@ namespace LaserTank.Cli
                 // `keys` is how much input this run was given -- the script's
                 // token count when there is one, since RB_TOS is still 0.
                 tr.Header(levels, level, e.CurRecData.LName, e.CurRecData.Author,
-                          script?.Length ?? e.RB_TOS);
+                          script?.Length ?? edit?.Length ?? e.RB_TOS);
             }
 
             // ---- run ----
+            if (edit != null)
+            {
+                // The editor is not the game: GameOn(FALSE) is the first thing
+                // command 201 does (LTANK.C:1086), so nothing here ticks and
+                // the trace's `t=` counts *edits*.  Same format, same
+                // difftrace, new input language -- which is the whole trick.
+                var ed = new EditDriver(e, tr, LevelRecord.Read(levels, level));
+                tick = ed.Run(edit);
+                // The two edit controls and the hint dialog, in the order the
+                // player would reach them: typed while the editor is open,
+                // read back by command 603 at save time.
+                if (setName != null) ed.Name = setName;
+                if (setAuthor != null) ed.Author = setAuthor;
+                if (setHint != null) ed.Hint = setHint;
+                if (save != null) ed.Save(save, saveLevel != 0 ? saveLevel : level);
+                tr?.Footer("EDIT", tick, e.Game.ScoreMove, e.Game.ScoreShot,
+                           e.Game.RecP, e.RB_TOS, ed.Dialogs);
+                tr?.Close();
+                if (!quiet)
+                    Console.WriteLine("{0,-10} level={1,-5} edits={2,-6} tank={3},{4}  {5}",
+                                      "EDIT", level, tick, e.Game.Tank.X, e.Game.Tank.Y,
+                                      e.CurRecData.LName);
+                return 0;
+            }
+
             string notPorted = null;
             tr?.Tick(0, e);
             try
@@ -179,7 +243,12 @@ namespace LaserTank.Cli
                             // that does not tick, so stop here.
                             break;
                         }
+                        // ... and the mouse buffer counts as "keys left": a
+                        // click is drained by the *next* tick, so a script
+                        // ending in one would otherwise stop before
+                        // MouseOperation ever ran.
                         if (at >= script.Length && e.Game.RecP >= (uint)e.RB_TOS
+                            && e.MB_TOS == e.MB_SP
                             && e.Quiescent() && e.Game_On) break;
                     }
                 }
@@ -235,10 +304,15 @@ namespace LaserTank.Cli
 
         /// One script token, matching driver.c's `script_feed` (Phase 5, step 4).
         ///
-        /// The tokens are the five game keys, `.` for an idle tick, and the four
-        /// commands no keystream can express: `z` = 110 Undo, `Z` = the
+        /// The tokens are the five game keys, `.` for an idle tick, the four
+        /// commands no keystream can express -- `z` = 110 Undo, `Z` = the
         /// DeadBox's Undo (110 then GameOn(TRUE), the only path that resumes a
-        /// dead game), `c` = 111 Save Position, `v` = 112 Restore Position.
+        /// dead game), `c` = 111 Save Position, `v` = 112 Restore Position --
+        /// and, since step 5, the two mouse clicks: `mXY` left, `nXY` right,
+        /// where XY is a cell as two hex digits.  A click is a window message
+        /// rather than a keystroke, so it is posted whatever the key buffer is
+        /// doing; the tick drains one per tick when the world is quiescent, and
+        /// MouseOperation turns it into keys.
         ///
         /// A key is pressed only when the buffer has drained, which is the
         /// original's own pending-key rule (LTANK.C:573) and the reason one key
@@ -248,6 +322,8 @@ namespace LaserTank.Cli
         {
             if (at >= script.Length) return;
             char c = script[at];
+            if (c == 'm') { Click(e, script, ref at, 1); return; }
+            if (c == 'n') { Click(e, script, ref at, 2); return; }
             byte vk = c switch
             {
                 'u' or 'U' => Engine.VK_UP,
@@ -289,6 +365,26 @@ namespace LaserTank.Cli
                 default: break;         // unknown: skipped, exactly as --keys does
             }
         }
+
+        /// `mXY` / `nXY`, matching driver.c's script_click: two hex digits for
+        /// the cell, and a truncated token at the end of the script consumes
+        /// the rest and posts nothing.  Engine.MouseClick is the ring-buffer
+        /// push out of the window proc's non-editor arm; the bounds test lives
+        /// there because it is the original's.
+        private static void Click(Engine e, string script, ref int at, int z)
+        {
+            if (at + 2 >= script.Length) { at = script.Length; return; }
+            int x = Hex(script[at + 1]), y = Hex(script[at + 2]);
+            at += 3;
+            if (x < 0 || y < 0) return;
+            e.MouseClick(x, y, z);
+        }
+
+        private static int Hex(char c) =>
+            c >= '0' && c <= '9' ? c - '0'
+            : c >= 'a' && c <= 'f' ? c - 'a' + 10
+            : c >= 'A' && c <= 'F' ? c - 'A' + 10
+            : -1;
 
         /// Characters to VK codes, matching driver.c: anything else is skipped.
         private static byte[] ParseKeys(string s)

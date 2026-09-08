@@ -126,13 +126,18 @@ namespace LaserTank.Cli
             _w.Write('\n');
         }
 
-        public void Footer(string result, long ticks, int moves, int shots, uint keysUsed, int keys)
+        public void Footer(string result, long ticks, int moves, int shots,
+                           uint keysUsed, int keys, int dialogs = 0)
         {
-            // dialogs= is the oracle's count of message boxes the stub swallowed.
-            // Headless C# raises none, so it is always 0 -- and a non-zero value
-            // on the oracle side is itself worth looking at.
-            _w.WriteLine("# result={0} ticks={1} moves={2} shots={3} keys_used={4}/{5} dialogs=0",
-                         result, ticks, moves, shots, keysUsed, keys);
+            // dialogs= is the oracle's count of message boxes and dialogs its
+            // stub swallowed.  A *playing* run raises none on either side, so it
+            // stays 0 and a non-zero value on the oracle side is itself worth
+            // looking at.  An **edit** run is the exception: there is exactly one
+            // dialog inside LTANK2.C -- ChangeGO's tunnel-id prompt -- and the
+            // port asks its own equivalent, so it reports the count and the two
+            // footers stay comparable.
+            _w.WriteLine("# result={0} ticks={1} moves={2} shots={3} keys_used={4}/{5} dialogs={6}",
+                         result, ticks, moves, shots, keysUsed, keys, dialogs);
         }
 
         public void Close() => _w.Dispose();

@@ -213,13 +213,21 @@ int MessageBoxA(HWND h, LPCSTR text, LPCSTR cap, UINT type)
     return (type & MB_YESNOCANCEL) ? IDCANCEL : IDOK;
 }
 
+/* What the next DialogBox returns.  There is exactly one dialog inside
+ * LTANK2.C -- ChangeGO's "LoadTID", which asks the editor for a tunnel id and
+ * whose return value it shifts straight into the playfield (LTANK2.C:826).  A
+ * headless run has to be able to answer it, so the driver sets this before the
+ * call the way it sets any other input; everything else keeps taking IDCANCEL,
+ * which is what "the user pressed Escape" means to the rest of the game. */
+intptr_t lt_stub_dialog_result = IDCANCEL;
+
 intptr_t DialogBoxParamA(HINSTANCE inst, LPCSTR tmpl, HWND parent,
                          DLGPROC proc, LPARAM init)
 {
     (void)inst; (void)parent; (void)proc; (void)init;
     lt_stub_dialogs++;
     fprintf(stderr, "[stub] DialogBox: %s\n", tmpl ? tmpl : "?");
-    return IDCANCEL;
+    return lt_stub_dialog_result;
 }
 
 /* ===================== no-ops ===================== */

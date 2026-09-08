@@ -36,10 +36,12 @@ Findings are deduped by signature, so a systematic bug reports once and not
 minimal keystream, both traces re-run with `--field --bmf`, the full
 `difftrace.py` report, and the level as ASCII.
 
-`MouseOperation` is still unported and still throws.  If a keystream ever
-reaches it the run reports `NOTPORTED` as a finding, which is the correct
-outcome: it means the mouse buffer is reachable from a keystream, and that is
-news about the buffer, not an obstacle to route around.
+`NOTPORTED` is still a finding rather than a skip, and there is nothing left to
+raise it: Phase 5 step 5 ported `MouseOperation`, the last stub, so the whole
+tick is transliterated.  The signature stays wired up because the argument
+behind it has not changed -- a function this fuzzer cannot reach is a function
+nothing has ever checked, and the right response to reaching one is to report
+it, not to route around it.
 
 Exit: 0 no divergence, 1 diverged, 3 cosmetic-only divergence.
 """

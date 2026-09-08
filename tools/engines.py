@@ -63,6 +63,10 @@ LpbCase = namedtuple("LpbCase", "levels lpb")
 # Both engines take --script and neither accepts it beside --keys or --lpb, so
 # this is a third shape of the same Case rather than a flag on one.
 ScriptCase = namedtuple("ScriptCase", "levels level script")
+# The level editor (Phase 5, step 5): one token per traced *step* rather than
+# per tick, because the editor calls GameOn(FALSE) and nothing ticks at all.
+# Same trace format, so difftrace needs no changes -- only this fourth shape.
+EditCase = namedtuple("EditCase", "levels level edit")
 Run = namedtuple("Run", "rc stdout stderr trace")
 
 # kind: tick | length | result | exit | engine
@@ -163,12 +167,17 @@ def command(exe, case, trace, field=False, bmf=False, max_ticks=None,
     cmd = [str(exe), "--levels", str(case.levels)]
     lpb = getattr(case, "lpb", None)
     script = getattr(case, "script", None)
+    edit = getattr(case, "edit", None)
     if lpb is not None:
         cmd += ["--lpb", str(lpb)]
     elif script is not None:
         if case.level:
             cmd += ["--level", str(case.level)]
         cmd += ["--script", script]
+    elif edit is not None:
+        if case.level:
+            cmd += ["--level", str(case.level)]
+        cmd += ["--edit", edit]
     else:
         if case.level:
             cmd += ["--level", str(case.level)]

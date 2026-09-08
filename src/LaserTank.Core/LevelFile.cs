@@ -243,5 +243,162 @@ namespace LaserTank.Core
             }
             return list;
         }
+
+        // ---- the editor's half: reading and writing whole records -----------
+
+        /// The raw 576 bytes of level `number`, or null past the end.
+        ///
+        /// `ReadLevel` decodes; this does not, and the difference is the whole
+        /// point.  Command 603 writes back **the struct it read**, so every
+        /// byte the editor did not deliberately change survives -- including
+        /// the bytes after a name's terminator, which is where most `.lvl`
+        /// files in the wild keep the tail of some *earlier*, longer name.  A
+        /// writer that re-encodes from decoded strings would quietly rewrite
+        /// those and every unedited level in the collection would come back
+        /// different.  Constraint 2 says these files stay writable, and this is
+        /// what writable has to mean.
+        public static byte[] ReadRaw(string path, int number)
+        {
+            byte[] rec = new byte[TLEVEL.Size];
+            using (FileStream f = File.OpenRead(path))
+            {
+                long at = (long)(number - 1) * TLEVEL.Size;
+                if (at < 0 || at + TLEVEL.Size > f.Length) return null;
+                f.Seek(at, SeekOrigin.Begin);
+                int got = 0;
+                while (got < rec.Length)
+                {
+                    int n = f.Read(rec, got, rec.Length - got);
+                    if (n <= 0) return null;
+                    got += n;
+                }
+            }
+            return rec;
+        }
+
+        /// Command 603's writer (LTANK.C:1191): `CreateFile(OPEN_ALWAYS)`,
+        /// seek to `(CurLevel-1) * sizeof(TLEVEL)`, write one record.
+        ///
+        /// **Saving level 8 into a file that holds three creates levels 4..7**,
+        /// because seeking past the end and writing zero-fills the gap -- on
+        /// Win32 by documented behaviour and here by the same behaviour in
+        /// FileStream.  Those filler levels are a playfield of all dirt with no
+        /// name, no author and difficulty 0, and the 2010 binary lists them.
+        /// It is the same shape as the `.hs` padding quirk, and like that one
+        /// it is kept because the file the original writes is the file this has
+        /// to write.
+        public static void WriteRaw(string path, int number, byte[] rec)
+        {
+            if (rec == null || rec.Length != TLEVEL.Size)
+                throw new ArgumentException("a level record is " + TLEVEL.Size + " bytes",
+                                            nameof(rec));
+            if (number < 1)
+                throw new ArgumentOutOfRangeException(nameof(number), "levels are 1-based");
+            using (FileStream f = new FileStream(path, FileMode.OpenOrCreate,
+                                                 FileAccess.ReadWrite, FileShare.Read))
+            {
+                f.Seek((long)(number - 1) * TLEVEL.Size, SeekOrigin.Begin);
+                f.Write(rec, 0, rec.Length);
+            }
+        }
+    }
+
+    /// One 576-byte level record, held as bytes and edited in place --
+    /// `CurRecData`, with the original's own write widths.
+    ///
+    /// **The widths are not cosmetic.**  `GetWindowText(Ed1, CurRecData.LName,
+    /// 30)` copies at most 29 characters plus a terminator into a 31-byte
+    /// field, so byte 30 is *never* written by the editor and the bytes between
+    /// the new terminator and offset 29 keep whatever the record already held.
+    /// The hint is the same shape with `GetWindowText(..., 255)` into
+    /// `char[256]`.  Reproducing that is what makes "load a level, edit
+    /// nothing, save" a byte-for-byte identity instead of a near miss.
+    public sealed class LevelRecord
+    {
+        private static readonly Encoding Latin1 = Encoding.GetEncoding(28591);
+
+        public const int NameOff = 256, NameLen = 31;
+        public const int HintOff = 287, HintLen = 256;
+        public const int AuthorOff = 543, AuthorLen = 31;
+        public const int DiffOff = 574;
+
+        /// The original's `GetWindowText` counts, terminator included.
+        public const int NameEntry = 30, HintEntry = 255;
+
+        public readonly byte[] Raw;
+
+        public LevelRecord() { Raw = new byte[TLEVEL.Size]; }
+
+        public LevelRecord(byte[] raw)
+        {
+            if (raw == null || raw.Length != TLEVEL.Size)
+                throw new ArgumentException("a level record is " + TLEVEL.Size + " bytes",
+                                            nameof(raw));
+            Raw = (byte[])raw.Clone();
+        }
+
+        public static LevelRecord Read(string path, int number)
+        {
+            byte[] raw = LevelFile.ReadRaw(path, number);
+            return raw == null ? null : new LevelRecord(raw);
+        }
+
+        public void Write(string path, int number) => LevelFile.WriteRaw(path, number, Raw);
+
+        private string Get(int off, int len)
+        {
+            int n = 0;
+            while (n < len && Raw[off + n] != 0) n++;
+            return Latin1.GetString(Raw, off, n);
+        }
+
+        /// `SetWindowText` then `GetWindowText(h, field, entry)`: at most
+        /// `entry - 1` characters and one terminator, and **nothing after
+        /// that** -- the rest of the field is left as it was found.
+        private void Set(int off, int entry, string s)
+        {
+            byte[] b = Latin1.GetBytes(s ?? "");
+            int n = Math.Min(b.Length, entry - 1);
+            Array.Copy(b, 0, Raw, off, n);
+            Raw[off + n] = 0;
+        }
+
+        public string Name { get => Get(NameOff, NameLen); set => Set(NameOff, NameEntry, value); }
+        public string Hint { get => Get(HintOff, HintLen); set => Set(HintOff, HintEntry, value); }
+        public string Author
+        {
+            get => Get(AuthorOff, AuthorLen);
+            set => Set(AuthorOff, NameEntry, value);
+        }
+
+        /// The difficulty bitmask, 1/2/4/8/16.  `EditDiffSet` writes it whole
+        /// (LTANK.C:103) after checking the menu item, so unlike the strings
+        /// there is no partial-write subtlety here.
+        public ushort Diff
+        {
+            get => (ushort)(Raw[DiffOff] | (Raw[DiffOff + 1] << 8));
+            set { Raw[DiffOff] = (byte)(value & 0xFF); Raw[DiffOff + 1] = (byte)(value >> 8); }
+        }
+
+        /// The playfield, `PF[x][y]` flattened x-major -- the order
+        /// `TGAMEREC.Flatten` and the oracle's trace both use.
+        public void SetPlayfield(byte[] flat)
+        {
+            if (flat == null || flat.Length != 256)
+                throw new ArgumentException("a playfield is 256 bytes", nameof(flat));
+            Array.Copy(flat, 0, Raw, 0, 256);
+        }
+
+        public byte[] GetPlayfield()
+        {
+            var flat = new byte[256];
+            Array.Copy(Raw, 0, flat, 0, 256);
+            return flat;
+        }
+
+        /// Command 601's `CurRecData.Hint[0] = 0` -- **only the first byte.**
+        /// Clear Field truncates the hint rather than erasing it, so the rest
+        /// of the old hint is still in the record and is still written to disk.
+        public void ClearHint() => Raw[HintOff] = 0;
     }
 }

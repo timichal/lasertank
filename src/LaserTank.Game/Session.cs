@@ -250,6 +250,32 @@ namespace LaserTank.Game
 
         public bool CanUndo => E != null && Now != State.Won && E.CanUndo;
 
+        // ---- what the editor needs of the session ---------------------------
+
+        /// `OKtoHS = FALSE`, which command 201 does on the way into the editor
+        /// (LTANK.C:1091).  An edited level is not the level the high-score
+        /// file is about, so nothing it does can post a score until the next
+        /// load turns the flag back on (LTANK2.C:1025).
+        public void NoHighScore() => OkToHS = false;
+
+        /// Command 604's last line: `if (CurLevel > 0) GameOn(TRUE)`
+        /// (LTANK.C:1263).  **The board is not reloaded** -- leaving the editor
+        /// drops you onto the level you just drew, which is how the original
+        /// lets one be tested without saving it first.  A death or a win before
+        /// the editor was opened is cleared with it, because the board those
+        /// happened on is gone.
+        public void EditorResume()
+        {
+            if (E == null) return;
+            E.Deaths = 0;
+            E.GameOn(true);
+            Now = State.Playing;
+            Score = null;
+            PrevTankX = E.Game.Tank.X;
+            PrevTankY = E.Game.Tank.Y;
+            LaserBounced = false;
+        }
+
         /// Commands 111 and 112 (LTANK.C:955).  Restore is grayed until Save has
         /// been used, and that guard is not politeness: see Engine.SaveGame.
         public void SavePos() => E?.SavePosition();
@@ -373,19 +399,16 @@ namespace LaserTank.Game
             AddKBuff((byte)vk);
         }
 
-        /// AddKBuff, LTANK2.C:256.  Append and grow; the growth is a
-        /// GlobalReAlloc there and cannot fail here, so the original's
-        /// FileError / `RB_TOS = 0` arm has nothing to transliterate into.
+        /// AddKBuff, LTANK2.C:256 -- which lives in Engine since step 5,
+        /// because MouseOperation calls it and MouseOperation is LTANK2.C code.
+        /// This copy is gone rather than kept: unlike the sound-id table and
+        /// the WM_KEYDOWN filter above it, there was never anything to check by
+        /// carrying it twice -- both copies would have been written from the
+        /// same fifteen lines and neither is a decision.
         private void AddKBuff(byte zz)
         {
-            E.RecBuffer[E.RB_TOS] = zz;
-            E.RB_TOS++;
-            if (E.RB_TOS >= _recBufSize)
-            {
-                int i = _recBufSize + RecBufStep;
-                Array.Resize(ref E.RecBuffer, i);
-                _recBufSize = i;
-            }
+            E.AddKBuff(zz);
+            _recBufSize = E.RecBuffer.Length;
         }
 
         /// How many keys are pressed but not yet consumed.  The renderer shows
