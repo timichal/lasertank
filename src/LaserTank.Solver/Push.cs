@@ -16,7 +16,7 @@
 // step is "change the board once" -- from 3.2x beyond anything ever solved to
 // 2x the p90, which is the range width and restarts already reach.  That is the
 // whole argument for this layer, and it is an argument about *this level*; the
-// instrument now exists to check it on others (SOLVER.md, "Why the search
+// instrument now exists to check it on others (docs/solver/layers.md, "Why the search
 // fails on long levels").
 //
 // **What the action set is.**  From a state, everything the tank can do without
@@ -321,7 +321,7 @@ namespace LaserTank.Solver
                         depth, next.Count, DistinctBoards(next),
                         // In work units: H is Eval.Scale fixed point since the
                         // divide came out of Eval.Score, and every reading of
-                        // this column in SOLVER.md is a work distance.
+                        // this column in docs/solver/ is a work distance.
                         next.Count > 0 ? next[0].H / Eval.Scale : -1,
                         _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes,
                         _pxSterile, _pxCount);

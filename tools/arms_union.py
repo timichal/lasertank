@@ -4,7 +4,7 @@
     python tools/arms_union.py plain=build/reports/l5-s15-plain.jsonl \
         enables=build/reports/l5-s15-enables.jsonl ...
 
-SOLVER.md's *Next actions* item 2 runs the fourth pass in five arms and says to
+docs/solver/next-actions.md item 2 runs the fourth pass in five arms and says to
 compare unions rather than solo counts, and the reason is layer 1's finding one
 layer down: an arm that scores the same as another is not the same arm if it
 scores it on different levels.  Two arms at 15/248 that overlap in 5 are worth

@@ -1164,7 +1164,7 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                     Paths.cs       finds data/
                     Built by Godot or `dotnet build`, never published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
-tools/      the fidelity and presentation gates; solver-only tools are in SOLVER.md
+tools/      the fidelity and presentation gates; solver-only tools: docs/solver/instruments.md
 ```
 
 | tool | what it proves |

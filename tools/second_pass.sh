@@ -63,7 +63,7 @@
 # restarts adds 44, the same beam ranked by the learned evaluation adds 30 more,
 # and the macro beam then adds 3, so the composite is 472 of 4,185.  Without
 # layer 4 those are 44 and 5, composite 444; without restarts, 40 and 6, 441.
-# See SOLVER.md, layers 3 and 4 -- including why the four levels
+# See docs/solver/layers.md, layers 3 and 4 -- including why the four levels
 # restarts buy are a smaller result than the 717 dead-ends they eliminate would
 # suggest, and why 41 of layer 4's 69 are levels its own training set had.
 #

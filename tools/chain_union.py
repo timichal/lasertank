@@ -10,7 +10,7 @@ chain's per-level state is the *union* of its four reports on
 (collection, level) -> solved: the last report that solved a level wins, and a
 level nothing solved keeps its earliest row (the deepest budget it was given).
 That union is what `second_pass.sh` has to be pointed at to attack "everything
-the chain still fails", which is the fourth pass in SOLVER.md's Next actions.
+the chain still fails", which is the fourth pass in docs/solver/next-actions.md.
 
 It existed only as a sentence in SOLVER.md until session 25, and the file it
 describes lived only in gitignored `build/` -- the same way the three bench
