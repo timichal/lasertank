@@ -154,9 +154,9 @@ These are the reason the numbers in these files can be trusted.
 | Layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`; own rung, adds 4 ferry / 5 deep, **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
-| Layer 9 — exposure as a tier | `--push-fire-tier`, the fire map promoted from an addend to a tier; **tenth rung**. Over the 138 unsolved short-record GAUNTLETs at 40M it is **85 against the control's 76, with 15 exclusive levels against 6** (union 91 of 138, 65.9%; 161 of 161 gated). Costs **9% wall clock**. **Does not solve `LaserTank.lvl` 10**, the level it was derived from |
+| Layer 9 — exposure as a tier | `--push-fire-tier`, the fire map promoted from an addend to a tier; **tenth rung**. Over the 138 unsolved short-record GAUNTLETs at 40M it is **85 against the control's 76, with 15 exclusive levels against 6** (union 91 of 138, 65.9%; 161 of 161 gated). Costs **9% wall clock**. **Does not solve `LaserTank.lvl` 10**, the level it was derived from. **Now validated over the corpus** (session 33): as the fourth-pass arm `l8fire` it is **66 of 255 (25.9%)**, the best solo arm ever measured on that population, and it **retires `l8work`** — see the row below |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
-| The fourth pass, rehearsed | **84 of 255 (32.9%)** of the levels the chain fails, as the **union of six arms at 40M nodes** on a 1-in-15 stride of the failure population; 306 of 306 gated. No single arm scores above **61 (23.9%)**, so the pass is a chain of arms rather than a configuration; **the three that ship are 81 (31.8%)** and the other three are worth +3 between them for ~54 h |
+| The fourth pass, rehearsed | **87 of 255 (34.1%)** of the levels the chain fails, as the **union of seven arms at 40M nodes** on a 1-in-15 stride of the failure population; 372 of 372 gated. The pass is still a chain of arms rather than a configuration, but the arms changed: **the three that ship are now `l8fire` → `layer7` → `enables`, 84 (32.9%)**, against the 81 of the three it replaces. **`--push-fire-tier` does not add a fourth arm, it replaces the first** — `l8work` contributes **+0** to the seven-arm union and holds **1** exclusive level against `l8fire`'s 6. So the pass is better by 3 levels at the *same* three-arm cost (~54 h), not 72 h |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 has a named cause and no named candidate:** it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line |
 
 **A missing `.lpb` under `data/solutions/` is not a missing solution.** Michal deletes a banked
@@ -219,12 +219,12 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **2** | **1st** | the fourth pass — and it now wants a **fourth arm**, `--push-fire-tier`, rehearsed before the hours are committed | 2 h 15 m rehearsal, then ~54-72 h |
-| **5** | 2nd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
-| **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
-| **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
-| 10 | 5th | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
-| 6 | last | the `lasertanksolutions.blogspot.com` goal-board harvester | scraping, not solving |
+| **6** | **1st** | the `lasertanksolutions.blogspot.com` harvester — **the feasibility spike, not the crawl**. Mapping is 6/6 exact and the ordered goal cells are *text in the image filenames*, so step 1 needs no pixel work at all | **~2 h** for the spike |
+| **2** | 2nd | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
+| **5** | 3rd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
+| **4** | 4th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
+| **7** | 5th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
+| 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
 
 **The rule they are ordered by is *cheapest falsifier first, whatever kind of work it is*.** The
 clause that did not survive contact with the list is *builds last*: what is left of the runs is a
@@ -233,6 +233,14 @@ clause that did not survive contact with the list is *builds last*: what is left
 twenty-five hours of machine time once went into items that report percentages while the two levels
 in front of the project did not move and one banked solution got worse.
 
-Item 2 is first anyway, and the honest reason is not that a number beats a level: **both open levels
-now have nothing costed left to try.** Level 10 has had budget, closure, width, depth and the fire
-tier cleared; level 6 never had a cheap falsifier at all.
+**Session 33 moved item 6 to the top, and the sentence that used to sit here is why it had to move.**
+It read: *both open levels now have nothing costed left to try* — and that was the stated reason a
+54-hour number outranked everything. It is no longer true. Four read-only fetches established that the
+harvester's mapping is exact (6/6), that the ordered goal cells are plain text in the image filenames,
+and that `LaserTank.lvl` 10 has a post; so **level 10 now has a costed candidate**, contingent on a ~2 h
+spike, and by both keys above — cheapest falsifier, and a level over a number — that outranks the run.
+Level 6 "Cascade" still has no cheap falsifier and no post, so item 5 is unchanged.
+
+**The two are not rivals for the machine.** Item 2's arms are node-governed and want all 16 jobs; the
+spike is a few HTTP fetches and some image decoding. Launch the run and do the spike beside it — extra
+load moves wall-clock readings and nothing else.

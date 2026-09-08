@@ -486,6 +486,40 @@ archive — with every measurement and every negative result kept. **The rule th
 one level out: splitting a file by heading keeps everything findable only until the headings themselves
 are the problem.**
 
+**session 33 — the fourth arm, and it retired the first.** Rehearsed `--push-fire-tier` as a fourth arm
+of the fourth pass on the same 255-level stride the other six were run on, per item 2's own recipe. It is
+**66 of 255 solo** — the best solo arm ever measured on that population — **66 of 66 gated**, and the
+seven-arm union is **87 (34.1%)** against six arms' 84. But the shape of the win is not the one the
+GAUNTLET-tail bench predicted: the tier solves 60 of `l8work`'s 61 *plus six more*, so `l8work` falls to
+**+0 and 0 exclusive levels** and is retired as an arm. **The fourth arm is a replacement for the first,
+not an addition to it** — the pass stays three arms and ~54 h and gets 84 instead of 81, for +7.3% wall
+clock. `LaserTank.lvl` 10 is still unsolved and 166 of the 168 levels no arm solves still stop on
+`budget`.
+
+* **A filtered bench can over-report the *kind* of a win as well as its size.** The tail said 85/76 with
+  15 exclusive against 6 — a strongly complementary arm. The corpus said 66/61 with 6 exclusive against
+  1 — the same direction, a third of the margin, and *less* complementary rather than more. Rule 1 fired
+  for the fifth time and for once in the project's favour: what the arm lost was its claim to be a
+  fourth arm, and the result got cheaper rather than dearer.
+* **Michal's challenge to the ordering, and it was well founded.** He asked whether decoding the
+  blogspot goal boards, or simply running the corpus at a production budget, would beat committing 54
+  hours. Both halves check out against the record: the headline 11.8% is measured at 150k nodes — about
+  a tenth of a second a level — and the one accidental 1M run returned 3.3x the levels (item 7); while
+  layer 4 already established that training on the solver's *own* solutions halves discovery (28 → 14),
+  which is precisely why the off-distribution recordings item 6 would harvest are what layer 4 says it
+  needs. Item 2's own second ordering key — *prefer work that produces a property or a level over work
+  that produces a number* — ranks a harvester spike above the 54-hour run, and the list had it last.
+* **Four read-only fetches closed two of item 6's three unknowns** and found a third thing nobody had
+  looked for: the ordered goal cells are plain text in the image filenames, so the multi-flag subgoal
+  sequence needs no image decoding at all. Mapping is 6/6 exact. The Moves/Shots counters, which the
+  item leaned on, turn out not to be universal. Details in item 6.
+* **A byte-offset error nearly became a published number.** Reverse-engineering the `.lvl` record as 896
+  bytes gave 13,437 levels and a plausible-looking 97.8%-unique table, and its level names for
+  `LaserTank.lvl` 1-10 were *sequentially correct*, which is what made it convincing. The real record is
+  576 bytes and is documented in `PROGRESS.md`; at 576 the corpus totals **20,914**, which is the number
+  `SOLVER.md` has always quoted. **The cross-check that caught it was a total the project already knew
+  — read the format, and reconcile against a number you did not derive.**
+
 ---
 
 ## Where session 26's twelve pointers went
