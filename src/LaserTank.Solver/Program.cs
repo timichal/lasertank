@@ -26,6 +26,15 @@ namespace LaserTank.Solver
 {
     public static class Program
     {
+        /// --sg-eval / --push-eval.  Anything unrecognised is `work`, which is
+        /// what `--push-eval work` has always meant and keeps old command lines
+        /// reading the way they did.
+        private static RankKey Key(string k) =>
+            k == "learned" ? RankKey.Learned
+          : k == "coarse"  ? RankKey.Coarse
+          : k == "none"    ? RankKey.None
+          :                  RankKey.Work;
+
         private static void Usage()
         {
             Console.Error.WriteLine(
@@ -155,9 +164,14 @@ namespace LaserTank.Solver
 "  layer 4 -- a learned evaluation (Learn.cs).  A ranking change and nothing\n" +
 "  else: acceptance stays layer 2's board test and only the order of what\n" +
 "  survived is learned, so a model can never admit a state the search refused\n" +
-"    --sg-eval work|learned   ranking key for the subgoal beam, default work\n" +
-"                         (= layer 3).  The seed weight vector is WorkDistance\n" +
-"                         exactly, so `learned` with it reproduces layer 3\n" +
+"    --sg-eval work|learned|coarse|none   ranking key for the subgoal beam,\n" +
+"                         default work (= layer 3).  bench/seed-weights.txt is\n" +
+"                         WorkDistance written in the features, so `learned`\n" +
+"                         with it reproduces layer 3 exactly -- the check that\n" +
+"                         the ranking hook is still only a hook.  coarse is the\n" +
+"                         learned score rounded back to work units, which is\n" +
+"                         what every run before session 27 was really using;\n" +
+"                         none is H = 0, i.e. tier then fewest keypresses\n" +
 "    --eval-weights FILE  one weight per line, in place of the built-in vector\n" +
 "    --rank-dump FILE     instrument, not a solve: replay winning .lpb one key\n" +
 "                         at a time, run the shipped subgoal expansion from\n" +
@@ -231,11 +245,21 @@ namespace LaserTank.Solver
 "                         that does not move while a block is in transit\n" +
 "    --push-move-only N   pure-movement successors kept, and only when the\n" +
 "                         closure truncated, default 4\n" +
-"    --push-eval work|learned  the ranking key, default learned (layer 4's);\n" +
-"                         work is WorkDistance plus the ferry term below.  On\n" +
-"                         the human recording of LaserTank 1 the winning line's\n" +
-"                         longest uphill stretch is 16 board changes ranked by\n" +
-"                         work, 12 with the ferry term and 6 by the learned one\n" +
+"    --push-eval work|learned|coarse|none  the ranking key, default coarse,\n" +
+"                         which is what every layer 5-8 number was measured\n" +
+"                         with; work is WorkDistance plus the ferry term below.\n" +
+"                         On the human recording of LaserTank 1 the winning\n" +
+"                         line's longest uphill stretch is 16 board changes\n" +
+"                         ranked by work, 12 with the ferry term and 6 by the\n" +
+"                         learned one.  none is the control: H = 0, so the beam\n" +
+"                         orders by tier and then by fewest keypresses\n" +
+"    --push-hand-scale N  what one work unit of the ferry/stop/dead/shield\n" +
+"                         terms is worth against the learned score.  Default 0\n" +
+"                         = the fitted `work` weight itself (157), so the hand\n" +
+"                         terms cost what the model charges for the same thing;\n" +
+"                         1024 (= Eval.Scale) is WorkDistance's price for it and\n" +
+"                         their historic relation.  Only --push-eval learned\n" +
+"                         reads this; the other keys cancel it\n" +
 "    --push-stop N        weight on the stop term, default 0 (off).  The\n" +
 "                         question the ferry term asks, for a route that\n" +
 "                         crosses a conveyor rather than water: a conveyor is\n" +
@@ -433,7 +457,8 @@ namespace LaserTank.Solver
                         case "--push-ferry-stage": a.Opt.PushFerryStage = true; break;
                         case "--push-trace-board": a.Opt.PushTrace = true; a.Opt.PushTraceBoard = true; break;
                         case "--push-move-only": a.Opt.PushMoveOnlyK = int.Parse(V()); break;
-                        case "--push-eval": a.Opt.PushLearned = V() == "learned"; break;
+                        case "--push-eval": a.Opt.PushEval = Key(V()); break;
+                        case "--push-hand-scale": a.Opt.PushHandScale = int.Parse(V()); break;
                         case "--push-restarts": a.Opt.PushRestarts = int.Parse(V()); break;
                         case "--push-ferry": a.Opt.PushFerry = int.Parse(V()); break;
                         case "--push-closed": a.Opt.PushCloseOnExpand = V() != "generate"; break;
@@ -463,7 +488,7 @@ namespace LaserTank.Solver
                         case "--sg-reserve": a.Opt.SgReserve = int.Parse(V()); break;
                         case "--sg-reserve-depth": a.Opt.SgReservePerDepth = int.Parse(V()); break;
                         case "--sg-grow": a.Opt.SgGrow = true; break;
-                        case "--sg-eval": a.Opt.SgLearned = V() == "learned"; break;
+                        case "--sg-eval": a.Opt.SgEval = Key(V()); break;
                         case "--eval-weights": a.Opt.Eval = Eval.Load(V()); break;
                         case "--rank-dump": a.RankDump = V(); break;
                         case "--lpb-list": a.LpbList = V(); break;
@@ -1205,7 +1230,7 @@ namespace LaserTank.Solver
             SgReserve = s.SgReserve,
             SgReservePerDepth = s.SgReservePerDepth,
             SgGrow = s.SgGrow,
-            SgLearned = s.SgLearned,
+            SgEval = s.SgEval,
             RunPush = s.RunPush,
             PushBeamWidth = s.PushBeamWidth,
             PushPerBoard = s.PushPerBoard,
@@ -1224,7 +1249,8 @@ namespace LaserTank.Solver
             PushFerryStage = s.PushFerryStage,
             PushTraceBoard = s.PushTraceBoard,
             PushMoveOnlyK = s.PushMoveOnlyK,
-            PushLearned = s.PushLearned,
+            PushEval = s.PushEval,
+            PushHandScale = s.PushHandScale,
             PushTrace = s.PushTrace,
             PushCloseOnExpand = s.PushCloseOnExpand,
             PushFerry = s.PushFerry,

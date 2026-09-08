@@ -232,8 +232,10 @@ namespace LaserTank.Solver
                 List<Node> sorted = new List<Node>(next);
                 sorted.Sort(static (a, b) => a.Tier != b.Tier ? a.Tier - b.Tier
                                            : a.H != b.H ? a.H - b.H : a.G - b.G);
-                _lineBestH = sorted[0].H;
-                _lineCutH = sorted[Math.Min(width, sorted.Count) - 1].H;
+                // Work units, like --push-trace's best column: H is in
+                // Eval.Scale fixed point.
+                _lineBestH = sorted[0].H / Eval.Scale;
+                _lineCutH = sorted[Math.Min(width, sorted.Count) - 1].H / Eval.Scale;
             }
         }
 

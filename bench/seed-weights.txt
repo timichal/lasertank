@@ -1,0 +1,30 @@
+# WorkDistance written in layer 4's features, in Eval.Scale (1024) fixed point.
+#
+# The equivalence check for the learned ranking hook: `--sg-eval learned
+# --eval-weights bench/seed-weights.txt` must reproduce plain layer 3 exactly --
+# identical keystreams, node counts and stop reasons.  `far_man` exists in Feat
+# only so that it can be exact.  If this ever stops reproducing, the hook has
+# stopped being a hook and every number layer 4 claims is suspect.
+#
+# Scaled because that is fit_eval.py's own output convention (`round(w * SCALE)`,
+# line 307) and because Rank()'s non-learned branch is `work * Eval.Scale`, so an
+# unscaled {1, 1000, 1} would be a key 1024x weaker than the jitter beside it.
+#
+# One weight per line, in Feat.Names order.
+bias            0
+work            1024
+work_far        1024000
+flagdist        0
+flag_unreach    0
+manhattan       0
+route_obs       0
+component       0
+bricks          0
+blocks          0
+mirrors         0
+antitanks       0
+water           0
+thin_ice        0
+block_by_water  0
+threats         0
+far_man         1024

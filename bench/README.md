@@ -23,6 +23,13 @@ A file belongs in `bench/` when all three are true:
 | `bench-levels.txt` | 60 `Beginner-I` levels layer 0 failed; GAUNTLET-heavy |
 | `deep-levels.txt` | 50 `Beginner-I` levels with a `.ghs` total of 40-150 |
 | `ferry-levels.txt` | 50 levels the chain fails that the read calls FERRY or SOKOBAN |
+| `seed-weights.txt` | layer 4's equivalence check: `WorkDistance` written in `Feat`, in `Eval.Scale` fixed point |
+
+`seed-weights.txt` is not a level list, and it is here for the third reason above rather than the
+second: it is not curated, it is *derived* — but it must not change, because it is the check that
+says the learned ranking hook is still only a hook. `--sg-eval learned --eval-weights
+bench/seed-weights.txt` must reproduce plain layer 3 exactly. It was a sentence in `SOLVER.md`
+until session 27, and a check written as prose is a check nobody runs.
 
 ## What does not
 

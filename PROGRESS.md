@@ -1433,7 +1433,10 @@ place despite not winning.
   src/LaserTank.Cli/LaserTank.Cli.csproj -c Release`, and then either `replay_all.py --engine
   src/LaserTank.Cli/bin/Release/net8.0/lasertank-core.exe` or, for everything built on
   `tools/engines.py` (`sweep.py`, `atlas_check.py`, `sound_check.py`, `fuzz.py`), **`$LT_CORE`**,
-  which overrides `engines.CORE` for exactly this reason. That is how Phase 5 steps 0 and 3 were
+  which overrides `engines.CORE` for exactly this reason. **Session 27 added the solver's half of
+  that:** `LT_SOLVE=<exe>` overrides `build/lasertank-solve.exe` in `tools/bench.sh`,
+  `campaign.sh` and `second_pass.sh`, so a solver change can be benched from
+  `src/LaserTank.Solver/bin/Release/net8.0/` while a long solve still holds the published binary. That is how Phase 5 steps 0 and 3 were
   checked without touching a live solve. The Godot project never publishes into `build/` at all.
 - **Trap in the oracle's own usage text:** it advertises `--keys` as accepting "raw decimal VK
   codes separated by commas", but `driver.c` only parses the characters `u d l r f` and silently

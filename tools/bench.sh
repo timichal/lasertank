@@ -31,7 +31,11 @@ set -u
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 label=$1; list=$2; nodes=$3; shift 3
 
-exe="$root/build/lasertank-solve.exe"
+# LT_SOLVE overrides the binary, for the same reason $LT_CORE exists (PROGRESS):
+# a running solve holds build/lasertank-solve.exe open, so `dotnet publish -o
+# build` cannot replace it and the only way to bench a change during a long run
+# is to point at the project's own bin/.
+exe="${LT_SOLVE:-$root/build/lasertank-solve.exe}"
 [ -x "$exe" ] || { echo "no $exe -- run bash src/build.sh" >&2; exit 1; }
 [ -f "$list" ] || { echo "no level list at $list" >&2; exit 1; }
 

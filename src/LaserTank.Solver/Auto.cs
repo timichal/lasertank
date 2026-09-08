@@ -79,19 +79,33 @@ namespace LaserTank.Solver
             // layer 2 + layer 3: the subgoal beam, restarting when it dies of
             // an empty frontier.  More restarts each round, because that is the
             // shape of its failure and the budget to pay for them is now there.
+            //
+            // `coarse` rather than the CLI default `work`, and that is not a
+            // change to this rung -- it is what it has been running since
+            // 4765ae9, now written down.  It is also what the corpus prefers:
+            // over layer 0's 3,787 failures `coarse` solves 73 against `work`'s
+            // 44, with 33 exclusive against 4, and a `work` pass appended after
+            // `coarse` -> `learned` adds nothing at all.
             ("subgoal", static (o, r) =>
             {
                 o.RunSubgoal = true;
+                o.SgEval = RankKey.Coarse;
                 o.SgRestarts += 6 * r;
             }),
             // layer 4: the same search ranked by the learned evaluation.  Worth
             // a thread of its own rather than replacing the one above -- it
             // solves levels layer 3 does not and loses three that layer 3 wins,
             // which is why second_pass.sh runs both passes too.
+            //
+            // Session 27: this rung was a *duplicate* of the one above from
+            // 4765ae9 until now.  Rank() read `_eval != null` rather than the
+            // caller's flag and `_eval` is built when either beam wants it, so
+            // both rungs ranked by the same coarse learned key and one lane of
+            // the portfolio was spent twice on the same search.
             ("learned", static (o, r) =>
             {
                 o.RunSubgoal = true;
-                o.SgLearned = true;
+                o.SgEval = RankKey.Learned;
                 o.SgRestarts += 6 * r;
             }),
             // layer 1: macro-actions.  Nothing else to run alongside it here,
@@ -300,7 +314,7 @@ namespace LaserTank.Solver
             {
                 o.RunPush = true;
                 o.PushRead = true;
-                o.PushLearned = false;
+                o.PushEval = RankKey.Work;
                 // Layer 8's read as well as layer 8's terms: an anti-tank on
                 // the route is a barrier here.  See ReadDerive -- it is flagged
                 // because it is not free, and these two rungs are the ones it
