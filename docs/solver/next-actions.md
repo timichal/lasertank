@@ -6,12 +6,15 @@ Items keep their numbers because these files refer to them by number — the fin
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **6, 2, 5, 4, 7, 10** — set in session 33 and unchanged, but item 6 is a different item now.
-**Its spike is done and it came back positive** (session 34): `LaserTank.lvl` 10's goal board is decoded,
-so the one thing that could hand the level a candidate has been delivered, and what is left of item 6 is
-a labelling job plus a layer-sized build. It stays first on the second ordering key rather than
+Order: **6, 2, 5, 4, 7, 10** — set in session 33 and unchanged, but item 6 is a different item again.
+Its spike came back positive in session 34, and **session 35 closed its whole first phase**: the
+goal-only tile residue turned out to be *derivable* from the 2010 binary's own graphics, which this repo
+already commits, so the half-session of hand labelling it was costed at does not exist. Every goal board
+in the sample now decodes with **0 unknown cells**, and `LaserTank.lvl` 10's goal board — the one thing
+that could hand that level a candidate — is complete, tank included. What is left of item 6 is
+**only `--goal-board`**, a layer-sized build. It stays first on the second ordering key rather than
 the first — *prefer work that produces a property or a level over work that produces a number* — because
-it now has an acceptance test written in advance and item 2 still produces a percentage. Item 2's
+it has an acceptance test written in advance and item 2 still produces a percentage. Item 2's
 rehearsal is done and its 54-hour run is fully specified, so it is ready to launch whenever the machine is
 free, and **the two do not compete**: node-governed results are unaffected by extra load; only wall-clock
 readings are.
@@ -21,8 +24,9 @@ readings are.
 ## 6 (1st) — the blogspot goal-board harvester
 
 **The feasibility spike is done, positive, and it shipped as `tools/harvest.py` + `tools/png.py`
-(session 34).** What is left of this item is a build, not a question — the framing is below, then every
-number the spike produced, then the re-costed remainder.
+(session 34); session 35 added `tools/sprites.py` and closed phase 1.** What is left of this item is one
+build, not a question — the framing is below, then every number the spike produced, then how the
+labelling job turned out not to be one, then the re-costed remainder.
 
 Michal raised it; what one post actually contains was verified rather than assumed (`Challenge-II-100`):
 a **start screenshot**, one **screenshot per flag showing the board at the moment of reaching it**, and —
@@ -118,8 +122,11 @@ either the set was still growing by one every ten boards or so. Unknown tiles pe
 |---|---:|---:|---:|---:|---:|---:|
 | goal boards | 3 | 10 | 12 | 28 | 57 | **63** |
 
-That distribution is the *before* row of the table in [*What is left*](#what-is-left-re-costed): one
-label collapses it, which is why the number to carry forward is 1.37% and not 4.52%.
+That distribution is what session 34 carried forward as the item's remaining cost, and it is **kept
+because it is the number that turned out to be the wrong question** — see
+[*Session 35*](#session-35--the-residual-was-not-hand-input), where the residue is derived instead of
+labelled and the figure is 0.00%, not 1.37%. What follows in this section is session 34's reasoning as
+it stood.
 
 **Why, and why it is a labelling job rather than an ambiguity.** A start board only ever shows *authored*
 states: the tank faces up, no laser is in flight, and no block has been pushed anywhere. The residual is
@@ -130,6 +137,10 @@ a block (`obt == 5`) onto water sets **`PF = 0` and `BMF = 19`** — functionall
 block. Which is the general shape of the whole residual: **`BMF → PF` is many-to-one, and `PF` is the
 only half the solver wants.** So each of them has one right answer, and 26 were labelled by eye off a
 contact sheet in one look during the spike.
+
+*This paragraph is right about the mechanism and wrong about who has to supply the answer: because each
+sprite has one right answer, and because the sprite that draws it and the rule that assigns its `PF` are
+both committed in this repo, the answer is derivable and no eye is needed. Session 35, below.*
 
 **7. `LaserTank.lvl` 10's goal board is in hand.** `/2016/06/10-valley-of-death.html`, decoded with
 **one** undecoded cell — and that cell is the tank at (6,0), identified from its crop, one move short of
@@ -162,44 +173,100 @@ The shape of that solution is the finding:
 of `LaserTank.lvl` 1-20, levels **3, 4, 6, 7, 11, 13 and 20 have no post at all**. So this item can reach
 one of the two open levels and not the other, and item 5 is unchanged by all of the above.
 
+### Session 35 — the residual was not hand input
+
+**The labelling job does not exist.** Session 34 costed the goal-only residue at half a session of
+eyeballing a contact sheet, on the reasoning that a start board only ever shows authored states and
+nothing labels the states play produces. That reasoning was right and the conclusion was wrong: the
+2010 binary's own graphics are **committed in this repo**, at `original/src/Game.BMP` and
+`original/src/Mask.BMP`, and the tables that choose a sprite are in `LTANK2.C`. Compositing the two
+the way the game composites them reproduces the blog's pixels *exactly*, so every state play produces
+labels itself. It ships as `tools/sprites.py`, gated by `tools/harvest.py tiles`.
+
+Three things had to be right, and all three are in the original source rather than guessed:
+
+* **Size.** `LTANK2.C:1742` sets `SpBm_Width = SpBm_Height = 24` and `GFXInit` (`:766`) `StretchBlt`s
+  the whole 320x192 sheet down to 240x144 — so every 32x32 sprite is drawn at 24x24, which is why the
+  blog's cells are 24 px. `BMA[i]` is filled row-major *from i = 1* (`:784`).
+* **The shrink, which is the part that made this look impossible.** `GFXInit` never calls
+  `SetStretchBltMode`, so the mode is GDI's default `BLACKONWHITE` = `STRETCH_ANDSCANS`: the rows and
+  columns a shrink eliminates are **ANDed** into the ones that survive, per RGB channel, with the
+  grouping `dst = (src * 24 + 12) // 32`. A plain nearest-neighbour shrink gets the palette exactly
+  right and the pixels wrong, which reads as "different artwork" — and that is the whole reason the
+  sheet was never suspected. Both the mode and the grouping were **solved from one real dirt tile**
+  rather than assumed: of seven candidate groupings, exactly one reproduces it, and it does so
+  pixel-exactly. The AND is also self-evidencing — a real dirt tile carries a third colour,
+  `0x108010`, that is `0x949410 & 0x108310` and appears in neither source sprite.
+* **The composite.** `UpDateSprite` (`:487`) draws a cell as the `BMF2` background — an opaque sprite,
+  or a `ColorList` rectangle for a tunnel — then, for a transparent foreground (`BMSTA[bmn] == 1`), the
+  mask `SRCAND` and the sprite `SRCPAINT` on top. `UpDateTank` (`:537`) is a further mask+OR, and
+  `UpDateLaser` (`:549`) a plain `Rectangle` inset by `LaserOffset = 10`.
+
+**`BMF → PF` needed three engine rules on top of `GetOBMArray`, and each one is a bitmap the residual
+actually contained:**
+
+* a shot anti-tank is **`PF = 4`**, not dirt, with junk bitmap 54/52/12/53 for the way it was facing —
+  `KillAtank`, `Engine.cs:868`, "the wreck keeps blocking the square". These four were the residual's
+  **largest family**: 55 + 34 + 32 + 20 = 141 of 606 instances;
+* a block pushed into water is **`PF = 0`** with `BMF = BMF2 = 19` (`Engine.cs:731`) — the one sprite
+  session 34 had already hand-labelled, and the derivation agrees with it;
+* the tank is **not in `PF` at all**. `BuildBMField` clears `PF` at the tank's cell on load
+  (`Engine.cs:348`), so a cell the tank stands on carries the terrain's `PF` and the tank is separate
+  output. This is the only place the blog's pixels are genuinely ambiguous — `T` as a foreground
+  bitmap and the tank overlay facing up are the same pixels — and the rule decides it rather than a
+  coin toss. `decode` now returns `(x, y, facing)` beside the board, which is the shape `--goal-board`
+  wants anyway.
+
+**The gate, and it is a gate because none of these tiles were fitted to.** `python tools/harvest.py tiles`:
+
+| check | result |
+|---|---|
+| the **start-bootstrapped codebook**, whose labels come from the `.lvl` files and no sprite | **53 of 55 agree, 0 clash**; 1 is the tank cell, reconciled as (terrain, facing); 1 not derived |
+| the **goal residual** — the sprites a start board can never label | **116 of 116 sprites, 606 of 606 instances** |
+| every **goal board**, decoded end to end | **0 unknown tiles of 44,288 over 173 boards** (100% of boards clean, against session 34's 10) |
+| the tank located on each goal board | **173 of 173** |
+| `decode --check` over every **start** board, against the `.lvl` | **141 of 141, 0 mismatches** |
+
+**Four independent reconciliations, because a pixel match to a table you built is not evidence.**
+The check that mattered was computed *before* the sheet was opened: for each unknown sprite, the
+distribution of the **start board's `PF` at the cells where it appears**, read from the `.lvl` files.
+It is nearly pure — almost every sprite sits over exactly one terrain — and it agreed with the
+derivation on **all 95** sprites the first (OBM-only) enumeration matched. It then independently
+confirmed the `KillAtank` family: bitmaps 54/52/12/53 appear over start cells `^`/`>`/`v`/`<`, matching
+the source's four `case` arms one for one. Third, the derivation reproduces `LaserTank.lvl` 10's tank
+at **(6,0) facing right** — the cell session 34 identified by eye from its crop. Fourth, it puts 10
+anti-tanks on level 10's goal board with **no wrecks**, reproducing that session's "zero of the ten are
+destroyed" from pixels instead of arithmetic.
+
+**The two tiles that are not game states, kept rather than papered over.** One start tile
+(`Challenge-I 944` at (15,15)) is the tank drawn as a **black silhouette** — a screenshot caught
+between the mask `SRCAND` and the sprite `SRCPAINT`, so it is a capture artifact and no composite can
+produce it; the start bootstrap already labels it and only the *facing* is lost, which is why "boards
+with no tank found" is a printed number. And `UpDateLaserBounce` (`:565`) draws half-cell rectangles
+that are **not** enumerated, along with any explosion frame: **0 of 44,288 tiles in the sample needed
+them**, so they are a named gap rather than a silent one, and `sheet` still reports anything the sheet
+cannot draw.
+
 ### What is left, re-costed
 
-The spike answered the feasibility question, so what remains is two pieces of work and neither is a fetch:
+One piece of work, and it is the build:
 
-1. **Label the residual**, and the loop for it is built and demonstrated:
+**`--goal-board`** — bank `(collection, level, goal PF, tank, moves, shots)` and rank by
+cells-still-differing. **A layer-sized build**, and for once with its acceptance test written in
+advance: level 10, whose goal board is decoded to **0 unknown cells** and whose three root pushes it
+must separate. The gradient it supplies is the one `--analyze` cannot rank — pushing (1,13) up closes
+the distance to its goal cell (0,12) from 2 to 1, while both pushes of (13,14) open theirs from 2 to 3.
 
-   ```bash
-   python tools/harvest.py sheet     # -> build/harvest/residual.{png,json}
-   # put a PF symbol in each "pf" of residual.json, reading the sheet
-   python tools/harvest.py label     # -> bench/goal-tiles.json, committed
-   python tools/harvest.py codebook --goals    # what is left
-   ```
-
-   The split is load-bearing. The start-bootstrapped half is derivable and stays in gitignored
-   `build/harvest/codebook.json`; **the hand-labelled half is `bench/goal-tiles.json` and is
-   committed**, by the rule that directory exists for — nothing re-derives a human's answer, and input
-   in a gitignored directory is input the project does not have.
-
-   **One label is most of the job, and that is measured, not assumed.** Sprite 0 is the block pushed
-   into water; labelling it `.` (`Engine.cs:731`: `PF = 0`, `BMF = 19`) moves the residual over the same
-   173 goal boards from **2,003 unknown tiles (4.52%) to 606 (1.37%)**:
-
-   | unknown cells per goal board | 0 | 1 | 2 | 3-5 | 6-10 | >10 |
-   |---|---:|---:|---:|---:|---:|---:|
-   | before, 117 sprites unlabelled | 3 | 10 | 12 | 28 | 57 | **63** |
-   | after **one** label, 116 left | 10 | **69** | 25 | 41 | 17 | **11** |
-
-   Boards with at most one unknown cell go **13 → 79 of 173**, and the commonest remaining sprite is
-   9.1% of instances against the first one's 69.7% — so what is left is a long flat tail of tank and
-   anti-tank poses over the various terrains. **Half a session** for the rest, front-loaded.
-
-2. **`--goal-board`** — bank `(collection, level, goal PF, moves, shots)` and rank by cells-still-
-   differing. **A layer-sized build**, and for once it has its acceptance test written in advance:
-   level 10, whose goal board is decoded and whose three root pushes it must separate.
+Phase 1 is closed, and the reason to record how is that it inverts a rule these files apply often.
+`bench/goal-tiles.json` exists because **nothing re-derives a human's answer** — but the corollary is
+that nothing should *ask* a human for an answer the repo can derive, and the check for that is cheap:
+the inputs were already committed and the composite rule was already in the ported source. The file
+stays, holding one now-redundant label, as the place anything genuinely undrawable goes.
 
 The derivable artefacts land under `build/harvest/` (gitignored, re-fetchable): `index.jsonl`, `img/`,
 `fetched.json`, `codebook.json`, `residual.{png,json}`. Rebuilding all of it from nothing is
-`index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s).
+`index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s); the derived table
+is not in that list because it needs no fetch at all — `tiles` builds it from the repo in half a second.
 
 ---
 
@@ -338,7 +405,7 @@ run l8fire  $L8 --push-eval work --push-fire-tier   # was l8work; see the table 
 run layer7  --push-stop 1 --push-shot-run 16 --push-beam 128
 run enables --push-enables 8
 
-python tools/arms_union.py l8work=build/reports/l5-l8work.jsonl \
+python tools/arms_union.py l8fire=build/reports/l5-l8fire.jsonl \
     layer7=build/reports/l5-layer7.jsonl enables=build/reports/l5-enables.jsonl
 ```
 

@@ -202,21 +202,32 @@ fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regen
 basin.py          read a --profile dump: how far uphill a winning line goes, per level,
                     in keypresses and in board changes
 harvest.py        next actions item 6: the blogspot goal-board harvester.  index /
-                    map / fetch / codebook / sheet / label / decode, cheapest first.
-                    `map` and `codebook` are the two that report rather than fetch --
+                    map / fetch / codebook / tiles / sheet / label / decode, cheapest
+                    first.  `map`, `codebook` and `tiles` report rather than fetch --
                     `map` checks (collection, level) -> name against every .lvl and
                     needs no images at all, `codebook --goals` prints the saturation
-                    curve and the size of the goal-only sprite set, which is this
-                    item's remaining cost.  `sheet` then `label` is the loop that
-                    shrinks that set: a contact sheet of what is still unlabelled
-                    plus a sidecar, merged into bench/goal-tiles.json.  Two halves
-                    on purpose -- the start-bootstrapped codebook is derivable and
-                    stays in gitignored build/, the hand labels are committed.
-                    `decode --check` on an 'a' image is the gate: a start board must
-                    come back identical to the corpus board
+                    curve of the start-bootstrapped half, and `tiles` is the gate on
+                    sprites.py: it re-derives every goal-only tile and prints what it
+                    covers against both the start codebook and the goal boards.  It
+                    retired `sheet`/`label` as this item's phase 1 -- that loop
+                    (contact sheet, sidecar, merge into bench/goal-tiles.json) now
+                    reports nothing left, and is kept for tiles no composite can
+                    draw, which so far is one caught mid-blit.  `decode` returns the
+                    board *and* where the tank is, and `decode --check` on an 'a'
+                    image is the gate: a start board must come back identical to the
+                    corpus board, its tank cell reconciled rather than excused
+sprites.py        not an instrument: the game's own sheet, and every board cell it
+                    can draw.  Decodes original/src/Game.BMP + Mask.BMP (RLE8/RLE4),
+                    shrinks them to 24 px the way GFXInit's StretchBlt does -- GDI's
+                    default STRETCH_ANDSCANS, which *ANDs* the eliminated rows and
+                    columns -- and composites background + mask + sprite + tank +
+                    laser the way UpDateSprite does, then reads PF off the bitmap.
+                    Why it exists: it makes the goal-only tiles derived rather than
+                    hand-labelled, so item 6's phase 1 cost nothing.  Every constant
+                    in it cites the line it came from
 png.py            not an instrument: a stdlib PNG reader and writer, because this
                     machine has neither PIL nor numpy and harvest.py needs pixels.
-                    Same reason atlas_check.py hand-rolls a BMP reader
+                    Same reason atlas_check.py and sprites.py hand-roll BMP readers
 verify_solutions.py  the gate.  Both engines, WIN on each, byte-identical traces
 ```
 

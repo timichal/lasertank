@@ -13,7 +13,7 @@ enter the solver's headline rate.**  Its value is as a bootstrap: hint-assisted
 solutions are still real recordings, and real recordings are what --profile and
 basin.py measure and what layer 4 is fit on.
 
-Seven subcommands, cheapest first:
+Eight subcommands, cheapest first:
 
   index      the whole post index from the Blogger feed -- title, URL, date and
              image URLs for all 6,218 posts in 42 requests, one minute.  No
@@ -24,29 +24,37 @@ Seven subcommands, cheapest first:
   fetch      download the start and goal screenshots for selected levels
   codebook   build the 24x24 tile codebook from start screenshots, whose boards
              the corpus already knows -- 256 labelled tiles per post, free.
-             --goals also sizes what it does *not* cover, which is the item's
-             remaining cost
-  sheet      the sprites still unlabelled, as one contact sheet plus a sidecar
-             to fill in.  A start board cannot label the states only play
-             produces, so these are the hand input
+             --goals sizes what this half does *not* cover; that was the item's
+             remaining cost until `tiles` derived all of it
+  tiles      the goal-only sprites *derived* rather than labelled, from the
+             game's own sheet -- tools/sprites.py.  This is the gate on that
+             derivation, and it retired `sheet`/`label` as the item's phase 1
+  sheet      the sprites the derivation does not cover, as one contact sheet
+             plus a sidecar to fill in.  Empty over the whole sample; kept for
+             the tiles a screenshot catches mid-blit, which are not game states
   label      merge the filled-in sidecar into bench/goal-tiles.json
-  decode     a screenshot -> a 16x16 board.  --check re-decodes a start
-             screenshot and diffs it against the .lvl, which is the gate
+  decode     a screenshot -> a 16x16 board *and* where the tank is.  --check
+             re-decodes a start screenshot and diffs it against the .lvl,
+             which is the gate
 
     python tools/harvest.py index                       # 42 requests, ~46 s
     python tools/harvest.py map                         # no network, no images
     python tools/harvest.py fetch --limit 150 --goals    # ~7 min
     python tools/harvest.py codebook --goals
-    python tools/harvest.py sheet                       # then edit the sidecar
-    python tools/harvest.py label
+    python tools/harvest.py tiles                       # the derivation's gate
     python tools/harvest.py fetch --levels LaserTank:10 --goals
     python tools/harvest.py decode build/harvest/img/LaserTank_10_a.png --check
 
 The derivable half lands under build/harvest/, which is gitignored: the index
 and the images are re-fetchable and the codebook is re-derivable from them.
-**The hand-labelled half is committed, in bench/goal-tiles.json** -- nothing
-re-derives a human's answer, and by the rule bench/ exists for, input that
-lives only in a gitignored directory is input the project does not have.
+**And the goal-only half turned out to be derivable too**, which is what
+`tiles` is: session 35 found that the 2010 binary's own graphics are committed
+under `original/src/`, so compositing them the way `UpDateSprite` does
+reproduces the blog's pixels exactly and labels every state play produces --
+116 of 116 residual sprites, 0 unknown tiles over 173 goal boards.  So
+`bench/goal-tiles.json` is no longer where this item's answer lives; it stays a
+committed input for anything the sheet cannot draw, which so far is one tile
+caught between the mask blit and the sprite blit.
 
 Exit: 0 clean, 1 a decode disagreed with the corpus, 2 environment.
 """
@@ -469,19 +477,44 @@ def labelpath():
     return ROOT / "bench" / "goal-tiles.json"
 
 
-def load_codebook():
-    """The two halves as one hash -> PF map, and a note on what came from where."""
+def load_codebook(derived=True):
+    """One hash -> PF map from three sources, and where each tile came from.
+
+    In precedence order, lowest first:
+
+      * the **start-bootstrapped** half, `build/harvest/codebook.json` --
+        derivable from the corpus, so gitignored;
+      * the **hand-labelled** half, `bench/goal-tiles.json` -- committed;
+      * the **derived** table, `tools/sprites.py` -- the game's own sprite sheet
+        composited the way `UpDateSprite` composites it, which covers every
+        state play produces and needs no labelling at all.  It goes last
+        because it is the only one of the three that also knows where the tank
+        is, and because it is the only one with the engine's `PF` rules in it:
+        the start-bootstrapped half labels the tank cell `T` (the `.lvl` stores
+        1 there) where the engine clears `PF` at that cell, `Engine.cs:348`.
+
+    Returns `(cb, tank, counts)` -- `tank[hash]` is "up"/"right"/"down"/"left"
+    for the tiles the tank is standing on, and absent for every other tile.
+    """
     if not cbpath().exists():
         raise SystemExit("no codebook -- run: python tools/harvest.py codebook")
     cb = json.loads(cbpath().read_text())
-    n_start = len(cb)
-    n_hand = 0
+    counts = {"start": len(cb), "hand": 0, "derived": 0}
     if labelpath().exists():
         hand = {k: v for k, v in json.loads(labelpath().read_text()).items()
                 if not k.startswith("_")}
         cb.update(hand)
-        n_hand = len(hand)
-    return cb, n_start, n_hand
+        counts["hand"] = len(hand)
+    tank = {}
+    if derived:
+        import sprites
+        before = set(cb)
+        for hs, (pf, facing, _) in sprites.Cells().table().items():
+            cb[hs] = pf
+            if facing:
+                tank[hs] = facing
+        counts["derived"] = len(set(cb) - before)
+    return cb, tank, counts
 
 
 def cmd_codebook(args):
@@ -594,7 +627,14 @@ def goal_residual(cb):
     for k in ("0", "1", "2", "3-5", "6-10", ">10"):
         if per[k]:
             print("  %-5s %4d boards (%.1f%%)" % (k, per[k], 100.0 * per[k] / n))
-    print("\nto label them: python tools/harvest.py sheet, then label")
+    # This number is deliberately the *start-bootstrapped* half's own coverage
+    # curve and nothing else, which is what makes it an honest saturation
+    # measurement.  It is no longer this item's remaining cost: the sprites it
+    # counts are derived from the game's own sheet, so the figure that matters
+    # is `tiles`' 0.00%.  Do not "fix" this by folding the derived table in --
+    # the two measure different things and both are worth keeping.
+    print("\nthese are derived, not labelled: python tools/harvest.py tiles"
+          " (`sheet` then `label` remains the loop for anything it misses)")
 
 
 def cmd_label(args):
@@ -654,10 +694,10 @@ def cmd_sheet(args):
     Engine.cs:731 records it as PF = 0 with BMF = 19 and the solver only ever
     wants the PF half.
     """
-    cb, _, n_hand = load_codebook()
-    if n_hand:
+    cb, _, n = load_codebook()
+    if n["hand"]:
         print("%d sprites already hand-labelled in %s; this sheet is what is left"
-              % (n_hand, labelpath().relative_to(ROOT)))
+              % (n["hand"], labelpath().relative_to(ROOT)))
     files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"])
              for r in manifest() for g in r["goals"]]
     seen = {}
@@ -717,33 +757,144 @@ def cmd_sheet(args):
     return 0
 
 
-def decode_board(path, cb):
+def decode_board(path, cb, tank=None):
+    """One screenshot -> (PF board, unknown tiles, origin, where the tank is).
+
+    The tank is separate from the board on purpose: `PF` does not hold it --
+    BuildBMField clears `PF` at the tank's cell on load (`Engine.cs:348`) -- so
+    a cell the tank is standing on decodes to the terrain under it, and the
+    tank comes back as `(x, y, facing)`.  That is exactly the shape a goal
+    board wants, and it is what turned `LaserTank.lvl` 10's one undecoded cell
+    into derived data.
+    """
     t, org = tile_hashes(path)
     g = [["?"] * 16 for _ in range(16)]
     unk = collections.Counter()
+    where = None
     for (cx, cy), hs in t.items():
         s = cb.get(hs)
         if s is None:
             unk[hs] += 1
         else:
             g[cy][cx] = s
-    return g, unk, org
+        if tank and hs in tank:
+            where = (cx, cy, tank[hs])
+    return g, unk, org, where
+
+
+def cmd_tiles(args):
+    """What the sprite-sheet derivation covers, against both other halves.
+
+    This is the gate on `tools/sprites.py`, and it is a gate rather than a
+    report because the derivation is only worth anything if it reproduces
+    tiles it was not fitted to.  Three checks, cheapest first:
+
+      * the **start-bootstrapped codebook**, whose labels come from the `.lvl`
+        files and not from any sprite: every entry must come back with the same
+        `PF`.  A `T` entry is not a clash -- the `.lvl` stores 1 at the tank's
+        cell where the engine clears it (`Engine.cs:348`), so it must come back
+        as the terrain plus a tank facing, and that reconciliation is checked.
+      * the **goal residual**, the sprites a start board can never label.
+      * every **goal board**, decoded end to end, as unknown cells per board.
+    """
+    import sprites
+    c = sprites.Cells()
+    t = c.table()
+    print("derived from %s: %d cells with an unambiguous PF, %d dropped as "
+          "PF-ambiguous" % (pathlib.Path(sprites.GAME_BMP).name, len(t),
+                            len(c.conflicts())))
+
+    cb = json.loads(cbpath().read_text()) if cbpath().exists() else {}
+    agree = tankok = clash = absent = 0
+    for hs, pf in cb.items():
+        v = t.get(hs)
+        if v is None:
+            absent += 1
+            print("  not derived: %s = %r" % (hs, pf))
+        elif v[0] == pf:
+            agree += 1
+        elif pf == "T" and v[1] is not None:
+            tankok += 1                     # the tank cell, reconciled
+        else:
+            clash += 1
+            print("  CLASH %s: codebook %r, derived %r (%s)"
+                  % (hs, pf, v[0], v[2]))
+    if cb:
+        print("start-bootstrapped codebook: %d of %d agree, %d tank cells "
+              "reconciled, %d clash, %d not derived"
+              % (agree, len(cb), tankok, clash, absent))
+
+    side = OUT / "residual.json"
+    if side.exists():
+        rec = json.loads(side.read_text())
+        hit = [r for r in rec if r["hash"] in t]
+        print("goal residual: %d of %d sprites derived, %d of %d instances"
+              % (len(hit), len(rec), sum(r["n"] for r in hit),
+                 sum(r["n"] for r in rec)))
+        for r in rec:
+            if r["hash"] not in t:
+                print("  not derived: n=%-4d %s  %s"
+                      % (r["n"], r["hash"], r["first_seen"]))
+
+    cbfull, tank, n = load_codebook()
+    print("\ndecoding every goal board against all three halves: %d start-"
+          "bootstrapped + %d hand-labelled + %d derived = %d tiles"
+          % (n["start"], n["hand"], n["derived"], len(cbfull)))
+    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"])
+             for r in manifest() for g in r["goals"]]
+    per = collections.Counter()
+    unk = collections.Counter()
+    nb = notank = 0
+    for coll, lvl, tag, f in files:
+        if not f.exists():
+            continue
+        try:
+            g, u, _, where = decode_board(f, cbfull, tank)
+        except Exception:
+            continue
+        nb += 1
+        notank += where is None
+        unk.update(u)
+        v = sum(u.values())
+        per["0" if v == 0 else "1" if v == 1 else "2" if v == 2 else
+            "3-5" if v <= 5 else "6-10" if v <= 10 else ">10"] += 1
+    if not nb:
+        print("\nno goal images -- run fetch with --goals")
+        return 0
+    print("\ngoal boards decoded: %d;  unknown tiles %d of %d (%.2f%%);  "
+          "%d distinct" % (nb, sum(unk.values()), nb * 256,
+                           100.0 * sum(unk.values()) / (nb * 256), len(unk)))
+    print("boards with no tank found: %d" % notank)
+    print("unknown cells per goal board:")
+    for k in ("0", "1", "2", "3-5", "6-10", ">10"):
+        if per[k]:
+            print("  %-5s %4d boards (%.1f%%)" % (k, per[k],
+                                                  100.0 * per[k] / nb))
+    if args.out:
+        pathlib.Path(args.out).write_text(json.dumps(
+            {h: {"pf": v[0], "tank": v[1], "is": v[2]}
+             for h, v in sorted(t.items())}, indent=1))
+        print("table -> %s" % args.out)
+    return 1 if clash else 0
 
 
 NAMED = re.compile(r"([A-Za-z]+)_(\d+)_(\w+)\.png$")
 
 
 def cmd_decode(args):
-    cb, n_start, n_hand = load_codebook()
-    print("codebook: %d tiles (%d bootstrapped from start boards, %d hand-labelled)"
-          % (len(cb), n_start, n_hand))
+    cb, tank, n = load_codebook()
+    print("codebook: %d tiles (%d bootstrapped from start boards, %d hand-labelled,"
+          " %d derived from the sprite sheet)"
+          % (len(cb), n["start"], n["hand"], n["derived"]))
     # 'ChallengeI' in a filename is 'Challenge-I' in data/levels/
     unhyphen = {c.replace("-", ""): c for c in
                 (p.stem for p in (ROOT / "data" / "levels").glob("*.lvl"))}
     rc = 0
     for path in args.images:
-        g, unk, org = decode_board(path, cb)
-        print("=== %s  origin=%s  unknown tiles=%d" % (path, org, sum(unk.values())))
+        g, unk, org, where = decode_board(path, cb, tank)
+        print("=== %s  origin=%s  unknown tiles=%d  tank %s"
+              % (path, org, sum(unk.values()),
+                 "at (%d,%d) facing %s" % where if where else "not found"))
         show(g)
         m = NAMED.search(os.path.basename(path))
         if not (m and args.check):
@@ -754,8 +905,15 @@ def cmd_decode(args):
         if B is None:
             print("  no corpus board for %s %s" % (coll, n))
             continue
+        # The tank's cell is not a mismatch: the .lvl stores 1 there and the
+        # engine clears PF at it on load (Engine.cs:348), so the decode is
+        # right to report the terrain plus a separate tank.  Reconcile it
+        # rather than excusing it -- 'T' means the terrain under the tank is
+        # dirt, so anything else there is still a real disagreement.
         diff = [(x, y, B[y][x], g[y][x]) for y in range(16) for x in range(16)
-                if B[y][x] != g[y][x]]
+                if B[y][x] != g[y][x]
+                and not (B[y][x] == "T" and g[y][x] == "."
+                         and where and where[:2] == (x, y))]
         rec = ghs(coll, n)
         print("  %s %d %r   .ghs record %s" %
               (coll, n, level_name(coll, n),
@@ -798,6 +956,9 @@ def main():
 
     sub.add_parser("label", help="merge the filled-in sidecar into bench/goal-tiles.json")
 
+    t = sub.add_parser("tiles", help="the sprite-sheet derivation, and its gate")
+    t.add_argument("--out", help="write the derived hash -> PF table here")
+
     d = sub.add_parser("decode", help="a screenshot -> a 16x16 board")
     d.add_argument("images", nargs="+")
     d.add_argument("--check", action="store_true",
@@ -807,7 +968,7 @@ def main():
     args = ap.parse_args()
     return {"index": cmd_index, "map": cmd_map, "fetch": cmd_fetch,
             "codebook": cmd_codebook, "sheet": cmd_sheet, "label": cmd_label,
-            "decode": cmd_decode}[args.cmd](args)
+            "tiles": cmd_tiles, "decode": cmd_decode}[args.cmd](args)
 
 
 if __name__ == "__main__":

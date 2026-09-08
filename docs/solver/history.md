@@ -221,27 +221,38 @@ is in [`SOLVER.md`](../../SOLVER.md#status).
 
 ## The state of the tree and of `build/`
 
-**Session 34 added three files and touched no engine and no solver code.** `tools/harvest.py` (814 lines,
-the blogspot harvester: `index`/`map`/`fetch`/`codebook`/`sheet`/`label`/`decode`), `tools/png.py`
-(a stdlib PNG reader and writer, needed because this machine has neither PIL nor numpy) and
-**`bench/goal-tiles.json`, which is committed and holds one entry.** Nothing under `src/` changed, so
-**the standing engine claim and every solver number are untouched** — no gate was re-run because nothing
-a gate covers moved.
+**Sessions 34 and 35 added four files between them and touched no engine and no solver code.** Session 34:
+`tools/harvest.py` (the blogspot harvester: `index`/`map`/`fetch`/`codebook`/`sheet`/`label`/`decode`),
+`tools/png.py` (a stdlib PNG reader and writer, needed because this machine has neither PIL nor numpy)
+and **`bench/goal-tiles.json`**, committed, holding one entry. Session 35: **`tools/sprites.py`** (the
+game's own sheet and every cell it can draw) plus a `tiles` subcommand and a tank-aware `decode`.
+Nothing under `src/` changed in either, so **the standing engine claim and every solver number are
+untouched** — no gate was re-run because nothing a gate covers moved.
 
-* **The two-halves split is the part to understand before touching it.** A blogspot *start* screenshot
-  labels its own 256 tiles, because the corpus already knows that board — so that codebook is derivable
-  and lives in gitignored `build/harvest/codebook.json` (55 entries). Nothing labels the states only
-  *play* produces, so those are hand input and live in **`bench/goal-tiles.json`**, committed, per the
-  rule that directory exists for. `harvest.py` merges the two on every read and says which is which.
-* **The one entry in it is a worked example, not a stub.** `4776b082c1cedd55` → `.` is the block pushed
-  into water (`Engine.cs:731`: `PF = 0`, `BMF = 19`), and it alone takes the goal-side residual from
-  4.52% of tiles to **1.37%**, and goal boards with more than ten unknown cells from 63 to 11 of 173.
-  116 sprites remain and they are a flat tail — the commonest is 9.1% of what is left.
+* **The codebook now has three halves, and the third one retired the other two's split.** A blogspot
+  *start* screenshot labels its own 256 tiles, because the corpus already knows that board — so that
+  codebook is derivable and lives in gitignored `build/harvest/codebook.json` (55 entries). Session 34
+  reasoned that nothing labels the states only *play* produces, making those hand input for
+  **`bench/goal-tiles.json`**. Session 35 found that the **game** labels them: `tools/sprites.py`
+  composites `original/src/Game.BMP` + `Mask.BMP` the way `UpDateSprite` does and derives 4,108 cells,
+  which covers all 116 residual sprites and needs no `bench/` file at all. `load_codebook()` merges all
+  three on every read, lowest precedence first, and prints which is which.
+* **What is left in `bench/goal-tiles.json` is one now-redundant entry**, kept as the place anything the
+  sheet genuinely cannot draw goes — so far one tile where a screenshot caught the tank between the mask
+  blit and the sprite blit. Session 34's worked example, `4776b082c1cedd55` → `.` (a block pushed into
+  water, `Engine.cs:731`), is now derived independently and agrees.
+* **The numbers the derivation is gated on**, all from `harvest.py tiles`: **0 unknown tiles of 44,288
+  over 173 goal boards** (session 34's figure for the same boards was 1.37%), the tank located on
+  **173 of 173**, the start-bootstrapped codebook reproduced **53 of 55 with 0 clashes** (one tank cell
+  reconciled, one capture artifact not derivable), and `decode --check` clean on **141 of 141** start
+  boards.
 * **Artefacts in `build/harvest/`** (gitignored, all re-derivable): `index.jsonl` (6,218 posts), `img/`
-  (~250 screenshots), `fetched.json`, `codebook.json`, `residual.{png,json}`. Rebuilt from nothing by
-  `index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s).
+  (~314 screenshots), `fetched.json`, `codebook.json`, `residual.{png,json}`. Rebuilt from nothing by
+  `index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s). The derived tile
+  table is not in that list because it needs no fetch: `tiles` builds it from the repo in half a second,
+  which is why it is not cached anywhere.
 * **`data/` is unchanged** — a harvested goal board is hint-assisted and no decision has been taken
-  about where such boards are allowed to live, so the spike deliberately banked none of them there.
+  about where such boards are allowed to live, so neither session banked one there.
 
 **Everything below is as session 31 left it.** `build/` is current (`bash src/build.sh`) and carries
 `--push-fire-tier` and the tenth rung.
@@ -575,6 +586,57 @@ than the numbers:
   proved the loop closes and measured what it buys (4.52% → 1.37%). **A phase costed as "half a session
   of eyeballing" was worth ten minutes of making the eyeballing resumable**, because the artefact a
   spike leaves behind is what decides whether its successor starts or restarts.
+
+**session 35 — item 6's phase 1, closed by deleting it.** The half-session of hand labelling was not
+needed: the 2010 binary's graphics are committed at `original/src/Game.BMP` + `Mask.BMP`, and
+compositing them the way `UpDateSprite` does labels every state play produces. `tools/sprites.py` and
+`harvest.py tiles`. **116 of 116 residual sprites, 606 of 606 instances, 0 unknown tiles of 44,288 over
+173 goal boards** (session 34's number for the same boards was 1.37%), the tank located on 173 of 173,
+and `decode --check` still clean on **141 of 141** start boards. `LaserTank.lvl` 10's goal board now has
+no undecoded cell at all. What is left of item 6 is `--goal-board` alone.
+
+* **The rule this inverts, and it is now the seventh in `SOLVER.md`.** `bench/` exists because nothing
+  re-derives a human's answer; the corollary is that nothing should *ask* a human for an answer the tree
+  already contains. Both end in a committed file, so they are easy to confuse — and the distinguishing
+  question is one sentence long: *what committed input could produce this?* Session 34's reasoning about
+  why the residue was hand input was correct in every clause except that one, and it cost the right
+  answer a session.
+* **The derivation was one wrong transform away from looking impossible, which is the part worth
+  remembering.** A plain nearest-neighbour shrink of the sheet reproduces the palette *exactly* and the
+  pixels not at all — the first dirt tile came back the right two colours in the wrong proportions
+  (78% olive against the real 65%), which reads as "the blog uses a different graphics pack" rather than
+  "the scaler is wrong". The real answer is that `GFXInit` never calls `SetStretchBltMode`, so the
+  shrink runs under GDI's default `STRETCH_ANDSCANS` and **ANDs** the eliminated rows and columns.
+  **When a derivation is nearly right, the residue is a transform, not a different input.** The AND is
+  self-evidencing once suspected: a real dirt tile carries a third colour, `0x108010`, which is
+  `0x949410 & 0x108310` and appears in neither source sprite.
+* **The grouping was solved from the data rather than guessed.** Of seven candidate 32→24 mappings,
+  exactly one — `dst = (src * 24 + 12) // 32` — reproduces a real dirt tile pixel-for-pixel. Fitting
+  one tile and then reproducing 4,108 others is the only reason that is evidence and not a curve fit.
+* **Four reconciliations against quantities not derived from the sheet**, which is what the two previous
+  sessions' arithmetic coincidences bought. The one that mattered was computed *before* the contact
+  sheet was opened: the distribution of the **start board's `PF`** at the cells where each unknown
+  sprite appears, read from the `.lvl` files. It is nearly pure, and it agreed with the sheet on **all
+  95** sprites the first enumeration matched. It then confirmed `KillAtank` independently — junk bitmaps
+  54/52/12/53 appear over start cells `^`/`>`/`v`/`<`, matching the source's four `case` arms one for
+  one. Third, the derivation puts level 10's tank at **(6,0) facing right**, the cell session 34
+  identified by eye. Fourth, it finds 10 anti-tanks and no wrecks on that goal board, reproducing
+  "zero of the ten are destroyed" from pixels rather than from assignment arithmetic.
+* **Three engine rules had to go in on top of `GetOBMArray`, and each was a bitmap the residual actually
+  contained** — which is how you know the enumeration is the engine's and not a plausible model of it.
+  A shot anti-tank is `PF = 4`, not dirt (`KillAtank`, `Engine.cs:868`), and those four wrecks are the
+  residual's largest family at **141 of 606 instances**. A block pushed into water is `PF = 0` with
+  `BMF = 19` (`Engine.cs:731`) — the one sprite session 34 had hand-labelled, and the derivation agrees
+  with it. And the tank is not in `PF` at all (`Engine.cs:348`), which is the only genuine pixel
+  ambiguity in the whole set: `T` as a foreground bitmap and the tank overlay facing up are the same
+  pixels. `decode` now returns the tank as `(x, y, facing)` beside the board, and `--check` reconciles
+  the tank cell rather than excusing it — a `T` in the `.lvl` must come back as *dirt plus a tank there*,
+  so anything else at that cell is still a real disagreement.
+* **Two things the sheet cannot draw, named rather than swept up.** One start tile is the tank as a
+  **black silhouette** — a screenshot caught between the mask `SRCAND` and the sprite `SRCPAINT`, so it
+  is a capture artifact and no composite produces it; only the facing is lost, which is why "boards with
+  no tank found" is a printed number. And `UpDateLaserBounce`'s half-cell rectangles and any explosion
+  frame are not enumerated: **0 of 44,288 tiles needed them**, so it is a known gap with a named fix.
 
 ---
 

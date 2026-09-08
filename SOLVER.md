@@ -98,7 +98,7 @@ is skipped by a later one, so no `.lpb` is ever written twice.
 
 ---
 
-## Six rules the sessions each paid to learn
+## Seven rules the sessions each paid to learn
 
 These are the reason the numbers in these files can be trusted.
 
@@ -132,6 +132,21 @@ These are the reason the numbers in these files can be trusted.
   out node-identical, at least one of them is not what its name says; check both ends before
   believing the feature is inert.** The cheap version of that check is layer 4's documented
   equivalence test, run against a control you have separately proved is a different searcher.
+- **Before costing work as hand input, check whether the repo can derive it.** `bench/` exists because
+  nothing re-derives a human's answer — but the corollary is that nothing should *ask* a human for an
+  answer the tree already contains, and the two are easy to confuse because both end in a committed
+  file. Item 6's goal-tile residue was costed at half a session of eyeballing a contact sheet on
+  correct reasoning about what a start screenshot can and cannot show; the sprites that draw those
+  states and the rules that assign their `PF` were both already committed, in `original/src/Game.BMP`
+  and in `LTANK2.C`, and putting them together labels all 116 exactly. **What hid it is worth knowing
+  on its own, because it will hide the next one too: the derivation was one wrong transform away from
+  looking impossible.** A nearest-neighbour shrink of that sheet gets the palette *exactly* right and
+  the pixels wrong, which reads as "different artwork" rather than "wrong scaler" — and the real answer
+  was GDI's default `STRETCH_ANDSCANS`, which **ANDs** the rows a shrink eliminates. When a derivation
+  is nearly right, the residue is a transform, not a different input. Two checks make this cheap:
+  ask what committed input could produce the thing, and reconcile against a quantity you did not
+  derive — here the start board's own `PF` at each cell, which agreed on all 95 first-pass sprites and
+  then independently confirmed `KillAtank`'s four junk bitmaps.
 - **A penalty every board pays is not a penalty.** A weight that every successor of every held board
   incurs makes the beam's best score *rise* and steers nothing. Use a tier (an ordering that cannot
   refuse a state) instead. Same family as a heuristic returning 0 — the best score there is — for a
@@ -219,7 +234,7 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **6** | **1st** | the `lasertanksolutions.blogspot.com` harvester. **The spike is done and positive** — `tools/harvest.py`, mapping 6,188/6,197 exact, a self-bootstrapping 55-tile codebook with 0 conflicts, and **`LaserTank.lvl` 10's goal board decoded**. What is left is labelling the goal-only sprites (loop built; the first label took the residual 4.52% → **1.37%** of tiles) then `--goal-board` | half a session, then a layer-sized build |
+| **6** | **1st** | the `lasertanksolutions.blogspot.com` harvester. **Phase 1 is closed** — `tools/harvest.py`, mapping 6,188/6,197 exact, and the goal-only sprites *derived* from the game's own committed sheet rather than labelled (`tools/sprites.py`): **0 unknown tiles over 173 goal boards**, 141/141 start boards still gating clean. **`LaserTank.lvl` 10's goal board is complete, tank included.** What is left is `--goal-board` alone | a layer-sized build |
 | **2** | 2nd | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
 | **5** | 3rd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
 | **4** | 4th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
@@ -236,14 +251,27 @@ in front of the project did not move and one banked solution got worse.
 **Session 33 moved item 6 to the top on a ~2 h spike; session 34 ran the spike, and it paid.** The
 sentence that used to sit here read *both open levels now have nothing costed left to try*, and that was
 the stated reason a 54-hour number outranked everything. **`LaserTank.lvl` 10's goal board is now
-decoded** — one undecoded cell, and that cell the tank — plus the post's own 179 moves / 52 shots
-against the `.ghs` record's 124/55. (Decoded, not *banked*: it lives in gitignored `build/harvest/` and
-is one command away, and where a hint-assisted board is allowed to live is Michal's call.)
-It says the level is won by *rearranging* six of its ten anti-tanks
+decoded** — as of session 35 with **no undecoded cells at all**, the tank derived at (6,0) facing right —
+plus the post's own 179 moves / 52 shots against the `.ghs` record's 124/55. (Decoded, not *banked*: it
+lives in gitignored `build/harvest/` and is one command away, and where a hint-assisted board is allowed
+to live is Michal's call.) It says the level is won by *rearranging* six of its ten anti-tanks
 and destroying none of them, and it separates the three root pushes `--analyze` offers and cannot rank.
 So level 10 has a candidate and a ranking key to build, not just a diagnosis. Level 6 "Cascade" has **no
 post at all** — checked against the whole 6,218-post index now rather than by search — so item 5 is
 unchanged.
+
+**Session 35 then deleted item 6's remaining half-session instead of spending it, and the way it did is
+worth more than the hours.** The goal-only sprites were costed as hand input on sound reasoning — a start
+screenshot only ever shows authored states, so nothing labels the states play produces. But the 2010
+binary's own graphics are **committed in this tree** (`original/src/Game.BMP`, `Mask.BMP`), and
+`UpDateSprite` is thirty lines of `LTANK2.C`, so compositing the two labels every such state: **116 of
+116 residual sprites, 0 unknown tiles of 44,288 over 173 goal boards.** What hid it for a session is that
+`GFXInit` shrinks the 320x192 sheet to 24 px cells under GDI's *default* stretch mode, which **ANDs** the
+eliminated rows and columns rather than dropping them — so a nearest-neighbour shrink reproduces the
+palette exactly and the pixels not at all, and the sheet reads as different artwork. **The rule this
+inverts:** `bench/` exists because nothing re-derives a human's answer, and the corollary is that nothing
+should *ask* a human for an answer the repo can already derive. Checking that cost half an hour and the
+inputs were sitting in `original/src/`.
 
 **The two are not rivals for the machine.** Item 2's arms are node-governed and want all 16 jobs; the
 harvester is HTTP fetches and image decoding. Launch the run and work item 6 beside it — extra load moves

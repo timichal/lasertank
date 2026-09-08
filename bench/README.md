@@ -43,16 +43,30 @@ reproducible).
 | `short-record-failures.txt` | input | 687 levels the 494 chain fails whose `.ghs` record is <= 60 — *Next actions* item 7's population |
 | `gauntlet-tail.txt` | input | 138 levels the 494 chain fails that `--analyze` calls GAUNTLET with a `.ghs` record of <= 60 — layer 9's population, and the one the fire tier is measured on |
 | `seed-weights.txt` | input | layer 4's equivalence check: `WorkDistance` written in `Feat`, in `Eval.Scale` fixed point |
-| `goal-tiles.json` | input | *Next actions* item 6: `tile hash → PF` for the sprites a blogspot **start** screenshot can never label. Hand input, so nothing re-derives it |
+| `goal-tiles.json` | input | *Next actions* item 6: `tile hash → PF` for anything in a blogspot screenshot the game's own sheet cannot draw. Hand input, so nothing re-derives it — but **almost nothing is left in it**, see below |
 | `trace10.err` | output | item 8's traced level-10 run: 64 depths, unsolved at 399M nodes, and a barrier on **0 of 63,454** expansions |
 
-`goal-tiles.json` is here for the plainest version of the first reason: it is the one part of the
-harvester a machine cannot regenerate. The other half of that codebook *is* derivable — a start
-screenshot labels its own 256 tiles, because the corpus already knows that board — so it stays in
-gitignored `build/harvest/`. But nothing labels the states only *play* produces (the tank facing
-anywhere but up, a pushed anti-tank, a block sunk in water), and a human's answer to those, sitting in
-a gitignored directory, is an answer the project does not have. Built and extended with
-`tools/harvest.py sheet` then `label`.
+`goal-tiles.json` was here for the plainest version of the first reason, and **session 35 took that
+reason away from it** — which makes it the most useful entry in this table, because it shows how the
+rule is misapplied. The argument was: a start screenshot labels its own 256 tiles, because the corpus
+already knows that board, so that half is derivable and stays in gitignored `build/harvest/`; but
+nothing labels the states only *play* produces — the tank facing anywhere but up, a pushed anti-tank, a
+block sunk in water — so those are hand input, and a human's answer sitting in a gitignored directory
+is an answer the project does not have.
+
+Every clause of that is true except the one that matters. Something does label those states: **the
+game**. Its graphics are committed at `original/src/Game.BMP` and `Mask.BMP`, and `UpDateSprite`
+composites them in thirty lines of `LTANK2.C`, so `tools/sprites.py` derives all 116 of the sprites
+that were going to be labelled by eye — 0 unknown tiles over 173 goal boards. **The corollary of
+"nothing re-derives a human's answer" is that nothing should ask a human for an answer the repo can
+derive**, and the two look identical from here: both end in a committed file under `bench/`. The
+distinguishing question is cheap — *what committed input could produce this?* — and it should be asked
+before any item is costed in hours of human attention.
+
+So the file stays, holding one now-redundant label, as the place anything genuinely undrawable goes:
+so far one tile where a screenshot caught the tank between the mask blit and the sprite blit, which is
+a capture artifact and not a game state. `tools/harvest.py tiles` reports what the derivation covers;
+`sheet` then `label` is still the loop for whatever it does not.
 
 `seed-weights.txt` is not a level list, and it is here for the third reason above rather than the
 second: it is not curated, it is *derived* — but it must not change, because it is the check that
