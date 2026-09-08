@@ -90,6 +90,14 @@ namespace LaserTank.Solver
         // truncate, and `trunc` is that bet being checked rather than assumed.
         private long _pxClosure, _pxCount, _pxTrunc;
 
+        // --push-trace only: expansions that emitted no fresh successor at all.
+        // A whole closure driven and shot from, every board change it reached
+        // already in `seen` or already in this layer -- so the ~4,500 ApplyKey
+        // calls bought nothing.  This is the instrument *Next actions* item 11
+        // asks for before the dominance prune is written: the prune is only
+        // worth a line if this is tens of percent.
+        private long _pxSterile;
+
         // --push-trace with --push-read: how the read tiered a depth's
         // successors.  The number to watch is _pxAdv against _pxSucc -- a tier
         // that promotes almost everything is a no-op that costs a Dijkstra, and
@@ -292,13 +300,14 @@ namespace LaserTank.Solver
                 {
                     Console.Error.WriteLine(
                         "  push d={0,3} front={1,5} boards={2,5} best={3,5} closure~{4,5} "
-                        + "trunc={5,4} nodes={6}",
+                        + "trunc={5,4} sterile={7,4}/{8,4} nodes={6}",
                         depth, next.Count, DistinctBoards(next),
                         // In work units: H is Eval.Scale fixed point since the
                         // divide came out of Eval.Score, and every reading of
                         // this column in SOLVER.md is a work distance.
                         next.Count > 0 ? next[0].H / Eval.Scale : -1,
-                        _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes);
+                        _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes,
+                        _pxSterile, _pxCount);
                     if (_opt.PushTraceBoard && next.Count > 0) TraceBoard(next[0]);
                     if (_opt.PushRead)
                         Console.Error.WriteLine(
@@ -307,7 +316,7 @@ namespace LaserTank.Solver
                             + "expansions with a barrier {3}, without {4}",
                             _pxAdv, _pxSucc, _pxSucc > 0 ? 100 * _pxAdv / _pxSucc : 0,
                             _pxBarrier, _pxNoBarrier, _pxEnab);
-                    _pxClosure = _pxCount = _pxTrunc = 0;
+                    _pxClosure = _pxCount = _pxTrunc = _pxSterile = 0;
                     _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = 0;
                 }
 
@@ -431,6 +440,12 @@ namespace LaserTank.Solver
                 _pxClosure += closure.Count;
                 _pxCount++;
                 if (truncated) _pxTrunc++;
+                // Counted after every derivation has run, for the reason
+                // ReadCount's comment gives: an instrument that measures the
+                // wrong moment says the layer does nothing.  KeepBestPoses and
+                // ReadTier are both above, so `first` to next.Count is the
+                // whole of what this expansion contributed.
+                if (next.Count == first) _pxSterile++;
             }
             Drain(closure);
             return false;

@@ -117,7 +117,13 @@ These are the reason the numbers in this file can be trusted.
   3's; `tools/rankdump.py` decided whether layer 4 was worth building at all; `--push-line` found
   the bug that had been costing layer 5 its whole budget. A new layer should report a distribution
   before it reports a solved count. And an instrument that measures the wrong *moment* says the
-  layer does nothing — that has now happened twice.
+  layer does nothing — that has now happened twice. **The instruments also have a cost order, and
+  session 29 paid a 27-minute run to learn to respect it:** the traced level-10 run was the right call
+  and it did settle the question, but `--analyze` — which runs no search at all and takes a second
+  — names that level a GAUNTLET with `on the barrier: 0`, which is the *entire* diagnosis the
+  trace arrived at independently. **Run instrument 2 before instrument 4, always.** The
+  same session's other two items came back negative for ~20 minutes of machine between them, which
+  is the same rule read forwards: a cheap falsifier ahead of an expensive build.
 - **A solo bench score is the wrong statistic for a portfolio member.** Every specialist since
   layer 6 looks like a one-to-two-level loss alone and adds three to six levels to the *union* with
   the rung beside it, because the levels it fails are not the levels that rung fails. Measure unions.
@@ -134,7 +140,11 @@ These are the reason the numbers in this file can be trusted.
   incurs makes the beam's best score *rise* and steers nothing. Use a tier (an ordering that cannot
   refuse a state) instead. Same family of error as a heuristic that returns 0 — the best score there
   is — for a board it has nothing to say about; that one has now cost three separate bugs
-  (buried flag, unmatched hole, unshieldable cell).
+  (buried flag, unmatched hole, unshieldable cell). **And it is now also a design item rather than
+  only a bug class:** `--push-fire` prices exposure as an addend inside `PushH`, and on a GAUNTLET —
+  where *every* board is covered by ten anti-tanks — that is a penalty every board pays. This rule
+  says the fix is a tier, and that is exactly what `LaserTank.lvl` 10 turned out to need. *Next
+  actions* items 5 and 8.
 
 ---
 
@@ -152,7 +162,7 @@ These are the reason the numbers in this file can be trusted.
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | The fourth pass, rehearsed | **84 of 255 (32.9%)** of the levels the chain fails, as the **union of six arms at 40M nodes** on a 1-in-15 stride of the whole failure population — session 26's five plus session 28's `none`, 306 of 306 solutions through the two-engine gate. No single arm scores above **61 (23.9%)**, so the pass is a chain of arms rather than a configuration; **the three that ship are 81 (31.8%)** and the other three are worth +3 between them for ~54 h. *Next actions* item 2 |
-| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item 3, and the shorter files for 8 and 9 it lists); **6 and 10 open**, and 10 is no longer a budget case — two 900M-node runs came back unsolved at depth 2 |
+| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item **4**, and the shorter files for 8 and 9 it lists); **6 and 10 open**. **Level 10 has a named cause at last — session 29, item 8:** it is a **GAUNTLET**, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert on it, leaving 1,024 distinct boards ranked by work distance alone (`best=` bottoms at 22 by d=18, then **regresses to 28 at d=36 and holds it for the final 28 depths**). Not budget, not the closure, not width: the run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout — past the 53 board changes of the hand line — which retires session 23's "depth 2 at 900M" and confirms session 26 |
 
 *One number moved for a reason worth knowing before trusting the rest: the ferry bench is **19/50**
 where earlier sessions banked 20/50. That is session 20's buried-flag fix, attributed rather than
@@ -229,28 +239,63 @@ attack on it.
 
 ## Next actions
 
-**What is open, and what each one costs.** Items 1, 9 and 12 are done. Of the rest, three are
-worth the machine and the other three are cheap:
+**What is open, and what each one costs.** Items 1, 3, 8, 9, 11 and 12 are done — **session 29
+closed 3, 8 and 11 in one sitting and two of the three came back negative**, which is the cheap
+half of this list doing its job. What is left is two runs, one profile and one level:
 
 | | what it is | cost | why now |
 |---|---|---|---|
 | **2** | the fourth pass, three arms over the whole failure population | **~54 h**, one arm at a time | rehearsed twice, recipe final, biggest single result available (~1,172 levels extrapolated) |
-| **7** | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose |
-| **8** | one traced level-10 run | ~1 h at `--jobs 1` | settles a contradiction between sessions 23 and 26 before anything is built for that level |
-| 3 | re-polish the banked solutions | ~150 s | free, and layer 4 is fit on those trajectories |
-| 10, 11 | wall clock: profile then memoise `PushH`; the closure-dominance prune | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above |
-| 5 | levels 6 and 10 | needs item 8 first | 10 is item 8; 6 wants a decomposition |
+| **7** | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose. **The population list is generated** — `bench/short-record-failures.txt`, 687 levels |
+| 10 | wall clock: profile, then memoise `PushH` per board | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above. **Item 11's half of this motivation is gone** — see item 11 |
+| 5 | level 6, and level 10 with a named cause at last | 6 wants a decomposition; 10 wants a read | item 8 settled what is wrong with 10: **the read finds nothing on it**, so the beam ranks 1,024 distinct boards by work distance alone |
 
-**Run 8 before 2** if the machine is free for an hour: it is the only one that can change what the
-other two are for, and it is an hour against 54. **Run 7 before 2** if the question is the
-production number rather than what layer 5 adds -- they attack the same population from opposite
-ends, and item 2's own note says so.
+*(Items 3, 8 and 11 are kept below rather than deleted: two of them are negative results, and a
+negative result that is deleted gets re-run. That is this file's own lesson from `bench/`.)*
+
+**Item 8 has been run (session 29) and the advice it was given is worth keeping as a rule:** it was
+*"run 8 before 2 — it is the only one that can change what the other two are for, and it is an hour
+against 54"*, and that was correct twice over. It cost **27 minutes**, well under the hour, it changed
+nothing about item 2, and it closed the oldest open level in the file — **and the cheap items 3 and
+11 beside it retired two planned code changes for twenty minutes between them.** The ordering rule
+that produced that is: *runs and instruments before builds, cheapest first, and a negative result
+counts as a result.*
+
+**What remains is 7 and 2, and 7 still comes first** if the question is the production number
+rather than what layer 5 adds -- they attack the same population from opposite ends, item 2's own
+note says so, and 7's population list now exists. **Item 2 is a ~54-hour machine commitment and is
+the one thing here that should not be started without deciding to give up the machine for two days.**
+
+> **The state of the tree and of `build/`, as session 29 left it.** Read this before running
+> anything; `build/` is current and no cleanup is outstanding.
+>
+> * **What session 29 added:** the five-line `sterile=` instrument in
+>   `src/LaserTank.Solver/Push.cs`, and **`bench/short-record-failures.txt`** — item 7's 687-level
+>   population, with the rule that made it in its header, in `bench/` for the reason that directory
+>   exists at all (the regenerated-lists paragraph two blocks down is what happens otherwise).
+> * **`build/` is rebuilt and carries `sterile=`** (`bash src/build.sh`), verified after the fact by
+>   running one traced level. While the level-10 run held `build/` open the instrumented build lived
+>   in a scratch `build-item11/` (`dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c
+>   Release -o build-item11`), which is where every `sterile=` and `--analyze-tsv` number in this
+>   session was measured; that directory is gone. **A side publish dir is not gitignored** — `/build/`
+>   is, but nothing matches `build-*`, so use `LT_SOLVE=<exe>` with the three runner scripts where it
+>   fits, and remember to remove the scratch dir where it does not.
+> * **Two new measurements, and they went to different places on purpose.**
+>   **`bench/trace10.err`** is item 8's whole output — a 27-minute run at `--jobs 1`, with the
+>   command and the five load-bearing columns in its header. It is in `bench/` because losing it
+>   would cost a result, which is the widened charter `bench/README.md` now states: that directory
+>   holds the solver's measurement artefacts, inputs *and* outputs expensive enough to matter, and
+>   `data/` stays what it is — the preexisting corpus.
+>   **`build/reports/analyze-corpus.tsv`** is all 20,914 levels' read verdicts and stays in `build/`
+>   for the opposite reason: it regenerates in ~3 minutes by the loop in item 8. **The cheapness
+>   test is the whole of the distinction** — 27 minutes is worth 16 KB in git, 3 minutes is not.
+> * **Nothing measured moved.** The only code is inside `--push-trace`'s existing gate, and all 494
+>   banked solutions are byte-identical after item 3's re-polish (0 shortened).
 
 > **The state of the tree and of `build/`, as session 28 left it.**
 >
-> * **Session 28's changes are in the working tree and not committed** -- `SOLVER.md`, `Auto.cs`,
->   `Program.cs`. Michal writes the git history. Session 27's are committed (`594c63c`), so the
->   note below about *its* changes being unstaged is history and not the current state.
+> * *(Session 28's own "not committed" note is retired, the same way session 27's was below it: that
+>   work -- `SOLVER.md`, `Auto.cs`, `Program.cs` -- is in the history as `24ea3b9`.)*
 > * **`build/` is rebuilt and published** (`bash src/build.sh`), so `build/lasertank-solve.exe`
 >   carries `--max-round` and `--max-keys-record`. Both are **off by default** and no number
 >   measured before this session changes.
@@ -602,14 +647,35 @@ measured on the committed lists at 4M nodes and 16 jobs:
 The shape survives the rebase, which is the only thing the old pair was being used for: the shipped
 width beats the session-17 configuration on both lists, by 9 on ferry and 8 on deep.
 
-**3. Refresh the banked solutions.** *(Unblocked: `build/solutions/l0` and `l34` are rebuilt, 476
-solutions.)*
-`Trim.Polish` removes 47% of a subgoal solution's keypresses and
-`Replan.Improve` another slice on top, so **every banked `.lpb` under `build/solutions/` is longer
-than it needs to be** — they all predate the replan pass. `--polish DIR` runs both over each of them.
-This is not cosmetic: shorter trajectories change the ascent statistics the whole layer-5 argument
-rests on, and they are what layer 4 is fit on. Measured on the 416 solutions in
-`build/solutions/l0`: 11,060 → 10,249 keypresses in about 150 s.
+**3. Refresh the banked solutions — done, session 29, and it is a no-op. The premise expired.**
+The item read: *every banked `.lpb` under `build/solutions/` is longer than it needs to be — they
+all predate the replan pass.* Run over all 494 (`build/solutions/{l0,l34}`, one collection at a
+time because `--polish` needs the matching `--levels`), the result is
+
+```
+494 winning recordings, 0 shortened, 14,518 keys -> 14,518 (0.0% removed)
+```
+
+**Zero, on every one of the 26 collection directories.** The reason is in `--help` and not in the
+item: `--polish` and `--replan` are both **ON by default during a solve**, so the session-25/27
+rebuild banked these already polished and already replanned. The 11,060 → 10,249 the item quotes
+was measured on solutions banked *before* that became the default, and there is now no path in the
+tree that reproduces it — the numbers are not comparable and the older one is history.
+
+Two things worth keeping out of a run that removed nothing:
+
+* **The baseline is measurable without the solver**, which the item did not say. An `.lpb` is
+  `TRECORDREC` — `name[31], author[31], u16 level, u16 size` — so keypresses are the `u16` at
+  offset 64, and the corpus total is a six-line script rather than a 26-command sweep. `l0` is
+  398 files / 9,436 keys and `l34` is 96 / 5,082.
+* **398 + 96 = 494**, which is the composite in *Status* arrived at from the directory rather than
+  from a report. Worth one line because sessions 23 and 24 each paid for reading `data/solutions/`
+  as a status board; reading `build/solutions/` as an *inventory* is the use that does hold, and
+  this is the check that says so.
+
+*(What this does not retire is the item's reasoning. Shorter trajectories really do change the
+ascent statistics layer 5 rests on and really are what layer 4 is fit on — the point is that the
+solver already emits them that way, so the debt was paid at the source rather than owed.)*
 
 **4. Levels 8 and 9 — Michal re-banks these himself, and a missing `.lpb` is not a missing solution.**
 **Read this before concluding anything from the contents of `data/solutions/`:** he deletes a banked
@@ -643,21 +709,43 @@ build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 9   --no-id
 `push-ferry-work` needs 162.8M, so the beam always gets there first and cancels it. Level 8's 308 has
 not been re-derived.
 
-**5. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both now want the same thing, and
-it is not budget. 6 wants layer 2's decomposition one level out: commit to one block-and-hole pair,
-search only for that, re-derive. **10 was the "just buy the nodes" case until session 23, when the two
-900M-node runs session 22 left going came back unsolved at board-change depth 2** — so its ~1,000-pose
-closure, not its width, is what needs attacking. Do not spend another overnight run on it as-is.
-**Session 26 disputes the premise for 10:** at width 1024 with the layer-8 flags the beam costs
-~5.7M nodes a depth and reached depth 9 in 39M, so 900M is ~150 depths, not 2. Item 8 below is
-the one traced run that settles it, and it comes before any decomposition.
+**5. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both want a derivation rather
+than a budget, and **session 29 established that they want two different ones.**
+
+**6** wants layer 2's decomposition one level out: commit to one block-and-hole pair, search only
+for that, re-derive. Unchanged, and it is still the one of the two that is furthest from falling on
+its own numbers.
+
+**10 is settled as a diagnosis and open as a design — item 8.** It is a **GAUNTLET**: the read finds
+a barrier on **0 of 63,454 expansions**, because a GAUNTLET has no terrain to clear and the barrier
+set is empty by construction, so layers 6-8 are all inert on it and the beam ranks 1,024 distinct
+boards by `WorkDistance` alone. Depth, closure and width are all cleared by the same trace
+(`d=63 at 399M`, `trunc=0`, `boards=1024`). **Do not spend another overnight run on it, and do not
+build the decomposition 6 wants either** — the candidate is the fire map, which layer 8 already
+computes, promoted from an addend inside `PushH` to a **tier** in layer 7's shape: prefer a
+successor that reduces the covering anti-tanks or opens a fire-map-safe cell over one that shortens
+the walk. On a GAUNTLET exposure is the quantity that has to fall. **This is the first design item
+in this file that a measurement asked for rather than a level number**, and the honest thing to say
+about it is that it is a hypothesis with a good instrument behind it and no code yet.
+
+**Size it before building it, because the obvious sizing argument cuts the other way.** `barrier ==
+0` is 26.2% of the corpus but is solved at **25.2% against 7.0%** — an artifact of the bucket
+holding OPEN and a mass of 12-key GAUNTLETs, since the sampled GAUNTLETs split 127 solved at a
+median record of 12 against 537 unsolved at a median of 138. **The population worth aiming at is
+those 537** (138 of them with a record <= 60), and the cheap test is a rung over that tail, not a
+campaign. Item 8 has the table.
+
+*(Superseded, so it is not re-derived: "10 was the just-buy-the-nodes case until session 23, when
+two 900M-node runs came back unsolved at board-change depth 2 — so its ~1,000-pose closure is what
+needs attacking." Session 26 disputed the arithmetic and session 29's trace confirms session 26.)*
 
 **6. Still worth doing, no longer blocking: the `lasertanksolutions.blogspot.com` goal-board
 harvester.** See *Open question* at the end.
 
 Items 7-12 are session 26's, distilled from *Pointers from a second reader* (next section), which
 carries the evidence and the caveats for each. They are ordered by expected value per hour; 7 and 8
-are runs, not code.
+are runs, not code. **Of the six, 8, 9, 11 and 12 are now done and only 7 and 10 are open** — and
+three of those four closed *negative*, which is the ordering paying off rather than failing.
 
 **7. Draw the solved-vs-budget curve over the short-record failures, and bank what it solves.**
 **Re-counted in session 28 against the 494 chain** (the 338/715 below were the 476 chain's):
@@ -694,6 +782,16 @@ searchers the shipped 494 is made of are `--no-ida` (layer 0), `--subgoal --sg-e
 `--subgoal --sg-eval learned`, in that order, and the script above now says so. Any curve run with
 a bare `--subgoal` is a curve for a chain this tree does not ship.
 
+**Session 29 ran the generator and committed its output, and session 28's three counts reproduce
+exactly** off `build/reports/chain.jsonl` — 4,185 rows, 494 solved, 3,691 unsolved, of which
+**314** have a record <= 40, **687** <= 60 and **1,037** <= 80, and `stop` is `budget` on **3,540**
+of 3,691 (**95.9%**) against `beam-dead-end` on 151. The <= 60 list is `bench/short-record-failures.txt`
+with its rule in its header, so this item now starts at the `for N in ...` loop and the snippet
+above is the record of how the list was made. *(The field is `stop`, not `reason` — the schema is
+`collection depth difficulty ghs_moves ghs_shots keys level method moves ms name nodes polished
+ratio raw_keys replanned restarts shots solved stop trimmed`, and a wrong key name reads as
+`'?': 3691` rather than as an error.)*
+
 `second_pass.sh` re-attacks a report's failures, so the whole 3,691 run and `--order ghs` puts the
 short records first; `SAMPLE=` or a list through `bench.sh` if only the <= 60 population is wanted.
 Report the solved count per budget as a table in *Status*. **Keep 150k for attribution; this is a
@@ -701,12 +799,168 @@ different question**, and at 50M the push rungs (`--push --push-read`, item 2's 
 affordable as a fifth pass. Carry `--max-keys 5000 --max-keys-record` from 10M up: at these budgets
 a solution can outrun the default 1,200 cap, and item 12 has the two that did.
 
-**8. Level 10, one traced run before anything is built for it.** Read the `d=` column: if it climbs
-past 50 and does not win, level 10 is a ranking problem at that width and item 11 applies; if it
-stalls at a small depth, find the multiplier (`--push-enables`, `--push-read-opens N>0`) and
-**record the flags in the report this time**. 39M nodes reached depth 9 in session 26 with best
-62 -> 28. Session 28 wrote the command out in full, because the previous version of this item said
-"item 4's level-9 command with three changes" and reconstructing it is where a flag goes missing:
+**8. Level 10, one traced run — done, session 29. Session 26 was right about the depth, and the
+run then answered a question the item did not ask.**
+
+**The contradiction is settled in session 26's favour, and it is not close.** At width 1024 with the
+layer-8 flags the depth column climbs steadily at **~5.0M nodes a depth early and ~6.2M averaged
+over the run**,
+and the run ended at **d=63 on 399,019,729 nodes in 26m53s** (247k nodes/s), stopped on `budget`
+and unsolved. Session 23's reading — *"frontier at board-change depth 2 of 53"*
+after 900M nodes — cannot be a description of this searcher: 900M at this rate is **~150 depths**,
+which is session 26's arithmetic almost exactly. `trunc=0` at every depth and `front=1024` at every
+depth past d=1, so **the closure never truncates and the frontier never dies** — the two structural
+explanations sessions 22 and 23 offered are both refuted on the same trace. Item 5's *"its
+~1,000-pose closure, not its width, is what needs attacking"* is withdrawn; `closure~` sits between
+891 and 1,274, which is the number layer 8's framing arithmetic wants and is nowhere near
+`--push-closure-nodes`.
+
+**But the item's own decision rule points at item 11, and item 11 does not apply.** The rule was
+*"if it climbs past 50 and does not win, level 10 is a ranking problem at that width and item 11
+applies."* It climbs; it is a ranking problem; and item 11 is retired two ways over — `sterile=` is
+0.05% (so there is nothing for the prune to prune) and `front=1024 boards=1024` at every depth (so
+the per-board cap is not binding and a finer key has no duplicates to remove). **A decision rule
+that names the wrong follow-up is still a good rule if the run reports enough to notice**, which is
+the argument for tracing rather than sweeping.
+
+**What the trace actually says, and it is one column.** With `--push-read` on, every depth prints
+
+```
+read: 2/526164 successors advanced (0%), of them enables-only 0,
+      expansions with a barrier 0, without 944
+```
+
+**A barrier on 0 of 63,454 expansions, and 4,652 of 79,767,664 successors advanced — 0.0058%.** The
+read is not weak on level 10, it is *absent*. And it is not generally absent: the same instrument
+over eight ferry-bench levels and eight deep-bench levels reads **74.7%** and **72.1%** of
+expansions with a barrier and ~6% of successors advanced. So layers 6, 7 and 8 — the whole
+derivation stack the flags in this command switch on — are contributing **nothing** on this level,
+and the beam is left ranking 1,024 distinct playfields by `--push-eval work` alone.
+
+**And `best=` over all 64 depths is what that looks like — it does not plateau, it gives ground:**
+
+| depths | `best=` | |
+|---|---:|---|
+| d=0..7 | 62, 53, 72, 45, 53, 36, 37, 37 | an erratic descent |
+| d=8..16 | **28** | nine depths flat |
+| d=17 | 26 | |
+| **d=18..35** | **22** | eighteen depths flat — the best the run ever does |
+| **d=36..63** | **28** | **twenty-eight depths flat, and *worse* than d=18** |
+
+**The last row is the finding.** The beam spends the final 44% of a 399M-node run holding a best
+score it had already beaten by depth 18, which is not a search running out of budget — it is a
+search with nothing to steer by, wandering. And it got there having reached **depth 63, past the 53
+board changes of the level's own hand line**: depth was never the constraint, and the level's
+solution length is inside what this run explored. It searched deep enough and looked in the wrong
+1,024 places at every one of those depths.
+
+**And `--analyze` says why, for free, in one word.** It should have been run first; it costs no
+search at all:
+
+```
+LaserTank 10  "The Valley of Death"  by Jim Kindley  (Easy)
+  board     10 anti-tank
+  reach     the tank stands in 18 cells / 208 poses; the flag (7,0) is not among them
+  route     WorkDistance 16; in the way: nothing priced (no route settled)
+  effects   5 distinct board changes reachable right now -- 5 by shooting, 0 by driving
+     on the barrier: 0
+     open somewhere new to stand: 3
+  verdict   GAUNTLET: the route to the flag crosses nothing that has to be cleared and
+            10 anti-tanks cover it -- what is in the way is fire, not terrain
+```
+
+**`on the barrier: 0` is not a failure of the read; it is the read being correct.** A GAUNTLET has
+no terrain to clear, so the barrier set is empty *by construction* — and every derivation that
+tiers a successor by its relation to the barrier therefore has an empty predicate to test. Two
+consequences that are worth more than the depth question this item was asked:
+
+* **The read chain is conditional on a settled route, and nothing in the trace says when it is
+  not.** `in the way: nothing priced (no route settled)` is the upstream cause: no route, so
+  nothing named, so no barrier, so no tier. **`--read-antitank-wall` is inert here too** — session
+  24's rule promotes an anti-tank *standing on the route* to a barrier, and there is no route for
+  one to stand on. That flag is on in this command and buys precisely zero, which no previous
+  reading of it would have predicted.
+* **The level's own mechanic is in the `effects` block and the search can already reach it.** All
+  five board changes are shots, and three of them read
+  `dirt (1,12) -> anti-tank>, anti-tank> (1,13) -> dirt` — an anti-tank being *pushed back a cell*,
+  worth **+33 cells to stand in**. So the board changes that open the gauntlet are generated; what
+  is missing is a key that prefers them. `WorkDistance` is 16 at the root and 22 at depth 27, and
+  the tank has spent the whole search getting no nearer, because on a GAUNTLET distance-to-flag is
+  not the quantity that has to fall — **exposure is**.
+
+**So level 10 needs neither budget (session 22), nor a cheaper closure (session 23), nor width
+(session 26), nor item 11 — those four are refuted by the trace.** What it needs is a positive
+claim and therefore a weaker one: **the fire map should tier successors the way the barrier does on
+a FERRY.** `--push-fire 8` is on in this run and prices fire as an addend inside `PushH`, which the
+sixth rule at the top of this file says is not a penalty at all when every board pays it — and on a
+board covered by ten anti-tanks every board does. What the trace argues for is a *tier* — a
+successor that reduces the number of covering anti-tanks, or opens a cell the fire map calls safe,
+promoted above one that merely shortens the walk. That is layer 7's shape (`--push-stop` promotes on
+a relation to a cell, not on a distance) applied to a derivation layer 8 already computes.
+
+**Stated at the confidence the evidence supports:** the *diagnosis* is measured — the read names
+nothing here and the ranking then goes flat, on 63,454 expansions. The *design* is a hypothesis,
+and the population measurement below is what should size it before anything is built. This is still
+the first design item in this file that a measurement asked for rather than a level number, which
+is the reason to take it seriously and not the reason to believe it.
+
+**How big is the population that shares level 10's condition? Measured over all 20,914 levels, and
+the first read of the answer looks like a refutation.** `--analyze-tsv` costs no search, so the
+whole corpus is one loop, ~3 minutes, and it confirms this file's *half the corpus is a Sokoban*
+claim independently (FERRY 50.0% + SOKOBAN 3.5%). **The command, because the table is regenerable
+and therefore should not be re-derived from a directory listing:**
+
+```bash
+for c in Beginner-I Beginner-II Challenge-I Challenge-II Challenge-III Challenge-IV Challenge-V \
+         Gary-I Gary-II LaserTank Sokoban-I Sokoban-II Special-I; do
+  build/lasertank-solve.exe --levels "data/levels/$c.lvl" --analyze-tsv "build/reports/an-$c.tsv"
+done
+# one table; the header is a '# '-prefixed comment line, so keep one and drop the rest
+head -1 build/reports/an-Beginner-I.tsv > build/reports/analyze-corpus.tsv
+for f in build/reports/an-*.tsv; do grep -v '^#' "$f" >> build/reports/analyze-corpus.tsv; done
+```
+
+The columns are `collection level diff verdict work route_obst poses region barrier water blocks
+threats effects shots indirect on_barrier toward opens flag_reachable`, joinable against any
+campaign report on `(collection, level)` — which is what the last column of the table below is:
+
+| verdict | levels | share | `barrier == 0` | solved, stride sample |
+|---|---:|---:|---:|---:|
+| FERRY | 10,466 | 50.0% | 0% | 5.3% |
+| **GAUNTLET** | **3,318** | **15.9%** | **100%** | **19.1%** |
+| DEMOLITION | 2,309 | 11.0% | 0% | 12.3% |
+| SETUP | 1,906 | 9.1% | 0% | 10.2% |
+| RIDE | 1,616 | 7.7% | 100% | 20.2% |
+| SOKOBAN | 742 | 3.5% | 0% | 6.2% |
+| OPEN | 379 | 1.8% | 95.5% | 96.6% |
+| WALLED | 178 | 0.9% | 100% | 12.5% |
+
+**26.2% of the corpus — 5,474 levels — has an empty barrier set at the root**, so level 10's
+condition is shared by a quarter of everything. But read the last column before concluding anything
+from that: **the `barrier == 0` levels are solved at 25.2% against 7.0% for `barrier > 0`.** Taken
+at face value that says an absent read is an *advantage*, and it would sink the diagnosis above.
+
+**It is a record-length artifact, and the split says so.** Of the 664 GAUNTLETs in the stride
+sample, 127 are solved and 537 are not — and the **median `.ghs` record of the solved ones is 12
+against 138 for the unsolved.** The barrier == 0 population is bimodal: a large easy half the beam
+solves before ranking matters at all (OPEN is 96.6% and is almost the definition of that), and a
+tail whose records are an order of magnitude longer. So the higher rate is *which levels are in the
+bucket*, not evidence that the read's absence is harmless — and **537 unsolved GAUNTLETs in a
+1-in-5 sample, 138 of them with a record <= 60**, is the population a fire tier would be for.
+
+**Where level 10 sits in its own shape, since one level is not a population:** 10 threats, the
+**87th percentile** of GAUNTLET threat counts, at a median pose count. So it is a
+heavily-covered GAUNTLET rather than a typical one, which is consistent with exposure being the
+binding quantity — and is also the reason not to over-read it. *The honest statement of the design
+claim is therefore narrower than "level 10 needs a fire tier": what is measured is that on this
+level the read contributes nothing and the ranking then goes flat, and that a quarter of the corpus
+shares the first half of that. Whether a fire tier converts any of the 537 is a hypothesis, and the
+cheap test is a rung on the GAUNTLET tail rather than a campaign.*
+
+*(Item 5's level-6 half is untouched by this: 6 is not a GAUNTLET and still wants a decomposition.)*
+
+The command, kept because a second run of it will want the flags exactly — and **run `--analyze`
+before it next time**, which is instrument 2 and would have named the level's shape in a second:
 
 ```bash
 build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10 \
@@ -715,7 +969,7 @@ build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10 \
   --push-dead 20 --push-fire 8 --push-shot-run 16 \
   --push-beam 1024 --push-restarts 0 --max-keys 5000 \
   --push-trace --nodes 400000000 --budget-ms 14400000 --jobs 1 \
-  --out build/trace10 2> build/trace10.err
+  --out build/trace10 2> bench/trace10.err
 ```
 
 Three deliberate differences from item 4's level-9 command, all of them the point of the run:
@@ -725,7 +979,13 @@ Three deliberate differences from item 4's level-9 command, all of them the poin
 **stderr**, hence the redirect -- and it is the whole output of the run, so do not lose it the way
 the widths in item 4's directory names were lost. Level 10's record is 124 + 55 = **179**, so
 `--max-keys-record` would compute 995 and the raise-only rule keeps 5,000; the flag is pointless
-here and that is fine.
+here and that is fine. **Session 29 confirms it: the flag is pointless and the run needed 5,000
+regardless** — nothing this search emitted came near either number, because it never won.
+
+**The trace is committed as `bench/trace10.err`.** It is ~1 KB a depth and it is the only artefact of a
+multi-hour run, so it is the exact thing item 4's lost directory names are a warning about; if
+`build/` is cleared again, this file's quoted `best=` series and the 0-of-63,454 barrier count are
+the surviving record.
 
 **9. A `--max-round N` for the driver -- done, session 28.** *(The unattended run itself has not
 been made; the flag it needed exists.)* `--max-round N` gives up on a level after round **N**,
@@ -754,11 +1014,43 @@ fire map, matching, `Feat` board terms) by `BoardKey` within an expansion, by `(
 cell)` under `--push-reach`. **Measure in seconds, never nodes** -- the node count is identical by
 construction, so every bench in this file will report no change.
 
-**11. The closure-dominance prune, instrument first.** Add `sterile=` to `--push-trace` (expansions
-that emitted zero fresh successors). If it is tens of percent on the ferry bench, add
-`seen.UnionWith(local)` after every *untruncated* expansion in `ExpandPush` -- lossless, one line --
-and key the per-board cap on `(BoardKey, TankRegion)` rather than `BoardKey`. Re-bench both lists;
-expect the node count per solved level to fall rather than the solved count to rise.
+**11. The closure-dominance prune — instrumented in session 29, and the prune is retired. The
+premise fails by three orders of magnitude.** The item set its own acceptance test: add `sterile=`
+to `--push-trace` (expansions that emitted zero fresh successors), and *if it is tens of percent on
+the ferry bench*, add `seen.UnionWith(local)` after every untruncated expansion. The instrument is
+in (`_pxSterile` in `Push.cs`, counted where `ReadCount`'s comment says to count — after every
+derivation has run, so `first` to `next.Count` is the whole of what an expansion contributed), and
+the reading is:
+
+| population, 8 levels each at width 128 / 4M / `--jobs 1` | depths | sterile expansions |
+|---|---:|---|
+| `bench/ferry-levels.txt` | 241 | **8 of 17,273 — 0.05%** |
+| `bench/deep-levels.txt` | 193 | **9 of 13,316 — 0.07%** |
+
+**Tens of percent was the bar; 0.05% is the answer, and both lists agree.** The counter is not
+broken — it fires 6 times on `Beginner-I` 41 and 2 on 471 — it is simply that a closure of ~200-1,000
+poses driven and shot from almost always finds *some* board change that is neither in `seen` nor
+already in the layer. **So the one-line prune is lossless and worth nothing**, and it is not written.
+
+The item's second clause goes with it, for a different reason found in the same runs: keying the
+per-board cap on `(BoardKey, TankRegion)` presumes the cap binds, and on the level it was proposed
+for it does not — level 10 runs `front=1024 boards=1024` at every depth past d=2, i.e. **every
+frontier node is already a distinct playfield**. There is no pose duplication left for a finer key
+to remove. Session 18 built `--push-per-board` because width 48 was holding 1 to 9 distinct boards;
+at width 1024 with the layer-8 flags that failure mode is gone.
+
+**What this costs item 10 is half its motivation, and that half was already gone.** Session 27
+measured `--push-eval none` at 171k nodes/s against `coarse`'s 163k and concluded the tiers still
+need everything `PushH` derives, so H = 0 turns off the ranking and not the cost; this says the
+*other* candidate explanation for the 166k — wasted expansions — is not there either. **The 8.4x
+gap to layer 0 is `PushH` itself**, repeated per pose of the same playfield, which is exactly and
+only what item 10's memoisation attacks. Item 10 is now the whole of the wall-clock story rather
+than one of two guesses at it.
+
+*(The instrument stays. It cost ~20 minutes of machine and it retired a code change on two
+populations, which is the cheapest thing in this file's history per line of code not written. It is
+also off by default and inside `--push-trace`, so no measured number moves — `sterile=` is a new
+column on an instrument line and nothing parses those but a human.)*
 
 **12. Per-level `MaxKeys` from the record -- done as `--max-keys-record`, session 28, and the
 measurement moved the reason for it.** `clamp(5 x (ghs_moves + ghs_shots) + 100, --max-keys, 8000)`,
@@ -886,6 +1178,20 @@ movement component* and not across one, which is exactly the objection the cap's
 rather than `BoardKey`, and the cap stops being a number that occasionally drops the one pose on
 the useful side of a newly cut map.
 
+> **Session 29 built the instrument this pointer asked for, and the answer is "leave it" — on its
+> own threshold.** `sterile=` is **8 of 17,273 expansions (0.05%)** on the ferry bench and **9 of
+> 13,316 (0.07%)** on the deep one. The pointer said *if it is a few percent, leave it*; it is
+> one-twentieth of one percent. **The reasoning in this pointer is sound and the prune really is
+> lossless — it just has almost nothing to prune**, because a closure of ~200-1,000 poses driven
+> and shot from nearly always reaches *some* board change that is neither in `seen` nor already in
+> the layer. One fully-closed expansion is rare.
+>
+> The per-board half is retired for a different reason, and only on the level it was aimed at:
+> level 10 runs `front=1024 boards=1024` at every depth past d=2, so **every frontier node is
+> already a distinct playfield** and there are no duplicate poses for a finer key to remove.
+> Session 18 built `--push-per-board` because width 48 was holding 1 to 9 distinct boards; at width
+> 1024 with the layer-8 flags that failure mode is gone. *Next actions* item 11.
+
 ### 4. What `--push-eval learned` ranks by at the shipped weights  (in the code)
 
 `Rank()` returns `Eval.Score` alone (`Learn.cs:291-296`), and `Score` divides by 1024. The `work`
@@ -927,6 +1233,21 @@ defaults.) Either way the conclusion drawn from them does not stand on its own, 
 back to being worth exactly one properly instrumented run — `--push-trace` at width 1024-2048,
 the layer-8 flags, 400M nodes, and read the `d=` column — before anything is built for it. The
 descent 62 → 28 in nine depths says the key is not the problem on this configuration.
+
+> **Session 29 ran that run, and this pointer is confirmed on the arithmetic and wrong on its last
+> sentence.** The run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, so 900M
+> really is ~140 depths and the depth-2 reading was almost certainly the `d=`/`at=` trap this
+> pointer guessed at. **But *"the descent 62 → 28 in nine depths says the key is not the problem"*
+> is the one thing here that a longer run reverses**, and it is worth seeing why: nine depths of
+> descent is what a working key and a stalling key look like *identically*. Over 64 depths the key
+> bottoms at 22 by d=18 and then **regresses to 28 at d=36 and holds it for the final 28 depths** —
+> the run spends its last 44% worse than its own halfway point. The key is exactly the problem, and
+> the reason is the column this pointer did not have: **a barrier on 0 of 63,454 expansions.** Level
+> 10 is a GAUNTLET, so the read names nothing and the ranking has no structure to use. **The general
+> lesson is about the instrument, not the pointer: a heuristic's descent over the depths a short run
+> can see does not say whether it will keep descending, so read `best=` to the end of the budget or
+> do not quote it.** *Next actions*
+> item 8 and the level-10 bullet of *What has not fallen*.
 
 ### 6. The driver cannot be run unattended, and that is the tool item 1 needs  (in the code)
 
@@ -1977,23 +2298,55 @@ Where the two that are left now stop, measured rather than guessed:
   the tie-break) was the attempt at forcing one carry at a time; it fills one hole and stalls. The
   shape that is missing is layer 2's, one level out: **commit to one (block, hole) pair, search only
   for that, then re-derive** — a subgoal chain over board changes rather than one beam over the level.
-- **10** has the cleanest ranking profile of the four — a descent 15 → 0 with a deepest rise of 1 — and
-  is now most clearly **budget**-limited. Its closures are ~1,000 poses against level 9's ~150, so
-  width 2048 costs ~10M nodes a depth and one pass over the level is 360M; three 400M runs came back
-  never having finished a pass. Width 512 is ~90M for the level and fails on ranking.
+- **10 is a GAUNTLET, and that is the whole of it — session 29, *Next actions* item 8.** The traced
+  run this bullet had been asking for since session 23 is in, and it refutes both of the readings
+  below as well as the one above them. What it measures, at width 1024 with the layer-8 flags,
+  `--push-restarts 0`, `--jobs 1`:
 
-  **And "it wants about a billion nodes" has now been tested and is not enough.** Two runs left going
-  at the end of session 22 came back in session 23: **900M nodes each, 1h37m each, both `budget`,
-  both unsolved**, and the frontier had reached board-change depth **2**
-  (`build/w/h10-1k.jsonl`, `build/w/h10-1ks.jsonl`; the directory names are the only surviving record
-  of their flags, so read them as width 1024 with and without `--push-shield` rather than as an exact
-  configuration). Depth 2 of a 53-change level after 900M nodes is the same failure the 400M runs at
-  width 2048 had, one width down: **the pass never finishes, so the budget arithmetic above is the
-  thing that is wrong, not the size of the budget.** At ~10M nodes a depth a single pass at width 1024
-  is already ~500M, and a beam that has to hold 53 depths of that is not a purchase, it is a different
-  search. The honest next move on this level is therefore *not* a bigger run: it is either the
-  decomposition level 6 wants (commit to one shield-and-anti-tank pair, search only that, re-derive)
-  or a cheaper closure, because the ~1,000-pose closure is what makes every width expensive here.
+  | column | reading | what it retires |
+  |---|---|---|
+  | `d=` | **d=63 at 399M nodes in 26m53s**, ~6.2M/depth | "depth 2 at 900M" — 900M is ~140 depths |
+  | `trunc=` | **0 at every depth** | "the ~1,000-pose closure is what needs attacking" |
+  | `front=`/`boards=` | **1024/1024 at every depth past d=1** | pose duplication, and item 11's finer per-board key |
+  | `closure~` | 891 to 1,274 | the closure is the size layer 8's arithmetic assumes |
+  | **`barrier`** | **0 of 63,454 expansions**; 4,652/79,767,664 successors advanced (**0.0058%**) | *everything else* |
+  | `best=` | 62 → 22 by d=18, then **back to 28 at d=36 and flat there for the last 28 depths** | "the key is not the problem" |
+
+  **The last two rows are the level.** `--analyze` names it for free and should have been the first
+  thing run: *"GAUNTLET: the route to the flag crosses nothing that has to be cleared and 10
+  anti-tanks cover it — what is in the way is fire, not terrain"*, with `on the barrier: 0` and
+  `in the way: nothing priced (no route settled)`. A GAUNTLET has no terrain to clear, so the
+  barrier set is empty **by construction**, so every derivation in layers 6-8 that tiers a successor
+  by its relation to the barrier has an empty predicate — and the beam is left ranking 1,024
+  distinct boards by `WorkDistance` alone. For contrast the same instrument reads **74.7%** of
+  expansions with a barrier on the ferry bench and **72.1%** on the deep one.
+
+  **So this level is not budget-limited, and it never was ranking-limited in the way session 22
+  meant.** It is *derivation*-limited: the read has nothing to say about it, `--read-antitank-wall`
+  included (session 24's rule promotes an anti-tank standing *on the route*, and no route settles).
+  The five board changes it can reach are all shots, three of them pushing an anti-tank back a cell
+  for **+33 cells to stand in** — the mechanic is generated and merely never preferred. What the
+  level plausibly wants is the fire map promoted from an addend in `PushH` to a **tier**: a
+  successor that reduces the covering anti-tanks or opens a fire-map-safe cell, ranked above one
+  that shortens the walk. That is layer 7's shape over layer 8's derivation, on the argument that on
+  a GAUNTLET **exposure, not distance to the flag, is the quantity that has to fall** — and it is
+  the sixth rule at the top of this file applied to `--push-fire`, which prices exposure as an
+  addend every board on a ten-anti-tank board pays.
+
+  **The design half is a hypothesis, and the corpus does not simply endorse it.** `barrier == 0` is
+  **26.2% of the corpus (5,474 levels)** — GAUNTLET, RIDE, WALLED and most OPEN — and that
+  population is solved at **25.2% against 7.0%** for `barrier > 0`, so at face value an absent read
+  looks like an *advantage*. It is a record-length artifact: among the 664 sampled GAUNTLETs the
+  **127 solved have a median record of 12 and the 537 unsolved a median of 138**, so the bucket is a
+  large easy half plus a long tail. Level 10 is in that tail and at the **87th percentile of
+  GAUNTLET threat counts**. Item 8 has the full table. The point to carry: *"the read is inert"* is
+  a measured description of this level, not a predictor of failure on its own.
+
+  *(The superseded readings, kept so they are not re-derived: session 22 left two 900M-node runs
+  going and session 23 read them as `budget`, unsolved, frontier at board-change depth **2** of 53 —
+  `build/w/h10-1k.jsonl`, `build/w/h10-1ks.jsonl`, whose flags survive only as directory names.
+  Session 26 disputed the arithmetic; session 29's trace settles it in session 26's favour. The
+  depth-2 reading is most likely the `d=`/`at=` trap this file warns about under instrument 3.)*
 
 ---
 
@@ -2209,7 +2562,20 @@ says nothing about *what* the beam is looking at — and on a flat key the answe
 found something the key likes and a player would not. It is what caught a beam that had buried the flag
 under a block and scored it better than a win. `--push-trace`'s own columns matter too: `trunc=`
 (closures truncating), `boards=` (distinct playfields in the frontier — the column that found the pose
-duplicates), `closure~` (for the framing arithmetic in layer 8).
+duplicates), `closure~` (for the framing arithmetic in layer 8), and `sterile=N/M` (session 29 —
+expansions of the depth's M that emitted no fresh successor at all). **Read `sterile=` as a
+falsifier, not as a dial**: it is 0.05% on the ferry bench and 0.07% on the deep one, so a reading
+in tens of percent means something is wrong with the run rather than that the prune in item 11 has
+become worth writing.
+
+**4b. Ask whether the read has anything to say about this level *before* reading its ranking.**
+`--push-trace` with `--push-read` prints `expansions with a barrier B, without W`, and the ratio is
+the one column that says whether layers 6-8 are participating at all. It is **74.7% B on the ferry
+bench and 72.1% on the deep one — and 0% on `LaserTank.lvl` 10**, across 63,454 expansions, which
+is what item 8 found and is the whole diagnosis of that level. A level with no barrier gets no
+tiering, so the beam falls back to ranking every successor by the eval key alone; `2/526164
+successors advanced (0%)` in a trace is not a weak read, it is an absent one. Check this before
+`--push-line`, because a read that names nothing makes the line report unattributable.
 
 **5. Ask whether ranking or budget is binding, before spending either.** `closure~` × width × board
 changes is what a *perfect* beam would cost. On all four of layer 8's levels it was two orders of
@@ -2616,3 +2982,87 @@ the flag: over 757 solved rows with a record, `clamp(5 x record + 100, 1200, 800
 the solutions actually found, and **the two it misses are the two that matter** — `Challenge-IV` 641
 at 13x its record, which no multiplier of the record reaches. **What binds on the deep population is
 the floor, not the formula**, so the flag is raise-only and the number to raise is `--max-keys`.
+
+**session 29 — three cheap items closed, two of them negative, and level 10 finally has a cause.**
+*Next actions* items 3, 8 and 11, in a session with no new searcher and no new solved level. The
+machine cost was one 27-minute trace and about twenty minutes of bench; the result is that two
+planned code changes are retired and the oldest open level in the file has a diagnosis instead of a
+budget argument. Four things, in the order they change what to run:
+
+- **Level 10 is a GAUNTLET, and that is the whole explanation — item 8.** The traced run settles
+  the sessions-23-vs-26 contradiction in session 26's favour and not narrowly: the run reaches
+  **d=63 on 399,019,729 nodes in 26m53s** (247k nodes/s, ~6.2M a depth) with **`trunc=0`** and
+  **`front=1024 boards=1024`** at every depth, so the closure never truncates, the frontier never
+  dies and there are no duplicate poses. **It went past the 53 board changes of the level's own hand
+  line and still lost**, so the solution length is inside what this run explored. Session 23's
+  "frontier at depth 2 of 53 after 900M" cannot describe this searcher — 900M is ~140 depths — and
+  is most likely the `d=`/`at=` trap. **But the
+  column that matters is the read's: a barrier on 0 of 63,454 expansions, 0.0058% of successors
+  advanced.** The same instrument reads 74.7% and 72.1% on the ferry and deep benches, so the read
+  is not weak here, it is *absent*, and layers 6, 7 and 8 are all inert on the level whose flags
+  they were switched on for — `--read-antitank-wall` included, because session 24's rule promotes an
+  anti-tank standing *on the route* and no route settles. **`best=` says the same thing, and only a
+  full-budget run says it:** 62 → 28 by d=8, flat nine depths, 22 by d=18, flat eighteen depths —
+  and then **28 from d=36 to d=63, twenty-eight depths flat and worse than its own halfway point.**
+  A search that spends its last 44% above a score it had already beaten is not out of budget, it is
+  wandering. (Session 26's pointer read the first nine depths and concluded *"the key is not the
+  problem on this configuration"*; nine depths of descent is what a working key and a stalling key
+  look like identically. **Read `best=` to the end of the budget or do not quote it.**) Not budget (session 22), not the closure (session 23), not width
+  (session 26), not item 11 — all four refuted on one trace. **The candidate fix is the fire map
+  promoted from an addend in `PushH` to a tier in layer 7's shape**, on the argument that a penalty
+  every board on a ten-anti-tank board pays is not a penalty (the sixth rule, now a design item and
+  not only a bug class).
+- **The population that shares level 10's condition is a quarter of the corpus, and sizing it
+  nearly refuted the design.** `--analyze-tsv` over all **20,914** levels costs no search
+  (`build/reports/analyze-corpus.tsv`): **`barrier == 0` is 26.2% — 5,474 levels** — GAUNTLET
+  (15.9%), RIDE (7.7%), WALLED and most OPEN. It also confirms *half the corpus is a Sokoban*
+  independently: FERRY 50.0% + SOKOBAN 3.5%. **But that population is solved at 25.2% against 7.0%
+  for `barrier > 0`**, which at face value says an absent read *helps*. It is a record-length
+  artifact — the 664 sampled GAUNTLETs split into **127 solved at a median record of 12 and 537
+  unsolved at a median of 138** — so the bucket is a big easy half plus a long tail, and level 10 is
+  in the tail at the 87th percentile of GAUNTLET threat counts. **The claim that survives is the
+  narrow one:** on this level the read contributes nothing and the ranking then goes flat; whether a
+  fire tier converts any of the 537 is untested, and the cheap test is a rung on that tail. Worth
+  the paragraph because the naive reading of 25.2%-vs-7.0% would have killed a live hypothesis and
+  the naive reading of 26.2% would have oversold it.
+- **`--analyze` had the answer for free, and running it after the trace rather than before is this session's
+  own lesson.** One second, no search: *"GAUNTLET: the route to the flag crosses nothing that has to
+  be cleared and 10 anti-tanks cover it — what is in the way is fire, not terrain"*, with
+  `on the barrier: 0` and `in the way: nothing priced (no route settled)`. **A GAUNTLET's barrier
+  set is empty by construction**, so every derivation that tiers a successor by its relation to the
+  barrier has an empty predicate to test — the trace's 0-of-63,454 is the read being *correct*. The
+  rule is now in the six at the top: the instruments have a cost order, and instrument 2 comes
+  before instrument 4.
+- **Item 11's prune is retired on its own acceptance test, on two populations — and the instrument
+  it asked for is what retired it.** `sterile=` (expansions that emitted zero fresh successors) is
+  **8 of 17,273 — 0.05%** on the ferry bench and **9 of 13,316 — 0.07%** on the deep one, against a
+  stated bar of *tens of percent*. The pointer's reasoning is sound and the prune really would be
+  lossless; it simply has almost nothing to prune, because a closure of ~200-1,000 poses driven and
+  shot from nearly always reaches *some* board change that is fresh. The item's second clause goes
+  too, for a different reason: `boards=1024` of `front=1024` means a finer per-board key has no
+  duplicates to remove. **This also leaves item 10 as the whole of the wall-clock story** — session
+  27 ruled out the ranking as the cost, this rules out wasted expansions, so the 8.4x gap to layer 0
+  is `PushH` itself and the memoisation is the only thing left pointing at it.
+- **Item 3 is a no-op because its premise expired.** All 494 banked solutions re-polished:
+  **0 shortened, 14,518 keys → 14,518, 0.0% removed** on every one of the 26 collection
+  directories. `--polish` and `--replan` are both **ON by default during a solve**, so the
+  session-25/27 rebuild banked them already polished; the 11,060 → 10,249 the item quotes was
+  measured before that default and has no path in the tree that reproduces it. The item's *reasoning*
+  survives — shorter trajectories really are what layer 4 is fit on — the debt was just paid at the
+  source rather than owed.
+
+Item 7's population list is **`bench/short-record-failures.txt`** (687 levels, rule in its
+header), in `bench/` rather than in `build/` for the reason that directory exists.
+**Session 28's three counts reproduce exactly** off `chain.jsonl`: 314 unsolved with a record <= 40,
+687 <= 60, 1,037 <= 80, and `stop=budget` on 3,540 of 3,691 (95.9%). So that item now starts at its
+budget loop. The only code is `_pxSterile` in `Push.cs` — five lines inside `--push-trace`'s
+existing gate — so no measured number in this file moves, and `build/solutions/l34` re-verified
+**96/96 through both engines** afterwards as a check that it did not.
+
+The session's lesson is the cheap-falsifier one stated as a ratio: **two planned code changes and
+one planned batch job were retired for ~20 minutes of machine, and the one real run went to the item
+whose answer a one-second instrument already knew.** Both halves are worth keeping. The cheap items
+really were worth running first — the file's own ordering said so and was right. And *"run the free
+instrument before the expensive one"* is not the same rule as *"instrument before theorising"*,
+which this file has had since layer 2 and which session 29 followed to the letter while still
+spending a run to learn something `--analyze` prints in a second.
