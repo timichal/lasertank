@@ -57,6 +57,8 @@ namespace LaserTank.Game
         internal static int CellOf(int size) => Zooms[Math.Clamp(size, 1, 3) - 1];
 
         private const int Margin = 16;
+        /// EditMode does the same window arithmetic for its palette.
+        internal const int MarginPx = Margin;
         // Room for DrawHud's eight lines: the header, the scores, the state
         // line, four key legends and the hint.  Step 4 added a dozen keys, and
         // they went into *four short* legends rather than three long ones
@@ -74,6 +76,7 @@ namespace LaserTank.Game
         private Pack _pack;
         private GraphicsMenu _menu;
         private LevelList _list;
+        private EditMode _edit;
         private Sfx _sfx;
         private string _error;
 
@@ -167,6 +170,7 @@ namespace LaserTank.Game
             _packs = Packs.Scan(_opt.GraphicsDir);
             _menu = new GraphicsMenu(this);
             _list = new LevelList(this);
+            _edit = new EditMode(this);
             _mono = new SystemFont
             {
                 FontNames = new[] { "Consolas", "DejaVu Sans Mono", "Courier New", "monospace" },
@@ -328,6 +332,39 @@ namespace LaserTank.Game
                     return;
             }
 
+            // `--editor` opens the editor on start, for the same reason
+            // `--menu` and `--panel` exist: with --shot it is the only way to
+            // review the palette and the field strip without a window.  It also
+            // takes an optional edit script -- the same token language
+            // `lasertank-core --edit` takes, so a picture can be asked for a
+            // *particular* board rather than the level as it loaded.
+            if (Array.IndexOf(args, "--editor") >= 0 && _s?.E != null)
+            {
+                _edit.Enter(_s);
+                if (ArgStr(args, "--edit") is string es) _edit.Script(es);
+                // `--save` is what Ctrl+S is, reachable from a command line:
+                // tools/editor_check.py drives the *game's* save through it and
+                // compares the bytes with the headless driver's, which is the
+                // same third-implementation check step 4 made of undo.  It goes
+                // through EditMode.Save, so the copy-on-write rule for data/
+                // applies here too -- the gate hands it a copy outside data/ so
+                // it saves in place.
+                if (Array.IndexOf(args, "--save") >= 0)
+                {
+                    _edit.Save();
+                    GD.PrintRaw("editor-save " + _edit.Status + "\n");
+                    // With no --shot there is nothing to look at, so this is a
+                    // batch run and it ends here rather than sitting in a
+                    // window a gate cannot close.
+                    if (ArgStr(args, "--shot") == null)
+                    {
+                        GetTree().Quit(_edit.Modified ? 1 : 0);
+                        return;
+                    }
+                }
+                Resize();
+            }
+
             string shot = ArgStr(args, "--shot");
             if (shot != null)
             {
@@ -398,8 +435,14 @@ namespace LaserTank.Game
         private void Resize()
         {
             if (DisplayServer.GetName() == "headless") return;
+            // The editor widens the window rather than covering the board: the
+            // original turns the same window into an editor and hangs the
+            // palette in its 180-pixel control panel (ContXPos, LTANK2.C:47).
+            // There is no such panel here, so the window grows one instead.
+            int extra = _edit != null && _edit.Open ? _edit.PanelWidth : 0;
             DisplayServer.WindowSetSize(
-                new Vector2I(2 * Margin + 16 * Cell, 2 * Margin + 16 * Cell + HudH));
+                new Vector2I(2 * Margin + 16 * Cell + extra,
+                             2 * Margin + 16 * Cell + HudH));
         }
 
         private async void Shot(string path)
@@ -530,6 +573,8 @@ namespace LaserTank.Game
 
         public override void _UnhandledInput(InputEvent ev)
         {
+            if (ev is InputEventMouseButton mb) { MouseButton(mb); return; }
+            if (ev is InputEventMouseMotion mm) { MouseMotion(mm); return; }
             if (ev is not InputEventKey k || !k.Pressed) return;
 
             // The graphics menu is a modal dialog: while it is up the main
@@ -568,6 +613,24 @@ namespace LaserTank.Game
                 return;
             }
 
+            // The editor is a *mode of this window*, not a dialog over it:
+            // command 201 swaps the menu bar and the accelerator table
+            // (LTANK.C:1446 picks hAccelTable2 when EditorOn), so while it is on
+            // the play keys are gone -- there is nothing to drive.  F9 is in
+            // both tables, which is why one key toggles.
+            if (_edit != null && _edit.Open)
+            {
+                if (!_edit.Key(k))
+                {
+                    // The one accelerator ACC2 shares with ACC1: Ctrl+G, the
+                    // graphics dialog.  It falls through to the block below.
+                    if (k.Keycode == Key.G && k.CtrlPressed) _menu.Show(_packs, _pack);
+                }
+                if (!_edit.Open) Resize();       // it left
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
             // The game keys first, and untouched: Session.Key is the original's
             // WM_KEYDOWN filter (VK 32..40, auto-repeat dropped only while a
             // key is still pending) feeding AddKBuff.  Everything below it is
@@ -580,7 +643,18 @@ namespace LaserTank.Game
                 GetViewport().SetInputAsHandled();
                 return;
             }
-            if (k.Echo) return;
+            // **Auto-repeat, and why one key keeps it.**  A Win32 accelerator
+            // repeats: auto-repeat WM_KEYDOWNs are ordinary WM_KEYDOWNs and
+            // TranslateAccelerator translates every one of them, so holding U
+            // in the 2010 binary walks the undo buffer back a step per repeat.
+            // Dropping every echo here made U a one-shot, which is a port
+            // regression rather than a UI choice -- so the keys where repeating
+            // *is* what the key means are let through.  The rest stay one-shot
+            // on purpose: the original repeats those too, but a held S that
+            // skips forty levels or a held Ctrl+V that restores the same
+            // position forty times is a misfire, and this is the UI half of the
+            // port, which is written down rather than locked down.
+            if (k.Echo && !RepeatsOnHold(k.Keycode)) return;
 
             // **The bindings are the original's accelerator table**
             // (`ACC1 ACCELERATORS`, lt32l_us.inc:120), which is a table, and the
@@ -660,11 +734,85 @@ namespace LaserTank.Game
                              + (_s != null && _s.Rec2.ToggleAutoRecord() ? "on" : "off");
                     break;
 
+                // Command 201, "Editor" -- VK_F9 in ACC1 (lt32l_us.inc:132).
+                case Key.F9:
+                    if (_s?.E != null) { _edit.Enter(_s); Resize(); }
+                    break;
+
                 case Key.Escape: GetTree().Quit(); break;
                 default: return;
             }
             GetViewport().SetInputAsHandled();
         }
+
+        /// The accelerators that repeat while the key is held.  Undo is the
+        /// one so far: walking a mistake back is a *rate*, not an event, and
+        /// the original's accelerator repeated it -- see the echo test above.
+        /// The repeat rate is the OS's, not the game's 20 Hz tick, which is
+        /// right: UndoStep is not a tick, it is a WM_COMMAND, and the original
+        /// took it as fast as Windows sent it.
+        private static bool RepeatsOnHold(Key k) => k == Key.U;
+
+        // ---- the mouse, WM_?BUTTONDOWN and WM_MOUSEMOVE ---------------------
+        //
+        // **The window proc has two arms and so does this** (LTANK.C:785).  In
+        // the editor a click paints; out of it, a click is a *move order* --
+        // pushed into `MBuffer` and turned into arrow keys by `MouseOperation`
+        // on a later tick, which is the function Phase 2 left unported because
+        // nothing could reach it.  Both arms are live here for the first time.
+        //
+        // The dialogs come first for the same reason they do for keys: a modal
+        // window over the board takes the mouse with it, and clicking through
+        // one would drive a tank the player cannot see.
+        private void MouseButton(InputEventMouseButton mb)
+        {
+            if (!mb.Pressed) { _held = 0; return; }
+            if (_menu != null && _menu.Open) return;
+            if (_list != null && _list.Open) return;
+            if (_s != null && _s.Pb.PanelUp) return;
+
+            int button = mb.ButtonIndex switch
+            {
+                Godot.MouseButton.Left => 1,
+                Godot.MouseButton.Right => 2,
+                _ => 0,
+            };
+            if (button == 0) return;
+            _held = button;
+
+            if (_edit != null && _edit.Open)
+            {
+                _edit.Click(mb.Position, button, mb.ShiftPressed);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            // The play arm.  `Engine.MouseClick` is the ring-buffer push out of
+            // the window proc; nothing decides anything here, and the click is
+            // queued even while the tank is mid-slide, exactly as a window
+            // message is.
+            if (_s?.E == null) return;
+            int cell = Cell;
+            int x = (int)Math.Floor((mb.Position.X - Margin) / (float)cell);
+            int y = (int)Math.Floor((mb.Position.Y - Margin) / (float)cell);
+            if (x < 0 || x > 15 || y < 0 || y > 15) return;
+            _s.E.MouseClick(x, y, button);
+            GetViewport().SetInputAsHandled();
+        }
+
+        /// WM_MOUSEMOVE (LTANK.C:764).  **Only the editor has one**: out of the
+        /// editor the original's WM_MOUSEMOVE case does nothing at all, so
+        /// dragging across the board while playing queues nothing.
+        private void MouseMotion(InputEventMouseMotion mm)
+        {
+            if (_held == 0 || _edit == null || !_edit.Open) return;
+            _edit.Drag(mm.Position, _held, mm.ShiftPressed);
+        }
+
+        /// Which button is down, for the drag.  The original reads it out of
+        /// `wparam`'s MK_LBUTTON / MK_RBUTTON on every WM_MOUSEMOVE; Godot
+        /// delivers press and release, so it is kept here instead.
+        private int _held;
 
         /// Godot keycodes -> Win32 virtual-key codes, for the nine keys
         /// LTANK.C:572's `(wparam < 32) || (wparam > 40)` admits.  33..36 are
@@ -794,6 +942,7 @@ namespace LaserTank.Game
             // The dialogs, over the board and under nothing: the original's are
             // modal windows on top of the game, which keeps playing behind them.
             var board = new Rect2(Margin, Margin, 16 * Cell, 16 * Cell);
+            _edit?.Draw(this, font, _atlas);
             if (_menu.Open) _menu.Draw(this, font, board);
             if (_list.Open) _list.Draw(this, font, _mono, board);
             if (_s.Pb.PanelUp) DrawPlaybackPanel(font, board);
@@ -1047,24 +1196,41 @@ namespace LaserTank.Game
                        HorizontalAlignment.Left, w, 14,
                        _s.Rec2.Recording ? Colors.Khaki : Colors.White);
 
-            (string what, Color tint) = _s.Now switch
-            {
-                Session.State.Won => (WinLine(), Colors.LightGreen),
-                Session.State.Dead => ("DEAD -- U undoes the last move, R restarts",
-                                       Colors.OrangeRed),
-                _ => (_error ?? "", Colors.Yellow),
-            };
+            // In the editor the win/dead line has nothing to say -- the clock
+            // is stopped and the board on screen is not the one anything
+            // happened on -- so the strip carries the editor's own status
+            // instead, which is where a save says where it went.
+            bool editing = _edit != null && _edit.Open;
+            (string what, Color tint) = editing
+                ? (_edit.Status ?? "", Colors.Yellow)
+                : _s.Now switch
+                {
+                    Session.State.Won => (WinLine(), Colors.LightGreen),
+                    Session.State.Dead => ("DEAD -- U undoes the last move, R restarts",
+                                           Colors.OrangeRed),
+                    _ => (_error ?? "", Colors.Yellow),
+                };
             if (what != "")
                 DrawString(font, new Vector2(Margin, y + 38), what,
                            HorizontalAlignment.Left, w, 14, tint);
 
             // Four short lines rather than three long ones, for the same reason.
-            string[] legend =
+            // The editor's are the palette's, so the strip only names the two
+            // keys that are *not* on the panel beside it.
+            string[] legend = editing
+                ? new[]
+                {
+                    "EDITOR -- the palette beside the board has the rest",
+                    "F9 leaves and resumes play on the board you drew",
+                    "ctrl+S saves; a level out of data/ goes to out/levels/",
+                    "ctrl+G gfx  Z size  Esc leaves",
+                }
+                : new[]
             {
                 "arrows move  space fires  U undo  R restart  ctrl+C/V pos",
                 "L levels  V scores  G global  S/P next/prev  ctrl+G gfx",
                 "F5 rec  F6 save  F7 play  F4 replay  F8 auto-rec",
-                "Z size  I smooth  N sound  A anim  Esc quit",
+                "Z size  I smooth  N sound  A anim  F9 editor  Esc quit",
             };
             for (int i = 0; i < legend.Length; i++)
                 DrawString(font, new Vector2(Margin, y + 56 + 16 * i), legend[i],

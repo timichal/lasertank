@@ -21,6 +21,7 @@
 int  lt_stub_pump(void);
 void lt_stub_pump_clear(void);
 extern int lt_stub_dialogs;
+extern intptr_t lt_stub_dialog_result;    /* ChangeGO's LoadTID answer */
 
 /* Defined in LTANK2.C but missing from LTANK.H's extern block. */
 extern TTANKREC laser;
@@ -411,6 +412,41 @@ static int script_key(char c)
     }
 }
 
+/* One hex digit, 0-15, or -1.  The click tokens spell a board coordinate with
+ * two of them because 16 columns need more than a decimal digit. */
+static int script_hex(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/* `mXY` / `nXY`: WM_LBUTTONDOWN / WM_RBUTTONDOWN's non-editor arm (LTANK.C:785,
+ * :825), which is a ring-buffer push and nothing else.  Step 5 added them for
+ * the same reason step 4 added z/Z/c/v: MouseOperation is reachable only from
+ * this buffer, so without a way to fill it the C could not be asked what it
+ * does.  The push happens whatever the key buffer is doing -- a click in the
+ * original is a window message, not a keystroke, and it is queued even while
+ * the tank is mid-slide.  A truncated token at the end of the script consumes
+ * the rest and posts nothing, in both drivers. */
+static void script_click(int z)
+{
+    int x, y;
+
+    if (script_at + 2 >= strlen(script)) { script_at = strlen(script); return; }
+    x = script_hex(script[script_at + 1]);
+    y = script_hex(script[script_at + 2]);
+    script_at += 3;
+    if (x < 0 || y < 0) return;
+    if ((x < 0) || (x > 15) || (y < 0) || (y > 15)) return;
+    MBuffer[MB_TOS].X = x;
+    MBuffer[MB_TOS].Y = y;
+    MBuffer[MB_TOS].Z = z;
+    MB_TOS++;
+    if (MB_TOS == MaxMBuffer) MB_TOS = 0;
+}
+
 /* -> 1 if this tick should run, 0 if the script is spent and the game is over. */
 static void script_feed(void)
 {
@@ -419,6 +455,8 @@ static void script_feed(void)
 
     if (script_at >= strlen(script)) return;
     c  = script[script_at];
+    if (c == 'm') { script_click(1); return; }
+    if (c == 'n') { script_click(2); return; }
     vk = script_key(c);
     if (vk) {
         if ((DWORD)RB_TOS != Game.RecP) return;    /* still pending: wait */
@@ -450,6 +488,184 @@ static int script_done(void)
     return script_at >= strlen(script);
 }
 
+/* ===================== the editor (Phase 5, step 5) =====================
+ *
+ * `--edit STR` runs an edit script over a loaded level and traces the board
+ * after every token.  No tick runs: the editor calls GameOn(FALSE) first thing
+ * (LTANK.C:1086), so an edited board is a still picture and every difference
+ * between two engines is a difference in the *edit*, not in the clock.
+ *
+ * The one function here that is really the C is `ChangeGO` -- LTANK2.C:809,
+ * compiled verbatim by oracle/build.sh, and the reason this mode exists.
+ * Everything around it (Clear Field, the four Shifts, the tunnel-wait strip on
+ * the way in) is an LTANK.C window-proc case, so it is written twice on
+ * purpose, here and in LaserTank.Core.Editor, exactly as step 4 wrote undo's
+ * three commands twice.
+ *
+ * Tokens.  Two hex digits spell a cell, one spells a small number.
+ *
+ *   <oo   select the left  object (00..1b; 1b = 27 is reachable, see below)
+ *   >oo   select the right object
+ *   tN    the tunnel id ChangeGO's dialog will answer with (0..7)
+ *   lXY   left  click        rXY  right click       sXY  Shift+left = rotate
+ *   pXY   left  drag         qXY  right drag        PXY  Shift+drag (a no-op)
+ *   R L U D   shift the board right / left / up / down   (710/711/712/713)
+ *   C     Clear Field (601)          E   re-enter the editor (201's board half)
+ *
+ * `<1b` is not a typo: the palette's own bound is `i > MaxObjects+1`, so 27 is
+ * selectable by clicking one slot past the last sprite, and `GetOBM(27)` falls
+ * through its range test to bitmap 1.  It is in the token set because it is in
+ * the original.
+ */
+static const char *edit_script = NULL;   /* EditorOn is already a global above */
+static int CurSelBM_L_drv = 3;     /* LTANK2.C:42, but the driver's own copy:  */
+static int CurSelBM_R_drv = 0;     /* the editor's selectors are set by clicks */
+                                   /* on a window this driver does not have.   */
+static int edit_tunnel = 0;
+
+/* LTANK.C:18 -- 27 entries, of which the initialiser gives 25, so the last two
+ * are the zeroes C fills in.  Rotating thin ice or the tunnel selector really
+ * does turn the cell into dirt. */
+static const int GetNextBM[MaxObjects + 1] =
+    {0,1,2,3,4,5,6,8,9,10,7,12,13,14,11,16,17,18,15,19,21,22,23,20,24};
+
+static int edit_hex(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/* Command 201's board half (LTANK.C:1110): strip the tunnel wait bits. */
+static void edit_enter(void)
+{
+    int x, y;
+    EditorOn = TRUE;
+    GameOn(FALSE);
+    for (x = 0; x < 16; x++) for (y = 0; y < 16; y++)
+        if (ISTunnel(x, y)) Game.PF[x][y] &= 0xFE;
+}
+
+/* Command 601, "Clear Field" (LTANK.C:1135). */
+static void edit_clear(void)
+{
+    int x, y;
+    for (x = 0; x < 16; x++) for (y = 0; y < 16; y++)
+    {
+        Game.PF[x][y]   = 0;
+        Game.BMF[x][y]  = 1;
+        Game.BMF2[x][y] = 1;
+        Game.PF2[x][y]  = 0;
+    }
+    Game.Tank.X = 7;
+    Game.Tank.Y = 15;
+    Game.Tank.Dir = 1;
+    Game.Tank.Firing = FALSE;
+}
+
+/* Commands 710/711/712/713 (LTANK.C:1281..1348).  PF and BMF both move and both
+ * wrap; PF2 and BMF2 do not move at all; the tank wraps by increment. */
+static void edit_shift(int dx, int dy)
+{
+    TPLAYFIELD sPF, sBMF;
+    int x, y, sx, sy;
+
+    for (x = 0; x < 16; x++) for (y = 0; y < 16; y++)
+    {
+        sx = ((x - dx) % 16 + 16) % 16;
+        sy = ((y - dy) % 16 + 16) % 16;
+        sPF[x][y]  = Game.PF[sx][sy];
+        sBMF[x][y] = Game.BMF[sx][sy];
+    }
+    memcpy(Game.PF,  sPF,  sizeof(TPLAYFIELD));
+    memcpy(Game.BMF, sBMF, sizeof(TPLAYFIELD));
+
+    Game.Tank.X += dx;
+    if (Game.Tank.X == 16) Game.Tank.X = 0;
+    if (Game.Tank.X < 0)   Game.Tank.X = 15;
+    Game.Tank.Y += dy;
+    if (Game.Tank.Y == 16) Game.Tank.Y = 0;
+    if (Game.Tank.Y < 0)   Game.Tank.Y = 15;
+}
+
+/* One token.  -> the number of characters consumed, or 0 at the end. */
+static int edit_token(const char *p)
+{
+    int x, y, v;
+    char c = p[0];
+
+    switch (c) {
+    case '<': case '>':
+        if (!p[1] || !p[2]) return (int)strlen(p);
+        v = edit_hex(p[1]) * 16 + edit_hex(p[2]);
+        if (v >= 0) { if (c == '<') CurSelBM_L_drv = v; else CurSelBM_R_drv = v; }
+        return 3;
+    case 't':
+        if (!p[1]) return 1;
+        v = edit_hex(p[1]);
+        if (v >= 0) edit_tunnel = v & 7;
+        return 2;
+    case 'l': case 'r': case 's': case 'p': case 'q': case 'P':
+        if (!p[1] || !p[2]) return (int)strlen(p);
+        x = edit_hex(p[1]); y = edit_hex(p[2]);
+        if (x < 0 || y < 0 || x > 15 || y > 15) return 3;
+        lt_stub_dialog_result = edit_tunnel;
+        switch (c) {
+        case 'l':                                   /* WM_LBUTTONDOWN        */
+            if (Game.PF[x][y] != CurSelBM_L_drv) ChangeGO(x, y, CurSelBM_L_drv);
+            break;
+        case 's':                                   /* ... with Shift: rotate */
+            if (Game.PF[x][y] <= MaxObjects) ChangeGO(x, y, GetNextBM[Game.PF[x][y]]);
+            break;
+        case 'r':                                   /* WM_RBUTTONDOWN        */
+            if (Game.PF[x][y] != CurSelBM_R_drv) ChangeGO(x, y, CurSelBM_R_drv);
+            break;
+        case 'p':                                   /* WM_MOUSEMOVE, left    */
+            if ((Game.PF[x][y] != CurSelBM_L_drv) && (CurSelBM_L_drv != MaxObjects))
+                ChangeGO(x, y, CurSelBM_L_drv);
+            break;
+        case 'q':                                   /* WM_MOUSEMOVE, right   */
+            if ((Game.PF[x][y] != CurSelBM_R_drv) && (CurSelBM_R_drv != MaxObjects))
+                ChangeGO(x, y, CurSelBM_R_drv);
+            break;
+        case 'P':                                   /* ... with Shift: return */
+            break;
+        }
+        lt_stub_dialog_result = IDCANCEL;
+        return 3;
+    case 'R': edit_shift( 1,  0); return 1;
+    case 'L': edit_shift(-1,  0); return 1;
+    case 'U': edit_shift( 0, -1); return 1;
+    case 'D': edit_shift( 0,  1); return 1;
+    case 'C': edit_clear();       return 1;
+    case 'E': edit_enter();       return 1;
+    default:  return 1;                             /* unknown: skipped      */
+    }
+}
+
+/* `s` above is the one arm whose guard is *not* the click's own: LTANK.C:806
+ * writes `ChangeGO(x,y,GetNextBMArray[Game.PF[x][y]])` with no range test at
+ * all, so a tunnel cell (0x40 | id<<1) indexes past a 27-int array.  That read
+ * has no defined value, so both engines skip it and this comment is the record
+ * -- the same call `GFXInit`'s missing parentheses got in step 2. */
+
+static long edit_run(void)
+{
+    long step = 0;
+    const char *p = edit_script;
+
+    edit_enter();
+    trace_tick(0);
+    while (*p) {
+        int n = edit_token(p);
+        if (n <= 0) break;
+        p += n;
+        trace_tick(++step);
+    }
+    return step;
+}
+
 static void usage(void)
 {
     fprintf(stderr,
@@ -462,15 +678,21 @@ static void usage(void)
       "  --keys STR     keystream as characters: u d l r f  (or raw decimal VK codes\n"
       "                 separated by commas)\n"
       "  --script STR   one token per tick: u d l r f press, . idles, z undoes,\n"
-      "                 Z undoes a death and resumes, c/v save/restore position\n"
+      "                 Z undoes a death and resumes, c/v save/restore position,\n"
+      "                 mXY / nXY left/right click cell XY (two hex digits)\n"
       "  --field        include full PF / PF2 hex in the trace\n"
       "  --bmf          include BMF / BMF2 (cosmetic: nothing in the logic reads them)\n"
-      "  --sound        include SF, the SoundPlay ids the tick asked for\n");
+      "  --sound        include SF, the SoundPlay ids the tick asked for\n"
+      "  --edit STR     level editor, one token per traced step; no tick runs:\n"
+      "                 <oo />oo pick the left/right object, tN the tunnel id,\n"
+      "                 lXY rXY click, sXY Shift+click (rotate), pXY qXY drag,\n"
+      "                 PXY Shift+drag, R L U D shift the board, C clear, E enter\n");
 }
 
 int main(int argc, char **argv)
 {
     const char *levels = NULL, *lpb = NULL, *keys = NULL, *tracepath = NULL;
+    const char *result;
     int level = 0, quiet = 0;
     long max_ticks = 200000, tick = 0;
     int i, won = 0;
@@ -480,6 +702,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--lpb")    && i + 1 < argc) lpb       = argv[++i];
         else if (!strcmp(argv[i], "--keys")   && i + 1 < argc) keys      = argv[++i];
         else if (!strcmp(argv[i], "--script") && i + 1 < argc) script    = argv[++i];
+        else if (!strcmp(argv[i], "--edit")   && i + 1 < argc) edit_script = argv[++i];
         else if (!strcmp(argv[i], "--trace")  && i + 1 < argc) tracepath = argv[++i];
         else if (!strcmp(argv[i], "--level")  && i + 1 < argc) level     = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--max-ticks") && i + 1 < argc) max_ticks = atol(argv[++i]);
@@ -489,9 +712,13 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--quiet")) quiet       = 1;
         else { usage(); return 2; }
     }
-    if (!levels || (!lpb && !keys && !script)) { usage(); return 2; }
+    if (!levels || (!lpb && !keys && !script && !edit_script)) { usage(); return 2; }
     if (script && (lpb || keys)) {
         fprintf(stderr, "oracle: --script cannot be combined with --lpb or --keys\n");
+        return 2;
+    }
+    if (edit_script && (lpb || keys || script)) {
+        fprintf(stderr, "oracle: --edit is a mode of its own; it runs no ticks\n");
         return 2;
     }
 
@@ -526,8 +753,8 @@ int main(int argc, char **argv)
      * does, so RB_TOS starts at 0 and grows. */
     if (lpb) {
         RB_TOS = PBRec.Size;
-    } else if (script) {
-        RB_TOS = 0;
+    } else if (script || edit_script) {
+        RB_TOS = 0;                /* the editor presses nothing either */
     } else {
         int n = 0;
         const char *p;
@@ -557,11 +784,20 @@ int main(int argc, char **argv)
          * yet, so RB_TOS is 0 and the token count is the honest answer. */
         fprintf(trace_fp, "# levels=%s level=%d name=%s author=%s keys=%d\n",
                 levels, level, CurRecData.LName, CurRecData.Author,
-                script ? (int)strlen(script) : RB_TOS);
+                script ? (int)strlen(script)
+                       : edit_script ? (int)strlen(edit_script) : RB_TOS);
     }
 
     /* ---- run ---- */
     lt_stub_pump_clear();
+    if (edit_script) {
+        /* The editor is not the game: GameOn(FALSE) is the first thing command
+         * 201 does, so nothing here ticks and `tick` counts *edits*.  The trace
+         * format is the same one difftrace already reads, so an edit diff needs
+         * no new tooling -- only a new input language. */
+        tick = edit_run();
+        goto finish;
+    }
     trace_tick(0);
     if (script) {
         /* The script loop.  It differs from the keystream loop below in three
@@ -586,7 +822,11 @@ int main(int argc, char **argv)
                  * tick. */
                 break;
             }
-            if (script_done() && Game.RecP >= (DWORD)RB_TOS && quiescent() && Game_On)
+            /* ... and the mouse buffer counts as "keys left": a click is
+             * drained by the *next* tick, so a script ending in one would
+             * otherwise stop before MouseOperation ever ran. */
+            if (script_done() && Game.RecP >= (DWORD)RB_TOS && MB_TOS == MB_SP
+                && quiescent() && Game_On)
                 break;
         }
     } else
@@ -600,20 +840,31 @@ int main(int argc, char **argv)
         if (Game.RecP >= (DWORD)RB_TOS && quiescent() && Game_On) break;
     }
 
+finish:
     won = (!lt_dead) && (Game.PF[Game.Tank.X][Game.Tank.Y] == 2);
+
+    /* An edit run has no outcome to report -- nothing ticked, so "did the tank
+     * reach the flag" is a question about a board nobody played.  It says EDIT
+     * on both sides instead, which keeps the two footers comparable and keeps
+     * replay_all.py from ever reading an edit as a win. */
+    result = edit_script ? "EDIT" : won ? "WIN" : (lt_dead ? "DEAD" : "UNFINISHED");
 
     if (trace_fp) {
         fprintf(trace_fp, "# result=%s ticks=%ld moves=%u shots=%u keys_used=%lu/%d dialogs=%d\n",
-                won ? "WIN" : (lt_dead ? "DEAD" : "UNFINISHED"),
+                result,
                 tick, (unsigned)Game.ScoreMove, (unsigned)Game.ScoreShot,
                 (unsigned long)Game.RecP, RB_TOS, lt_stub_dialogs);
         fclose(trace_fp);
     }
     if (!quiet) {
-        printf("%-10s level=%-5d ticks=%-6ld moves=%-4u shots=%-4u keys=%lu/%d  %s\n",
-               won ? "WIN" : (lt_dead ? "DEAD" : "UNFINISHED"),
-               level, tick, (unsigned)Game.ScoreMove, (unsigned)Game.ScoreShot,
-               (unsigned long)Game.RecP, RB_TOS, CurRecData.LName);
+        if (edit_script)
+            printf("%-10s level=%-5d edits=%-6ld tank=%d,%d  %s\n",
+                   result, level, tick, Game.Tank.X, Game.Tank.Y, CurRecData.LName);
+        else
+            printf("%-10s level=%-5d ticks=%-6ld moves=%-4u shots=%-4u keys=%lu/%d  %s\n",
+                   result,
+                   level, tick, (unsigned)Game.ScoreMove, (unsigned)Game.ScoreShot,
+                   (unsigned long)Game.RecP, RB_TOS, CurRecData.LName);
     }
-    return won ? 0 : 1;
+    return edit_script ? 0 : (won ? 0 : 1);
 }

@@ -10,6 +10,15 @@ namespace LaserTank.Core
         public int X, Y, Dir, Firing, Good;
     }
 
+    /// LTANK.H:183 tXYZRec -- one entry of the mouse buffer.  Z is not a
+    /// coordinate: it is which button was pressed, 1 = left (move there),
+    /// 2 = right (turn and fire at it), set by WM_LBUTTONDOWN / WM_RBUTTONDOWN
+    /// (LTANK.C:785, :825).
+    public struct TXYZREC
+    {
+        public int X, Y, Z;
+    }
+
     /// LTANK.H:204 tIceRec.
     public struct TICEREC
     {

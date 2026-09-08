@@ -13,16 +13,16 @@
 // engine must emit byte-identical traces on the whole corpus.  See PROGRESS.md,
 // "The Phase 2 harness".
 //
-// STATUS: Phase 2 complete.  Every function the keystream can reach is
-// transliterated, and all 187 recorded playbacks trace byte-identically to the
-// oracle with --field --bmf.  MouseOperation is the one remaining stub: the
-// mouse buffer is empty headless, so nothing can reach it from a keystream.
-// It still throws rather than no-opping, so if that premise ever breaks the
-// run stops instead of inventing a plausible answer.  Everything not yet
-// transliterated
-// throws NotPortedException rather than doing nothing -- a silent no-op would
-// produce a plausible wrong trace, which is exactly the failure mode this whole
-// approach exists to prevent.
+// STATUS: Phase 2 complete, and since Phase 5 step 5 there are no stubs left.
+// Every function the keystream can reach is transliterated, and all 187
+// recorded playbacks trace byte-identically to the oracle with --field --bmf.
+// MouseOperation was the last hole -- the mouse buffer is empty headless, so
+// no keystream could reach it -- and step 5 closed it by giving the drivers a
+// way to *fill* that buffer (`--script`'s click tokens) rather than by reading
+// the C and hoping.  Anything that is ever left unported again throws
+// NotPortedException rather than doing nothing: a silent no-op would produce a
+// plausible wrong trace, which is exactly the failure mode this whole approach
+// exists to prevent.
 // ---------------------------------------------------------------------------
 using System;
 using System.Collections.Generic;
@@ -125,9 +125,35 @@ namespace LaserTank.Core
         public int Speed = 1, SlowPB = 1;
         public const int SlowPBSet = 5;      // LTANK.H:106
 
-        // The mouse buffer is empty headless, so the block at the end of the
-        // tick never fires.  Kept for shape; MouseOperation throws if reached.
+        // LTANK2.C:90.  The mouse buffer is written by WM_LBUTTONDOWN /
+        // WM_RBUTTONDOWN (LTANK.C:785, :825) and drained one entry per tick by
+        // the block at the end of Tick().  It stays empty unless a driver posts
+        // to it, which is why every trace this project has ever taken is
+        // unaffected by MouseOperation existing.
+        public const int MaxMBuffer = 20;        // LTANK.H:107
+        public readonly TXYZREC[] MBuffer = new TXYZREC[MaxMBuffer];
         public int MB_TOS, MB_SP;
+
+        /// WM_LBUTTONDOWN / WM_RBUTTONDOWN's non-editor arm, which is eight
+        /// lines of ring-buffer push and the only way an entry gets in.  The
+        /// bounds test is the original's own; a click outside the 16x16 board
+        /// is dropped rather than clamped.  `z` is 1 for the left button and
+        /// 2 for the right.
+        ///
+        /// **The push does not check for overrun**, and neither does this:
+        /// MB_TOS wraps at MaxMBuffer and will run over MB_SP if twenty clicks
+        /// land before the tick drains one.  That is the C, and there is
+        /// nothing undefined about it -- the oldest pending clicks are simply
+        /// lost.
+        public void MouseClick(int x, int y, int z)
+        {
+            if (x < 0 || x > 15 || y < 0 || y > 15) return;
+            MBuffer[MB_TOS].X = x;
+            MBuffer[MB_TOS].Y = y;
+            MBuffer[MB_TOS].Z = z;
+            MB_TOS++;
+            if (MB_TOS == MaxMBuffer) MB_TOS = 0;
+        }
 
         // ---- death, and the SendMessage / PostMessage distinction ---------
         // Quirk #8: CheckLLoc uses SendMessage(WM_Dead) (synchronous, lands
@@ -1365,7 +1391,188 @@ MoveObj1:
             AntiTank();
         }
 
-        private bool MouseOperation(int sp) => throw new NotPortedException("MouseOperation");
+        // ---- the mouse player, LTANK2.C:277 and :298 -------------------------
+        // Phase 2 left these two unported because no keystream can reach them:
+        // they are driven by the mouse buffer, which nothing headless filled.
+        // Step 5 gave the drivers a way to fill it (`--script`'s click tokens),
+        // which turns them into an ordinary trace diff against the oracle's own
+        // copy -- the same move `--sound` and `--script` were.
+        //
+        // **What they are.** MouseOperation does not move the tank.  It writes
+        // *keys* into RecBuffer, so a click is indistinguishable in a recording
+        // from the arrows it stands for, and a .lpb made with the mouse plays
+        // back on the keyboard path.  That is why porting it changes no rule:
+        // the tick still consumes one key at a time from the same buffer.
+
+        private const int BADMOVE = 256;                     // LTANK.H:132
+        private readonly int[,] findmap = new int[16, 16];   // LTANK2.C:92
+
+        /// FindTarget (LTANK2.C:277): a recursive flood fill that labels every
+        /// empty cell with its distance from the *destination*, stopping when it
+        /// reaches the tank.  Note what "empty" means here -- `Game.PF[px][py]
+        /// != 0` -- so the fill walks only over dirt; the destination cell
+        /// itself is seeded by the caller and tested separately.
+        ///
+        /// `findmap[px][py] = pathlen++` is a post-increment on the *local*, so
+        /// the cell gets `pathlen` and the four recursive calls get `pathlen+1`.
+        private void FindTarget(int px, int py, int pathlen)
+        {
+            if (px < 0 || px > 15 || py < 0 || py > 15) return;   // outer edges
+            // if we hit something AND we are not at the tank then return
+            if (Game.PF[px, py] != 0 && !(Game.Tank.X == px && Game.Tank.Y == py))
+                return;                                          // we hit something - ouch
+
+            if (findmap[px, py] <= pathlen) return;
+
+            findmap[px, py] = pathlen++;
+
+            if (px == Game.Tank.X && py == Game.Tank.Y) return;  // speed's us up
+
+            FindTarget(px - 1, py, pathlen);
+            FindTarget(px + 1, py, pathlen);
+            FindTarget(px, py - 1, pathlen);
+            FindTarget(px, py + 1, pathlen);
+        }
+
+        /// MouseOperation (LTANK2.C:298).  Returns false when the click cannot
+        /// be turned into keys, and the tick's caller reads that as "throw the
+        /// rest of the buffer away" (`else MB_SP = MB_TOS;`).
+        ///
+        /// **The two quirks worth naming.**
+        ///
+        ///   * The destination filter is a hand-written range test on the
+        ///     object id -- `(dx &lt; 3) || (dx &gt; 14 &amp;&amp; dx &lt; 19) ||
+        ///     (dx &gt; 23) || tunnel` -- i.e. dirt/flag/water, the four
+        ///     one-ways, ice and thin ice, and any tunnel.  It admits
+        ///     **water**, so a left-click on water drives the tank in and
+        ///     drowns it, and it admits a one-way from the wrong side, where
+        ///     the walk simply stalls.  Neither is guarded, and neither is
+        ///     fixed here.
+        ///
+        ///   * A turn costs a key.  `if (ltdir != 4) AddKBuff((byte)VK_LEFT);` then
+        ///     an unconditional second one: the first press turns the tank, the
+        ///     second moves it, which is the same rule a human plays by.
+        ///
+        /// The right button is the shot: turn towards the click along whichever
+        /// axis is larger and fire, with no path and no reachability test at
+        /// all.
+        private bool MouseOperation(int sp)
+        {
+            int dx, dy, cx, cy, ltdir;
+
+            dx = MBuffer[sp].X - Game.Tank.X;
+            dy = MBuffer[sp].Y - Game.Tank.Y;
+            bool XBigger = Math.Abs(dx) > Math.Abs(dy);   // true if x is bigger than y
+
+            if (MBuffer[sp].Z == 1)
+            {
+                // Mouse Move
+                /* Fill the trace map */
+                for (cx = 0; cx < 16; cx++)
+                    for (cy = 0; cy < 16; cy++)
+                        findmap[cx, cy] = BADMOVE;
+                // We will test the destination manually
+                dx = Game.PF[MBuffer[sp].X, MBuffer[sp].Y];   // temp store in dx
+                if (!((dx < 3) || (dx > 14 && dx < 19) || (dx > 23)
+                      || ((Obj.Tunnel & dx) == Obj.Tunnel)))
+                    return false;
+                findmap[MBuffer[sp].X, MBuffer[sp].Y] = 0;   // destination
+                /* flood fill search to find a shortest path to the push point. */
+                FindTarget(MBuffer[sp].X - 1, MBuffer[sp].Y, 1);
+                FindTarget(MBuffer[sp].X + 1, MBuffer[sp].Y, 1);
+                FindTarget(MBuffer[sp].X, MBuffer[sp].Y - 1, 1);
+                FindTarget(MBuffer[sp].X, MBuffer[sp].Y + 1, 1);
+
+                /* if we didn't make it back to the players position, there is no
+                 * valid path to that place. */
+                if (findmap[Game.Tank.X, Game.Tank.Y] == BADMOVE) return false;
+
+                /* we made it back, so let's walk the path we just built up */
+                cx = Game.Tank.X;
+                cy = Game.Tank.Y;
+                ltdir = Game.Tank.Dir;           // we need to keep track of direction
+                while (findmap[cx, cy] != 0)
+                {
+                    if (cx > 0 && findmap[cx - 1, cy] == findmap[cx, cy] - 1)
+                    {
+                        if (ltdir != 4) AddKBuff((byte)VK_LEFT);
+                        AddKBuff((byte)VK_LEFT);
+                        cx--;
+                        ltdir = 4;
+                    }
+                    else if (cx < 15 && findmap[cx + 1, cy] == findmap[cx, cy] - 1)
+                    {
+                        if (ltdir != 2) AddKBuff((byte)VK_RIGHT);
+                        AddKBuff((byte)VK_RIGHT);
+                        cx++;
+                        ltdir = 2;
+                    }
+                    else if (cy > 0 && findmap[cx, cy - 1] == findmap[cx, cy] - 1)
+                    {
+                        if (ltdir != 1) AddKBuff((byte)VK_UP);
+                        AddKBuff((byte)VK_UP);
+                        cy--;
+                        ltdir = 1;
+                    }
+                    else if (cy < 15 && findmap[cx, cy + 1] == findmap[cx, cy] - 1)
+                    {
+                        if (ltdir != 3) AddKBuff((byte)VK_DOWN);
+                        AddKBuff((byte)VK_DOWN);
+                        cy++;
+                        ltdir = 3;
+                    }
+                    else
+                    {
+                        /* if we get here, something is SERIOUSLY wrong, so we
+                         * should abort */
+                        throw new InvalidOperationException(
+                            "MouseOperation: findmap walk stalled at " + cx + "," + cy);
+                    }
+                }
+            }
+            else
+            {
+                // Mouse Shot
+                if (XBigger)
+                {
+                    if (dx > 0)
+                    {
+                        if (Game.Tank.Dir != 2) AddKBuff((byte)VK_RIGHT);   // Turn Right
+                    }
+                    else if (Game.Tank.Dir != 4) AddKBuff((byte)VK_LEFT);   // Turn Left
+                }
+                else
+                {
+                    if (dy > 0)
+                    {
+                        if (Game.Tank.Dir != 3) AddKBuff((byte)VK_DOWN);    // Turn Down
+                    }
+                    else if (Game.Tank.Dir != 1) AddKBuff((byte)VK_UP);     // Turn Up
+                }
+                AddKBuff((byte)VK_SPACE);
+            }
+            return true;
+        }
+
+        /// AddKBuff (LTANK2.C:256): append one key to RecBuffer and grow the
+        /// buffer by RecBufStep when it fills.  It moved into Core in step 5
+        /// because MouseOperation calls it and MouseOperation is LTANK2.C code;
+        /// the drivers' own copies now delegate here.  The original's
+        /// GlobalReAlloc-failed arm (FileError, `RB_TOS = 0`) has nothing to
+        /// transliterate into -- Array.Resize does not fail, it throws.
+        ///
+        /// `RecBufSize` is `RecBuffer.Length` here, which is the same number:
+        /// the original tracks it separately only because GlobalReAlloc does
+        /// not report a block's size.
+        public const int RecBufStep = 10000;     // LTANK.H:104
+
+        public void AddKBuff(byte zz)
+        {
+            RecBuffer[RB_TOS] = zz;
+            RB_TOS++;
+            if (RB_TOS >= RecBuffer.Length)
+                Array.Resize(ref RecBuffer, RecBuffer.Length + RecBufStep);
+        }
 
         // ---- LTANK.C:579  the WM_TIMER handler -- this *is* the spec ----------
         // Line-by-line, in the same order as oracle/driver.c's LT_Tick().
@@ -1455,7 +1662,7 @@ MoveObj1:
                 if (MouseOperation(MB_SP))
                 {
                     MB_SP++;
-                    if (MB_SP == 20) MB_SP = 0;      // MaxMBuffer, LTANK.H:107
+                    if (MB_SP == MaxMBuffer) MB_SP = 0;
                 }
                 else MB_SP = MB_TOS;
             }

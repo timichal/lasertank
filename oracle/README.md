@@ -39,6 +39,21 @@ The only part of `LTANK.C` that matters is the `WM_TIMER` handler at `:579`,
 which is the game loop; `LT_Tick()` in `driver.c` is a line-by-line
 transliteration of it.
 
+`driver.c` also carries a handful of `LTANK.C`'s `WM_COMMAND` cases, because
+they are inputs a player can give that no keystream can express: undo and
+save/restore position (`--script`'s `z Z c v`), the two mouse buttons
+(`--script`'s `mXY nXY`, which only push into `MBuffer` -- the *pathfinder* they
+feed, `MouseOperation`, is the real LTANK2.C one), and the editor's board
+commands (`--edit`). Each is transliterated here **and** in the C# side, and the
+two are diffed against each other; the functions those cases call into LTANK2.C
+for -- `UndoStep`, `MouseOperation`, `ChangeGO` -- are the compiled 2002 C, and
+those are the ones the diff proves rather than merely corroborates.
+
+There is exactly one `DialogBox` call inside `LTANK2.C`: `ChangeGO`'s tunnel-id
+prompt. `lt_stub_dialog_result` is how the driver answers it, so the editor can
+place a tunnel headlessly; every other dialog keeps taking `IDCANCEL`, which is
+what "the user pressed Escape" means to the rest of the game.
+
 The external surface turned out to be small: 49 Win32 calls plus a dozen
 globals (`MainH`, `RB_TOS`, `VHSOn`, `LANGText`, `SoundPlay`, the button
 handles). Everything else LTANK2.C needs, it defines itself.

@@ -16,19 +16,21 @@ validation plan, not a ranking of the two halves.
 **Where the project is.** Phases 1-3 complete: a C reference oracle (`oracle/`), a C#
 transliteration that traces byte-identically to it on the whole recorded corpus
 (`src/LaserTank.Core/`), and a differential fuzzer (`tools/fuzz.py`) with 20,626 cases and no
-divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0-4 are
-done** — `src/LaserTank.Game/` is a playable game with the game around it. It draws any level from
-`Game.BMF` with any of the four sprite sheets, runs a fixed 20 Hz tick, takes the keyboard through
-the original's own `WM_KEYDOWN` filter and on the original's own accelerator keys, plays the
-original's sixteen WAVs off the sound ids the tick itself computes, undoes, saves and restores a
-position, picks levels and shows both high-score lists out of `.lvl`/`.hs`/`.ghs`, writes a `.hs`
-the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all three of the
-original's speeds, and remembers its graphics set, board size, sound, animation, auto-record, player
-initials and the level you were on in a `LaserTank.ini` with the original's own section and key
-names. `atlas_check.py`, `tick_check.py`, `options_check.py`, `sound_check.py`, `undo_check.py`,
-`list_check.py` and `roundtrip_check.py` gate those five steps. Steps 5-6 below are still a plan
-with exit criteria rather than a wish list; **step 5, the level editor — and with it
-`MouseOperation`, the one unported function — is the next thing to build.**
+divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0-5 are
+done** — `src/LaserTank.Game/` is a playable game with the game around it, and now an editor too. It
+draws any level from `Game.BMF` with any of the four sprite sheets, runs a fixed 20 Hz tick, takes
+the keyboard through the original's own `WM_KEYDOWN` filter and on the original's own accelerator
+keys, plays the original's sixteen WAVs off the sound ids the tick itself computes, undoes, saves
+and restores a position, picks levels and shows both high-score lists out of `.lvl`/`.hs`/`.ghs`,
+writes a `.hs` the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all
+three of the original's speeds, takes the mouse — both as a *move order* through the original's own
+`MouseOperation` pathfinder and as the editor's brush — edits and saves a `.lvl` byte-faithfully,
+and remembers its graphics set, board size, sound, animation, auto-record, player initials and the
+level you were on in a `LaserTank.ini` with the original's own section and key names.
+`atlas_check.py`, `tick_check.py`, `options_check.py`, `sound_check.py`, `undo_check.py`,
+`list_check.py`, `roundtrip_check.py`, `mouse_check.py` and `editor_check.py` gate those six steps.
+**There are no stubs left in the transliteration.** Step 6 below is still a plan with an exit
+criterion rather than a wish list.
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -57,7 +59,7 @@ python tools/replay_all.py --engine "$LT_CORE"   # replay_all takes --engine, no
 python tools/sweep.py                            # everything on engines.py reads $LT_CORE
 ```
 
-Phase 5 adds seven gates of its own, all about the presentation rather than the rules, so they are
+Phase 5 adds nine gates of its own, all about the presentation rather than the rules, so they are
 listed apart from the four and nothing in Phases 1-4 depends on them:
 
 ```bash
@@ -68,10 +70,13 @@ python tools/sound_check.py                    # step 3: 208 SoundPlay streams +
 python tools/undo_check.py                     # step 4: undo + save/restore vs the oracle, ~60 s
 python tools/list_check.py                     # step 4: list rows + .hs bytes vs Python, ~25 s
 python tools/roundtrip_check.py                # step 4: record -> replay -> oracle, ~150 s
+python tools/mouse_check.py                    # step 5: MouseOperation vs the oracle, ~12 s
+python tools/editor_check.py                   # step 5: the editor + the .lvl it writes, ~25 s
 ```
 
-All seven want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
-`undo_check` needs only the two engines, the rest need Godot outright. Every one that runs the
+All nine want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
+`undo_check` and `mouse_check` need only the two engines, `editor_check`'s third half skips loudly
+without Godot and its first two do not need it, the rest need Godot outright. Every one that runs the
 project **rebuilds its C# first**, because `godot --path` does not and would otherwise report green
 for the previous session's assembly — see *Environment notes*. None of them touches
 `build/lasertank-solve.exe`, so all are safe to run beside a live solver. `options_check` opens
@@ -85,9 +90,14 @@ a locally built one instead (*Environment notes*).
 on the class, and on `SoundPlay`, whose body moved to `Engine.Sound.cs` in step 3 while every call
 site stayed identical. Step 3 also *restored* three `SoundPlay` calls Phase 2 had read as paint —
 `S_Move`, `S_EndLev`, `S_Die` — and step 4 added `UndoStep` (`LTANK2.C:455`, the one function Phase 2
-left unported for lack of a caller) plus commands 111 and 112. All of those are a transliteration
-getting *closer* to the C, not further from it, and the corpus proves each: 208/208 on the sound
-stream, and 400 scripts of undo diffed against the oracle's own `UndoStep`.
+left unported for lack of a caller) plus commands 111 and 112. **Step 5 closed the last hole:
+`MouseOperation` and `FindTarget` (`LTANK2.C:277`, `:298`) are transliterated, and `AddKBuff`
+(`LTANK2.C:256`) moved into `Engine` because they call it — the drivers' copies now delegate.**
+`Editor.cs` joined Core beside `GraphicsFile.cs`, on the same test: nothing inside `Tick()` can
+reach it. All of those are a transliteration getting *closer* to the C, not further from it, and the
+corpus proves each: 208/208 on the sound stream, 400 scripts of undo and 5,000 of mouse diffed
+against the oracle's own `UndoStep` and `MouseOperation`, and 3,000 edit scripts against its own
+`ChangeGO`.
 `Engine.Search.cs` has not changed since the solver's first layer. **If a solver change
 seems to need an engine change, that is the signal to stop and re-read.**
 
@@ -98,15 +108,15 @@ seems to need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 under way: steps 0-4 done, step 5 next.**
+**Phases 1-3 complete. Phase 5 under way: steps 0-5 done, step 6 (i18n) next.**
 
 | | state |
 |---|---|
 | C reference oracle | replays the whole corpus; ground truth, never refactored |
-| C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf`, and on 400 undo scripts with `--script` |
+| C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf`, on 400 undo scripts and 5,000 mouse scripts with `--script`, and on 3,000 edit scripts with `--edit`. **No stubs left** |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
 | Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | **steps 0-4 done**: a playable game with the game around it. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter and its own accelerator table, the sixteen WAVs off the engine's own `SoundPlay` ids, undo / save / restore position, the level picker and both high-score lists, a `.hs` writer faithful to the byte, record and playback at all three speeds, and a `LaserTank.ini` that remembers nine keys under the original's names. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` + `undo_check.py` + `list_check.py` + `roundtrip_check.py` |
+| Presentation (Godot) | **steps 0-5 done**: a playable game with the game around it, and an editor. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter and its own accelerator table, the sixteen WAVs off the engine's own `SoundPlay` ids, undo / save / restore position, the level picker and both high-score lists, a `.hs` writer faithful to the byte, record and playback at all three speeds, the mouse on both of the window proc's arms (a move order through `MouseOperation`, and the editor's brush), a `.lvl` writer that round-trips an untouched level byte for byte, and a `LaserTank.ini` that remembers nine keys under the original's names. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` + `undo_check.py` + `list_check.py` + `roundtrip_check.py` + `mouse_check.py` + `editor_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
@@ -120,23 +130,27 @@ four Yes/No keys, mode 1 == mode 2 pixels for every pack, the three board sizes,
 `SoundPlay` stream, 16/16 WAVs decoding to the same PCM in Python and C#, 12 checks on
 `[OPT] Sound`), `undo_check.py` OK (400 scripts, 0 divergences, all four commands exercised),
 `list_check.py` OK (12 list dumps and 8 `.hs` writes rebuilt in Python, plus 6 checks that reaching
-the flag posts a score), `roundtrip_check.py` OK (60 cases, six runs each).
+the flag posts a score), `roundtrip_check.py` OK (60 cases, six runs each), `mouse_check.py` OK
+(5,000 click scripts, 0 divergences, and 120 more on each of the ten quirk packs),
+`editor_check.py` OK (3,000 edit scripts against the oracle's own `ChangeGO`; some 160 unedited
+levels drawn from all 23 collections re-saved byte-identically; the `GetWindowText` write widths rebuilt in
+Python; 60 edited levels whose saved board matches the trace, whose gap is zero-filled and which
+the oracle loads; 6 more saved through the *game's* editor and matching the driver byte for byte).
 
-**What is still not ported: `MouseOperation`, and only that.** The mouse buffer is empty headless
-(`MB_TOS == MB_SP` always), so the tick's mouse block never fires and no keystream can reach it —
-measured, not assumed: the fuzz campaign reached it zero times, and so did step 4's undo campaign.
-It **throws** rather than no-ops, so if that premise ever breaks the run stops loudly. It is step 5
-work: a UI entry point, not game logic. (`UndoStep` was the other one until step 4, and for the same
-reason — no keystream can reach a `WM_COMMAND` case. What reached it in the end was a *script*; see
-step 4.)
+**Everything is ported.** `MouseOperation` was the last stub and step 5 wrote it. The reason it
+survived two phases is worth keeping in view: it is driven by `MBuffer`, which only
+`WM_LBUTTONDOWN` / `WM_RBUTTONDOWN` write, so no keystream and no recording could make the tick
+call it — measured, not assumed, since the fuzz campaign reached it zero times and so did step 4's.
+What reached it in the end was the same move that reached `UndoStep`: **a new input language.**
+`--script` grew `mXY` / `nXY`, a left and a right click, and the last stub became an ordinary trace
+diff. `NotPortedException` stays in the tree, wired up in `fuzz.py`'s signatures, because the
+argument behind it has not changed.
 
-**Next action for this half of the project: Phase 5, step 5 — the level editor.** Steps 0-4 are done
-and all seven Phase 5 gates are green. Step 5 is where `MouseOperation` — still the only unported
-function, and still throwing rather than no-opping — finally gets written, because it is a UI entry
-point rather than game logic. Its exit criterion is the one that turns constraint 2 from an
-assertion into a demonstration: an edited level saves as a `.lvl` the 2010 binary opens. Phase 3's
-fuzzer can keep running in parallel on new seeds and the 12 collections its first campaign never
-touched, and `undo_check.py` is now a second campaign of the same kind on the same engine.
+**Next action for this half of the project: Phase 5, step 6 — i18n**, which is `language.dat`
+through `LANGUAGE.C` and is the smallest step left. Steps 0-5 are done and all nine Phase 5 gates
+are green. Phase 3's fuzzer can keep running in parallel on new seeds and the 12 collections its
+first campaign never touched; `undo_check.py`, `mouse_check.py` and `editor_check.py` are three more
+campaigns of the same kind on the same engine, and all four are worth leaving running.
 
 **Blocked on:** nothing.
 
@@ -233,8 +247,8 @@ Six steps, each gated on the whole corpus:
   quirk #6 and the first real exercise of hazard #1.
 
 **Exit criterion — MET.** `difftrace.py build/t-oracle build/t-csharp` reports **187/187 identical**
-with `--field --bmf`, exit 0. `MouseOperation` is the only unported function and is unreachable
-from a keystream. `BMF`/`AniLevel` differences would be cosmetic (hazard #2) — `difftrace.py`
+with `--field --bmf`, exit 0. `MouseOperation` was the only unported function and was unreachable
+from a keystream; Phase 5 step 5 ported it, so the tick has no stubs left at all. `BMF`/`AniLevel` differences would be cosmetic (hazard #2) — `difftrace.py`
 encodes that distinction: exit 1 for a logic divergence, exit **3** for a cosmetic-only one, and
 `--strict` to hold the cosmetic line too.
 
@@ -306,11 +320,14 @@ exactly as the oracle's stub message pump does), and then every function a keyst
 `MoveTank`, `AntiTank`, `FireLaser`, `MoveLaser`, `CheckLLoc`, `KillAtank`, `UpDateLaserBounce`,
 `TestIfConvCanMoveTank`, the `SlideO`/`SlideMem` helpers, `ConvMoveTank`, `IceMoveT`, `IceMoveO`.
 
-**`MouseOperation` is the only remaining stub, and it throws rather than no-ops.** A silent stub
-would produce a *plausible* wrong trace, which is the one failure mode this whole approach exists to
-prevent — and step 4 turned that from an argument into an incident report: the tick frame had been
-passing `0` instead of `S_Fire` to `FireLaser` since step 1, and only the exception kept it from
-silently corrupting `laser.Good`.
+**An unported function throws rather than no-ops.** A silent stub would produce a *plausible* wrong
+trace, which is the one failure mode this whole approach exists to prevent — and step 4 turned that
+from an argument into an incident report: the tick frame had been passing `0` instead of `S_Fire` to
+`FireLaser` since step 1, and only the exception kept it from silently corrupting `laser.Good`.
+`MouseOperation` was the last function this applied to, and it stayed a stub for two phases *because
+nothing could reach it*; Phase 5 step 5 built the input language that could (`--script`'s click
+tokens) and ported it. `NotPortedException` stays in the tree, wired into `fuzz.py`'s signatures,
+because the argument has not changed.
 
 **Worth knowing: `AntiTank` is a `wasIce` writer** even though it never names the flag. Its four
 scans are `while (CheckLoc(...))` loops, so whichever scan ran last leaves `wasIce` holding its
@@ -409,7 +426,7 @@ replayed tick-for-tick through the 25-year-old C with zero divergences.)
 
 ---
 
-## Phase 5 — Presentation & features  ◐  (steps 0-4 done)
+## Phase 5 — Presentation & features  ◐  (steps 0-5 done)
 
 **Where the fidelity line actually runs, decided out loud in the step 2 session and worth reading
 before the next UI change: the mechanics of the puzzles must be exactly the same — every level has
@@ -971,8 +988,8 @@ between the oracle and the port, Godot's own command path agreeing with the orac
 moves and shots, the recording it writes replaying byte-identically in both engines, and Godot's
 *playback* path — `PBOpen`, `PBHold`, `Speed`, none of which pressing keys exercises — agreeing with
 the oracle on that replay. `undo_check.py` 400 scripts, 0 divergences, over the flagship and all ten
-quirk packs. `list_check.py` 12 lists and 8 writes. And the seven gates before them are green with
-all of it in.
+quirk packs. `list_check.py` 12 lists and 8 writes. And the four fidelity gates and the three
+Phase 5 gates before them are green with all of it in.
 
 **Not in step 4, on purpose:** the Search sub-dialog (`SearchBox` — name/author substring,
 difficulty mask, skip-completed), `TransListKey`'s type-ahead, `[OPT] SkipComLev` and
@@ -981,10 +998,139 @@ difficulty mask, skip-completed), `TransListKey`'s type-ahead, `[OPT] SkipComLev
 `RecordBox`/`HSBox` name prompts (the two INI keys are read and written; there is no dialog to type
 into yet), and the hint box (301).
 
-**Step 5 — the level editor.** This is where `MouseOperation`, the one unported function, finally
-gets written; it is a UI entry point rather than game logic, which is why it was left throwing.
-*Exit:* an edited level saves as a `.lvl` the 2010 binary opens, and constraint 2 (community
-formats stay readable *and* writable) is demonstrated rather than asserted.
+**Step 5 — the mouse and the level editor. ☑ DONE.** Two halves that share one cause: both are
+driven by the mouse, and the mouse is the one input this project had never had.
+
+```bash
+"$GODOT" --path src/LaserTank.Game       # F9 opens the editor; click to paint
+
+python tools/mouse_check.py              # MouseOperation, vs the oracle, ~12 s
+python tools/editor_check.py             # the editor and the .lvl it writes, ~25 s
+
+# the two new input languages, from either engine
+oracle/build/oracle.exe  --levels data/levels/LaserTank.lvl --level 1 \
+    --script "mefn0f..m0a" --trace a.tr --field       # mXY / nXY = a click
+build/lasertank-core.exe --levels data/levels/LaserTank.lvl --level 1 \
+    --edit "<05l33s44RRUD" --trace b.tr --field --bmf # an edit, one token per step
+
+# the editor as a picture, and as a batch save
+"$GODOT" --path src/LaserTank.Game -- --editor --edit '<06l22RD' --level 7 --zoom 2 --shot OUT.png
+"$GODOT" --headless --path src/LaserTank.Game -- --editor --edit '<06l22' --save \
+    --levels ABS/COPY.lvl --level 7
+```
+
+**`MouseOperation` is why this step existed at all, and finding the way in was the whole job.**
+Phase 2 left it as the one stub not because it is hard — it is sixty lines — but because *nothing
+could reach it*: it is driven by `MBuffer`, which only `WM_LBUTTONDOWN` and `WM_RBUTTONDOWN` write,
+so no keystream and no recording could make the tick call it, so no trace could say whether a port
+of it was right. Two phases of differential testing walked past it. What closed it is step 4's own
+lesson, applied a second time: **when a feature seems untestable because the oracle has no way to be
+asked, the question is what input language is missing.** `--script` grew two tokens — `mXY` and
+`nXY`, a left and a right click on cell XY as two hex digits — and both drivers push them into
+`MBuffer` exactly as the window proc's non-editor arm does. The last stub became an ordinary trace
+diff: **5,000 scripts, 0 divergences**, plus 120 on each of the ten quirk packs.
+
+**What the function actually is, and why porting it moved no rule.** A click is not a move. The
+tick's mouse block hands the entry to `MouseOperation`, which floods `findmap` from the *clicked*
+cell back to the tank (`FindTarget`, `LTANK2.C:277` — recursive, four-way, over `PF == 0` only),
+walks the path backwards, and writes **arrow keys into `RecBuffer`** — two per step where the tank
+has to turn first, one where it does not. So the tick still consumes one key at a time from the same
+buffer, a recording made with the mouse is indistinguishable from one played on the keyboard, and a
+`.lpb` from either replays on the other. Two behaviours in it are worth naming because they look
+like bugs and are not: the destination filter (`dx < 3 || (dx > 14 && dx < 19) || dx > 23 ||
+tunnel`) **admits water**, so a left-click on water is a legal instruction to drown, and the right
+button is a *shot* — turn along the larger axis and fire, with no path and no reachability test at
+all.
+
+**The editor's rule about where its arithmetic lives.** `ChangeGO` is `LTANK2.C:809` and writes
+`Game.PF` and `Game.BMF` directly, so it is in Core — `src/LaserTank.Core/Editor.cs`, beside
+`GraphicsFile.cs` and on the same test: nothing inside `Tick()` can reach it. That placement is what
+lets `lasertank-core.exe --edit` run the editor headless and diff it against **the oracle's own
+`ChangeGO`**, compiled verbatim from the 2002 C. The commands *around* it — Clear Field, the four
+Shifts, the tunnel wait-bit strip on the way in — are `LTANK.C` window-proc cases, so they are
+transliterated twice and diffed against each other, exactly as step 4's `z`/`c`/`v` were: for those
+the diff proves agreement, for `ChangeGO` it proves truth.
+
+**Three things the C does that a reasonable reading would have got wrong**, all found by writing the
+gate rather than by reading:
+
+* **`GetNextBMArray` is declared `[MaxObjects+1]` and initialised with 25 entries**
+  (`LTANK.C:18`), so C zero-fills the last two. Rotating thin ice (25) or the tunnel selector (26)
+  therefore turns the cell into **dirt**, which is defined behaviour of the 2010 binary and is
+  nothing like "rotates to itself". Counting the initialiser and sizing the array at 25 would have
+  turned two defined cases into an out-of-range one.
+* **Rotating a *tunnel* really is out of range** — a tunnel cell is `0x40 | id << 1 | wait` = 64..79
+  — and that read has no defined value, so both engines skip it. `editor_check.py` found the port
+  getting this wrong on its first run: returning the cell's own value and calling `ChangeGO` with it
+  is *not* a no-op, because `ChangeGO` rewrites `BMF` through `GetOBM`, which answers 1 for a
+  tunnel and erased the sprite. Repro `<1alcasca`. This is `GFXInit`'s `!(Mh || Gh)` again: a bug
+  with an undefined effect is the one class this port does not keep.
+* **The palette's click bound is `i > MaxObjects+1`, so 27 is selectable** — one slot past the last
+  drawn sprite. `GetOBM(27)` falls through its range test to bitmap 1, the cell holds an object id
+  no table knows, and the *next* level load sanitises it into tunnel 5 (BuildBMField's `pt > 0x19`
+  arm). Defined, so it stays; the panel draws the slot as an empty frame so it is at least visible.
+
+**The `.lvl` writer is where constraint 2 stops being an assertion, and it has a trap in it.**
+Command 603 writes back **the 576-byte struct it read** — `GetWindowText(Ed1, CurRecData.LName, 30)`
+copies at most 29 characters and a terminator into a 31-byte field and touches nothing after that.
+So a writer that re-encodes from decoded strings would silently rewrite the bytes *behind* every
+name's terminator, and most `.lvl` files in the wild have some there (the tail of an earlier, longer
+name). `LevelRecord` therefore holds the raw bytes and edits them in place, and the gate's first
+check is the one that matters: **load a level, open the editor, change nothing, save — some 160 levels drawn
+from all 23 collections come back byte for byte.** Two more file quirks are kept rather than
+smoothed: saving level N into a shorter file **zero-fills the records in front of it** (seeking past
+the end and writing does that on Win32 and here), and command 601 clears the hint with
+`CurRecData.Hint[0] = 0` — **one NUL**, so the rest of the old hint stays in the record and goes to
+disk behind the empty one.
+
+**"A `.lvl` the 2010 binary opens" is measured, not claimed.** The oracle *is* the 2010 loader —
+`LoadNextLevel` out of `LTANK2.C`, compiled verbatim — so the gate saves an edited level, loads the
+result in the oracle *and* in the port, and diffs the two boards. That is as close to the criterion
+as this project can get without running the 2010 binary, and it is the same trick the `.hs` half of
+step 4 used.
+
+**The editor is a mode of the window, not a dialog over it**, because that is what the original is:
+command 201 swaps the menu bar and the accelerator table (`LTANK.C:1446` picks `hAccelTable2` when
+`EditorOn`), hides the nine buttons and repaints the control panel as a palette. There is no
+180-pixel control panel here, so the window *widens* and the palette goes beside the board. **The
+keys are ACC2** (`lt32l_us.inc:150`), read rather than invented: F9 toggles (it is in both tables),
+Ctrl+C clears the field, Ctrl+S saves, Ctrl+H is the hint, Ctrl+arrows shift the board. That table
+carries a comment which is really a design rule — *"DONT use Keys that can be entered in the Author
+& Level Name field"* — and it is about focus: while an edit control has the caret the accelerators
+must not fire. Tab is what moves in and out of the three text fields here, and while one has focus
+every letter goes into it.
+
+**One deliberate deviation, and it is a safety one.** Command 603 saves in place, over the `.lvl`
+the level came from. In this repo `data/` is the regression corpus — 20,914 levels that every
+fidelity gate replays — so an editor that can silently rewrite it is a hazard rather than a feature.
+Saving a level that came out of `data/` writes a working copy under `out/levels/` (seeded from the
+collection, so the file stays a whole collection) and says so on screen; a collection opened from
+anywhere else saves in place. Same rule as *an instrument must not write the player's state*,
+pointed at the corpus instead of at the INI.
+
+**A third implementation again, and for step 4's reason.** `Core.Editor` is the port,
+`oracle/driver.c`'s `edit_token` is the driver-side transliteration of the `LTANK.C` cases, and
+`EditMode` is what the game's mouse actually calls. Two engines prove the arithmetic; the third
+proves that what the UI invokes *is* that arithmetic. `--editor --edit STR --save` drives the game's
+own palette-and-mouse path from a command line, and `editor_check.py`'s last half compares the 576
+bytes it writes with the driver's.
+
+*Exit — MET.* `editor_check.py`: 3,000 edit scripts trace byte-identically between the oracle and
+the port with `--field --bmf`; some 160 unedited levels drawn from all 23 collections re-save byte
+for byte;
+the `GetWindowText` write widths rebuilt in Python and matched; 60 edited levels whose saved
+playfield equals the traced board with the tank stamped back in, whose gap records are zero-filled,
+and which **the oracle loads and agrees with the port about**; 6 more saved through the game's own
+editor and matching the driver byte for byte. `mouse_check.py`: 5,000 scripts, 0 divergences, plus
+the ten quirk packs. And the four fidelity gates and the seven earlier Phase 5 gates are green with
+all of it in.
+
+**Not in step 5, on purpose:** Load Level inside the editor (command 602 — it is `LoadBox` plus a
+`GetOpenFileName`, and the file dialog is the part this port has no equivalent for yet), Save As
+(606, the same reason plus `PickBox`), the `LoadTID` tunnel dialog as a *dialog* (the id is a mode
+here, cycled with `T`, because a modal prompt per painted cell is worse than a mode), the "save
+changes?" prompt on the way out (`Modified` is tracked and shown, but there is no message box), the
+Difficulty dialog (225) and Print (126).
 
 **Step 6 — i18n.** `language.dat` via `LANGUAGE.C`.
 
@@ -1038,6 +1184,16 @@ formats stay readable *and* writable) is demonstrated rather than asserted.
 - **`.lpb` compatibility is bidirectional.** The 2010 binary must be able to play what Godot
   records. `LevelFile.WritePlayback` already writes the real 66-byte header format, and the
   solver's recordings are the existing evidence that it round-trips.
+- **A gate that can write into `data/` is a bug in the gate, and now so is a *feature* that can.**
+  Step 4's rule was about instruments; step 5's editor is the first thing in the project a *player*
+  drives that writes a file the corpus is made of. It copies into `out/levels/` instead. The test is
+  unchanged — could this be run eight times in parallel and leave the tree as it found it — but the
+  thing being tested is no longer only a tool.
+- **Reading a format is not the same as being able to write it.** `LevelFile.ReadLevel` decodes
+  strings and has been right since Phase 1; a writer built on those decoded strings would have
+  passed every read-back test in the project and still corrupted 20,914 levels' worth of trailing
+  bytes. When constraint 2 says *writable*, the check is a byte-for-byte identity round trip on
+  files nobody edited, not a load-and-compare.
 - **Godot 4.7.2 Mono** is installed but has no `godot` alias (needs admin) — call the `.exe` by
   path; see *Environment notes*.
 
@@ -1098,6 +1254,11 @@ offset  size  field
 ```
 
 `data/levels/LaserTank.lvl` = **exactly 2030 levels**; 13 collections total, **20,914 levels**.
+
+**Writing one back is not symmetric with reading it** — see hazards #16, #17 and #18. The editor
+rewrites the record it read rather than re-encoding it, its string writes stop one byte short of
+each field, saving past the end of a file zero-fills the gap into playable levels, and Clear Field
+NULs only the first byte of the hint. `LaserTank.Core.LevelRecord` is where all four live.
 
 **`.ghs` / `.hs`** — flat array of 10-byte records, indexed by `level - 1`:
 
@@ -1211,6 +1372,32 @@ them: *in this program a function's name tells you nothing about whether it muta
     reproduces the blank record faithfully and `Engine.CanRestore` carries the *menu's* guard,
     which both script drivers apply before issuing the command. `tools/undo_check.py` found
     this on its first run against `Tutor.LVL` level 85 with the three-token script `llv`.
+15. **A left-click is allowed to drown you.** `MouseOperation`'s destination filter
+    (`LTANK2.C:314`) is a hand-written range test on the object id — `(dx < 3) || (dx > 14 && dx <
+    19) || (dx > 23) || tunnel` — and `dx < 3` covers **water**, so clicking on water is a legal
+    move order and the pathfinder will happily walk the tank in. It also admits a one-way from the
+    wrong side, where the key walk simply stalls against it. Neither is guarded there and neither
+    is guarded here. The same function's right-button arm has *no* filter at all: it turns along
+    the larger axis and fires, without a path or a reachability test.
+16. **A level record is written back, not re-encoded, and the editor's write widths are one short
+    of the field.** Command 603 writes the `TLEVEL` struct it read, and
+    `GetWindowText(Ed1, CurRecData.LName, 30)` puts at most 29 characters and a terminator into a
+    31-byte field — so byte 30 is *never* written by the editor, and the bytes between a short
+    name's terminator and offset 29 keep whatever the record already held. Most `.lvl` files in
+    the wild have the tail of an earlier, longer name sitting there. A writer that re-encodes from
+    decoded strings passes every read-back test and still rewrites every unedited level in a
+    collection, which is exactly the failure constraint 2 exists to prevent. `LevelRecord` holds
+    the raw 576 bytes; `editor_check.py`'s first check is that some 160 untouched levels drawn from all 23
+    collections re-save byte for byte.
+17. **Saving level N into a shorter `.lvl` invents levels.** Command 603 seeks to
+    `(CurLevel-1) * 576` in a file opened `OPEN_ALWAYS` and writes; the gap is zero-filled, and a
+    zero-filled record is a legal level — all dirt, no name, no author, difficulty 0 — which the
+    2010 binary lists and loads. Same species as the `.hs` padding quirk in step 4, and kept for
+    the same reason: the file the original writes is the file this has to write.
+18. **Clear Field truncates the hint, it does not erase it.** Command 601's line is
+    `CurRecData.Hint[0] = 0` — one NUL into a 256-byte field — so the rest of the old hint stays
+    in the record and is written to disk behind the empty one. Nothing reads it, and it is in
+    every `.lvl` the 2010 editor has ever produced from a cleared field.
 
 ---
 
@@ -1240,7 +1427,12 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    GraphicsFile.cs — .ltg + BMP readers, BMSTA/ColorList (Phase 5)
                    SoundFile.cs — the .wav reader and lt_sfx.c's id->name table
                    Engine.Sound.cs — SoundPlay's body: SoundLog?.Add, nothing else
+                   Editor.cs — ChangeGO, the Shifts, Clear Field (Phase 5 step 5);
+                   in Core on GraphicsFile.cs's test, not reachable from Tick()
+                   LevelFile.cs also carries LevelRecord — the raw 576 bytes and
+                   the editor's own write widths (hazards #16-#18)
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
+                   EditDriver.cs — `--edit`, the editor as a token stream
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
   LaserTank.Game/  the Godot 4.7 project.  BoardView.cs draws Game.BMF and routes
                    keys, Session.cs is LTANK.C's driver half (WM_TIMER, WM_KEYDOWN,
@@ -1251,9 +1443,11 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    LevelList.cs is LoadBox/HSList/GHSList (one class, three modes),
                    HighScores.cs is AssignHSFile + CheckHighScore + the HS global,
                    Recorder.cs is command 123 and PBWindow, Sfx.cs is lt_sfx.c (one
-                   player, monophonic), Step4Check.cs is the two headless dumps
-                   list_check.py compares against, Paths.cs finds data/.  Built by
-                   Godot or `dotnet build`, never published into build/
+                   player, monophonic), EditMode.cs is commands 201/601/603/604/
+                   605/701-705/710-713 and the palette (step 5), Step4Check.cs is
+                   the two headless dumps list_check.py compares against, Paths.cs
+                   finds data/.  Built by Godot or `dotnet build`, never published
+                   into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
 ```
@@ -1315,6 +1509,18 @@ roundtrip_check.py Phase 5 step 4's exit criterion: for each of N undo-carrying
                     (trace-diffed) and through Godot's own command path, then
                     the .lpb it records through both engines (trace-diffed) and
                     through Godot's playback path
+mouse_check.py    Phase 5 step 5's first gate: MouseOperation -- the last stub,
+                    unreachable from any keystream -- driven through --script's
+                    new click tokens (mXY / nXY) and trace-diffed against the
+                    oracle's own copy.  Shrinks token-wise, like undo_check
+editor_check.py   Phase 5 step 5's exit criterion, in three halves: 3,000 edit
+                    scripts through --edit, trace-diffed against the oracle's own
+                    ChangeGO; the .lvl writer (an untouched level re-saves byte
+                    for byte across all 23 collections, the GetWindowText write
+                    widths rebuilt in Python, the gap zero-filled, the saved
+                    board tied to the trace, and the oracle -- which *is* the
+                    2010 loader -- opening what was written); and the game's own
+                    editor saving the same bytes as the driver
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1652,9 +1858,50 @@ throughout and it rebuilds the core, which Windows will not allow while `laserta
 `build/LaserTank.Core.dll` open (see *Environment notes*). Everything it gates is unchanged:
 `Engine.cs` is 89 added lines and none removed. Run it once the solve is done.
 
+**2026-09-08, session 26 — Phase 5 step 5: the mouse, and the level editor.** The step had two
+halves and one cause: both are driven by the mouse, which is the one input this project had never
+had. The first half closed the last stub. `MouseOperation` survived two phases of differential
+testing not because it is hard but because **nothing could reach it** — it is driven by `MBuffer`,
+which only the two mouse-button messages write — so step 4's lesson was applied a second time and
+`--script` grew `mXY` / `nXY`, a left and a right click. The last stub became an ordinary trace
+diff: 5,000 scripts, 0 divergences, plus 120 on each of the ten quirk packs. `AddKBuff` moved into
+`Engine` on the way (it is `LTANK2.C:256` and `MouseOperation` calls it); the drivers' copies
+delegate. Two behaviours in the function are hazard #15 now: the destination filter admits **water**,
+so a left-click can be a legal instruction to drown, and the right button is a shot with no path
+and no reachability test at all.
+
+The second half is the editor, and its exit criterion is the one that turns constraint 2 from an
+assertion into a demonstration. `ChangeGO` is `LTANK2.C:809`, so it went to Core (`Editor.cs`,
+beside `GraphicsFile.cs` and on the same test), which is what let `--edit` run the editor headless
+and diff it against the oracle's own copy: 3,000 scripts, 0 divergences. The gate found the port's
+one real bug on its first run — Shift+click on a **tunnel** indexes past `GetNextBMArray`, and
+"rotate to itself" is not the same as "skip", because `ChangeGO` rewrites `BMF` through `GetOBM`
+and erased the sprite (repro `<1alcasca`). It also settled the array's real size: the declaration is
+`[MaxObjects+1]` and the initialiser has 25 entries, so C zero-fills two and rotating thin ice or
+the tunnel selector really does turn the cell into dirt.
+
+**The `.lvl` writer is where reading and writing turned out not to be symmetric.** Command 603
+writes back the struct it read and `GetWindowText` stops one byte short of each field, so a writer
+that re-encodes from decoded strings passes every read-back test and still rewrites every unedited
+level in a collection — hazard #16, and the reason `LevelRecord` holds raw bytes. Two more file
+quirks are kept rather than smoothed (#17, the zero-filled gap that invents playable levels; #18,
+Clear Field NULing only the hint's first byte). *"A `.lvl` the 2010 binary opens"* is measured
+rather than claimed: the oracle **is** the 2010 loader, so the gate saves an edited level and makes
+the oracle open it. One deliberate deviation, and it is a safety one: a level that came out of
+`data/` saves to a working copy under `out/levels/`, because `data/` is the regression corpus and an
+editor that can silently rewrite it is a hazard rather than a feature — the same rule as *an
+instrument must not write the player's state*, pointed somewhere new.
+
+Also this session: **holding U now keeps undoing.** A Win32 accelerator repeats — auto-repeat
+`WM_KEYDOWN`s are ordinary `WM_KEYDOWN`s and `TranslateAccelerator` translates every one — so
+dropping every echo in `_UnhandledInput` had quietly made undo a one-shot. That is a port
+regression, not a UI choice, so it is fixed rather than argued about; the other accelerators stay
+one-shot on purpose, which *is* a UI choice and is written down as one.
+
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
 re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the word
 `partial` — on the class, and (since step 3) on `SoundPlay`, whose body is in `Engine.Sound.cs` —
-plus (since step 4) `UndoStep`, `SavePosition` and `RestorePosition`, which are transliterations of
-`LTANK2.C:455` and `LTANK.C:955` that Phase 2 had no caller for. `Engine.Search.cs` has not changed
-since the solver's layer 0.*
+plus (since step 4) `UndoStep`, `SavePosition` and `RestorePosition`, and (since step 5)
+`MouseOperation`, `FindTarget`, `AddKBuff` and `MouseClick`, all of which are transliterations of
+`LTANK2.C` and `LTANK.C` that Phase 2 had no caller for. `Engine.Search.cs` has not changed since
+the solver's layer 0.*

@@ -111,7 +111,7 @@ def test_compare(tmp):
     d = engines.compare(a, fake(tmp, "b", trace_text(3, foot="NOTPORTED")))
     check("compare: short + NOTPORTED footer -> 'NOTPORTED'",
           d and d.sig == "NOTPORTED",
-          "MouseOperation would land here")
+          "any un-transliterated function would land here")
 
     d = engines.compare(a, fake(tmp, "b", trace_text(5, foot="WIN")))
     check("compare: same ticks, different footer -> 'result'",
