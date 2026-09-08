@@ -1,0 +1,162 @@
+# trace10.err -- Next actions item 8: the one traced LaserTank.lvl level-10 run, session 29.
+#
+# Why it is here and not in build/reports/: it is the whole output of a 26m53s run at --jobs 1,
+# it is the evidence behind SOLVER.md's diagnosis of level 10, and it is not cheap to reproduce.
+# Nothing parses it but a human.  See bench/README.md for the rule that admits an output here.
+#
+# The command as run, with one difference: the run redirected to build/trace10.err and the file
+# was moved here afterwards, so a re-run should write straight to bench/ as shown.
+#
+#   build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10 \
+#     --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall \
+#     --push-reach --push-ferry-match --push-ferry-maze \
+#     --push-dead 20 --push-fire 8 --push-shot-run 16 \
+#     --push-beam 1024 --push-restarts 0 --max-keys 5000 \
+#     --push-trace --nodes 400000000 --budget-ms 14400000 --jobs 1 \
+#     --out build/trace10 2> bench/trace10.err
+#
+# Result: unsolved, stopped on `budget` at d=63 / 399,019,729 nodes / 26m53s (247k nodes/s,
+# ~6.2M a depth).  What the columns say, and it is all five in the one run:
+#
+#   trunc=    0 at every one of the 64 depths     -- the closure never truncates
+#   front=    1024 at every depth past d=1        -- the frontier never dies
+#   boards=   1024 of 1024                        -- no duplicate poses at this width
+#   barrier   0 of 63,454 expansions              -- THE finding: the read names nothing
+#   best=     62 -> 22 by d=18, then 28 from d=36 to d=63 (28 depths, worse than halfway)
+#
+# It also reached d=63, past the 53 board changes of the level's own hand line, so depth was
+# never the constraint.  Level 10 is a GAUNTLET (`--analyze`: "what is in the way is fire, not
+# terrain", on the barrier: 0), so the barrier set is empty by construction and layers 6-8 are
+# inert on it.  For contrast the same instrument reads 74.7% of expansions with a barrier on
+# ferry-levels.txt and 72.1% on deep-levels.txt.
+#
+# SOLVER.md: Next actions item 8, and the level-10 bullet of What has not fallen.
+#
+  push d=  0 front=   45 boards=   45 best=   62 closure~  208 trunc=   0 nodes=1199
+        read: 0/350 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1
+  push d=  1 front=  944 boards=  944 best=   53 closure~  328 trunc=   0 nodes=83766
+        read: 0/20005 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 45
+  push d=  2 front= 1024 boards= 1024 best=   72 closure~  481 trunc=   0 nodes=2553172
+        read: 2/526164 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 944
+  push d=  3 front= 1024 boards= 1024 best=   45 closure~  798 trunc=   0 nodes=6929473
+        read: 0/935302 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d=  4 front= 1024 boards= 1024 best=   53 closure~  873 trunc=   0 nodes=11721625
+        read: 24/1042042 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d=  5 front= 1024 boards= 1024 best=   36 closure~  909 trunc=   0 nodes=16732369
+        read: 0/1121430 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d=  6 front= 1024 boards= 1024 best=   37 closure~ 1057 trunc=   0 nodes=22424968
+        read: 188/1223675 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d=  7 front= 1024 boards= 1024 best=   37 closure~ 1057 trunc=   0 nodes=28190271
+        read: 3460/1262774 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d=  8 front= 1024 boards= 1024 best=   28 closure~  891 trunc=   0 nodes=33062708
+        read: 0/1081661 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d=  9 front= 1024 boards= 1024 best=   28 closure~ 1159 trunc=   0 nodes=39272416
+        read: 0/1296779 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 10 front= 1024 boards= 1024 best=   28 closure~ 1000 trunc=   0 nodes=44628643
+        read: 0/1110136 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 11 front= 1024 boards= 1024 best=   28 closure~  963 trunc=   0 nodes=49768779
+        read: 0/1057452 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 12 front= 1024 boards= 1024 best=   28 closure~  946 trunc=   0 nodes=54816957
+        read: 0/1031082 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 13 front= 1024 boards= 1024 best=   28 closure~  939 trunc=   0 nodes=59831602
+        read: 0/1021837 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 14 front= 1024 boards= 1024 best=   28 closure~  937 trunc=   0 nodes=64832785
+        read: 0/1018641 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 15 front= 1024 boards= 1024 best=   28 closure~  932 trunc=   0 nodes=69806255
+        read: 0/1013082 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 16 front= 1024 boards= 1024 best=   28 closure~  929 trunc=   0 nodes=74762497
+        read: 0/1007384 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 17 front= 1024 boards= 1024 best=   26 closure~  930 trunc=   0 nodes=79724166
+        read: 0/1006204 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 18 front= 1024 boards= 1024 best=   22 closure~  931 trunc=   0 nodes=84693083
+        read: 0/1004997 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 19 front= 1024 boards= 1024 best=   22 closure~  949 trunc=   0 nodes=89759905
+        read: 0/1023977 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 20 front= 1024 boards= 1024 best=   22 closure~ 1019 trunc=   0 nodes=95196583
+        read: 0/1101331 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 21 front= 1024 boards= 1024 best=   22 closure~ 1138 trunc=   0 nodes=101262839
+        read: 0/1229223 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 22 front= 1024 boards= 1024 best=   22 closure~ 1222 trunc=   0 nodes=107759433
+        read: 0/1309495 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 23 front= 1024 boards= 1024 best=   22 closure~ 1226 trunc=   0 nodes=114278225
+        read: 0/1315002 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 24 front= 1024 boards= 1024 best=   22 closure~ 1230 trunc=   0 nodes=120821631
+        read: 0/1317881 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 25 front= 1024 boards= 1024 best=   22 closure~ 1240 trunc=   0 nodes=127414890
+        read: 0/1325823 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 26 front= 1024 boards= 1024 best=   22 closure~ 1255 trunc=   0 nodes=134089403
+        read: 0/1340576 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 27 front= 1024 boards= 1024 best=   22 closure~ 1274 trunc=   0 nodes=140858683
+        read: 0/1356755 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 28 front= 1024 boards= 1024 best=   22 closure~ 1284 trunc=   0 nodes=147683844
+        read: 0/1365464 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 29 front= 1024 boards= 1024 best=   22 closure~ 1290 trunc=   0 nodes=154535927
+        read: 0/1366644 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 30 front= 1024 boards= 1024 best=   22 closure~ 1294 trunc=   0 nodes=161410211
+        read: 0/1369391 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 31 front= 1024 boards= 1024 best=   22 closure~ 1301 trunc=   0 nodes=168319252
+        read: 0/1373872 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 32 front= 1024 boards= 1024 best=   22 closure~ 1308 trunc=   0 nodes=175261857
+        read: 0/1378829 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 33 front= 1024 boards= 1024 best=   22 closure~ 1311 trunc=   0 nodes=182220845
+        read: 0/1379329 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 34 front= 1024 boards= 1024 best=   22 closure~ 1321 trunc=   0 nodes=189232422
+        read: 0/1389918 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 35 front= 1024 boards= 1024 best=   22 closure~ 1327 trunc=   0 nodes=196275355
+        read: 0/1394729 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 36 front= 1024 boards= 1024 best=   28 closure~ 1330 trunc=   0 nodes=203333349
+        read: 18/1396619 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 37 front= 1024 boards= 1024 best=   28 closure~ 1334 trunc=   0 nodes=210408530
+        read: 17/1397148 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 38 front= 1024 boards= 1024 best=   28 closure~ 1338 trunc=   0 nodes=217504169
+        read: 37/1401509 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 39 front= 1024 boards= 1024 best=   28 closure~ 1345 trunc=   0 nodes=224637376
+        read: 48/1407112 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 40 front= 1024 boards= 1024 best=   28 closure~ 1352 trunc=   0 nodes=231805204
+        read: 45/1413029 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 41 front= 1024 boards= 1024 best=   28 closure~ 1357 trunc=   0 nodes=238997460
+        read: 27/1416300 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 42 front= 1024 boards= 1024 best=   28 closure~ 1360 trunc=   0 nodes=246204490
+        read: 43/1417343 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 43 front= 1024 boards= 1024 best=   28 closure~ 1365 trunc=   0 nodes=253433136
+        read: 30/1421107 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 44 front= 1024 boards= 1024 best=   28 closure~ 1367 trunc=   0 nodes=260672323
+        read: 27/1421678 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 45 front= 1024 boards= 1024 best=   28 closure~ 1368 trunc=   0 nodes=267917195
+        read: 39/1421285 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 46 front= 1024 boards= 1024 best=   28 closure~ 1372 trunc=   0 nodes=275182303
+        read: 13/1424122 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 47 front= 1024 boards= 1024 best=   28 closure~ 1372 trunc=   0 nodes=282447397
+        read: 14/1422862 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 48 front= 1024 boards= 1024 best=   28 closure~ 1374 trunc=   0 nodes=289723559
+        read: 25/1424493 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 49 front= 1024 boards= 1024 best=   28 closure~ 1375 trunc=   0 nodes=297005455
+        read: 40/1424940 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 50 front= 1024 boards= 1024 best=   28 closure~ 1376 trunc=   0 nodes=304288547
+        read: 38/1421511 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 51 front= 1024 boards= 1024 best=   28 closure~ 1374 trunc=   0 nodes=311563799
+        read: 25/1422558 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 52 front= 1024 boards= 1024 best=   28 closure~ 1376 trunc=   0 nodes=318846113
+        read: 26/1419113 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 53 front= 1024 boards= 1024 best=   28 closure~ 1377 trunc=   0 nodes=326134340
+        read: 31/1422754 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 54 front= 1024 boards= 1024 best=   28 closure~ 1376 trunc=   0 nodes=333417765
+        read: 58/1417960 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 55 front= 1024 boards= 1024 best=   28 closure~ 1377 trunc=   0 nodes=340705675
+        read: 34/1418908 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 56 front= 1024 boards= 1024 best=   28 closure~ 1378 trunc=   0 nodes=347995544
+        read: 36/1418573 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 57 front= 1024 boards= 1024 best=   28 closure~ 1377 trunc=   0 nodes=355283486
+        read: 32/1416683 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 58 front= 1024 boards= 1024 best=   28 closure~ 1377 trunc=   0 nodes=362572140
+        read: 38/1415035 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 59 front= 1024 boards= 1024 best=   28 closure~ 1378 trunc=   0 nodes=369861333
+        read: 61/1415806 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 60 front= 1024 boards= 1024 best=   28 closure~ 1379 trunc=   0 nodes=377154504
+        read: 45/1414672 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 61 front= 1024 boards= 1024 best=   28 closure~ 1379 trunc=   0 nodes=384449318
+        read: 52/1413604 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 62 front= 1024 boards= 1024 best=   28 closure~ 1378 trunc=   0 nodes=391739381
+        read: 39/1412638 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
+  push d= 63 front= 1024 boards= 1024 best=   28 closure~ 1376 trunc=   0 nodes=399019729
+        read: 40/1409066 successors advanced (0%), of them enables-only 0, expansions with a barrier 0, without 1024
