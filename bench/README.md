@@ -41,6 +41,7 @@ reproducible).
 | `deep-levels.txt` | input | 50 `Beginner-I` levels with a `.ghs` total of 40-150 |
 | `ferry-levels.txt` | input | 50 levels the chain fails that the read calls FERRY or SOKOBAN |
 | `short-record-failures.txt` | input | 687 levels the 494 chain fails whose `.ghs` record is <= 60 — *Next actions* item 7's population |
+| `gauntlet-tail.txt` | input | 138 levels the 494 chain fails that `--analyze` calls GAUNTLET with a `.ghs` record of <= 60 — layer 9's population, and the one the fire tier is measured on |
 | `seed-weights.txt` | input | layer 4's equivalence check: `WorkDistance` written in `Feat`, in `Eval.Scale` fixed point |
 | `trace10.err` | output | item 8's traced level-10 run: 64 depths, unsolved at 399M nodes, and a barrier on **0 of 63,454** expansions |
 

@@ -289,6 +289,10 @@ namespace LaserTank.Solver
         public int PushStop = 0;           // weight on Heuristic.RouteStop; 0 is off
         public int PushFire = 0;           // price of a swept cell in the route
                                            // Dijkstra; 0 is off
+        public bool PushFireTier = false;  // the same fire map as a *tier*: a
+                                           // successor that sweeps fewer cells
+                                           // than its parent ranks above one
+                                           // that only shortens the walk
         public int PushDead = 0;           // weight on Heuristic.RouteDead; 0 is off
         public bool PushFerryStage = false;// one carry at a time; implies match
         public bool PushFerryMatch = false;// spend each block once: the ferry
@@ -584,6 +588,13 @@ namespace LaserTank.Solver
             /// Layer 0's beam and layer 1's macro beam leave it at 0 and are
             /// unaffected.
             public int Tier;
+
+            /// Heuristic.FireSwept for this successor's playfield -- how many
+            /// enterable cells an anti-tank sweeps on it.  Filled in at
+            /// emission by layer 5 when --push-fire-tier is on, so that the
+            /// tier can compare it against the parent's without a second scan;
+            /// left at 0 by every other layer and by every other flag.
+            public int Swept;
         }
 
         /// When a beam closes a state -- and it is a policy, not a bug, which

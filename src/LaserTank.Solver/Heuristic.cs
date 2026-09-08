@@ -1003,6 +1003,26 @@ namespace LaserTank.Solver
         /// _fire[c]: an anti-tank fires the moment the tank stands on cell `c`.
         private readonly bool[] _fire = new bool[256];
 
+        /// The fire map read as one number: how many *enterable* cells an
+        /// anti-tank sweeps.  Set by BuildFire, so it is valid exactly when
+        /// _fire is -- which is not after every WorkDistance, because the two
+        /// early returns above the scan (a buried flag, the tank already on the
+        /// flag) leave both stale.  FireCells below is the safe way to ask.
+        ///
+        /// Enterable is BuildFire's own filter and not an extra one: a cell the
+        /// tank could not stand on is never marked, so this counts the places
+        /// the tank would be shot for standing in and nothing else.
+        public int FireSwept;
+
+        /// The fire map for the board `e` is standing on, as a scalar.
+        ///
+        /// Layer 8 already computes this map and layer 5 prices it; asking it
+        /// for a count is what turns it from a price into a quantity a tier can
+        /// order successors by -- see Push.FireTier.  It rebuilds rather than
+        /// trusting FireSwept, because the caller is the push beam and that
+        /// interleaves this with WorkDistance calls on other boards.
+        public int FireCells(Engine e) { BuildFire(e); return FireSwept; }
+
         /// _alive[c]: the block on cell `c` can still be moved somewhere.
         private readonly bool[] _alive = new bool[256];
 
@@ -1099,6 +1119,11 @@ namespace LaserTank.Solver
                     if (stop >= 0 && pf[i, stop] == Obj.AntiTankDown) _fire[i * 16 + y] = true;
                 }
             }
+            // Counted here rather than inside the sweeps: a cell swept from two
+            // directions is one cell, and four running totals would say two.
+            int swept = 0;
+            for (int c = 0; c < 256; c++) if (_fire[c]) swept++;
+            FireSwept = swept;
         }
 
         /// Which blocks can still be moved at all.

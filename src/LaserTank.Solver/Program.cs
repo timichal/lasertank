@@ -331,6 +331,20 @@ namespace LaserTank.Solver
 "                         another anti-tank dropped in a lane stops the scan,\n" +
 "                         so the route round the fire gets cheaper -- and\n" +
 "                         nothing else here can see that at all\n" +
+"    --push-fire-tier     the same fire map as a *tier* rather than a price,\n" +
+"                         off by default: a successor whose board leaves the\n" +
+"                         anti-tanks sweeping fewer enterable cells than its\n" +
+"                         parent's did ranks above one that only shortens the\n" +
+"                         walk.  --push-fire is an addend inside PushH, and on\n" +
+"                         a board ten anti-tanks cover every successor of\n" +
+"                         every held board pays it, so it raises the best\n" +
+"                         score and steers nothing; a tier is an ordering and\n" +
+"                         cannot refuse a state.  It sits below all three of\n" +
+"                         the read's derivations, so it reorders only what the\n" +
+"                         read was silent about -- which on a GAUNTLET is\n" +
+"                         everything, the barrier set there being empty by\n" +
+"                         construction.  Free on a board no anti-tank covers.\n" +
+"                         See Push.FireTier and --push-trace's fire: line\n" +
 "    --push-dead N        weight on the frozen-block term, 0 (default) is\n" +
 "                         off: water cells on the route with no *live* block\n" +
 "                         left to fill them, where live means the block can\n" +
@@ -519,6 +533,7 @@ namespace LaserTank.Solver
                         case "--push-shot-run": a.Opt.PushShotRun = int.Parse(V()); break;
                         case "--push-stop": a.Opt.PushStop = int.Parse(V()); break;
                         case "--push-fire": a.Opt.PushFire = int.Parse(V()); break;
+                        case "--push-fire-tier": a.Opt.PushFireTier = true; break;
                         case "--push-dead": a.Opt.PushDead = int.Parse(V()); break;
                         case "--push-reach": a.Opt.PushReach = true; break;
                         case "--push-shield": a.Opt.PushShield = int.Parse(V()); break;
@@ -1333,6 +1348,7 @@ namespace LaserTank.Solver
             PushShotRun = s.PushShotRun,
             PushStop = s.PushStop,
             PushFire = s.PushFire,
+            PushFireTier = s.PushFireTier,
             PushDead = s.PushDead,
             PushReach = s.PushReach,
             PushShield = s.PushShield,

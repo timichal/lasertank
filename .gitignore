@@ -20,6 +20,12 @@
 /oracle/build/
 /oracle/bin/
 /build/
+# A side publish dir, for benching a change while a long solve holds
+# build/lasertank-solve.exe open (`dotnet publish -o build-<something>`,
+# then LT_SOLVE=<exe> for the runner scripts).  Session 29 hit this: /build/
+# is ignored and `build-item11/` was not, so a whole publish tree showed up
+# as untracked.  These are still scratch -- delete them when the run ends.
+/build-*/
 /tools/**/bin/
 /tools/**/obj/
 /src/**/bin/

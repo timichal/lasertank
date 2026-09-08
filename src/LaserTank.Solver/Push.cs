@@ -104,6 +104,12 @@ namespace LaserTank.Solver
         // one that promotes almost nothing is a filter the beam cannot use.
         private long _pxSucc, _pxAdv, _pxEnab, _pxBarrier, _pxNoBarrier;
 
+        // --push-trace with --push-fire-tier: successors promoted to TierFire.
+        // Counted here rather than in ReadCount because FireTier runs after it
+        // -- which is also why a TierFire node never inflates _pxAdv, and the
+        // read's line goes on measuring the read.
+        private long _pxFire, _pxFireSeen;
+
         /// `Game.PF` flattened, in the same layout `EngineSnapshot.PF` uses.
         private void CopyBoard(byte[] into) => Buffer.BlockCopy(_e.Game.PF, 0, into, 0, 256);
 
@@ -184,6 +190,17 @@ namespace LaserTank.Solver
             int hand = _opt.PushEval == RankKey.Learned ? HandScale : Eval.Scale;
             return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield);
         }
+
+        /// The fire map of the board the engine is standing on *right now*,
+        /// as a count, for the successor about to be emitted.
+        ///
+        /// Read straight after PushH in the same object initializer, which is
+        /// the same coupling `_lastDead` has and works for the same reason: an
+        /// object initializer assigns in source order.  The engine still holds
+        /// the successor at that point, so this costs one board scan and no
+        /// Restore -- and nothing at all when the tier is off, which is what
+        /// keeps every measurement taken before this flag reproducible.
+        private int SweptNow() => _opt.PushFireTier ? _h.FireCells(_e) : 0;
 
         // ---- restarts ------------------------------------------------------
 
@@ -316,8 +333,22 @@ namespace LaserTank.Solver
                             + "expansions with a barrier {3}, without {4}",
                             _pxAdv, _pxSucc, _pxSucc > 0 ? 100 * _pxAdv / _pxSucc : 0,
                             _pxBarrier, _pxNoBarrier, _pxEnab);
+                    // The selectivity of the fire tier, which is the number
+                    // that decides whether it is a filter at all: promote
+                    // almost everything and it is a no-op, almost nothing and
+                    // the beam cannot use it.  _pxSucc is the read's
+                    // denominator and is only counted when the read is on, so
+                    // this prints its own.
+                    if (_opt.PushFireTier)
+                        Console.Error.WriteLine(
+                            "        fire: {0}/{1} successors sweep fewer cells ({2}%), "
+                            + "frontier sweeps {3} at best, {4} at least",
+                            _pxFire, _pxFireSeen,
+                            _pxFireSeen > 0 ? 100 * _pxFire / _pxFireSeen : 0,
+                            next.Count > 0 ? next[0].Swept : -1, LeastSwept(next));
                     _pxClosure = _pxCount = _pxTrunc = _pxSterile = 0;
                     _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = 0;
+                    _pxFire = _pxFireSeen = 0;
                 }
 
                 foreach (Node n in frontier) Give(n.S);
@@ -429,12 +460,13 @@ namespace LaserTank.Solver
                 next.Add(new Node
                 {
                     S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = after,
-                    Tier = _lastDead ? TierLost : 0,
+                    Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                 });
             }
 
             if (truncated) KeepBestPoses(closure, seen, layer, next);
             if (_opt.PushRead) ReadTier(at, closure, next, first);
+            if (_opt.PushFireTier) FireTier(at, next, first);
             if (_opt.PushTrace)
             {
                 _pxClosure += closure.Count;
@@ -571,7 +603,7 @@ namespace LaserTank.Solver
                     next.Add(new Node
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
-                        Tier = _lastDead ? TierLost : 0,
+                        Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                     });
 
                 if (k >= _opt.PushRun) return false;
@@ -620,7 +652,7 @@ namespace LaserTank.Solver
                     next.Add(new Node
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
-                        Tier = _lastDead ? TierLost : 0,
+                        Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                     });
 
                 if (k >= _opt.PushShotRun) return false;
@@ -731,9 +763,32 @@ namespace LaserTank.Solver
         private const int TierAdvance = 0;   // the read says this exists for a reason
         private const int TierEnables = 1;   // ...or at least it makes something new possible
         private const int TierOpens = 2;     // ...or it puts the tank somewhere new to stand
-        private const int TierOther = 3;     // a board change the read is silent about
-        private const int TierPose = 4;      // the truncation escape hatch
-        private const int TierLost = 5;      // ...and a board that cannot win
+        private const int TierFire = 3;      // ...or it takes cells away from the anti-tanks
+        private const int TierOther = 4;     // a board change nothing above has spoken for
+        private const int TierPose = 5;      // the truncation escape hatch
+        private const int TierLost = 6;      // ...and a board that cannot win
+
+        // TierFire is item 5's, and it sits *below* all three of the read's
+        // derivations rather than among them, for the reason TierEnables sits
+        // where it does: it can then reorder nothing except the group the read
+        // was already silent about.  On the population it is for that group is
+        // everything -- a GAUNTLET's barrier set is empty by construction, so
+        // `on the barrier` names 0 of 63,454 expansions on `LaserTank.lvl` 10
+        // and the read's other two are conditional on the route it never
+        // settles -- and on a ferry level, where the read does speak, the tier
+        // is behind it and cannot dilute it.  See FireTier.
+
+        /// The tier a board change is emitted at, before any pass has spoken.
+        ///
+        /// TierAdvance normally, which is what every configuration measured
+        /// before the fire tier used, and what makes `--push-read off`
+        /// reproduce layer 5's ordering.  But with the read off there is no
+        /// pass to assign tiers at all, so there would be nothing above
+        /// TierAdvance for a fire tier to promote *into*; that one combination
+        /// emits at TierOther instead, which moves every board change by the
+        /// same constant and so leaves the ordering among them alone.
+        private int EmitTier => _opt.PushFireTier && !_opt.PushRead
+                              ? TierOther : TierAdvance;
 
         // TierLost is set at emission rather than by the read, because it is
         // the one thing here that is not an opinion about which successor is
@@ -947,6 +1002,85 @@ namespace LaserTank.Solver
             }
             Drain(poses);
             return found;
+        }
+
+        /// --push-trace only: the least exposed board the frontier holds.
+        ///
+        /// The column the fire tier has to be read by, and `best=` is not it:
+        /// that one is a work distance, so a tier that trades distance for
+        /// exposure makes it *worse* by construction and the instrument would
+        /// report the layer doing harm while it did exactly what it says.  This
+        /// file has paid for that mistake twice already.
+        private static int LeastSwept(List<Node> next)
+        {
+            int least = -1;
+            foreach (Node n in next)
+                if (least < 0 || n.Swept < least) least = n.Swept;
+            return least;
+        }
+
+        // ---- item 5: the fire map as a tier ---------------------------------
+
+        /// **Does this change take cells away from the anti-tanks?**
+        ///
+        /// Session 29 traced `LaserTank.lvl` 10 for 27 minutes and the finding
+        /// was one column: the read named a barrier on **0 of 63,454
+        /// expansions**, because a GAUNTLET has no terrain to clear and its
+        /// barrier set is empty *by construction*.  Layers 6, 7 and 8 are
+        /// therefore all inert on it, the beam is left ranking 1,024 distinct
+        /// playfields by work distance alone, and `best=` bottoms out at 22 by
+        /// depth 18 and then *regresses* to 28 and holds it for the last 28
+        /// depths.  Depth was not the constraint -- the run reached d=63, past
+        /// the 53 board changes of the hand line, with `trunc=0` throughout.
+        ///
+        /// On such a board the quantity that has to fall is not distance to the
+        /// flag, it is **exposure**.  `--push-fire` already prices exposure,
+        /// and this file's sixth rule says why that is not enough: it is an
+        /// addend inside PushH, and on a board covered by ten anti-tanks every
+        /// successor of every held board pays it, so it raises the best score
+        /// and steers nothing.  The rule's own prescription is a tier, which is
+        /// what this is -- layer 7's shape (`--push-stop` promotes on a
+        /// relation to a cell, not on a distance) applied to a map layer 8
+        /// already computes.
+        ///
+        /// The test is strict and it is a count, not a model: a successor whose
+        /// board leaves the anti-tanks sweeping *fewer* enterable cells than
+        /// the parent's did is promoted.  Level 10's own mechanic is exactly
+        /// that and `--analyze` prints it -- shooting the anti-tank at (1,13)
+        /// pushes it up into row 12, which the anti-tank at (15,12) already
+        /// covers, so row 13 comes free and the read calls it "+33 cells to
+        /// stand in".  A shot that merely rearranges the same coverage does not
+        /// qualify, and neither does one that trades a row for a row.
+        ///
+        /// Three things keep it cheap enough to ask of every successor, which
+        /// is the whole reason it is worth having beside `opens` -- `opens` is
+        /// the better question and costs a pose closure apiece, so it is
+        /// rationed by `--push-read-opens` and on level 10 promoted 2 of
+        /// 526,164:
+        ///
+        ///   * the count rides along with the successor (Node.Swept, filled in
+        ///     at emission from the fire map PushH has just built), so this
+        ///     pass adds one board scan per *expansion* and none per successor;
+        ///   * a board no anti-tank covers returns immediately, so the pass is
+        ///     free on the half of the corpus that is a ferry;
+        ///   * it is an ordering that cannot refuse a state, so when nothing
+        ///     reduces exposure the frontier is exactly what it was.
+        private void FireTier(EngineSnapshot at, List<Node> next, int first)
+        {
+            if (next.Count <= first) return;
+            _e.Restore(at);
+            int was = _h.FireCells(_e);
+            if (was == 0) return;        // no anti-tank covers this board
+
+            for (int i = first; i < next.Count; i++)
+            {
+                Node n = next[i];
+                if (n.Tier != TierOther) continue;
+                if (_opt.PushTrace) _pxFireSeen++;
+                if (n.Swept >= was) continue;
+                n.Tier = TierFire;
+                if (_opt.PushTrace) _pxFire++;
+            }
         }
 
         /// --push-trace only: the tiering as it finally stands, counted after

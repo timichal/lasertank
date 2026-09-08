@@ -22,7 +22,7 @@ Two useful side effects, secondary but real:
 The gate is not a formality even so: it is the write path, and a solution that fails it is deleted
 rather than banked.
 
-**The standing engine claim, re-checked at the end of every session:** nine layers in,
+**The standing engine claim, re-checked at the end of every session:** ten layers in,
 `Engine.cs` still differs from a literal transliteration by the word `partial` -- on the class, and
 (since Phase 5 step 3) on `SoundPlay`, whose empty body moved to `Engine.Sound.cs` -- and
 `Engine.Search.cs` has not changed since layer 0. If a solver change seems to need an engine change,
@@ -46,12 +46,12 @@ Read in this order the first time; after that, come in by the row you want.
 | [Start here](#start-here) | the three commands — one level, the driver, the whole batch chain |
 | [Six rules the sessions each paid to learn](#six-rules-the-sessions-each-paid-to-learn) | why the numbers below can be trusted. The shortest section and the one to re-read |
 | [Status](#status) | what ships, what it solves, and the honest corpus percentage |
-| [Next actions](#next-actions) | **what is open** — two runs, one profile, one level — and what each costs |
+| [Next actions](#next-actions) | **what is open** — one big pass, two runs, one profile, one level — and what each costs |
 | [Tree and build state](#tree-and-build-state-session-by-session) | what `build/` holds and what its names mean, newest session first |
 | [Closed items](#closed-items--the-measurements-including-the-ones-that-came-back-negative) | finished work, kept for its measurements and its negative results |
 | [Pointers from a second reader](#pointers-from-a-second-reader--session-26) | session 26's twelve leads, with the evidence for each. *Next actions* is the distillate |
 | [The bar](#the-bar-measured-before-building-anything) | the acceptance test a layer has to pass to ship |
-| [The layers](#the-layers) | layers 0-8, one subsection each: what it is, what it measured, what it ships as |
+| [The layers](#the-layers) | layers 0-9, one subsection each: what it is, what it measured, what it ships as |
 | [The interactive driver](#the-interactive-driver) | the portfolio, the rounds, the lanes, and the two-engine write path |
 | [Post-solve](#post-solve-polish-and-replan) | `Trim.Polish` and `Replan.Improve` — shortening a route after it wins |
 | [The instruments](#the-instruments-and-which-question-each-answers) | every flag that reports rather than searches, in cost order, plus the source map and the tools |
@@ -139,8 +139,12 @@ These are the reason the numbers in this file can be trusted.
 - **Instrument before theorising.** `--sg-trace` killed two of layer 2's designs and one of layer
   3's; `tools/rankdump.py` decided whether layer 4 was worth building at all; `--push-line` found
   the bug that had been costing layer 5 its whole budget. A new layer should report a distribution
-  before it reports a solved count. And an instrument that measures the wrong *moment* says the
-  layer does nothing — that has now happened twice. **The instruments also have a cost order, and
+  before it reports a solved count. And an instrument that measures the wrong *moment* — or the
+  wrong *quantity* — says the layer does nothing; **that has now happened three times**, and session
+  31 is the clearest of the three: layer 9 trades distance for exposure, `best=` is a distance, and
+  the only column the trace had therefore reported the layer as a regression on the very level it
+  was built for, while it was worth +9 on that level's population. The fix is the same every time —
+  print the thing the layer moves. **The instruments also have a cost order, and
   session 29 paid a 27-minute run to learn to respect it:** the traced level-10 run was the right call
   and it did settle the question, but `--analyze` — which runs no search at all and takes a second
   — names that level a GAUNTLET with `on the barrier: 0`, which is the *entire* diagnosis the
@@ -183,9 +187,10 @@ These are the reason the numbers in this file can be trusted.
 | Layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`; own rung, adds 4 ferry / 5 deep, **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
+| Layer 9 — exposure as a tier | *"does this change take cells away from the anti-tanks?"* — `--push-fire-tier`, the fire map promoted from an addend to a tier; **tenth rung**. Over the 138 unsolved short-record GAUNTLETs at 40M it is **85 against the control's 76, with 15 exclusive levels against 6** (union 91 of 138, 65.9%; 161 of 161 gated). Costs **9% wall clock**. **Does not solve `LaserTank.lvl` 10**, which is the level it was derived from |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | The fourth pass, rehearsed | **84 of 255 (32.9%)** of the levels the chain fails, as the **union of six arms at 40M nodes** on a 1-in-15 stride of the whole failure population — session 26's five plus session 28's `none`, 306 of 306 solutions through the two-engine gate. No single arm scores above **61 (23.9%)**, so the pass is a chain of arms rather than a configuration; **the three that ship are 81 (31.8%)** and the other three are worth +3 between them for ~54 h. *Next actions* item 2 |
-| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item **4**, and the shorter files for 8 and 9 it lists); **6 and 10 open**. **Level 10 has a named cause at last — session 29, item 8:** it is a **GAUNTLET**, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert on it, leaving 1,024 distinct boards ranked by work distance alone (`best=` bottoms at 22 by d=18, then **regresses to 28 at d=36 and holds it for the final 28 depths**). Not budget, not the closure, not width: the run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout — past the 53 board changes of the hand line — which retires session 23's "depth 2 at 900M" and confirms session 26 |
+| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item **4**); **6 and 10 open**. **Level 9 is banked at 115 keys / 1.9x** as of session 31 — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 has a named cause and no longer has a named candidate:** it is a **GAUNTLET**, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert (session 29); the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48 (session 31). Not budget, not the closure, not width, not the read: the session-29 run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout — past the 53 board changes of the hand line |
 
 *One number moved for a reason worth knowing before trusting the rest: the ferry bench is **19/50**
 where earlier sessions banked 20/50. That is session 20's buried-flag fix, attributed rather than
@@ -262,20 +267,20 @@ attack on it.
 
 ## Next actions
 
-**What is open, and what each one costs.** Items 1, 3, 8, 9, 11 and 12 are done — **session 29
-closed 3, 8 and 11 in one sitting and two of the three came back negative**, which is the cheap
-half of this list doing its job. Item 4's *code* is done as of session 30 and its *runs* are not,
-which is why it is back in this table rather than in *Closed items*. Six items are open, **in this
-order and not in numeric order** — the reordering is session 30's and the reasoning is under the
-table:
+**What is open, and what each one costs.** Items 1, 3, 8, 9, 11 and 12 are done. **Session 31
+closed the two that were 1st and 2nd** — the level-9 acceptance run, and level 10's fire tier, which
+came back *positive on its population and negative on its example*. What is left of each is written
+into the rows below rather than deleted, because in both cases the remaining half is a different
+question from the one that was answered. Six items are open, **in this order and not in numeric
+order**:
 
 | # | order | what it is | cost | why it sits here |
 |---|---|---|---|---|
-| **4** | **1st** | the level-9 acceptance run, then the campaign that decides whether `--best-of-round` is a default too | one round-5 level (**hours**); then a stride campaign with the flag against one without | **the only item that closes a *property* rather than adding levels**, and the cheapest one on the list. `--beat-banked` shipped ON in session 30 and has never been run on the level it was built for; until it is, the driver's core claim — one run finds the best route the project has ever found — is asserted, not measured. `--from 9 --to 9 --force --best-of-round --max-round 5` is the whole test |
-| **5** | **2nd** | **level 10's fire-map tier** (level 6's decomposition is last, not here) | one code change, hours; `--analyze` falsifies it in a second and `--push-trace`'s `best=` in minutes | the only design item in this file a *measurement* asked for. Item 8 named the cause — `on the barrier: 0`, the read inert by construction, the beam ranking 1,024 boards by work distance alone — and this file's own rule says the fix is a **tier**, not the addend `--push-fire` already is. Layer 8 computes the fire map, so the change is a promotion. **Population: the 537 unsolved GAUNTLETs** at median record 138, 138 of them at <= 60 |
-| **7** | 3rd | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose. **The population list is generated** — `bench/short-record-failures.txt`, 687 levels. It produces a *number*, which is why it now sits behind the two items that produce a property and a level |
-| 10 | 4th | wall clock: profile, then memoise `PushH` per board | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above, and item 4's acceptance run pays it too. **Item 11's half of this motivation is gone** — see item 11 |
-| **2** | 5th | the fourth pass, three arms over the whole failure population | **~54 h**, one arm at a time | rehearsed twice, recipe final, biggest single result available (~1,172 levels extrapolated) — and the one thing here that should not be started without deciding to give up the machine for two days. Everything above it is cheaper *and* answers a question this run cannot |
+| **2** | **1st** | the fourth pass — and it now wants a **fourth arm**, `--push-fire-tier`, rehearsed before the ~54 h is committed | 2 h 15 m for the rehearsal, then ~54-72 h | unchanged as the biggest single result available (~1,172 levels extrapolated) — and session 31 gave it a new arm worth rehearsing first. Layer 9 is +9 solo and +15 exclusive on 138 GAUNTLETs; whether that survives the corpus is exactly the question session 28's `none` arm answered *no* to on weaker evidence, and the rehearsal recipe is already written |
+| **5** | 2nd | **level 6's decomposition** — *level 10's fire tier is done, session 31, and is Layer 9* | a layer-sized build | what is left of item 5 is the half this file's own numbers call furthest from falling: 142 pushes, six holes, a beam that fills two and then finds every successor worse. **Level 10 is still open and no longer has a named candidate** — session 29 cleared budget, closure, width and depth, and session 31 cleared the tier that diagnosis prescribed |
+| **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default** — *the acceptance run half is done, session 31* | a stride campaign with the flag against one without | the acceptance run passed and passed *better than its own bar*: level 9 came back at **115 keys / 1.9x** against the 127 the project had banked, with `3 rungs solved this round; kept the shortest at 115 keys against 294` printed above it. So the property is demonstrated and what is left is a number — how much shorter the routes get over a population, which is what decides the default. Below item 5 for that reason |
+| **7** | 4th | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose. **The population list is generated** — `bench/short-record-failures.txt`, 687 levels. It produces a *number*, which is why it now sits behind the two items that produce a property and a level |
+| 10 | 5th | wall clock: profile, then memoise `PushH` per board | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above, and item 4's acceptance run pays it too. **Item 11's half of this motivation is gone** — see item 11 |
 | 6 | last | the `lasertanksolutions.blogspot.com` goal-board harvester | scraping, not solving | not a solver change at all, and nothing above it is blocked on it |
 
 *(Items 3, 8 and 11 are kept in *Closed items* rather than deleted: two of them are negative
@@ -301,6 +306,18 @@ and one banked solution got worse. Items 4 and 5 each end with something demonst
 reproduces its own best routes, and a level that either falls or produces a named reason it did not.
 Item 7's curve is worth having and will still be worth having next week.
 
+**Session 31 ran both of those to the end, and the second key is what has to be re-read now.** Both
+paid: item 4's property is demonstrated and item 5's tier is the largest single flag added since
+layer 8. **But neither produced the *level*.** Level 9 got twelve keys shorter and level 10 is
+exactly where it was, and what item 5 actually produced is +9 on a 138-level population — a number.
+That is not the key failing; it is the key working as stated, because the property and the levels
+were the reason to run them and one of the two arrived. **What it does mean is that the levels are no
+longer the cheap half of this list.** Both remaining ones — 6 and 10 — now have no named candidate
+between them: 6 never had a cheap falsifier and 10 has just spent its last one. So the top of the
+list is item 2, which is the biggest measurable result available and which session 31 has just handed
+a new arm to rehearse; and the honest reason it is first is not that a number beats a level, it is
+that the two levels left have nothing costed to try.
+
 *(Item 6 is last because it is not a solver change. Items 7-12 are session 26's, distilled from
 *Pointers from a second reader* below, which carries the evidence and the caveats for each; of the
 six, 8, 9, 11 and 12 are done and three of those four closed **negative**, which is the old ordering
@@ -325,24 +342,21 @@ is this file plus `build/`, never a directory listing.
 | lvl | shortest verified file, now lost | keys | ratio | banked now |
 |---:|---|---:|---:|---|
 | 8 | `build/w/w8-2048/LaserTank/00008.lpb` | 308 (262 + 46) | 1.4x | 335 / 1.5x |
-| 9 | `build/w/b9-b/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **127 / 2.2x, re-derived** |
+| 9 | `build/w/b9-b/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **115 / 1.9x, session 31** |
 
 Which configuration produced either is not recorded — the widths in the directory names were the only
-clue — so **neither is reproducible and the 308 and 114 routes are lost**, not merely misplaced. That
-is the same lesson as `bench/`: a verified result that lives only in a gitignored directory is not
-banked.
+clue — so **neither is reproducible** as a *recipe*. That is the same lesson as `bench/`: a verified
+result that lives only in a gitignored directory is not banked. Level 8's 308 has not been
+re-derived. **Level 9's 114 effectively has been** — session 31's acceptance run comes back at 115
+keys, one key longer, at the same 1.9x, from the driver with no flags aimed at the level.
 
-Level 9's was re-derived in session 24 and is banked again at **127 keys / 2.2x**, verified through
-both engines, from the `push-ferry-work` rung at its round-5 settings run directly — 16m36s:
-
-```bash
-build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 9   --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall   --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16   --push-beam 2048 --max-keys 5000 --push-restarts 30   --nodes 250000000 --budget-ms 3600000 --out build/short9
-```
-
-**This is the command to use for level 9, not the driver.** An unattended driver run finds the beam's
-**294-key / 5.0x** route instead, because the beam reaches its win at 94.3M nodes and
-`push-ferry-work` needs 162.8M, so the beam always gets there first and cancels it. Level 8's 308 has
-not been re-derived.
+*(Superseded, and the whole point of item 4, so it is kept rather than deleted: sessions 24-30 said
+**"this is the command to use for level 9, not the driver"** — a hand-run of `push-ferry-work` at
+`--push-beam 2048 --push-restarts 30`, 16m36s, **127 keys / 2.2x** — because "an unattended driver
+run finds the beam's 294-key / 5.0x route instead, the beam reaching its win at 94.3M nodes and
+`push-ferry-work` needing 162.8M, so the beam always gets there first and cancels it." That was
+true of the driver as it was. `--best-of-round` is exactly the removal of the *cancels it*, and
+with it the driver beats the hand-run by twelve keys.)*
 
 > **It happened for real in session 30, and this item is what got fixed — session 30.** A `--force`
 > re-solve of the collection replaced the 2.2x route with the 5.0x one and said nothing about it. The
@@ -391,36 +405,76 @@ not been re-derived.
 > rule and was already there: that one settles a tie inside one round, `--best-of-round` creates the
 > tie in the first place, and `--beat-banked` settles it across runs.
 
-**Both are off by default and the default is the open question, not the flags.** The measurement they
-want is a stride campaign with `--best-of-round` against one without it, read as *keys* rather than as
-solved count — the solved set should be identical and the routes shorter, and how much shorter is the
-number that decides whether this becomes the default. Nothing in this file changes until that is run,
-because every ratio quoted here was measured under first-win-cancels. **The acceptance test is level
-9 itself:** `--from 9 --to 9 --force --best-of-round --beat-banked --max-round 5` should come back at
-127 keys or better, from `push-ferry-work` rather than from the beam, and that is the run that proves
-the property rather than asserting it.
+**The acceptance run is done — session 31 — and it passed better than the bar it was given.** The bar
+was *127 keys or better, from `push-ferry-work` rather than from the beam*. What came back, in
+44m46s and 258.8M nodes:
+
+```
+  round 5: 409.6M nodes to each of 9 searchers
+  3 rungs solved this round; kept the shortest at 115 keys against 294
+lv 9/2030  Grid Lock  Easy  record 37 moves + 22 shots
+  SOLVED  115 keys (49 moves, 33 shots), 1.9x the record   push-ferry, round 5, 44m46s, 258.8M nodes
+```
+
+**115 keys / 1.9x, against the 127 / 2.2x that was the best the project had ever banked** — so the
+driver did not merely reproduce the good route, it beat it, and it beat it *unattended, with no flags
+naming the level.* Three things in that output are the whole of the property, and each of them was an
+assertion before this run:
+
+* **`3 rungs solved this round`.** Under first-win-cancels there is exactly one, and it is whichever
+  rung is fastest rather than whichever is best. The round staying open is what makes the other two
+  exist at all.
+* **`kept the shortest at 115 keys against 294`.** The 294 is the beam's route — the one session 30's
+  unattended run banked over the good file, and the reason this item exists. It is still found, it is
+  still first, and it now loses.
+* **`push-ferry`, not `push-ferry-work`.** The bar named the wrong rung. The 127 came from the `work`
+  key and this file has said since session 22 that the `work` key is where level 9 lives; the round
+  that let all nine rungs finish found the **`coarse`**-key rung — the same searcher on the default
+  key, layer 4's evaluation quantised to work units — two keys short of the 114 that was lost with
+  `build/w/b9-b/` and never re-derived. *(Nine, and the transcript above says nine, because this
+  run predates the `push-fire` rung item 5 added later the same session; the ladder is ten now and a
+  re-run of this test will say so.)* **An acceptance test that names the mechanism can be
+  passed by a different mechanism, and that is a result rather than a technicality:** what was
+  actually broken was the cancel, not the ranking key.
+
+`--beat-banked` never had to fire — no round was refused, because the first round that solved
+anything already beat the banked file — so **the default is exercised but not yet tested in anger.**
+Its refusal path is session 30's unit tests and nothing more. The 8/8 gate over `data/solutions/` was
+re-run afterwards and passes with the new file in place.
+
+**What is still open is the default, and it is a number.** The measurement is a stride campaign with
+`--best-of-round` against one without it, read as *keys* rather than as solved count — the solved set
+should be identical and the routes shorter, and how much shorter is what decides whether this becomes
+a default. Every ratio quoted in this file was measured under first-win-cancels, so that campaign
+rebases them. Note what level 9 says about its price: **44m46s for one level**, against the 16m36s of
+the hand-run it beat, because a round nobody cancels is a round every rung spends in full.
 
 *(What was tried first and is not the answer: making the gate refuse the longer write. It fixes the
 file and hides the run — see the block above.)*
 
 **5. Levels 6 and 10** — see *What has not fallen, stated plainly*. Both want a derivation rather
-than a budget, and **session 29 established that they want two different ones.** Session 30 split the
-item by cost as well: **level 10's half is the live one and level 6's is the last thing on the list**,
-because 10's fix is a promotion of something layer 8 already computes and can be contradicted by an
-instrument in one second, while 6's is a layer-sized build on the level this file's own numbers call
-furthest from falling.
+than a budget, and **session 29 established that they want two different ones.**
 
-**10 is the live half, and it is settled as a diagnosis and open as a design — item 8.** It is a **GAUNTLET**: the read finds
-a barrier on **0 of 63,454 expansions**, because a GAUNTLET has no terrain to clear and the barrier
-set is empty by construction, so layers 6-8 are all inert on it and the beam ranks 1,024 distinct
-boards by `WorkDistance` alone. Depth, closure and width are all cleared by the same trace
-(`d=63 at 399M`, `trunc=0`, `boards=1024`). **Do not spend another overnight run on it, and do not
-build the decomposition 6 wants either** — the candidate is the fire map, which layer 8 already
-computes, promoted from an addend inside `PushH` to a **tier** in layer 7's shape: prefer a
-successor that reduces the covering anti-tanks or opens a fire-map-safe cell over one that shortens
-the walk. On a GAUNTLET exposure is the quantity that has to fall. **This is the first design item
-in this file that a measurement asked for rather than a level number**, and the honest thing to say
-about it is that it is a hypothesis with a good instrument behind it and no code yet.
+**10's half is built and measured — session 31 — and the result splits in two.** The tier is
+`--push-fire-tier`, it is *Layer 9* below, it ships as the driver's tenth rung, and over the 138
+unsolved short-record GAUNTLETs it is worth **85 against 76 solo with 15 exclusive levels against
+6** — the strongest single flag this project has added since layer 8. **And it does not solve level
+10**, which is unsolved at 400M nodes with the tier on. So the design item is closed positive and
+the *level* is still open, and the two facts are not in tension: 10 is at the 87th percentile of
+GAUNTLET threat counts with a record of 179, and the levels the tier wins are at <= 60.
+
+**What level 10 still wants is unnamed, and this is now a stronger statement than it was.** Session
+29 cleared budget, closure, width and depth; session 31 clears the derivation that diagnosis
+prescribed. The tier does steer it — the frontier's least-exposed board goes 131 → 115 → 99 over
+three depths — and it still loses. **Do not spend another overnight run on it without a new
+hypothesis**, and the cheapest place to look for one is the `frontier sweeps` column the tier added:
+it says whether exposure stops falling, and if it does, where.
+
+**The corpus question the tier opens is item 2's, not this one's.** A fourth arm of the fourth pass,
+`$L8 --push-eval work --push-fire-tier`, on the same 255-level stride the other six were run on. It
+is a far stronger candidate than session 28's `none` and it must still be rehearsed before it is
+believed, for `none`'s own reason: 138 GAUNTLETs is a filtered population, and a filtered population
+over-reports complementarity.
 
 **Level 6 is the last item on the list, not the second.** It wants layer 2's decomposition one level
 out: commit to one block-and-hole pair, search only for that, re-derive. Unchanged as a diagnosis, and
@@ -434,6 +488,45 @@ holding OPEN and a mass of 12-key GAUNTLETs, since the sampled GAUNTLETs split 1
 median record of 12 against 537 unsolved at a median of 138. **The population worth aiming at is
 those 537** (138 of them with a record <= 60), and the cheap test is a rung over that tail, not a
 campaign. Item 8 has the table.
+
+**Session 31 ran that cheap test and it is the reason the sizing paragraph is worth keeping.** The
+list is `bench/gauntlet-tail.txt` — the 138 — the runner is `tools/gauntlet_tail.sh`, and the report
+`second_pass.sh` attacks is `build/reports/gauntlet-tail.jsonl`. Two things the run said that the
+sizing argument did not predict: **the tail is not as hard as its median record suggests** (the
+control arm alone solves 76 of 138 at 40M, against the 23.9% the best fourth-pass arm scores on the
+general failure population), and the fire tier is worth **+9 solo and +15 exclusive** on top of it.
+Regenerate both files with:
+
+```bash
+python - <<'EOF'
+import json, io
+an = {}
+for line in io.open("build/reports/analyze-corpus.tsv", encoding="utf-8"):
+    if not line.startswith("#"):
+        f = line.rstrip("
+").split("	"); an[(f[0], int(f[1]))] = f[3]
+rows = [json.loads(l) for l in io.open("build/reports/chain.jsonl", encoding="utf-8-sig")]
+keep = [r for r in rows
+        if an.get((r["collection"], r["level"])) == "GAUNTLET"
+        and not r["solved"] and 0 < r["ghs_moves"] + r["ghs_shots"] <= 60]
+with io.open("bench/gauntlet-tail.txt", "w", newline="
+") as f:
+    f.write("# item 5's population: chain.jsonl failures --analyze calls GAUNTLET
+"
+            "# with a .ghs record of <= 60 moves+shots.
+")
+    for r in sorted(keep, key=lambda r: (r["collection"], r["level"])):
+        f.write("%s	%d
+" % (r["collection"], r["level"]))
+with io.open("build/reports/gauntlet-tail.jsonl", "w", newline="
+") as f:
+    for r in keep: f.write(json.dumps(r) + "
+")
+EOF
+LT_SOLVE=build/lasertank-solve.exe JOBS=16 bash tools/gauntlet_tail.sh
+```
+
+`analyze-corpus.tsv` regenerates in ~3 minutes by the loop in item 8 if `build/` has been cleared.
 
 *(Superseded, so it is not re-derived: "10 was the just-buy-the-nodes case until session 23, when
 two 900M-node runs came back unsolved at board-change depth 2 — so its ~1,000-pose closure is what
@@ -632,6 +725,16 @@ python tools/arms_union.py l8work=build/reports/l5-s15-l8work.jsonl \
 asking this question, and it is 1/8th of the arm it was deciding about -- the rehearsal-before-arm
 pattern paid for itself here even though the answer was no.
 
+**Session 31 produced the next candidate, and it is a much better one: `--push-fire-tier`** (Layer 9
+below). On the 138 unsolved short-record GAUNTLETs it is **85 solo against the same arm's 76 with 15
+exclusive levels against 6** -- it wins solo *and* it is complementary, which no rejected arm has
+ever done. Run it through the rehearsal above before the full pass, with `l5-s15/l8fire` and
+`--push-eval work --push-fire-tier` on top of `$L8`, and read it against the six banked arms with
+`arms_union.py`. **The reason to rehearse rather than to add it on the strength of the 138 is
+`none`'s reason, and it is this file's first rule:** those 138 are selected for the shape the tier is
+for, and a filtered population over-reports complementarity as readily as strength. The rehearsal is
+2 h 15 m against ~18 h for the arm.
+
 ```bash
 # three arms, in greedy order, each into its own report so the union can be recomputed.
 # Run them one at a time: each wants the whole machine, and 16 jobs is already past
@@ -693,8 +796,46 @@ harvester.** See *Open question* at the end.
 report and solution names below are what this file's numbers are quoted against, and two of them
 changed meaning mid-history, which is why the superseded blocks are kept rather than collapsed.
 
+> **The state of the tree and of `build/`, as session 31 left it.** `build/` is current
+> (`bash src/build.sh`) and carries `--push-fire-tier` and the tenth rung.
+>
+> * **What the code is:** `--push-fire-tier` (Layer 9). `Heuristic.FireSwept`/`FireCells`,
+>   `Push.FireTier` + `TierFire` + `Node.Swept` + the `fire:` trace line, the flag in `Program.cs`,
+>   and a `push-fire` rung in `Auto.cs`'s ladder — **so the driver now runs ten searchers per level,
+>   not nine.** ~190 lines, ~30 of them not comment.
+> * **Everything is off unless asked for, and that is checked rather than argued.** With
+>   `--push-fire-tier` absent, a traced `LaserTank.lvl` 1 run is **byte-identical** between this
+>   build and session 30's, depth line for depth line. The tier numbering shifted (a `TierFire` was
+>   inserted at 3 and `TierOther`/`TierPose`/`TierLost` moved to 4/5/6), which reorders nothing —
+>   `Cut()` sorts on the value — but it *does* change the number `--push-line` prints in its tier
+>   column, which is the one visible consequence.
+> * **New artefacts.** `bench/gauntlet-tail.txt` (item 5's 138-level population, rule in its
+>   header) and `tools/gauntlet_tail.sh` (the two-arm runner) are in the tree;
+>   `build/reports/gauntlet-tail.jsonl` (the report `second_pass.sh` attacks),
+>   `build/reports/gt-{base,fire}.jsonl` and `build/gt/{base,fire}` (161 gated solutions) are in
+>   `build/`. `build/trace10-fire.err` is the 37m47s level-10 trace with the tier on — it is *not*
+>   in `bench/` beside `trace10.err`, because unlike that one it settles nothing: the level is
+>   unsolved either way and the run regenerates from the command in Layer 9.
+> * **`data/solutions/LaserTank/00009.lpb` moved, and it moved the right way** — 127 keys → **115**,
+>   re-derived rather than restored. `verify_solutions.py data/solutions` is 8/8 with both engines
+>   agreeing on every tick.
+> * **Two scratch publish dirs were used** (`build-item5/`, `build-item5b/`) because a running solve
+>   holds `build/lasertank-solve.exe` open. `/build-*/` is now in `.gitignore` — session 29's trap,
+>   fixed rather than re-noted — and `build-item5b/` may still be on disk; it is scratch and can be
+>   deleted.
+> * **Gates re-run after the change:** `verify_solutions.py data/solutions` → 8/8, both engines
+>   agreeing on every tick; `replay_all.py` → 187 replayed / 181 win / 6 documented non-win, 0
+>   unexpected; `test_difftrace.py` → 29 passed; `sweep.py` → 2,347/2,347 identical. `test_fuzz.py`
+>   was not re-run — it rebuilds the core and nothing this session is in the core. **`Engine.cs` and
+>   `Engine.Search.cs` are untouched**, so the standing claim at the top of this file holds at ten
+>   layers.
+> * **The `.gitignore` line-ending trap from session 30 is real and bit again**: the file was CRLF on
+>   disk against an LF blob, so an edit that preserved its bytes produced a whole-file diff. Written
+>   back as LF. Check `git diff --stat` after any scripted edit, not just the content.
+> * **Nothing is committed.** Michal writes the history.
+
 > **The state of the tree and of `build/`, as session 30 left it.** Nothing measured moved, and
-> `build/` is current.
+> `build/` was current at the time.
 >
 > * **Two new driver flags: `--best-of-round [RATIO]` (off) and `--beat-banked` (ON, opt out with
 >   `--no-beat-banked`).**
@@ -1072,6 +1213,15 @@ nothing here and the ranking then goes flat, on 63,454 expansions. The *design* 
 and the population measurement below is what should size it before anything is built. This is still
 the first design item in this file that a measurement asked for rather than a level number, which
 is the reason to take it seriously and not the reason to believe it.
+
+> **Session 31 built it and split the verdict, so read the paragraph above as the prediction it
+> was.** The tier is `--push-fire-tier` (*Layer 9*) and on the population sized below — the 537
+> unsolved GAUNTLETs, tested on the 138 of them with a record <= 60 — it is **85 solo against the
+> control's 76 with 15 exclusive levels against 6**. **`LaserTank.lvl` 10 is not one of them**: it
+> is unsolved at 400M with the tier on, and its record of 179 puts it outside the tested tail
+> entirely. So the diagnosis generalised and the example did not, and the sizing paragraph below is
+> the reason that was foreseeable — it says in as many words that level 10 sits at the 87th
+> percentile of GAUNTLET threat counts and that the tail's median record is 138.
 
 **How big is the population that shares level 10's condition? Measured over all 20,914 levels, and
 the first read of the answer looks like a refutation.** `--analyze-tsv` costs no search, so the
@@ -2393,11 +2543,14 @@ and reporting `budget`.
 |---|---|---:|---:|---:|---:|
 | 8 castle siege | `push-ferry-work` | **57.5M** | 512 | 335 | 1.5x |
 | 9 Grid Lock | **layer 0's beam, round 5** | **94.3M** | 19,200 | 294 | 5.0x |
-| 9 Grid Lock | `push-ferry-work` also gets it | 162.8M | 2048 | **127** | **2.2x** |
+| 9 Grid Lock | `push-ferry-work` also gets it | 162.8M | 2048 | 127 | 2.2x |
+| 9 Grid Lock | **`push-ferry` — the round nobody cancels, session 31** | **258.8M** | 2048 | **115** | **1.9x** |
 
-Both verified and banked under `data/solutions/LaserTank/` — level 9 from the layer-8 run, because 127
-keys against 294 is not close. (Either may be temporarily absent from that directory: see *Next
-actions*, item 3.)
+Both verified and banked under `data/solutions/LaserTank/`. **The banked level-9 route is the last
+row**, and the row above it is what this table credited for six sessions: with `--best-of-round`
+holding round 5 open, three rungs finish it and the **`coarse`**-key rung — not the `work`-key one
+this section is written around — comes back twelve keys shorter. See *Next actions* item 4 for the run.
+(Either level may be temporarily absent from that directory: see *Next actions*, item 4.)
 
 > **Session 24: the shorter files item 3 pointed at are gone.** `build/w/` is empty — `build/` is
 > gitignored and did not survive the reorg — so `build/w/b9-b/…` (114 keys) and `build/w/w8-2048/…`
@@ -2509,6 +2662,102 @@ Where the two that are left now stop, measured rather than guessed:
   Session 26 disputed the arithmetic; session 29's trace settles it in session 26's favour. The
   depth-2 reading is most likely the `d=`/`at=` trap this file warns about under instrument 3.)*
 
+### Layer 9 — exposure as a tier  ☑ (own rung; the population pays, the example does not)
+
+**The trigger is a measurement rather than a level, which makes this the only layer here that was
+asked for by an instrument.** Session 29's traced `LaserTank.lvl` 10 found the read naming a barrier
+on **0 of 63,454 expansions**, because a GAUNTLET's barrier set is empty by construction, and the
+beam then ranking 1,024 boards by work distance alone with `best=` *regressing* from 22 to 28 for
+the last 28 depths. The prescription that fell out of it was this file's own sixth rule read
+forwards: `--push-fire` prices exposure as an **addend** inside `PushH`, every successor of every
+board on a ten-anti-tank board pays it, and a penalty everybody pays steers nothing — so make it a
+**tier**, in layer 7's shape.
+
+**`--push-fire-tier`, and the whole of it is a count.** `Heuristic.BuildFire` already answers
+*"would an anti-tank fire the moment the tank stood here?"* for all 256 cells in four line sweeps;
+`FireCells` counts the enterable cells it marks. A successor whose board leaves the anti-tanks
+sweeping **fewer** cells than its parent's did is promoted to `TierFire`. No model, no weight, no
+threshold — a strict integer comparison, and an ordering that cannot refuse a state.
+
+Three decisions that are the design rather than the code:
+
+* **It sits below all three of the read's derivations**, so it can reorder only the group the read
+  was already silent about — which on a GAUNTLET is everything and on a ferry level is the
+  leftovers. That is TierEnables' placement argument re-used, and it is what makes the flag safe to
+  add to a rung that already reads well.
+* **The count rides along with the successor** (`Node.Swept`, filled at emission from the fire map
+  `PushH` has just built), so the pass costs one board scan per *expansion* and none per successor.
+  Measured: **9% wall clock**, 201.9k against 184.8k nodes/s at `--jobs 1` over the same 6M nodes.
+  That is what makes it worth having beside `opens`, which asks the better question and costs a pose
+  closure apiece — rationed by `--push-read-opens`, `opens` promoted **2 of 526,164** on level 10.
+* **A board no anti-tank covers returns immediately**, so it is free on the half of the corpus that
+  is a ferry.
+
+**The measurement, on the population the diagnosis named.** `bench/gauntlet-tail.txt` is the 138
+unsolved GAUNTLETs with a `.ghs` record of <= 60 — the tail of item 8's 537, at the only record
+length a 40M-node budget can reach. Two arms, identical but for the flag, on top of
+`--no-ida --no-beam --push --push-read` and the layer-8 set with `--push-eval work`:
+
+| arm | solo | rate | only it solves | greedy union |
+|---|---:|---:|---:|---|
+| the layer-8 work rung | 76 | 55.1% | 6 | +6 → 91 |
+| **...plus `--push-fire-tier`** | **85** | **61.6%** | **15** | **85** |
+
+**161 of 161 solutions through the two-engine gate**, union **91 of 138 (65.9%)**, and all 47 the
+union misses still stop on `budget`. On the 70 both solve the routes are the same length (median 49
+keys) for 1.13M nodes against 1.08M, so it is not buying its levels by spending more. Eight of its
+fifteen exclusives are `Challenge-III`.
+
+*(Read the population honestly, because this file's first rule is about exactly this: these 138 are
+selected for the shape the tier is for, so +9 solo and +15 exclusive is what it is worth **where it
+applies** and says nothing yet about the corpus. It is a much stronger fourth-arm candidate than
+session 28's `none` — that one was 37 solo against `plain`'s 38 and one exclusive level in six arms
+— but the lesson of `none` is that a filtered population over-reports complementarity, and 138
+GAUNTLETs is a filtered population. The corpus test is item 2's fourth arm.)*
+
+**It does not solve `LaserTank.lvl` 10, and that is worth stating first rather than last.** The
+level the derivation came from is still unsolved at 400M nodes: the traced run reaches d=48 in
+37m47s with `best=` bottoming at **29** against the untiered run's 22, and the fire selectivity
+falls from 33% of successors at d=0 to 0.6% by d=48 — 9,869 promoted against a width of 1,024, so
+the tier is still binding, still steering, and still not winning. Two readings, and the second is
+the useful one:
+
+* **`best=` is a work distance, so a tier that trades distance for exposure makes it worse by
+  construction.** Reading the layer by that column would say it does harm. That is the instrument
+  trap this file has now paid for three times, and it is why `--push-trace` gained
+  `frontier sweeps N at best, M at least` — the column the tier actually moves. On level 10 the
+  frontier's least-exposed board goes 131 → 115 → 99 over the first three depths: exposure does
+  fall, and falling exposure is not by itself a win.
+* **A derivation can be right about a population and wrong about its own example.** Level 10 is at
+  the 87th percentile of GAUNTLET threat counts with a record of 179; the 138 levels the tier wins
+  on have records of <= 60. Nothing here retires level 10 as an open level — what it retires is the
+  idea that the fire tier is the answer to it.
+
+**The three commands, because every number above is quoted against one of them.** The population
+list and its report are regenerated by the snippet in *Next actions* item 5.
+
+```bash
+# 1. the two arms over the 138 -- the 76 / 85 / 91 and the 161 gated solutions
+LT_SOLVE=build/lasertank-solve.exe JOBS=16 bash tools/gauntlet_tail.sh
+
+# 2. the traced level-10 run with the tier on -- d=48 at 400M in 37m47s, unsolved.
+#    Session 29's command exactly, plus --push-fire-tier.  Output is stderr and is
+#    ~1 KB a depth; it is *not* banked in bench/ the way trace10.err is, because it
+#    settles nothing that a re-run would not settle again.
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10   --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall   --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16   --push-beam 1024 --push-restarts 0 --max-keys 5000   --push-fire-tier --push-trace --nodes 400000000 --budget-ms 14400000 --jobs 1   --out build/trace10-fire 2> build/trace10-fire.err
+
+# 3. what it costs, and it has to be seconds because the node count is identical by
+#    construction -- run 2 twice at --nodes 6000000, once without the flag, and read
+#    `ms` out of --report.  201.9k against 184.8k nodes/s on this machine.
+```
+
+**Two things a re-run will not reproduce and should not try to.** The 9% figure was measured on a
+loaded machine (both arms equally loaded, which is what makes the *ratio* fair and the absolute
+throughput meaningless), and the `median seconds on an unsolved level` in the two arm reports —
+209 s for the control against 186 s for the tier — is contention noise, not a speedup: the control
+arm ran while the level-9 acceptance run held nine cores. **Node counts from these runs are
+comparable; wall clocks across them are not.**
+
 ---
 
 ## The interactive driver
@@ -2519,7 +2768,8 @@ press a key.
 
 **It is the portfolio the campaign could not afford.** A round runs every searcher *at once, one per
 thread* — layer 0's beam (with IDA* on round 0, where a probe is cheap), layer 3's subgoal beam, layer
-4's learned ranking of it, layer 1's macro beam, and layers 5-8's five push rungs — and the first win
+4's learned ranking of it, layer 1's macro beam, and layers 5-9's **six** push rungs (`push-fire` is
+session 31's) — and the first win
 cancels the rest. In a campaign that trade is a loss, because every node a specialist spends is a node
 taken from the raw beam; here a specialist spends a *core*, and one level at a time means the cores are
 there. If nobody wins, the node budget quadruples and the round repeats — 400k on round 0, about a
@@ -2559,6 +2809,11 @@ with the banked file untouched. **`--beat-banked` is ON by default** (`--no-beat
 and can only bite under `--force`, so no run that used to terminate stops terminating; a refusal also
 holds the level's later rounds open by itself, a refusal being proof that a shorter route exists.
 `--best-of-round` is off by default and the campaign that would make it one has not been run.
+**The mechanism itself is no longer only argued for:** session 31's acceptance run on level 9 prints
+`3 rungs solved this round; kept the shortest at 115 keys against 294` and banks **115 keys / 1.9x**,
+which is shorter than the 127 the hand-run recipe produced and shorter than anything the project had
+banked. It cost 44m46s against that recipe's 16m36s, which is the price of the round nobody cancels
+and is the number the campaign has to justify. *Next actions* item 4.
 
 **When a round *is* accepted, `--force` overwrites unconditionally, and the run says when that made
 things worse.** A re-solve of an already-banked level does not necessarily come back with the better
@@ -2582,7 +2837,8 @@ hand-supervised level at a time, already through the gate, on levels the batch s
 Those are worth committing, so they go where git can see them, next to `data/demos/`.
 
 **`--lanes N` works N levels at once** (default 1, so a bare run is exactly what it always was). The
-ladder is nine rungs and this machine has sixteen cores, so one level left several idle — and a second
+ladder is ten rungs (nine before session 31 added `push-fire`) and this machine has sixteen cores, so
+one level left several idle — and a second
 level is a better thing to spend them on than a wider anything, because the rounds already widen what
 widening helps. The scheduling policy is one sentence: **every lane draws on the same pool of `--jobs`
 slots.** A rung that cannot get a slot waits, and if the level falls while it waits it returns without
@@ -2771,6 +3027,19 @@ tiering, so the beam falls back to ranking every successor by the eval key alone
 successors advanced (0%)` in a trace is not a weak read, it is an absent one. Check this before
 `--push-line`, because a read that names nothing makes the line report unattributable.
 
+**4c. Read a tier by the quantity it steers, not by `best=`.** `--push-fire-tier` adds
+`fire: X/Y successors sweep fewer cells (Z%), frontier sweeps N at best, M at least` to
+`--push-trace`, and the two halves answer different questions. **X/Y is selectivity** and is read the
+way every tier here is read — promote almost everything and it is a no-op that costs a scan, almost
+nothing and the beam cannot use it; on `LaserTank.lvl` 10 it falls from 33% at d=0 to 0.6% by d=48,
+which is still 9,869 successors against a width of 1,024 and so still binding. **`frontier sweeps` is
+the quantity itself**, and it exists because `best=` is a *work distance*: a tier that trades
+distance for exposure makes `best=` worse by construction, and reading the layer by that column would
+report it doing harm while it did exactly what it says. Level 10's least-exposed frontier board goes
+131 → 115 → 99 over three depths while `best=` goes 62 → 53 → 72. **This is the third time an
+instrument in this file has measured the wrong thing and nearly retired a working layer** — the other
+two are `ReadCount` before the `opens` pass and `--push-line`'s depth index.
+
 **5. Ask whether ranking or budget is binding, before spending either.** `closure~` × width × board
 changes is what a *perfect* beam would cost. On all four of layer 8's levels it was two orders of
 magnitude under the budget already spent, which is why sixteen configurations at 80M nodes were the
@@ -2782,7 +3051,8 @@ wrong way to spend a session.
 src/LaserTank.Solver/
   Search.cs      the beam and IDA*; Cut(), tiers, the closed-set policies
   Heuristic.cs   FlagDistance, WorkDistance, FrontierObstacles, RouteFerry,
-                 RouteStop, RouteDead, BuildFire, BuildRays, TankRegion
+                 RouteStop, RouteDead, BuildFire/FireCells, BuildRays,
+                 TankRegion
   Macro.cs       layer 1: Goto (a movement closure over ApplyKey) + Shoot
   Subgoal.cs     layer 2: the obstacles between the closure and the flag,
                  derived; a successor is kept because it cleared one
@@ -2793,7 +3063,9 @@ src/LaserTank.Solver/
   Weights.cs     layer 4's fitted vector, compiled in — so the solver is fully
                  functional from a fresh clone with nothing to regenerate
   Push.cs        layer 5: a PF-preserving movement closure, then every board
-                 change reachable from it; PushRun / ShotRun
+                 change reachable from it; PushRun / ShotRun.  Layer 9's
+                 FireTier is here too -- it is a tier over the same
+                 successors, not a heuristic term
   Analyze.cs     layer 6: the read.  ReadDerive / ReadAdvances / ReadOpens /
                  the enables pass, as an instrument and as a ranking tier
   Line.cs        --push-line: replay a winning line against the real beam
@@ -2820,6 +3092,12 @@ second_pass.sh    re-attack a campaign's unsolved levels with a different search
                     into the same solutions dir.  SAMPLE=N takes every Nth failure
 bench.sh          one labelled configuration over one banked level list.  Its header
                     repeats the warning: a bench picks parameters, a campaign ships
+gauntlet_tail.sh  item 5's two-arm A/B over bench/gauntlet-tail.txt -- the 138 unsolved
+                    short-record GAUNTLETs -- at 40M nodes, gating each arm and printing
+                    the union.  It exists because bench.sh's --levels-list is one
+                    collection's level numbers and this population spans thirteen, so a
+                    multi-collection list has to go through second_pass.sh and a
+                    synthesised report.  NODES/BUDGET_MS/JOBS/LT_SOLVE all honoured
 report_stats.py   read a campaign .jsonl: per-tier and per-collection rates, stop
                     reasons.  --diff compares two layers
 chain_union.py    union the chain's four per-pass reports into chain.jsonl -- the
@@ -3327,3 +3605,49 @@ and build state* and *Closed items*, numbers preserved because this file refers 
 **zero non-blank lines lost** — a mechanical move, verified as one, not a rewrite. A table of contents
 at the top. **The rule: this file is read under time pressure, and a warning it contains but cannot
 surface is a warning it does not have.**
+
+**session 31 — the top two items of the list, both run to the end, and they came back opposite ways.**
+
+**Item 4, the level-9 acceptance run, passed better than its own bar.** `--from 9 --to 9 --force
+--best-of-round --max-round 5`, unattended, 44m46s: `3 rungs solved this round; kept the shortest at
+115 keys against 294`, banked at **115 keys / 1.9x** against the 127 the project had ever managed and
+one key off the 114 that was lost with `build/w/`. So session 30's flags are a demonstrated property
+rather than an implemented one. Two things the run said that the acceptance criterion did not
+anticipate: the winning rung is **`push-ferry`, not `push-ferry-work`** — the bar named the wrong
+mechanism, because what was broken was the cancel and not the ranking key — and `--beat-banked` never
+fired, so the ON-by-default half is exercised but still untested in anger. What is left of item 4 is
+the campaign that decides the default, and it is a number.
+
+**Item 5, level 10's fire tier, is positive on its population and negative on its example.**
+`--push-fire-tier` is *Layer 9*: `Heuristic.BuildFire` already answers *"would an anti-tank fire the
+moment the tank stood here?"* for all 256 cells, so counting the cells it marks turns a price into a
+quantity, and a successor that leaves the anti-tanks sweeping fewer cells than its parent's board did
+is promoted to a tier below all three of the read's derivations. Over the **138 unsolved GAUNTLETs
+with a record of <= 60** at 40M nodes it is **85 solo against the control's 76, with 15 exclusive
+levels against 6** — union 91 of 138, 161 of 161 through the two-engine gate — for **9% wall clock**
+and the same route lengths on the 70 both solve. It ships as the driver's **tenth rung**. **And
+`LaserTank.lvl` 10, the level the whole derivation was reasoned from, is still unsolved at 400M
+nodes.**
+
+Four things worth more than either result:
+
+* **A derivation can be right about a population and wrong about its own example.** Every layer
+  before this one was named after the level that motivated it and shipped when that level fell.
+  This one was named after a *measurement* — `on the barrier: 0` on 63,454 expansions — and the
+  measurement generalised where the level did not. Level 10 is at the 87th percentile of GAUNTLET
+  threat counts with a record of 179; the levels the tier wins have records under 60.
+* **`best=` is the wrong column for a tier that trades distance for exposure, and it says so
+  loudly.** Level 10's traced run with the tier bottoms at `best=29` against the untiered run's 22 —
+  the layer looks like a regression in the only column the trace had. `--push-trace` gained
+  `frontier sweeps N at best, M at least` for that reason, and it shows exposure falling 131 → 115 →
+  99 over three depths on the same run. **Third time in this file an instrument has measured the
+  wrong thing and nearly retired a working layer.**
+* **A cheap falsifier that does not falsify is not the same as a cheap falsifier that is cheap.**
+  Item 5 was ordered first-in-line partly because `--analyze` could contradict it in a second. It
+  did not contradict it, and the actual cost of the item was a build plus two 40M-node arms over 138
+  levels — six hours, not one second. The estimate was of the *best* case and the list read it as
+  the expected one.
+* **The two open levels no longer have a costed candidate between them.** 10 has now had budget,
+  closure, width, depth and the fire tier cleared; 6 never had a cheap falsifier at all. That is why
+  the list re-ordered to put item 2 first: not because a number beats a level, but because nothing
+  cheap is left to try on the levels.

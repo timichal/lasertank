@@ -345,6 +345,55 @@ namespace LaserTank.Solver
                 o.MaxKeys = 5000;
                 o.PushRestarts += 6 * r;
             }),
+            // The same rung again with the fire map promoted from a price to a
+            // tier -- item 5, session 31.  `--push-fire 8` is still on, so the
+            // one difference from the rung above is Push.FireTier: a successor
+            // whose board leaves the anti-tanks sweeping fewer enterable cells
+            // than its parent's did outranks one that only shortens the walk.
+            //
+            // **A rung of its own rather than a change to the one above, and
+            // the measurement says which.** Over the 138 unsolved GAUNTLETs
+            // with a record of <= 60 (bench/gauntlet-tail.txt, item 5's
+            // population) at 40M nodes, the rung above solves **76** and this
+            // one **85** -- but 15 of this one's are levels the other misses
+            // against 6 the other way, so the union is **91 of 138 (65.9%)**
+            // and folding the flag into the rung above would cost six levels.
+            // 161 of 161 solutions through the two-engine gate.  That is this
+            // file's fourth rule for the sixth time: measure unions.
+            //
+            // What it costs, measured rather than assumed: **9% wall clock**
+            // on one traced level-10 run (201.9k against 184.8k nodes/s at
+            // --jobs 1, same 6M nodes), because the count rides along with the
+            // successor from the fire map PushH has already built and the pass
+            // itself is one board scan per expansion.  On the 70 levels both
+            // rungs solve it is 1.13M nodes against 1.08M for the same median
+            // 49 keys, so it is not buying its levels by spending more.
+            //
+            // **What it does not do is solve `LaserTank.lvl` 10**, which is the
+            // level the design was derived from: unsolved at 400M nodes and
+            // d=48, with the work column worse throughout (`best=` bottoms at
+            // 29 against the untiered run's 22).  The tier steers by exposure
+            // and the trace column is a distance, so the two disagree by
+            // construction -- but the level still does not fall, and the honest
+            // statement is that the derivation paid off on its *population* and
+            // not on its example.
+            ("push-fire", static (o, r) =>
+            {
+                o.RunPush = true;
+                o.PushRead = true;
+                o.PushEval = RankKey.Work;
+                o.ReadAntiTankWall = true;
+                o.PushReach = true;
+                o.PushFerryMatch = true;
+                o.PushFerryMaze = true;
+                o.PushDead = 20;
+                o.PushFire = 8;
+                o.PushFireTier = true;
+                o.PushShotRun = 16;
+                o.PushBeamWidth = r >= 5 ? 2048 : r >= 3 ? 512 : 128;
+                o.MaxKeys = 5000;
+                o.PushRestarts += 6 * r;
+            }),
         };
 
         // ---- lanes ---------------------------------------------------------
@@ -354,7 +403,7 @@ namespace LaserTank.Solver
         ///
         /// The driver used to be a single loop over levels, and a lane is what
         /// that loop became once there was more machine than one level could
-        /// use.  Nine rungs on a sixteen-core box leaves seven cores idle, and
+        /// use.  Ten rungs on a sixteen-core box leaves six cores idle, and
         /// a second lane is a whole further level to spend them on.
         ///
         /// **The lanes share one pool of `--jobs` slots rather than each
