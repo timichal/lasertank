@@ -22,7 +22,8 @@
 //     width (a beam that stopped at beam-dead-end has nothing more to spend a
 //     bigger budget on), and the subgoal beam gets more restarts.  Round 0 is
 //     400k nodes, about a second; round 5 is 400M and about an hour.  There is
-//     no last round.
+//     no last round unless --max-round says so, which is what an unattended
+//     run wants: without it a lane stays on one level until a key is pressed.
 //   * **Level order, not .ghs order.**  The campaign sorts by the record
 //     because that makes its solved-vs-budget curve readable.  Somebody working
 //     through a collection wants level 7 after level 6.
@@ -518,7 +519,7 @@ namespace LaserTank.Solver
             };
 
             Console.WriteLine("{0}  levels {1}-{2} of {3}   {4} searchers per level,"
-                              + " {5}, budget x4 each round",
+                              + " {5}, budget x4 each round{6}",
                               Ansi.Bold(collection), from, to, count, Ladder.Length,
                               // One lane can never have more than the ladder
                               // running however many slots it is given, and
@@ -526,7 +527,9 @@ namespace LaserTank.Solver
                               // number the display would then contradict.
                               lanes == 1
                                 ? Math.Min(jobs, Ladder.Length) + " at a time"
-                                : lanes + " levels at a time over " + jobs + " slots");
+                                : lanes + " levels at a time over " + jobs + " slots",
+                              a.MaxRound == int.MaxValue ? ""
+                                : " to round " + a.MaxRound);
             Console.WriteLine(Ansi.Dim(!Interactive
                 ? "  stdin is not a console, so there is no key to press here: "
                   + "Ctrl+C is the way out\n"
@@ -620,8 +623,11 @@ namespace LaserTank.Solver
                 lane.Skip = false;
                 bool won = false;
                 DateTime lt0 = DateTime.UtcNow;
-                for (int round = 0; !won && !lane.Skip && !_quit; round++)
+                int rounds = 0;
+                for (int round = 0; !won && !lane.Skip && !_quit
+                                    && round <= ctx.A.MaxRound; round++)
                 {
+                    rounds = round + 1;
                     Program.Outcome o = Round(ctx, lane, info, lv, round, lt0);
                     if (o == null) continue;                       // nobody won
 
@@ -663,8 +669,15 @@ namespace LaserTank.Solver
                 {
                     lock (ctx.Unsolved) ctx.Unsolved.Add(lv);
                     if (lane.Skip) Interlocked.Increment(ref ctx.Skipped);
-                    block.Add("  " + Ansi.Yellow(
-                        (_quit ? "stopped" : "skipped") + " after "
+                    // Three ways to stop, and an unattended run wants them
+                    // told apart: a key, a quit, and --max-round running
+                    // out -- which is the only one that says how much
+                    // budget the level actually got.
+                    string how = _quit ? "stopped"
+                               : lane.Skip ? "skipped"
+                               : "unsolved in " + rounds
+                                 + (rounds == 1 ? " round" : " rounds");
+                    block.Add("  " + Ansi.Yellow(how + " after "
                         + Progress.Span((DateTime.UtcNow - lt0).TotalSeconds)));
                 }
                 lane.Cur = null;

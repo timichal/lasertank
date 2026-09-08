@@ -45,7 +45,8 @@ namespace LaserTank.Solver
 "  level in *number* order, and spends as long on each as it takes: every\n" +
 "  searcher that ships runs side by side on its own thread and the node budget\n" +
 "  quadruples each round, until the level falls or you press a key to give up\n" +
-"  on it (q quits).  A solution is kept only once tools/verify_solutions.py\n" +
+"  on it (q quits) -- or --max-round N rounds have gone by, which is how it is\n" +
+"  run unattended.  A solution is kept only once tools/verify_solutions.py\n" +
 "  has replayed it through both engines.  --from/--to/--out/--force/--author/\n" +
 "  --trim-ratio/--jobs apply; --nodes sets round 0's budget, not a cap.\n" +
 "  --lanes N works N levels at once and the lanes share the same --jobs\n" +
@@ -89,10 +90,25 @@ namespace LaserTank.Solver
 "    --nodes N            ApplyKey calls -- the unit that costs, and the one\n" +
 "                         to govern a campaign by; wall clock is not reproducible\n" +
 "    --beam N             beam width, default 600      --max-keys N\n" +
+"    --max-keys-record    take the keystream cap from each level's .ghs record\n" +
+"                         -- clamp(5 x (moves + shots) + 100, --max-keys, 8000)\n" +
+"                         -- instead of one global for the corpus.  The cap is\n" +
+"                         silent when it binds (the state is dropped and the\n" +
+"                         level reports budget), and the default 1,200 cannot\n" +
+"                         emit the 1,764- and 1,876-key solutions the fourth\n" +
+"                         pass banked at 5,000.  Raises only, never lowers\n" +
 "    --ida-depth N        IDA* bound cap, default 24   --no-ida / --no-beam\n" +
 "    --jobs N             parallel workers, default = processor count\n" +
 "    --lanes N            interactive only: levels to work on at once,\n" +
 "                         default 1; every lane draws on the --jobs slots\n" +
+"    --max-round N        interactive only: give up on a level after round N\n" +
+"                         instead of never.  Rounds are numbered from 0 and\n" +
+"                         round r gets 4^r x --nodes, so --max-round 3 is four\n" +
+"                         rounds ending at 25.6M and --max-round 5 ends at\n" +
+"                         409.6M.  This is what makes the driver runnable\n" +
+"                         unattended: without it a lane stays on its level\n" +
+"                         until a key is pressed.  Levels it gives up on are\n" +
+"                         listed at the end, the same as the ones you skip\n" +
 "\n" +
 "  layer 1 -- macro-actions (Goto + Shoot).  OFF by default: it wins on levels\n" +
 "  the raw beam cannot solve and loses over the corpus, so it belongs in a\n" +
@@ -379,6 +395,8 @@ namespace LaserTank.Solver
             public int From = 1, To = int.MaxValue, Limit = int.MaxValue;
             public int Jobs = Environment.ProcessorCount;
             public int Lanes = 1;
+            public int MaxRound = int.MaxValue;
+            public bool MaxKeysRecord;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
             public bool Polish = true;
@@ -426,11 +444,13 @@ namespace LaserTank.Solver
                         case "--stride": a.Stride = Math.Max(1, int.Parse(V())); break;
                         case "--jobs": a.Jobs = Math.Max(1, int.Parse(V())); break;
                         case "--lanes": a.Lanes = Math.Max(1, int.Parse(V())); break;
+                        case "--max-round": a.MaxRound = Math.Max(0, int.Parse(V())); break;
                         case "--trim-ratio": a.TrimRatio = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--budget-ms": a.Opt.TimeBudgetMs = int.Parse(V()); break;
                         case "--nodes": a.Opt.NodeBudget = long.Parse(V()); a.NodesGiven = true; break;
                         case "--beam": a.Opt.BeamWidth = int.Parse(V()); break;
                         case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); break;
+                        case "--max-keys-record": a.MaxKeysRecord = true; break;
                         case "--ida-depth": a.Opt.IdaMaxDepth = int.Parse(V()); break;
                         case "--no-ida": a.Opt.RunIda = false; break;
                         case "--no-beam": a.Opt.RunBeam = false; break;
@@ -808,6 +828,7 @@ namespace LaserTank.Solver
             // workers: Solve() clamps IdaMaxDepth in place, and two threads
             // sharing an options object would race.
             Outcome o = new Outcome { J = job };
+            if (a.MaxKeysRecord) opt.MaxKeys = KeyCap(opt.MaxKeys, job);
             try
             {
                 Solver s = new Solver(a.Levels, opt);
@@ -1180,6 +1201,27 @@ namespace LaserTank.Solver
             Console.WriteLine("{0}: {1} recordings, {2} with no win, {3} groups",
                               collection, done, skipped, groups);
             return 0;
+        }
+
+        /// `--max-keys-record`: the keystream cap from the level's own record
+        /// rather than from a global.  The default 1,200 is a *silent* cap --
+        /// a state past it is dropped and the level reports `budget` -- and it
+        /// binds on exactly the population a push pass is for: over the
+        /// SAMPLE=15 fourth-pass rehearsal the two arms that ran at 5,000
+        /// banked solutions of 1,764 and 1,876 keys, which the three arms at
+        /// the default could not have emitted at any budget.
+        ///
+        /// Five keys a recorded move plus a hundred, because a solver route is
+        /// longer than a human's: the median solved arm row is 2.1x its record
+        /// and the p90 is 5.9x.  It only ever *raises* the cap -- the floor is
+        /// whatever --max-keys asked for -- so a run carrying the flag can
+        /// reach every keystream the same run without it could, and a level
+        /// with no record (0, or RecMax's 65500) keeps the global.
+        internal static int KeyCap(int floor, Job job)
+        {
+            int rec = job.GhsMoves + job.GhsShots;
+            if (rec <= 0 || job.GhsMoves >= 65500) return floor;
+            return Math.Min(8000, Math.Max(floor, 5 * rec + 100));
         }
 
         internal static SolveOptions Clone(SolveOptions s) => new SolveOptions
