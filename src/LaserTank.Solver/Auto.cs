@@ -495,8 +495,17 @@ namespace LaserTank.Solver
             // the same kind of thing: a recording that cannot be regenerated on
             // demand.  The scratch directory the verifier stages through stays
             // under build/, because that part really is disposable.
-            string outRoot = a.OutGiven
-                ? a.Out : Path.Combine(root, "data", "solutions");
+            //
+            // A hint-assisted run (--goal-board) never lands here: Program's
+            // LoadGoals has already turned a.Out into "solutions-hint", so the
+            // driver banks under data/solutions-hint/.  That directory is worth
+            // committing for the same reason this one is -- the recordings are
+            // real and they are the off-distribution sample layer 4 wants --
+            // and it is a different directory because the *rate* is counted by
+            // what is in this one.
+            string outRoot = a.OutGiven ? a.Out
+                : Path.Combine(root, "data", a.GoalBoard == null
+                                             ? "solutions" : "solutions-hint");
             string outDir = Path.Combine(outRoot, collection);
             string work = Path.Combine(root, "build", "solutions", ".auto");
             string ghsPath = Path.ChangeExtension(a.Levels, ".ghs");

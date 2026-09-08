@@ -426,6 +426,30 @@ namespace LaserTank.Solver
 "                         every step, so which Cut is it that loses it\n" +
 "    --push-share R       budget fraction it may run until, default 1.0\n" +
 "\n" +
+"  the scraped goal board (Goal.cs) -- HINT-ASSISTED, read this\n" +
+"    --goal-board FILE    rank the push beam by how far the board still is\n" +
+"                         from the one the blogspot solution finished on, as\n" +
+"                         banked by `tools/harvest.py bank`.  Silent on a\n" +
+"                         level the bank does not cover.  EVERY SOLUTION A RUN\n" +
+"                         WITH THIS PRODUCES IS HINT-ASSISTED AND MUST NEVER\n" +
+"                         ENTER THE SOLVER'S HEADLINE RATE, so the flag moves\n" +
+"                         the default output (solutions -> solutions-hint, and\n" +
+"                         data/solutions -> data/solutions-hint in the\n" +
+"                         interactive driver, which is the one that writes into\n" +
+"                         git), stamps hint=goal-board on every report row, and\n" +
+"                         says so on stdout.  An explicit --out is honoured.\n" +
+"                         What they are worth is docs/solver/history.md, closed\n" +
+"                         item 6: real recordings on off-distribution long\n" +
+"                         levels, which is the sample layer 4 is fit on\n" +
+"    --goal-weight N      weight on the term, default 1, 0 is off.  Untuned;\n" +
+"                         1 is what --push-ferry uses\n" +
+"    --goal-miss N        price of an object the goal board says must be\n" +
+"                         created or destroyed rather than moved -- a brick\n" +
+"                         shot away, a block sunk in water -- default 16.  A\n" +
+"                         cliff, not a gradient: --push-ferry is the term that\n" +
+"                         carries the block and this says which hole is on the\n" +
+"                         blogger's list\n" +
+"\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
 "    --author NAME        .lpb author field, default \"LTSolver\"\n" +
@@ -460,7 +484,11 @@ namespace LaserTank.Solver
             public HashSet<int> Only;      // --levels-list, null when unused
             public string RankDump, LpbList, ProfileOut;
             public bool DoAnalyze;
-            public string AnalyzeTsv, ReadDumpOut, PolishPath, PushLine;
+            public string AnalyzeTsv, ReadDumpOut, PolishPath, PushLine, GoalBoard;
+
+            /// --goal-board, loaded.  Null when the flag was not given; see
+            /// Goal.cs, and LoadGoals for what a run with it set may not do.
+            public Dictionary<string, GoalBoard> Goals;
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
@@ -553,6 +581,9 @@ namespace LaserTank.Solver
                         case "--push-enables-poses": a.Opt.PushEnablesPoses = int.Parse(V()); break;
                         case "--push-trace": a.Opt.PushTrace = true; break;
                         case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
+                        case "--goal-board": a.GoalBoard = V(); break;
+                        case "--goal-weight": a.Opt.GoalWeight = int.Parse(V()); break;
+                        case "--goal-miss": a.Opt.GoalMiss = int.Parse(V()); break;
                         case "--subgoal": a.Opt.RunSubgoal = true; break;
                         case "--subgoal-first": a.Opt.SubgoalLast = false; break;
                         case "--subgoal-share": a.Opt.SubgoalShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
@@ -631,6 +662,8 @@ namespace LaserTank.Solver
                 return 2;
             }
 
+            if (LoadGoals(a) != 0) return 2;
+
             if (a.PolishPath != null) return PolishAll(a);
             if (a.ReadDumpOut != null) return ReadDumpAll(a);
             if (a.DoAnalyze) return AnalyzeAll(a);
@@ -685,6 +718,49 @@ namespace LaserTank.Solver
             bar.Clear();
             report?.Dispose();
             Summary.Print(collection, rows, (DateTime.UtcNow - t0).TotalSeconds, outDir);
+            return 0;
+        }
+
+        /// --goal-board: load the bank, and put the run's output somewhere an
+        /// honest run's output is not.
+        ///
+        /// **The honesty condition, and it is not a convention -- it is this
+        /// function.**  A level solved against a scraped goal board is
+        /// hint-assisted, and the one thing that must never happen is a
+        /// hint-assisted .lpb landing in the directory whose file count is the
+        /// solver's rate.  So the default output moves rather than the run
+        /// being refused: `solutions-hint` in batch, `data/solutions-hint` in
+        /// the interactive driver (Auto.cs).  An explicit --out is honoured --
+        /// the user has said where -- and the report row carries the stamp
+        /// either way, which is the half a directory name cannot do.
+        ///
+        /// Returns non-zero when the bank will not load.  A bank that half
+        /// parsed is worse than no bank: the levels it silently dropped would
+        /// solve as ordinary levels and be banked as hint-assisted anyway.
+        private static int LoadGoals(Args a)
+        {
+            if (a.GoalBoard == null) return 0;
+            try
+            {
+                a.Goals = GoalBank.Load(a.GoalBoard);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("lasertank-solve: --goal-board " + a.GoalBoard
+                                        + ": " + ex.Message);
+                return 2;
+            }
+
+            string collection = Path.GetFileNameWithoutExtension(a.Levels);
+            int mine = 0;
+            foreach (GoalBoard g in a.Goals.Values) if (g.Collection == collection) mine++;
+            if (!a.OutGiven) a.Out = a.Out + "-hint";
+
+            Console.WriteLine(Ansi.Yellow(
+                "hint-assisted run: --goal-board " + a.GoalBoard + " has "
+                + a.Goals.Count + " goal boards, " + mine + " of them in "
+                + collection + ".  Solutions are NOT part of the solver's rate;"
+                + " every report row says hint=goal-board."));
             return 0;
         }
 
@@ -818,6 +894,12 @@ namespace LaserTank.Solver
             public bool Solved, Trimmed, Polished, Replanned;
             public int Keys, Moves, Shots, RawKeys, Depth, Restarts;
             public string Method = "-", Stop = "-";
+
+            /// Non-null when this level was solved with something the solver
+            /// did not derive.  "goal-board" is the only value so far; see
+            /// Goal.cs.  It is written into the report row so that a rate
+            /// computed over the report cannot count it by accident.
+            public string Hint;
             public long Nodes;
             public double Ms;
             public string Error;
@@ -880,6 +962,7 @@ namespace LaserTank.Solver
                     w.WriteNumber("restarts", Restarts);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
+                    if (Hint != null) w.WriteString("hint", Hint);
                     if (Error != null) w.WriteString("error", Error);
                     w.WriteEndObject();
                 }
@@ -897,6 +980,13 @@ namespace LaserTank.Solver
             try
             {
                 Solver s = new Solver(a.Levels, opt);
+                if (a.Goals != null && a.Goals.TryGetValue(
+                        GoalBank.Key(Path.GetFileNameWithoutExtension(a.Levels), job.Level),
+                        out GoalBoard g))
+                {
+                    s.SetGoal(g);
+                    o.Hint = "goal-board";
+                }
                 SolveResult r = s.Solve(job.Level);
                 o.Method = r.Method;
                 o.Stop = r.Stop;
@@ -1120,6 +1210,9 @@ namespace LaserTank.Solver
             {
                 int lv = levels[i];
                 Solver s = new Solver(a.Levels, Clone(a.Opt));
+                if (a.Goals != null
+                    && a.Goals.TryGetValue(GoalBank.Key(collection, lv), out GoalBoard g))
+                    s.SetGoal(g);
                 byte[] board = s.StartBoard(lv);
                 Read r = s.Analyze(lv);
                 text[i] = Solver.Format(r, collection, board);
@@ -1362,6 +1455,8 @@ namespace LaserTank.Solver
             PushTrace = s.PushTrace,
             PushCloseOnExpand = s.PushCloseOnExpand,
             PushFerry = s.PushFerry,
+            GoalWeight = s.GoalWeight,
+            GoalMiss = s.GoalMiss,
             PushRestarts = s.PushRestarts,
             PushShare = s.PushShare,
             Eval = s.Eval,

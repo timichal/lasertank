@@ -1,326 +1,30 @@
 # Next actions — the open items in full
 
-Six items are open. The order and the reasoning behind it are in
+Five items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **6, 2, 5, 4, 7, 10** — set in session 33 and unchanged, but item 6 is a different item again.
-Its spike came back positive in session 34, and **session 35 closed its whole first phase**: the
-goal-only tile residue turned out to be *derivable* from the 2010 binary's own graphics, which this repo
-already commits, so the half-session of hand labelling it was costed at does not exist. Every goal board
-in the sample now decodes with **0 unknown cells**, and `LaserTank.lvl` 10's goal board — the one thing
-that could hand that level a candidate — is complete, tank included. What is left of item 6 is
-**only `--goal-board`**, a layer-sized build. It stays first on the second ordering key rather than
-the first — *prefer work that produces a property or a level over work that produces a number* — because
-it has an acceptance test written in advance and item 2 still produces a percentage. Item 2's
-rehearsal is done and its 54-hour run is fully specified, so it is ready to launch whenever the machine is
-free, and **the two do not compete**: node-governed results are unaffected by extra load; only wall-clock
-readings are.
+Order: **2, 5, 4, 7, 10** — the tail of the session-33 ordering, with item 6 lifted off the front of it.
+**Item 6 is closed** (session 36): the harvester, the derived tile table and `--goal-board` all shipped,
+and the full record with its measurements is
+[closed item 6](history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).
+It leaves two things behind that the items below now inherit. `--goal-board` is a **hint-assisted**
+instrument — 15 → 21 of the 141 levels the fetched bank covers, all gated, none of it in the headline
+rate — so what it produces is a supply of real recordings on off-distribution long levels, which is
+exactly the sample layer 4 is fit on and the one nothing else here can obtain. And the per-flag goal
+boards it banks are a subgoal sequence nothing reads yet, which is *Further out*'s subgoal-chaining note
+with its acceptance test already in a file.
+
+**Item 2 is now first, and it is a machine commitment rather than a build.** Its rehearsal is done and
+its 54-hour run is fully specified, so it is ready to launch whenever the machine is free. Item 5 is the
+first *build* on the list and the only open item that would move a level in front of the project —
+`LaserTank.lvl` 6, which has no blogspot post at all and so was never in item 6's reach.
 
 ---
 
-## 6 (1st) — the blogspot goal-board harvester
-
-**The feasibility spike is done, positive, and it shipped as `tools/harvest.py` + `tools/png.py`
-(session 34); session 35 added `tools/sprites.py` and closed phase 1.** What is left of this item is one
-build, not a question — the framing is below, then every number the spike produced, then how the
-labelling job turned out not to be one, then the re-costed remainder.
-
-Michal raised it; what one post actually contains was verified rather than assumed (`Challenge-II-100`):
-a **start screenshot**, one **screenshot per flag showing the board at the moment of reaching it**, and —
-on some posts — the game's own **Moves and Shots counters visible in the panel**. No move list, no
-keystream, no prose.
-
-**What it buys is not solutions, it is a goal.** A final board says which blocks were moved where and
-which bricks were destroyed, so "reach the flag" becomes "reach *this* board" — a progress measure that
-decreases with every push in the right direction, which is exactly the gradient `RouteFerry` and its four
-successors are hand-rolled approximations of.
-
-**The honesty condition, and it is not optional.** A level solved with a scraped goal board is
-*hint-assisted* and must never enter the solver's headline rate. Its value is as a bootstrap:
-hint-assisted solutions are real recordings, and real recordings are what `--profile` / `basin.py`
-measure and what layer 4 is fit on — the off-distribution long-level sample that layer 4's
-self-reinforcement trap needs, obtained without anyone playing twenty levels by hand.
-
-It is no longer a prerequisite for measuring anything: the ferry population was n=2 when this was agreed,
-and it is n=20 hand-recorded now. The harvester is a way to make that 200.
-
-### Session 34 — the spike, and every number it produced
-
-Run in this order, each step cheap enough that the next one was only reached because the previous one
-came back clean. `python tools/harvest.py {index,map,fetch,codebook,decode}`.
-
-**1. The index is one minute and needs no HTML at all.** The Blogger feed
-(`/feeds/posts/default?alt=json`) serves the *post body*, so the image URLs come with the titles: **6,218
-posts in 42 requests, 46 s.** That retires "a scraping project" as this item's phase 1. The count also
-corrects the estimate above: 6,218, not 2,000-3,000.
-
-**2. The mapping is exact at scale.** Session 33 checked 6 posts and got 6/6; over all of them it is
-**6,188 of 6,197 solution posts exact** on `(collection, level) → name` (99.85%), plus 21 posts that are
-not solutions at all (celebrations, tutorials). `harvest.py map` prints the nine residuals and every one
-is a **blog-side title typo, not a bad index** — a difficulty appended to the name (`Loopy, Easy`), a
-`Shake` for `Shaker`, one `KaserTank` for `LaserTank`, one level name the `.lvl` itself stores with
-control bytes in it. The number indexes the `.lvl` directly and the name is a free checksum on top.
-
-**Coverage: 6,043 distinct `(collection, level)` pairs, 28.9% of the 20,914-level corpus** — and it is
-concentrated exactly where the chain fails. Against `build/reports/chain.jsonl`, **1,148 of the 3,691
-levels the shipped chain fails have a post (31.1%)**, and within the collections the blog actually works
-on the rate is 81-90%: `Sokoban-I` 358 of 397, `LaserTank` 315 of 362, `Challenge-I` 284 of 349,
-`Special-I` 61 of 84. Per tier: Easy 716 of 2,008, **Medium 349 of 775, Hard 68 of 257** — the tier the
-chain is 0-for-257 on. Nothing at all for `Beginner-I/II`, `Gary-I/II` and `Challenge-III`, which is why
-Kids is 0 of 586.
-
-**3. One thing session 33 over-generalised.** The `Coll_NNN_G4.png` cell-name convention — the one that
-makes a multi-flag subgoal sequence free — is **later-era only**. The 2016-era posts, which are exactly
-`LaserTank.lvl` 1-19, name their images `10a.png` / `10b.png` and carry **no cell names**. Both eras are
-keyed by the level number and `pick_images` handles both; the point is that *level 10 is in the era
-without the free text*, so for the one open level this item can reach at all, the pixel decode was the
-whole question. A post can also carry no goal image at all — `LaserTank` 1 has only a start.
-
-**4. Geometry: two window sizes over nine years, and the frame finds both.** 609x463 and 619x473,
-8-bit truecolour, served at Blogger's `/s1600/` as the untouched originals. The board is 16x16 at
-**24 px per cell inside a two-pixel `(128,128,128)` frame**, at origin (20,62) and (25,67) respectively —
-so the detector is `bytes.find` of a 384-pixel grey run over each row, a millisecond rather than a pixel
-loop. **Zero failures over the 640 start and goal images of the two samples** (150 + 176 and 141 + 173),
-both eras, seven of the nine collections the blog covers — `Challenge-III` and `Challenge-IV` have 3 and
-8 posts between them and came up in neither draw. The first 26 were also cross-checked against a slower
-whole-image pixel loop and agreed on every one. No third-party dependency: this machine has neither PIL
-nor numpy, so `tools/png.py` is a stdlib PNG reader in the house style of `atlas_check.py`'s
-`bmp_decode`.
-
-**5. The codebook bootstraps itself and saturates.** For every post the collection and level are known
-from the title, so a start screenshot is **256 labelled tiles for free**. Decoding each start board
-against the codebook built from the boards *before* it — so the curve is honest and a disagreement is a
-hard error rather than a self-fulfilling one — over 150 random posts:
-
-| | sample A (150) | sample B (141) |
-|---|---|---|
-| codebook entries | **55**, from 38,400 labelled tiles | **55** |
-| conflicts (a tile hash claiming two different `PF` values) | **0** | **0** |
-| boards decoded exactly against earlier boards only | **135 of 150** | **133 of 141** |
-| held-out check: `LaserTank` 10's start board | **256 of 256**, zero unknown tiles | 256 of 256 |
-
-**Two independent random samples, and both land on 55.** They agree on **54 of the 55** and disagree on
-**none** — each learned one animation frame the other's draw missed (a tank frame; an anti-tank-up
-frame), so the true universe is ~56 and either sample is one rare frame short of it. *What is not stable
-is which board teaches the last tile* — 37, 97 and 10 of ~140 across three runs, because it depends
-entirely on which rare frame happens to come last in the shuffle. Quote the size, not the position.
-
-**And there is only one graphics pack in play**, which was the third open unknown: dirt, solid, block,
-bricks, ice, every mirror and every tunnel have **exactly one** tile image each over those 150 boards.
-Only the animated sprites have several — anti-tank 3-4, water 3, flag 3, each conveyor 3 — so the
-multiplicity is animation frames, not `.ltg` packs, and the tile universe is small.
-
-**6. The goal side is where the cost actually is, and it does not saturate.** Reproducible as
-`harvest.py codebook --goals`. Decoding ~175 goal boards against the 55-entry codebook leaves **93
-(sample A) / 117 (sample B) further distinct sprites**, 3.79% / 4.52% of tiles, and at the last board of
-either the set was still growing by one every ten boards or so. Unknown tiles per goal board, sample B:
-
-| unknown cells | 0 | 1 | 2 | 3-5 | 6-10 | >10 |
-|---|---:|---:|---:|---:|---:|---:|
-| goal boards | 3 | 10 | 12 | 28 | 57 | **63** |
-
-That distribution is what session 34 carried forward as the item's remaining cost, and it is **kept
-because it is the number that turned out to be the wrong question** — see
-[*Session 35*](#session-35--the-residual-was-not-hand-input), where the residue is derived instead of
-labelled and the figure is 0.00%, not 1.37%. What follows in this section is session 34's reasoning as
-it stood.
-
-**Why, and why it is a labelling job rather than an ambiguity.** A start board only ever shows *authored*
-states: the tank faces up, no laser is in flight, and no block has been pushed anywhere. The residual is
-the states only play produces — the tank in the other three directions, an anti-tank over ice or water, a
-roto-mirror flipped by a laser, a beam mid-flight, and above all **the block pushed into water**, which
-is **68.5% / 69.7% of all instances on the two samples** on its own. That one is `Engine.cs:731`: pushing
-a block (`obt == 5`) onto water sets **`PF = 0` and `BMF = 19`** — functionally dirt, drawn as a sunken
-block. Which is the general shape of the whole residual: **`BMF → PF` is many-to-one, and `PF` is the
-only half the solver wants.** So each of them has one right answer, and 26 were labelled by eye off a
-contact sheet in one look during the spike.
-
-*This paragraph is right about the mechanism and wrong about who has to supply the answer: because each
-sprite has one right answer, and because the sprite that draws it and the rule that assigns its `PF` are
-both committed in this repo, the answer is derivable and no eye is needed. Session 35, below.*
-
-**7. `LaserTank.lvl` 10's goal board is in hand.** `/2016/06/10-valley-of-death.html`, decoded with
-**one** undecoded cell — and that cell is the tank at (6,0), identified from its crop, one move short of
-the flag at (7,0). The post *does* carry counters (the item's warning that they are not universal still
-stands, `Challenge-I 1901` has none): **179 moves / 52 shots** against the `.ghs` record's 124/55.
-
-The shape of that solution is the finding:
-
-* **Zero of the ten anti-tanks are destroyed.** Six of them are somewhere else.
-* Minimum total push distance over both direction groups, by exhaustive assignment, is **30** — against
-  52 shots spent. So level 10 is won by *rearranging* anti-tanks, not by clearing them, and the goal
-  board names the cells they have to end up in. (A push preserves an anti-tank's facing — `MoveObj`
-  moves it and never rotates it — so `>` can only be matched to `>`, and the two direction groups are
-  matched independently. Which anti-tank became which within a group is still a choice, and the numbers
-  here take the minimum-cost one.)
-* This is not news about the mechanic — `Heuristic.cs:957` already counts anti-tanks as pushable, and the
-  comment beneath it is about level 10 by name. It is news about the *quantity*, and about the gradient.
-  `--analyze` on level 10 offers **five** board changes at the root, three of which "open somewhere new
-  to stand", and it cannot rank them. The goal board can: pushing (1,13) **up** closes the distance to
-  its goal cell (0,12) from 2 to 1, while both pushes of (13,14) — left to (12,14), up to (13,13) — open
-  the distance to (15,14) from 2 to 3. **A key that distinguishes those three is exactly what this level
-  has never had.**
-* **A hand-arithmetic result was wrong before the code checked it.** Matching goal anti-tanks to start
-  anti-tanks by eye gave a total push distance of exactly 52, equal to the shot count, which read as a
-  beautiful confirmation. The exhaustive assignment says 30. Same failure mode as session 33's 896-byte
-  record: an arithmetic coincidence is the most convincing kind of wrong answer, and the fix is the same
-  — reconcile against a number you did not derive.
-
-**8. And level 6 "Cascade" still has no post.** Checked against the full index rather than by search now:
-of `LaserTank.lvl` 1-20, levels **3, 4, 6, 7, 11, 13 and 20 have no post at all**. So this item can reach
-one of the two open levels and not the other, and item 5 is unchanged by all of the above.
-
-### Session 35 — the residual was not hand input
-
-**The labelling job does not exist.** Session 34 costed the goal-only residue at half a session of
-eyeballing a contact sheet, on the reasoning that a start board only ever shows authored states and
-nothing labels the states play produces. That reasoning was right and the conclusion was wrong: the
-2010 binary's own graphics are **committed in this repo**, at `original/src/Game.BMP` and
-`original/src/Mask.BMP`, and the tables that choose a sprite are in `LTANK2.C`. Compositing the two
-the way the game composites them reproduces the blog's pixels *exactly*, so every state play produces
-labels itself. It ships as `tools/sprites.py`, gated by `tools/harvest.py tiles`.
-
-Three things had to be right, and all three are in the original source rather than guessed:
-
-* **Size.** `LTANK2.C:1742` sets `SpBm_Width = SpBm_Height = 24` and `GFXInit` (`:766`) `StretchBlt`s
-  the whole 320x192 sheet down to 240x144 — so every 32x32 sprite is drawn at 24x24, which is why the
-  blog's cells are 24 px. `BMA[i]` is filled row-major *from i = 1* (`:784`).
-* **The shrink, which is the part that made this look impossible.** `GFXInit` never calls
-  `SetStretchBltMode`, so the mode is GDI's default `BLACKONWHITE` = `STRETCH_ANDSCANS`: the rows and
-  columns a shrink eliminates are **ANDed** into the ones that survive, per RGB channel, with the
-  grouping `dst = (src * 24 + 12) // 32`. A plain nearest-neighbour shrink gets the palette exactly
-  right and the pixels wrong, which reads as "different artwork" — and that is the whole reason the
-  sheet was never suspected. Both the mode and the grouping were **solved from one real dirt tile**
-  rather than assumed: of seven candidate groupings, exactly one reproduces it, and it does so
-  pixel-exactly. The AND is also self-evidencing — a real dirt tile carries a third colour,
-  `0x108010`, that is `0x949410 & 0x108310` and appears in neither source sprite.
-* **The composite.** `UpDateSprite` (`:487`) draws a cell as the `BMF2` background — an opaque sprite,
-  or a `ColorList` rectangle for a tunnel — then, for a transparent foreground (`BMSTA[bmn] == 1`), the
-  mask `SRCAND` and the sprite `SRCPAINT` on top. `UpDateTank` (`:537`) is a further mask+OR, and
-  `UpDateLaser` (`:549`) a plain `Rectangle` inset by `LaserOffset = 10`.
-
-**`BMF → PF` needed three engine rules on top of `GetOBMArray`, and each one is a bitmap the residual
-actually contained:**
-
-* a shot anti-tank is **`PF = 4`**, not dirt, with junk bitmap 54/52/12/53 for the way it was facing —
-  `KillAtank`, `Engine.cs:868`, "the wreck keeps blocking the square". These four were the residual's
-  **largest family**: 55 + 34 + 32 + 20 = 141 of 606 instances;
-* a block pushed into water is **`PF = 0`** with `BMF = BMF2 = 19` (`Engine.cs:731`) — the one sprite
-  session 34 had already hand-labelled, and the derivation agrees with it;
-* the tank is **not in `PF` at all**. `BuildBMField` clears `PF` at the tank's cell on load
-  (`Engine.cs:348`), so a cell the tank stands on carries the terrain's `PF` and the tank is separate
-  output. This is the only place the blog's pixels are genuinely ambiguous — `T` as a foreground
-  bitmap and the tank overlay facing up are the same pixels — and the rule decides it rather than a
-  coin toss. `decode` now returns `(x, y, facing)` beside the board, which is the shape `--goal-board`
-  wants anyway.
-
-**The gate, and it is a gate because none of these tiles were fitted to.** `python tools/harvest.py tiles`:
-
-| check | result |
-|---|---|
-| the **start-bootstrapped codebook**, whose labels come from the `.lvl` files and no sprite | **53 of 55 agree, 0 clash**; 1 is the tank cell, reconciled as (terrain, facing); 1 not derived |
-| the **goal residual** — the sprites a start board can never label | **116 of 116 sprites, 606 of 606 instances** |
-| every **goal board**, decoded end to end | **0 unknown tiles of 44,288 over 173 boards** (100% of boards clean, against session 34's 10) |
-| the tank located on each goal board | **173 of 173** |
-| `decode --check` over every **start** board, against the `.lvl` | **141 of 141, 0 mismatches** |
-
-**Four independent reconciliations, because a pixel match to a table you built is not evidence.**
-The check that mattered was computed *before* the sheet was opened: for each unknown sprite, the
-distribution of the **start board's `PF` at the cells where it appears**, read from the `.lvl` files.
-It is nearly pure — almost every sprite sits over exactly one terrain — and it agreed with the
-derivation on **all 95** sprites the first (OBM-only) enumeration matched. It then independently
-confirmed the `KillAtank` family: bitmaps 54/52/12/53 appear over start cells `^`/`>`/`v`/`<`, matching
-the source's four `case` arms one for one. Third, the derivation reproduces `LaserTank.lvl` 10's tank
-at **(6,0) facing right** — the cell session 34 identified by eye from its crop. Fourth, it puts 10
-anti-tanks on level 10's goal board with **no wrecks**, reproducing that session's "zero of the ten are
-destroyed" from pixels instead of arithmetic.
-
-**The two tiles that are not game states, kept rather than papered over.** One start tile
-(`Challenge-I 944` at (15,15)) is the tank drawn as a **black silhouette** — a screenshot caught
-between the mask `SRCAND` and the sprite `SRCPAINT`, so it is a capture artifact and no composite can
-produce it; the start bootstrap already labels it and only the *facing* is lost, which is why "boards
-with no tank found" is a printed number. And `UpDateLaserBounce` (`:565`) draws half-cell rectangles
-that are **not** enumerated, along with any explosion frame: **0 of 44,288 tiles in the sample needed
-them**, so they are a named gap rather than a silent one, and `sheet` still reports anything the sheet
-cannot draw.
-
-### What is left, re-costed
-
-One piece of work, and it is the build:
-
-**`--goal-board`** — bank `(collection, level, goal PF, tank, moves, shots)` and rank by
-cells-still-differing. **A layer-sized build**, and for once with its acceptance test written in
-advance: level 10, whose goal board is decoded to **0 unknown cells** and whose three root pushes it
-must separate. The gradient it supplies is the one `--analyze` cannot rank — pushing (1,13) up closes
-the distance to its goal cell (0,12) from 2 to 1, while both pushes of (13,14) open theirs from 2 to 3.
-
-Phase 1 is closed, and the reason to record how is that it inverts a rule these files apply often.
-`bench/goal-tiles.json` exists because **nothing re-derives a human's answer** — but the corollary is
-that nothing should *ask* a human for an answer the repo can derive, and the check for that is cheap:
-the inputs were already committed and the composite rule was already in the ported source. The file
-stays, holding one now-redundant label, as the place anything genuinely undrawable goes.
-
-The derivable artefacts land under `build/harvest/` (gitignored, re-fetchable): `index.jsonl`, `img/`,
-`fetched.json`, `codebook.json`, `residual.{png,json}`. Rebuilding all of it from nothing is
-`index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s); the derived table
-is not in that list because it needs no fetch at all — `tiles` builds it from the repo in half a second.
-
----
-
-## Further out, and only after the numbers above have moved
-
-- **A FESS-shaped rung for the Sokoban/ferry half of the corpus.** FERRY + SOKOBAN is 53% of the sample
-  at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region where every
-  successor of every held board is worse* — is the textbook failure of beam search on Sokoban. The
-  textbook answer is **FESS** (Shoham & Schaeffer, *The FESS Algorithm: A Feature Based Approach to
-  Single-Agent Search*, IEEE CoG 2020), the first solver to clear all 90 XSokoban levels. The shape:
-  project states into a small **feature space** (boxes packed, connectivity = number of regions the
-  player is cut into, room connectivity, boxes out of plan); advance by *cycling through the occupied
-  feature cells* and expanding the best state in each; weight moves by "advisors" that say which pushes
-  serve which feature. Two things about it belong here. It is the general form of two devices these
-  files arrived at by measurement — the per-board cap (diversity across boards) and *commit to one
-  block-and-hole pair* (a progress cell searched on its own) — so the fit is not speculative. And it
-  respects the fidelity rule: the engine still generates every state; the features are `Heuristic.cs`
-  quantities that already exist (holes filled, `TankRegion`, ferry-maze distance, `RouteDead`), and the
-  advisors are the read's derivations under another name. A rung, measured as a union. Its second gift is
-  the **packing order**, derived backwards from the goal: which hole must be filled before which, from
-  where a block can still be pushed *after* the others are down. `--push-ferry-match` is the forward half
-  of that; the backward half is what level 6's strip of six holes wants.
-- **Subgoal chaining over board changes, with the acceptance test already written.** Both open levels ask
-  for layer 2's decomposition one level out, and the pieces exist. The acceptance test in `Subgoal.Offer`
-  (`Subgoal.cs:344`) is a board test; for a gauntlet the board test is *the safe flood gained a named
-  route cell* (`--push-reach`'s flood, set inclusion rather than count), and for a Sokoban it is *block b
-  stands on the next cell of its maze path* (`--push-ferry-maze`'s BFS already produces the path). A
-  sub-search for one such subgoal on level 10 is width 64 × depth ≤ 6 × ~5,100 nodes per expansion ≈
-  **2M nodes**; ten shields is 20M, the budget one round of the driver already spends. The outer search
-  is over the *order* of subgoals, depth-first with backtracking, re-deriving the read after each — at
-  most 6! orderings on level 6 and mostly pruned by the matching. Cheap enough that the first thing to do
-  is not build it but run the arithmetic against `--analyze`'s output on the two levels: how many
-  subgoals, and how deep each is on the hand line.
-- **Parent pointers instead of copied keystreams, if width is ever the wall again.** `Snapshot` copies
-  the whole consumed key prefix (`Engine.Search.cs`, `Array.Copy(RecBuffer, s.Keys, s.KeyLen)`) and
-  `Restore` copies it back, so on a 900-key line every node moves ~1.8 KB of keys on top of its 1 KB of
-  boards, and a `Node` holds all of it — which is why 76,800 wide was 1.1 GB. Each node keeping only the
-  keys since its parent, with the path rebuilt on a win, cuts both the copy and the residency
-  several-fold. Width was the wall exactly once: level 9.
-
-## Checked, and not opportunities
-
-- **Duplicate boards across the corpus:** 20,914 levels, 20,914 distinct playfields. No solution
-  transfers for free.
-- **Record shots = 0 as a licence to drop the space bar:** only 17 of the 3,709 unsolved have a zero-shot
-  record, and several of those are 0/0, i.e. no record at all.
-- **The read's `opens` as level 10's hidden cost:** the default `--push-read-opens -1` is the cheap
-  flood, and a run with `-1` and one with `0` are node-identical, so the read is not a node multiplier at
-  defaults.
-- **A closure-dominance prune** (`seen.UnionWith(local)` after an untruncated expansion) is lossless and
-  worth nothing: `sterile=` is 0.05% / 0.07% on the two benches against a stated bar of tens of percent.
-  See [`history.md`](history.md#closed-items--the-measurements-including-the-negative-ones) item 11 for
-  the full reasoning, which is sound — it simply has almost nothing to prune.
-## 2 (2nd) — the fourth pass, and its fourth arm is rehearsed
+## 2 (1st) — the fourth pass, and its fourth arm is rehearsed
 
 **Rehearsed, positive, and not started; it is a multi-day machine commitment.** The decision pass came
 out at 15 of 255 (5.9%) of the levels the shipped chain fails, so the open question was never *whether*
@@ -469,7 +173,7 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 5 (3rd) — level 6's decomposition
+## 5 (2nd) — level 6's decomposition
 
 *Level 10's half of this item is done: it is `--push-fire-tier`, it is
 [Layer 9](layers.md#layer-9--exposure-as-a-tier---own-rung-the-population-pays-the-example-does-not), it
@@ -529,7 +233,7 @@ level 10's half of it and level 10 is still unsolved.
 
 ---
 
-## 4 (4th) — the campaign that decides whether `--best-of-round` is a default
+## 4 (3rd) — the campaign that decides whether `--best-of-round` is a default
 
 **The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
 115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
@@ -565,7 +269,7 @@ at the level). **Level 8's 308 has not.**
 
 ---
 
-## 7 (5th) — the solved-vs-budget curve
+## 7 (4th) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;
@@ -645,3 +349,53 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
 
 ---
 
+## Further out, and only after the numbers above have moved
+
+- **A FESS-shaped rung for the Sokoban/ferry half of the corpus.** FERRY + SOKOBAN is 53% of the sample
+  at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region where every
+  successor of every held board is worse* — is the textbook failure of beam search on Sokoban. The
+  textbook answer is **FESS** (Shoham & Schaeffer, *The FESS Algorithm: A Feature Based Approach to
+  Single-Agent Search*, IEEE CoG 2020), the first solver to clear all 90 XSokoban levels. The shape:
+  project states into a small **feature space** (boxes packed, connectivity = number of regions the
+  player is cut into, room connectivity, boxes out of plan); advance by *cycling through the occupied
+  feature cells* and expanding the best state in each; weight moves by "advisors" that say which pushes
+  serve which feature. Two things about it belong here. It is the general form of two devices these
+  files arrived at by measurement — the per-board cap (diversity across boards) and *commit to one
+  block-and-hole pair* (a progress cell searched on its own) — so the fit is not speculative. And it
+  respects the fidelity rule: the engine still generates every state; the features are `Heuristic.cs`
+  quantities that already exist (holes filled, `TankRegion`, ferry-maze distance, `RouteDead`), and the
+  advisors are the read's derivations under another name. A rung, measured as a union. Its second gift is
+  the **packing order**, derived backwards from the goal: which hole must be filled before which, from
+  where a block can still be pushed *after* the others are down. `--push-ferry-match` is the forward half
+  of that; the backward half is what level 6's strip of six holes wants.
+- **Subgoal chaining over board changes, with the acceptance test already written.** Both open levels ask
+  for layer 2's decomposition one level out, and the pieces exist. The acceptance test in `Subgoal.Offer`
+  (`Subgoal.cs:344`) is a board test; for a gauntlet the board test is *the safe flood gained a named
+  route cell* (`--push-reach`'s flood, set inclusion rather than count), and for a Sokoban it is *block b
+  stands on the next cell of its maze path* (`--push-ferry-maze`'s BFS already produces the path). A
+  sub-search for one such subgoal on level 10 is width 64 × depth ≤ 6 × ~5,100 nodes per expansion ≈
+  **2M nodes**; ten shields is 20M, the budget one round of the driver already spends. The outer search
+  is over the *order* of subgoals, depth-first with backtracking, re-deriving the read after each — at
+  most 6! orderings on level 6 and mostly pruned by the matching. Cheap enough that the first thing to do
+  is not build it but run the arithmetic against `--analyze`'s output on the two levels: how many
+  subgoals, and how deep each is on the hand line.
+- **Parent pointers instead of copied keystreams, if width is ever the wall again.** `Snapshot` copies
+  the whole consumed key prefix (`Engine.Search.cs`, `Array.Copy(RecBuffer, s.Keys, s.KeyLen)`) and
+  `Restore` copies it back, so on a 900-key line every node moves ~1.8 KB of keys on top of its 1 KB of
+  boards, and a `Node` holds all of it — which is why 76,800 wide was 1.1 GB. Each node keeping only the
+  keys since its parent, with the path rebuilt on a win, cuts both the copy and the residency
+  several-fold. Width was the wall exactly once: level 9.
+
+## Checked, and not opportunities
+
+- **Duplicate boards across the corpus:** 20,914 levels, 20,914 distinct playfields. No solution
+  transfers for free.
+- **Record shots = 0 as a licence to drop the space bar:** only 17 of the 3,709 unsolved have a zero-shot
+  record, and several of those are 0/0, i.e. no record at all.
+- **The read's `opens` as level 10's hidden cost:** the default `--push-read-opens -1` is the cheap
+  flood, and a run with `-1` and one with `0` are node-identical, so the read is not a node multiplier at
+  defaults.
+- **A closure-dominance prune** (`seen.UnionWith(local)` after an untruncated expansion) is lossless and
+  worth nothing: `sterile=` is 0.05% / 0.07% on the two benches against a stated bar of tens of percent.
+  See [`history.md`](history.md#closed-items--the-measurements-including-the-negative-ones) item 11 for
+  the full reasoning, which is sound — it simply has almost nothing to prune.

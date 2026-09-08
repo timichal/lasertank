@@ -43,7 +43,9 @@ reproducible).
 | `short-record-failures.txt` | input | 687 levels the 494 chain fails whose `.ghs` record is <= 60 — *Next actions* item 7's population |
 | `gauntlet-tail.txt` | input | 138 levels the 494 chain fails that `--analyze` calls GAUNTLET with a `.ghs` record of <= 60 — layer 9's population, and the one the fire tier is measured on |
 | `seed-weights.txt` | input | layer 4's equivalence check: `WorkDistance` written in `Feat`, in `Eval.Scale` fixed point |
-| `goal-tiles.json` | input | *Next actions* item 6: `tile hash → PF` for anything in a blogspot screenshot the game's own sheet cannot draw. Hand input, so nothing re-derives it — but **almost nothing is left in it**, see below |
+| `goal-tiles.json` | input | closed item 6: `tile hash → PF` for anything in a blogspot screenshot the game's own sheet cannot draw. Hand input, so nothing re-derives it — but **almost nothing is left in it**, see below |
+| `goal-counters.json` | input | closed item 6: the Moves/Shots the panel of a blogspot screenshot shows, hand-read. The panel is `TextOut` with the system font (`LTANK.C:563`), not a sprite, so it is the one thing about a post no committed graphic can draw — the *other* side of the rule below |
+| `goal-boards.json` | input | closed item 6: `LaserTank.lvl` 10's decoded goal board, the acceptance test's input for `--goal-board`. Derived, and here anyway for the second reason: the rest of the bank lives in gitignored `build/harvest/goals.json` and re-deriving it needs the blog, so the numbers quoted against this one level would not reproduce offline |
 | `trace10.err` | output | item 8's traced level-10 run: 64 depths, unsolved at 399M nodes, and a barrier on **0 of 63,454** expansions |
 
 `goal-tiles.json` was here for the plainest version of the first reason, and **session 35 took that
@@ -67,6 +69,14 @@ So the file stays, holding one now-redundant label, as the place anything genuin
 so far one tile where a screenshot caught the tank between the mask blit and the sprite blit, which is
 a capture artifact and not a game state. `tools/harvest.py tiles` reports what the derivation covers;
 `sheet` then `label` is still the loop for whatever it does not.
+
+**`goal-counters.json` is the same question answered the other way, which is why it is worth having both
+in this table.** Ask *what committed input could produce this?* of the panel's Moves and Shots and the
+answer is nothing: `LTANK.C:563` draws them with `TextOut` in whatever system font the machine that took
+the screenshot had, so no composite of `Game.BMP` reproduces them and no rule in `LTANK2.C` says what
+they are. A human reading them off a screenshot is the only source there is — so session 34's reading of
+`LaserTank` 10's panel is committed here rather than left in a session log, and `harvest.py bank` folds
+it in and banks `null` for every post nobody has read.
 
 `seed-weights.txt` is not a level list, and it is here for the third reason above rather than the
 second: it is not curated, it is *derived* — but it must not change, because it is the check that

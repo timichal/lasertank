@@ -201,8 +201,8 @@ fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regen
                     The one tool here that is not stdlib-only: needs numpy
 basin.py          read a --profile dump: how far uphill a winning line goes, per level,
                     in keypresses and in board changes
-harvest.py        next actions item 6: the blogspot goal-board harvester.  index /
-                    map / fetch / codebook / tiles / sheet / label / decode, cheapest
+harvest.py        closed item 6: the blogspot goal-board harvester.  index / map /
+                    fetch / codebook / tiles / sheet / label / decode / bank, cheapest
                     first.  `map`, `codebook` and `tiles` report rather than fetch --
                     `map` checks (collection, level) -> name against every .lvl and
                     needs no images at all, `codebook --goals` prints the saturation
@@ -215,7 +215,11 @@ harvest.py        next actions item 6: the blogspot goal-board harvester.  index
                     draw, which so far is one caught mid-blit.  `decode` returns the
                     board *and* where the tank is, and `decode --check` on an 'a'
                     image is the gate: a start board must come back identical to the
-                    corpus board, its tank cell reconciled rather than excused
+                    corpus board, its tank cell reconciled rather than excused.
+                    `bank` is the last step and the only one the solver reads:
+                    (collection, level, goal PF, tank, moves, shots) per level, the
+                    final board last, and it *refuses* a board with an undecoded cell
+                    rather than banking a ranking key with a hole in it
 sprites.py        not an instrument: the game's own sheet, and every board cell it
                     can draw.  Decodes original/src/Game.BMP + Mask.BMP (RLE8/RLE4),
                     shrinks them to 24 px the way GFXInit's StretchBlt does -- GDI's
@@ -231,8 +235,16 @@ png.py            not an instrument: a stdlib PNG reader and writer, because thi
 verify_solutions.py  the gate.  Both engines, WIN on each, byte-identical traces
 ```
 
-**A level solved with a harvested goal board is hint-assisted and never enters the headline rate** — the
-condition is stated in full in [next actions item 6](next-actions.md#6-1st--the-blogspot-goal-board-harvester).
+**A level solved with a harvested goal board is hint-assisted and never enters the headline rate**, and
+that is enforced by `--goal-board` rather than left to whoever runs it: the flag moves the default output
+directory (`solutions` → `solutions-hint`, `data/solutions` → `data/solutions-hint`), stamps
+`"hint": "goal-board"` on every report row, and says so on stdout. The condition and what the
+hint-assisted recordings are *for* are in
+[closed item 6](history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).
+
+`--goal-board FILE` is also the cheapest way to read one: `--analyze --goal-board` adds a `goal` block
+to the read — how far the start board is from the banked one, and what each available board change does
+to that distance — and runs no search.
 
 ## The bench lists, and what belongs in `bench/`
 

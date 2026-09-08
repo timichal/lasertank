@@ -78,6 +78,13 @@ namespace LaserTank.Solver
 
         public bool IsShot;
 
+        /// --goal-board: the goal-board distance of the board this change
+        /// leaves behind, and how it moved.  -1 and 0 when the level has no
+        /// banked goal board.  This is the column the item's acceptance test
+        /// is about -- three root pushes on `LaserTank.lvl` 10 that every
+        /// other derivation here scores identically.  See Goal.cs.
+        public int GoalAfter = -1, GoalDelta;
+
         /// What changed, as a string, so two effects can be compared without
         /// comparing the states that produced them.  This is what lets the
         /// instrument ask "is the board change the human made next one of the
@@ -170,6 +177,13 @@ namespace LaserTank.Solver
         public List<Effect> EnablesAdv = new List<Effect>();  // ...and one the read would name
         public string Verdict = "";
         public string Why = "";
+
+        /// --goal-board, when the level has one: the distance from this board
+        /// to the banked goal board, the cells that still differ, and what the
+        /// bank says about the screenshot it came from.  -1 and empty when it
+        /// does not.  See Goal.cs.
+        public int Goal = -1, GoalDiff = -1;
+        public string GoalNote = "";
     }
 
     public sealed partial class Solver
@@ -275,8 +289,41 @@ namespace LaserTank.Solver
             Enumerate(poses, board, region, r);
             Drain(poses);
 
+            GoalRead(r, board);
             Classify(r);
             return r;
+        }
+
+        /// --goal-board: price this board and every change it offers against
+        /// the banked goal board.
+        ///
+        /// Off the *delta* rather than off `Effect.After`, which is deliberate:
+        /// the after-states are only kept when the read is going to re-close
+        /// them (`keepAfter`), and this has to work on every level rather than
+        /// only on the ones under --read-opens.  An effect is a board delta, so
+        /// a copy of this board with the delta laid over it is exactly the
+        /// board the change leaves behind.
+        private void GoalRead(Read r, byte[] board)
+        {
+            if (_goal == null) return;
+            r.Goal = _goal.Distance(board);
+            r.GoalDiff = _goal.Differing(board);
+            r.GoalNote = _goalOf == null ? ""
+                : "flag " + _goalOf.Tag
+                  + (_goalOf.Moves >= 0
+                     ? ", the blogger's " + _goalOf.Moves + " moves / "
+                       + _goalOf.Shots + " shots"
+                     : ", no counters read")
+                  + (_goalOf.Url.Length > 0 ? ", " + _goalOf.Url : "");
+
+            byte[] after = new byte[256];
+            foreach (Effect e in r.Effects)
+            {
+                Buffer.BlockCopy(board, 0, after, 0, 256);
+                for (int i = 0; i < e.Cells.Length; i++) after[e.Cells[i]] = e.Now[i];
+                e.GoalAfter = _goal.Distance(after);
+                e.GoalDelta = e.GoalAfter - r.Goal;
+            }
         }
 
         /// Every pose the tank can reach without touching the playfield.
@@ -697,6 +744,18 @@ namespace LaserTank.Solver
                 foreach (Effect e in Head(r.Toward, 4)) b.Append("        ").Append(Line(e));
             }
 
+            if (r.Goal >= 0)
+            {
+                b.Append("  goal      the scraped goal board: ").Append(r.GoalDiff)
+                 .Append(" cells still differ, distance ").Append(r.Goal)
+                 .Append("  (").Append(r.GoalNote).Append(")\n");
+                b.Append("            HINT-ASSISTED: nothing solved against this"
+                         + " counts towards the solver's rate\n");
+                List<Effect> ranked = new List<Effect>(r.Effects);
+                ranked.Sort(static (x, y) => x.GoalAfter - y.GoalAfter);
+                foreach (Effect e in Head(ranked, 6)) b.Append("        ").Append(Line(e));
+            }
+
             b.Append("  verdict   ").Append(r.Verdict).Append(": ").Append(r.Why).Append('\n');
             return b.ToString();
         }
@@ -1001,6 +1060,9 @@ namespace LaserTank.Solver
             if (e.Filled.Count > 0) b.Append("  [FILLS WATER]");
             if (e.Opens > 0) b.Append("  [+").Append(e.Opens).Append(" cells to stand in]");
             if (e.Indirect) b.Append("  [mirror-routed]");
+            if (e.GoalAfter >= 0)
+                b.Append("  [goal ").Append(e.GoalAfter)
+                 .Append(e.GoalDelta > 0 ? ", +" : ", ").Append(e.GoalDelta).Append(']');
             return b.Append('\n').ToString();
         }
 

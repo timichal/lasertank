@@ -98,7 +98,7 @@ is skipped by a later one, so no `.lpb` is ever written twice.
 
 ---
 
-## Seven rules the sessions each paid to learn
+## Eight rules the sessions each paid to learn
 
 These are the reason the numbers in these files can be trusted.
 
@@ -147,6 +147,15 @@ These are the reason the numbers in these files can be trusted.
   ask what committed input could produce the thing, and reconcile against a quantity you did not
   derive — here the start board's own `PF` at each cell, which agreed on all 95 first-pass sprites and
   then independently confirmed `KillAtank`'s four junk bitmaps.
+- **Write the acceptance test before the build, because it can falsify the *specification* rather
+  than the code.** Item 6 wrote its own key down a session ahead: *rank by cells-still-differing*. It
+  also wrote down the test — `LaserTank.lvl` 10's three root pushes, which `--analyze` offers and cannot
+  rank — and that test is the exact case the specified key cannot see, because a push vacates one cell
+  and fills another and the count is 12 before and 12 after all three. One measurement, before any
+  tuning, said the spec was flat; the key that works is the *assignment* (which object goes where), and
+  it separates them 29 / 31 / 31. **A progress measure that counts what is still wrong is flat while it
+  is being fixed; one that measures how far it is from right is not** — and that is the third time this
+  shape has been paid for, after `WorkDistance` over a ferry and `--push-fire` over a gauntlet.
 - **A penalty every board pays is not a penalty.** A weight that every successor of every held board
   incurs makes the beam's best score *rise* and steers nothing. Use a tier (an ordering that cannot
   refuse a state) instead. Same family as a heuristic returning 0 — the best score there is — for a
@@ -227,40 +236,42 @@ attack on it.
 
 ## What is open
 
-Six items, **in this order and not in numeric order**. Numbers are kept because these files refer to
+Five items, **in this order and not in numeric order**. Numbers are kept because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **6** | **1st** | the `lasertanksolutions.blogspot.com` harvester. **Phase 1 is closed** — `tools/harvest.py`, mapping 6,188/6,197 exact, and the goal-only sprites *derived* from the game's own committed sheet rather than labelled (`tools/sprites.py`): **0 unknown tiles over 173 goal boards**, 141/141 start boards still gating clean. **`LaserTank.lvl` 10's goal board is complete, tank included.** What is left is `--goal-board` alone | a layer-sized build |
-| **2** | 2nd | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
-| **5** | 3rd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
-| **4** | 4th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
-| **7** | 5th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
+| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
+| **5** | 2nd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
+| **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
+| **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
 
-**The rule they are ordered by is *cheapest falsifier first, whatever kind of work it is*.** The
-clause that did not survive contact with the list is *builds last*: what is left of the runs is a
-54-hour campaign and a three-budget curve, so the cheapest falsifiable thing here is now a build.
+**The rule they are ordered by is *cheapest falsifier first, whatever kind of work it is*.**
 **Second key: prefer work that produces a property or a level over work that produces a number** —
 twenty-five hours of machine time once went into items that report percentages while the two levels
-in front of the project did not move and one banked solution got worse.
+in front of the project did not move and one banked solution got worse. Item 6 is what that second key
+bought: three sessions, and what came out was a decoded goal board for `LaserTank.lvl` 10 and a ranking
+key that separates its root pushes, rather than a percentage. With it closed the list is a 54-hour
+campaign, a three-budget curve, two campaigns that decide a default, and **one build** — item 5, which is
+also the only open item that would move a level.
 
-**Session 33 moved item 6 to the top on a ~2 h spike; session 34 ran the spike, and it paid.** The
-sentence that used to sit here read *both open levels now have nothing costed left to try*, and that was
-the stated reason a 54-hour number outranked everything. **`LaserTank.lvl` 10's goal board is now
-decoded** — as of session 35 with **no undecoded cells at all**, the tank derived at (6,0) facing right —
-plus the post's own 179 moves / 52 shots against the `.ghs` record's 124/55. (Decoded, not *banked*: it
-lives in gitignored `build/harvest/` and is one command away, and where a hint-assisted board is allowed
-to live is Michal's call.) It says the level is won by *rearranging* six of its ten anti-tanks
-and destroying none of them, and it separates the three root pushes `--analyze` offers and cannot rank.
-So level 10 has a candidate and a ranking key to build, not just a diagnosis. Level 6 "Cascade" has **no
-post at all** — checked against the whole 6,218-post index now rather than by search — so item 5 is
-unchanged.
+**Item 6 took three sessions and closed in session 36; the whole record is
+[closed item 6](docs/solver/history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).**
+Session 33 moved it to the top on a ~2 h spike, 34 ran the spike and shipped `tools/harvest.py`, 35
+derived the goal-only tiles instead of labelling them, and 36 built `--goal-board`. What it leaves:
+`LaserTank.lvl` 10's goal board decoded with **no undecoded cells**, the tank at (6,0) facing right, the
+post's own 179 moves / 52 shots against the `.ghs` record's 124/55 — and a ranking key that **separates
+the three root pushes `--analyze` offers and cannot rank** (30 → 29 for the one that helps, 31 for the
+two that do not), which is the acceptance test that was written before the build. Over the population it
+is **15 → 21 of the 141 levels the bank covers**, +9/−3, all 21 through the two-engine gate. Every one of
+those is **hint-assisted and outside the solver's rate**, which is enforced in code rather than by
+convention: the flag moves the output directory and stamps every report row. Level 6 "Cascade" has **no
+post at all** — checked against the whole 6,218-post index — so item 5 is unchanged by any of it.
 
-**Session 35 then deleted item 6's remaining half-session instead of spending it, and the way it did is
+**Session 35 deleted item 6's remaining half-session instead of spending it, and the way it did is
 worth more than the hours.** The goal-only sprites were costed as hand input on sound reasoning — a start
 screenshot only ever shows authored states, so nothing labels the states play produces. But the 2010
 binary's own graphics are **committed in this tree** (`original/src/Game.BMP`, `Mask.BMP`), and
@@ -273,6 +284,6 @@ inverts:** `bench/` exists because nothing re-derives a human's answer, and the 
 should *ask* a human for an answer the repo can already derive. Checking that cost half an hour and the
 inputs were sitting in `original/src/`.
 
-**The two are not rivals for the machine.** Item 2's arms are node-governed and want all 16 jobs; the
-harvester is HTTP fetches and image decoding. Launch the run and work item 6 beside it — extra load moves
-wall-clock readings and nothing else.
+**Item 2 wants the whole machine and nothing else on this list is waiting on it.** Its arms are
+node-governed, so extra load moves wall-clock readings and nothing else: launch the run and work item 5
+beside it.

@@ -137,6 +137,34 @@ namespace LaserTank.Solver
             return fresh;
         }
 
+        /// The banked goal board for the level being solved, or null.
+        ///
+        /// Handed in by the harness rather than loaded here: the bank is one
+        /// file for a whole collection and a Solver is one level, so parsing it
+        /// per level would parse it per level.  Null on every level the bank
+        /// does not cover, which is what turns the term off -- see
+        /// SolveOptions.GoalWeight.
+        private GoalMetric _goal;
+
+        /// The banked record behind _goal, kept for what it says rather than
+        /// for what it measures: which flag's screenshot this is, and the
+        /// blogger's own move and shot counts.  --analyze prints them.
+        private GoalBoard _goalOf;
+
+        /// --goal-board.  See Goal.cs for what is banked and why a level solved
+        /// against it is hint-assisted.
+        public void SetGoal(GoalBoard g)
+        {
+            _goalOf = g;
+            _goal = g == null ? null : new GoalMetric(g.PF, _opt.GoalMiss);
+        }
+
+        public bool HasGoal => _goal != null;
+
+        /// Cells of the current board that still differ from the goal board.
+        /// The number to report; GoalMetric.Distance is the number to rank by.
+        public int GoalDiffering() => _goal == null ? -1 : _goal.Differing(_e);
+
         /// Whether the board PushH last scored has a hole on its route that
         /// no live block can fill.  Set by PushH and read by the Node it is
         /// scoring, which is the only caller and reads it immediately: an
@@ -188,7 +216,16 @@ namespace LaserTank.Solver
             // tuned because the learned term was inert.  Under `work` it is
             // Rank() that carries the scale and the ratio cancels.
             int hand = _opt.PushEval == RankKey.Learned ? HandScale : Eval.Scale;
-            return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield);
+            // The scraped goal board, when the level has one.  The only term in
+            // here that is not derived from the level, and the reason a run
+            // with it set is hint-assisted and outside the headline rate: see
+            // Goal.cs.  Computed below the RankKey.None return rather than
+            // beside the other addends, because it is a board scan and an
+            // assignment and a key that is about to discard it should not pay
+            // for it.
+            int goal = _goal != null && _opt.GoalWeight > 0
+                     ? _opt.GoalWeight * _goal.Distance(_e) : 0;
+            return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield + goal);
         }
 
         /// The fire map of the board the engine is standing on *right now*,

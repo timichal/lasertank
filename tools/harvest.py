@@ -13,7 +13,7 @@ enter the solver's headline rate.**  Its value is as a bootstrap: hint-assisted
 solutions are still real recordings, and real recordings are what --profile and
 basin.py measure and what layer 4 is fit on.
 
-Eight subcommands, cheapest first:
+Nine subcommands, cheapest first:
 
   index      the whole post index from the Blogger feed -- title, URL, date and
              image URLs for all 6,218 posts in 42 requests, one minute.  No
@@ -36,6 +36,9 @@ Eight subcommands, cheapest first:
   decode     a screenshot -> a 16x16 board *and* where the tank is.  --check
              re-decodes a start screenshot and diffs it against the .lvl,
              which is the gate
+  bank       every fetched goal screenshot decoded into one file: the bank
+             `lasertank-solve --goal-board` reads.  Refuses a board with an
+             undecoded cell in it rather than banking a key with a hole
 
     python tools/harvest.py index                       # 42 requests, ~46 s
     python tools/harvest.py map                         # no network, no images
@@ -44,6 +47,7 @@ Eight subcommands, cheapest first:
     python tools/harvest.py tiles                       # the derivation's gate
     python tools/harvest.py fetch --levels LaserTank:10 --goals
     python tools/harvest.py decode build/harvest/img/LaserTank_10_a.png --check
+    python tools/harvest.py bank                        # -> build/harvest/goals.json
 
 The derivable half lands under build/harvest/, which is gitignored: the index
 and the images are re-fetchable and the codebook is re-derivable from them.
@@ -878,6 +882,134 @@ def cmd_tiles(args):
     return 1 if clash else 0
 
 
+# ------------------------------------------------------------------- the bank
+
+def counters():
+    """The Moves/Shots the post's own panel shows, hand-read.
+
+    Every tile on the board is derivable from graphics this repo commits, and
+    `tiles` derives all of them.  These two numbers are not: the panel is
+    `TextOut(pdc, ContXPos+48, 207, itoa(Game.ScoreMove, ...))` (`LTANK.C:563`)
+    in whatever system font the machine that took the screenshot had, so no
+    composite of Game.BMP can draw them and nothing in this repo says what they
+    are.  That makes them the one thing about a post that is genuinely hand
+    input -- which is what bench/ is for, and why the reading session 34 made
+    by eye is committed there instead of being lost.
+    """
+    p = ROOT / "bench" / "goal-counters.json"
+    if not p.exists():
+        return {}
+    return {k: v for k, v in json.loads(p.read_text()).items()
+            if not k.startswith("_")}
+
+
+def write_json(path, obj):
+    """json.dumps to `path`, LF, no BOM.
+
+    pathlib's write_text translates newlines, so on Windows it turns every
+    line of a committed file into a CRLF diff.  This repo is LF-only.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(obj, indent=1) + "\n")
+
+
+BANK_README = (
+    "The blogspot goal boards, decoded -- tools/harvest.py bank.  One record "
+    "per (collection, level): the board at the moment each flag was reached, "
+    "in dump_level.py's PF symbols, row-major by y.  `goals` is ordered so "
+    "that the FINAL board is last -- by flags still on the board, descending, "
+    "which is derived from the pixels rather than from the post's layout, "
+    "because the later-era image tags are cell names and not an order.  "
+    "`tank` is separate from the board on purpose: BuildBMField clears PF at "
+    "the tank's cell (Engine.cs:348), so a cell the tank stands on carries the "
+    "terrain under it.  `moves`/`shots` are the post's own panel counters, "
+    "hand-read from bench/goal-counters.json, and are null for a post nobody "
+    "has read.  **A level solved against one of these is hint-assisted and "
+    "must never enter the solver's headline rate.**"
+)
+
+
+def cmd_bank(args):
+    """Decode every fetched goal screenshot into the bank the solver reads.
+
+    This is the artefact `--goal-board` takes: (collection, level, goal PF,
+    tank, moves, shots).  Everything in it is derived -- `tiles` labels the
+    pixels and the corpus names the level -- except the two panel counters,
+    which no graphic in this repo can draw; see counters().
+
+    A board with an unknown cell in it is **refused** rather than banked with a
+    hole.  A goal board is a ranking key, and a key with a '?' in it prices
+    that cell as "already right" wherever the search happens to be: the one
+    failure mode that is worse than having no key at all.  --allow-unknown
+    banks them anyway, which is for looking at them, not for solving.
+    """
+    cb, tank, _ = load_codebook()
+    hand = counters()
+    want = None
+    if args.levels:
+        want = set()
+        for spec in args.levels:
+            coll, _, ns = spec.partition(":")
+            for n in ns.split(","):
+                want.add((coll, int(n)))
+
+    out = []
+    stat = collections.Counter()
+    for r in manifest():
+        if want is not None and (r["coll"], r["level"]) not in want:
+            continue
+        if not r["goals"]:
+            stat["no goal image in the post"] += 1
+            continue
+        boards = []
+        for g in r["goals"]:
+            f = ROOT / g["file"]
+            if not f.exists():
+                stat["image not fetched"] += 1
+                continue
+            try:
+                grid, unk, _, where = decode_board(f, cb, tank)
+            except ValueError:
+                stat["not a LaserTank window"] += 1
+                continue
+            u = sum(unk.values())
+            if u and not args.allow_unknown:
+                stat["unknown cells -- refused"] += 1
+                continue
+            stat["banked"] += 1
+            boards.append({
+                "tag": g["tag"],
+                "flags": sum(row.count("F") for row in grid),
+                "unknown": u,
+                "tank": None if where is None
+                        else {"x": where[0], "y": where[1], "dir": where[2]},
+                "pf": ["".join(row) for row in grid],
+            })
+        if not boards:
+            continue
+        # Final board last.  Reaching a flag removes it, and the screenshot is
+        # taken with the tank one move short of the one it is reaching, so the
+        # board with the fewest flags left on it is the last of the sequence.
+        boards.sort(key=lambda b: (-b["flags"], b["tag"]))
+        c = hand.get("%s:%d" % (r["coll"], r["level"]), {})
+        out.append({"coll": r["coll"], "level": r["level"],
+                    "name": level_name(r["coll"], r["level"]),
+                    "url": r["url"],
+                    "moves": c.get("moves"), "shots": c.get("shots"),
+                    "goals": boards})
+
+    dest = pathlib.Path(args.out) if args.out else OUT / "goals.json"
+    write_json(dest, {"_README": BANK_README, "levels": out})
+    for k, v in stat.most_common():
+        print("  %-28s %5d" % (k, v))
+    print("bank -> %s  (%d levels, %d boards, %d with counters)"
+          % (dest, len(out), sum(len(r["goals"]) for r in out),
+             sum(1 for r in out if r["moves"] is not None)))
+    return 0
+
+
+
 NAMED = re.compile(r"([A-Za-z]+)_(\d+)_(\w+)\.png$")
 
 
@@ -959,6 +1091,15 @@ def main():
     t = sub.add_parser("tiles", help="the sprite-sheet derivation, and its gate")
     t.add_argument("--out", help="write the derived hash -> PF table here")
 
+    k = sub.add_parser("bank", help="decode the goal screenshots into the "
+                                    "bank --goal-board reads")
+    k.add_argument("--levels", action="append", metavar="COLL:N[,N...]",
+                   help="bank only these, e.g. --levels LaserTank:10")
+    k.add_argument("--out", help="default build/harvest/goals.json")
+    k.add_argument("--allow-unknown", action="store_true",
+                   help="bank a board with undecoded cells in it -- for "
+                        "looking at, never for solving")
+
     d = sub.add_parser("decode", help="a screenshot -> a 16x16 board")
     d.add_argument("images", nargs="+")
     d.add_argument("--check", action="store_true",
@@ -968,7 +1109,8 @@ def main():
     args = ap.parse_args()
     return {"index": cmd_index, "map": cmd_map, "fetch": cmd_fetch,
             "codebook": cmd_codebook, "sheet": cmd_sheet, "label": cmd_label,
-            "tiles": cmd_tiles, "decode": cmd_decode}[args.cmd](args)
+            "tiles": cmd_tiles, "bank": cmd_bank,
+            "decode": cmd_decode}[args.cmd](args)
 
 
 if __name__ == "__main__":

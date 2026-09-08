@@ -340,6 +340,20 @@ namespace LaserTank.Solver
         public int PushHandScale = 0;
 
         public int PushFerry = 1;          // weight on Heuristic.RouteFerry; 0 is off
+
+        // ---- the scraped goal board (Goal.cs) ------------------------------
+        //
+        // Off unless --goal-board named a bank AND the level being solved is in
+        // it, which is why there is no boolean here: the weight is the switch
+        // and the Solver's _goal is null on every level the bank does not
+        // cover.  Untuned -- 1 is RouteFerry's weight and nothing has been
+        // measured against any other value, because this is opt-in and every
+        // solution it produces is hint-assisted and outside the headline rate.
+        public int GoalWeight = 1;
+        public int GoalMiss = 16;          // price of an object that has to be
+                                           // created or destroyed rather than
+                                           // moved; see GoalMetric
+
         public int PushRestarts = 6;       // extra attempts after a dead-end, each
                                            // doubling the width; 0 is off
         public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs

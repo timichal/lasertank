@@ -1,0 +1,43 @@
+{
+ "_README": "The blogspot goal boards, decoded -- tools/harvest.py bank.  One record per (collection, level): the board at the moment each flag was reached, in dump_level.py's PF symbols, row-major by y.  `goals` is ordered so that the FINAL board is last -- by flags still on the board, descending, which is derived from the pixels rather than from the post's layout, because the later-era image tags are cell names and not an order.  `tank` is separate from the board on purpose: BuildBMField clears PF at the tank's cell (Engine.cs:348), so a cell the tank stands on carries the terrain under it.  `moves`/`shots` are the post's own panel counters, hand-read from bench/goal-counters.json, and are null for a post nobody has read.  **A level solved against one of these is hint-assisted and must never enter the solver's headline rate.**",
+ "levels": [
+  {
+   "coll": "LaserTank",
+   "level": 10,
+   "name": "The Valley of Death",
+   "url": "https://lasertanksolutions.blogspot.com/2016/06/10-valley-of-death.html",
+   "moves": 179,
+   "shots": 52,
+   "goals": [
+    {
+     "tag": "b",
+     "flags": 1,
+     "unknown": 0,
+     "tank": {
+      "x": 6,
+      "y": 0,
+      "dir": "right"
+     },
+     "pf": [
+      ".......F........",
+      ">...<...........",
+      "......>........<",
+      "................",
+      "................",
+      "................",
+      "................",
+      ">..............<",
+      "................",
+      ">...............",
+      "................",
+      "................",
+      ">..............<",
+      "................",
+      "...............<",
+      "................"
+     ]
+    }
+   ]
+  }
+ ]
+}
