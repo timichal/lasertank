@@ -43,7 +43,16 @@ reproducible).
 | `short-record-failures.txt` | input | 687 levels the 494 chain fails whose `.ghs` record is <= 60 — *Next actions* item 7's population |
 | `gauntlet-tail.txt` | input | 138 levels the 494 chain fails that `--analyze` calls GAUNTLET with a `.ghs` record of <= 60 — layer 9's population, and the one the fire tier is measured on |
 | `seed-weights.txt` | input | layer 4's equivalence check: `WorkDistance` written in `Feat`, in `Eval.Scale` fixed point |
+| `goal-tiles.json` | input | *Next actions* item 6: `tile hash → PF` for the sprites a blogspot **start** screenshot can never label. Hand input, so nothing re-derives it |
 | `trace10.err` | output | item 8's traced level-10 run: 64 depths, unsolved at 399M nodes, and a barrier on **0 of 63,454** expansions |
+
+`goal-tiles.json` is here for the plainest version of the first reason: it is the one part of the
+harvester a machine cannot regenerate. The other half of that codebook *is* derivable — a start
+screenshot labels its own 256 tiles, because the corpus already knows that board — so it stays in
+gitignored `build/harvest/`. But nothing labels the states only *play* produces (the tank facing
+anywhere but up, a pushed anti-tank, a block sunk in water), and a human's answer to those, sitting in
+a gitignored directory, is an answer the project does not have. Built and extended with
+`tools/harvest.py sheet` then `label`.
 
 `seed-weights.txt` is not a level list, and it is here for the third reason above rather than the
 second: it is not curated, it is *derived* — but it must not change, because it is the check that

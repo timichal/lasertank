@@ -157,7 +157,7 @@ These are the reason the numbers in these files can be trusted.
 | Layer 9 — exposure as a tier | `--push-fire-tier`, the fire map promoted from an addend to a tier; **tenth rung**. Over the 138 unsolved short-record GAUNTLETs at 40M it is **85 against the control's 76, with 15 exclusive levels against 6** (union 91 of 138, 65.9%; 161 of 161 gated). Costs **9% wall clock**. **Does not solve `LaserTank.lvl` 10**, the level it was derived from. **Now validated over the corpus** (session 33): as the fourth-pass arm `l8fire` it is **66 of 255 (25.9%)**, the best solo arm ever measured on that population, and it **retires `l8work`** — see the row below |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | The fourth pass, rehearsed | **87 of 255 (34.1%)** of the levels the chain fails, as the **union of seven arms at 40M nodes** on a 1-in-15 stride of the failure population; 372 of 372 gated. The pass is still a chain of arms rather than a configuration, but the arms changed: **the three that ship are now `l8fire` → `layer7` → `enables`, 84 (32.9%)**, against the 81 of the three it replaces. **`--push-fire-tier` does not add a fourth arm, it replaces the first** — `l8work` contributes **+0** to the seven-arm union and holds **1** exclusive level against `l8fire`'s 6. So the pass is better by 3 levels at the *same* three-arm cost (~54 h), not 72 h |
-| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 has a named cause and no named candidate:** it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line |
+| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 now has a named candidate** (session 34): it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line. What was missing is a *gradient*, and the harvested goal board supplies one: the blog's line wins in 179 moves / 52 shots by **pushing six of the ten anti-tanks and destroying none**, minimum total push distance 30, and it names the cells they end on — so it separates the three root pushes `--analyze` offers and cannot rank. **Level 6 "Cascade" has no post**, so it gains nothing from this and item 5 stands |
 
 **A missing `.lpb` under `data/solutions/` is not a missing solution.** Michal deletes a banked
 `.lpb` on purpose in order to re-run the solver by hand and watch the replay, and re-banks it
@@ -219,7 +219,7 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **6** | **1st** | the `lasertanksolutions.blogspot.com` harvester — **the feasibility spike, not the crawl**. Mapping is 6/6 exact and the ordered goal cells are *text in the image filenames*, so step 1 needs no pixel work at all | **~2 h** for the spike |
+| **6** | **1st** | the `lasertanksolutions.blogspot.com` harvester. **The spike is done and positive** — `tools/harvest.py`, mapping 6,188/6,197 exact, a self-bootstrapping 55-tile codebook with 0 conflicts, and **`LaserTank.lvl` 10's goal board decoded**. What is left is labelling the goal-only sprites (loop built; the first label took the residual 4.52% → **1.37%** of tiles) then `--goal-board` | half a session, then a layer-sized build |
 | **2** | 2nd | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
 | **5** | 3rd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
 | **4** | 4th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
@@ -233,14 +233,18 @@ clause that did not survive contact with the list is *builds last*: what is left
 twenty-five hours of machine time once went into items that report percentages while the two levels
 in front of the project did not move and one banked solution got worse.
 
-**Session 33 moved item 6 to the top, and the sentence that used to sit here is why it had to move.**
-It read: *both open levels now have nothing costed left to try* — and that was the stated reason a
-54-hour number outranked everything. It is no longer true. Four read-only fetches established that the
-harvester's mapping is exact (6/6), that the ordered goal cells are plain text in the image filenames,
-and that `LaserTank.lvl` 10 has a post; so **level 10 now has a costed candidate**, contingent on a ~2 h
-spike, and by both keys above — cheapest falsifier, and a level over a number — that outranks the run.
-Level 6 "Cascade" still has no cheap falsifier and no post, so item 5 is unchanged.
+**Session 33 moved item 6 to the top on a ~2 h spike; session 34 ran the spike, and it paid.** The
+sentence that used to sit here read *both open levels now have nothing costed left to try*, and that was
+the stated reason a 54-hour number outranked everything. **`LaserTank.lvl` 10's goal board is now
+decoded** — one undecoded cell, and that cell the tank — plus the post's own 179 moves / 52 shots
+against the `.ghs` record's 124/55. (Decoded, not *banked*: it lives in gitignored `build/harvest/` and
+is one command away, and where a hint-assisted board is allowed to live is Michal's call.)
+It says the level is won by *rearranging* six of its ten anti-tanks
+and destroying none of them, and it separates the three root pushes `--analyze` offers and cannot rank.
+So level 10 has a candidate and a ranking key to build, not just a diagnosis. Level 6 "Cascade" has **no
+post at all** — checked against the whole 6,218-post index now rather than by search — so item 5 is
+unchanged.
 
 **The two are not rivals for the machine.** Item 2's arms are node-governed and want all 16 jobs; the
-spike is a few HTTP fetches and some image decoding. Launch the run and do the spike beside it — extra
-load moves wall-clock readings and nothing else.
+harvester is HTTP fetches and image decoding. Launch the run and work item 6 beside it — extra load moves
+wall-clock readings and nothing else.

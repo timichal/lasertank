@@ -201,8 +201,27 @@ fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regen
                     The one tool here that is not stdlib-only: needs numpy
 basin.py          read a --profile dump: how far uphill a winning line goes, per level,
                     in keypresses and in board changes
+harvest.py        next actions item 6: the blogspot goal-board harvester.  index /
+                    map / fetch / codebook / sheet / label / decode, cheapest first.
+                    `map` and `codebook` are the two that report rather than fetch --
+                    `map` checks (collection, level) -> name against every .lvl and
+                    needs no images at all, `codebook --goals` prints the saturation
+                    curve and the size of the goal-only sprite set, which is this
+                    item's remaining cost.  `sheet` then `label` is the loop that
+                    shrinks that set: a contact sheet of what is still unlabelled
+                    plus a sidecar, merged into bench/goal-tiles.json.  Two halves
+                    on purpose -- the start-bootstrapped codebook is derivable and
+                    stays in gitignored build/, the hand labels are committed.
+                    `decode --check` on an 'a' image is the gate: a start board must
+                    come back identical to the corpus board
+png.py            not an instrument: a stdlib PNG reader and writer, because this
+                    machine has neither PIL nor numpy and harvest.py needs pixels.
+                    Same reason atlas_check.py hand-rolls a BMP reader
 verify_solutions.py  the gate.  Both engines, WIN on each, byte-identical traces
 ```
+
+**A level solved with a harvested goal board is hint-assisted and never enters the headline rate** — the
+condition is stated in full in [next actions item 6](next-actions.md#6-1st--the-blogspot-goal-board-harvester).
 
 ## The bench lists, and what belongs in `bench/`
 

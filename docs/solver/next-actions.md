@@ -6,82 +6,33 @@ Items keep their numbers because these files refer to them by number — the fin
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **6, 2, 5, 4, 7, 10** — changed in session 33, and only at the top. Item 6's *first step* is now a
-~2 h feasibility spike rather than a scraping project, it is the cheapest falsifier on the list, and it is
-the only item that could hand `LaserTank.lvl` 10 a candidate. Item 2's rehearsal is done and its 54-hour
-run is fully specified, so it is ready to launch whenever the machine is free — **the two do not compete**:
-the spike is a handful of HTTP fetches and some image decoding, so it can run while item 2 holds all 16
-jobs. Node-governed results are unaffected by the extra load; only wall-clock readings are.
+Order: **6, 2, 5, 4, 7, 10** — set in session 33 and unchanged, but item 6 is a different item now.
+**Its spike is done and it came back positive** (session 34): `LaserTank.lvl` 10's goal board is decoded,
+so the one thing that could hand the level a candidate has been delivered, and what is left of item 6 is
+a labelling job plus a layer-sized build. It stays first on the second ordering key rather than
+the first — *prefer work that produces a property or a level over work that produces a number* — because
+it now has an acceptance test written in advance and item 2 still produces a percentage. Item 2's
+rehearsal is done and its 54-hour run is fully specified, so it is ready to launch whenever the machine is
+free, and **the two do not compete**: node-governed results are unaffected by extra load; only wall-clock
+readings are.
 
 ---
 
 ## 6 (1st) — the blogspot goal-board harvester
 
-**Checked far enough to cost, and promoted to first in session 33.** It was last on the grounds that it is
-not a solver change and nothing above it is blocked on it — both still true, and both outweighed by three
-things measured since: its first step costs ~2 h rather than a scraping project (the mapping and the goal
-cells turn out to be *text*, see below), it is the only item that could give `LaserTank.lvl` 10 a
-candidate, and layer 4 has established that the off-distribution recordings it would harvest are the one
-thing that layer's ranking ceiling actually needs. **The spike is what is first — not the full crawl.**
+**The feasibility spike is done, positive, and it shipped as `tools/harvest.py` + `tools/png.py`
+(session 34).** What is left of this item is a build, not a question — the framing is below, then every
+number the spike produced, then the re-costed remainder.
 
 Michal raised it; what one post actually contains was verified rather than assumed (`Challenge-II-100`):
 a **start screenshot**, one **screenshot per flag showing the board at the moment of reaching it**, and —
-the part that makes it interesting — the game's own **Moves and Shots counters visible in the panel**. No
-move list, no keystream, no prose. Roughly 2,000-3,000 posts across 2016-2024. The blog runs in level
-order from `LaserTank.lvl` 1 (`/2016/06/1-boot-camp.html`), which makes the index trivial for the one
-collection the demos cover.
+on some posts — the game's own **Moves and Shots counters visible in the panel**. No move list, no
+keystream, no prose.
 
-**What it would buy is not solutions, it is a goal.** A final board says which blocks were moved where
-and which bricks were destroyed, so "reach the flag" becomes "reach *this* board" — a progress measure
-that decreases with every push in the right direction, which is exactly the gradient `RouteFerry` and its
-four successors are hand-rolled approximations of. The counters are a second gift: an exact cost target
-to bound a search by and to check a solution against.
-
-**Feasibility, measured on two downloaded images.** They are full-window PNGs (609x463, 619x473), not
-board crops: the 16x16 board sits at a fixed offset at roughly **24px per cell**, i.e. the 32x32 sprites
-scaled down, so this is template matching and not OCR. The codebook does not have to be built by hand —
-**for every post we already know the collection and level, so the start screenshot is 256 labelled tiles
-for free**, and the goal images decode against a codebook bootstrapped from the starts. Unknowns worth
-checking before committing: whether the window geometry is stable across nine years of posts, and which
-of the three `.ltg` packs is in use.
-
-### Session 33 — four read-only fetches, and two of the unknowns are closed
-
-**The mapping is exact and free, and it does not need the image at all.** Post titles carry
-`collection - number - name` (`LaserTank - 1102 - River Tank`, `Challenge-I - 1901 - The flowers of the
-death`, `Sokoban-I - 806 - the island of the dead`); 2016-era posts drop the collection and are
-`LaserTank` (`36-up-creek_11.html`, `62-crossroads.html`). **Six posts checked against the corpus across
-three collections and both URL eras: 6/6 exact on `(collection, level) → name`.** So the number indexes
-the `.lvl` file directly and the name is a free checksum on top of it. Belt and braces: **20,660 distinct
-name-slugs over the 20,914 levels, 97.8% of levels uniquely named**, so a garbled number is recoverable
-from the title alone. (Beware the slug rules — Blogspot drops leading articles and appends `_NN` on
-collisions: level 10 "The Valley of Death" is `10-valley-of-death.html`, and guessing
-`10-the-valley-of-death` 404s.)
-
-**The bigger find: the ordered goal cells are plain text in the image filenames.** A multi-flag post
-carries `ChallengeI_1901.png`, then `ChallengeI_1901_G4.png`, `ChallengeI_1901_L2.png` — collection,
-level, and *which flag was reached in what order*, in the game's own column-row notation. **For
-multi-flag levels the subgoal sequence needs no pixel decoding whatsoever**; phase 1 of the harvester is
-an HTML scrape and a regex, not the template-matching pipeline this item is budgeted for. The pixel
-decode is only needed for the *board* (block and brick positions), and only single-flag levels depend on
-it entirely.
-
-**Geometry looks stable across the nine years:** the 2024 post serves at Blogger's `/s609/` and `/s619/`
-widths, the same two the 2016-era images were measured at.
-
-**One thing got worse, and it was load-bearing above:** the **Moves/Shots counters are not universal.**
-They were verified on `Challenge-II-100`; the 2024 `Challenge-I 1901` post has none. So the "exact cost
-target to bound a search by" is a bonus on some posts, not a property of the corpus — do not design the
-`--goal-board` mode around having it.
-
-**For the two open levels: level 10 has a post** (`/2016/06/10-valley-of-death.html`, found by Michal)
-**and level 6 "Cascade" does not.** Level 10 is single-flag, so its post is worth exactly as much as the
-pixel decode is — which makes the decode spike the thing that decides whether this item can produce a
-candidate for the one open level it could reach at all.
-
-Sequence, roughly: scrape post URL + collection + level + image URLs; decode a 16x16 board by template
-matching; bank `(collection, level, goal PF, moves, shots)`; then a `--goal-board` mode that ranks by
-cells-still-differing.
+**What it buys is not solutions, it is a goal.** A final board says which blocks were moved where and
+which bricks were destroyed, so "reach the flag" becomes "reach *this* board" — a progress measure that
+decreases with every push in the right direction, which is exactly the gradient `RouteFerry` and its four
+successors are hand-rolled approximations of.
 
 **The honesty condition, and it is not optional.** A level solved with a scraped goal board is
 *hint-assisted* and must never enter the solver's headline rate. Its value is as a bootstrap:
@@ -91,6 +42,164 @@ self-reinforcement trap needs, obtained without anyone playing twenty levels by 
 
 It is no longer a prerequisite for measuring anything: the ferry population was n=2 when this was agreed,
 and it is n=20 hand-recorded now. The harvester is a way to make that 200.
+
+### Session 34 — the spike, and every number it produced
+
+Run in this order, each step cheap enough that the next one was only reached because the previous one
+came back clean. `python tools/harvest.py {index,map,fetch,codebook,decode}`.
+
+**1. The index is one minute and needs no HTML at all.** The Blogger feed
+(`/feeds/posts/default?alt=json`) serves the *post body*, so the image URLs come with the titles: **6,218
+posts in 42 requests, 46 s.** That retires "a scraping project" as this item's phase 1. The count also
+corrects the estimate above: 6,218, not 2,000-3,000.
+
+**2. The mapping is exact at scale.** Session 33 checked 6 posts and got 6/6; over all of them it is
+**6,188 of 6,197 solution posts exact** on `(collection, level) → name` (99.85%), plus 21 posts that are
+not solutions at all (celebrations, tutorials). `harvest.py map` prints the nine residuals and every one
+is a **blog-side title typo, not a bad index** — a difficulty appended to the name (`Loopy, Easy`), a
+`Shake` for `Shaker`, one `KaserTank` for `LaserTank`, one level name the `.lvl` itself stores with
+control bytes in it. The number indexes the `.lvl` directly and the name is a free checksum on top.
+
+**Coverage: 6,043 distinct `(collection, level)` pairs, 28.9% of the 20,914-level corpus** — and it is
+concentrated exactly where the chain fails. Against `build/reports/chain.jsonl`, **1,148 of the 3,691
+levels the shipped chain fails have a post (31.1%)**, and within the collections the blog actually works
+on the rate is 81-90%: `Sokoban-I` 358 of 397, `LaserTank` 315 of 362, `Challenge-I` 284 of 349,
+`Special-I` 61 of 84. Per tier: Easy 716 of 2,008, **Medium 349 of 775, Hard 68 of 257** — the tier the
+chain is 0-for-257 on. Nothing at all for `Beginner-I/II`, `Gary-I/II` and `Challenge-III`, which is why
+Kids is 0 of 586.
+
+**3. One thing session 33 over-generalised.** The `Coll_NNN_G4.png` cell-name convention — the one that
+makes a multi-flag subgoal sequence free — is **later-era only**. The 2016-era posts, which are exactly
+`LaserTank.lvl` 1-19, name their images `10a.png` / `10b.png` and carry **no cell names**. Both eras are
+keyed by the level number and `pick_images` handles both; the point is that *level 10 is in the era
+without the free text*, so for the one open level this item can reach at all, the pixel decode was the
+whole question. A post can also carry no goal image at all — `LaserTank` 1 has only a start.
+
+**4. Geometry: two window sizes over nine years, and the frame finds both.** 609x463 and 619x473,
+8-bit truecolour, served at Blogger's `/s1600/` as the untouched originals. The board is 16x16 at
+**24 px per cell inside a two-pixel `(128,128,128)` frame**, at origin (20,62) and (25,67) respectively —
+so the detector is `bytes.find` of a 384-pixel grey run over each row, a millisecond rather than a pixel
+loop. **Zero failures over the 640 start and goal images of the two samples** (150 + 176 and 141 + 173),
+both eras, seven of the nine collections the blog covers — `Challenge-III` and `Challenge-IV` have 3 and
+8 posts between them and came up in neither draw. The first 26 were also cross-checked against a slower
+whole-image pixel loop and agreed on every one. No third-party dependency: this machine has neither PIL
+nor numpy, so `tools/png.py` is a stdlib PNG reader in the house style of `atlas_check.py`'s
+`bmp_decode`.
+
+**5. The codebook bootstraps itself and saturates.** For every post the collection and level are known
+from the title, so a start screenshot is **256 labelled tiles for free**. Decoding each start board
+against the codebook built from the boards *before* it — so the curve is honest and a disagreement is a
+hard error rather than a self-fulfilling one — over 150 random posts:
+
+| | sample A (150) | sample B (141) |
+|---|---|---|
+| codebook entries | **55**, from 38,400 labelled tiles | **55** |
+| conflicts (a tile hash claiming two different `PF` values) | **0** | **0** |
+| boards decoded exactly against earlier boards only | **135 of 150** | **133 of 141** |
+| held-out check: `LaserTank` 10's start board | **256 of 256**, zero unknown tiles | 256 of 256 |
+
+**Two independent random samples, and both land on 55.** They agree on **54 of the 55** and disagree on
+**none** — each learned one animation frame the other's draw missed (a tank frame; an anti-tank-up
+frame), so the true universe is ~56 and either sample is one rare frame short of it. *What is not stable
+is which board teaches the last tile* — 37, 97 and 10 of ~140 across three runs, because it depends
+entirely on which rare frame happens to come last in the shuffle. Quote the size, not the position.
+
+**And there is only one graphics pack in play**, which was the third open unknown: dirt, solid, block,
+bricks, ice, every mirror and every tunnel have **exactly one** tile image each over those 150 boards.
+Only the animated sprites have several — anti-tank 3-4, water 3, flag 3, each conveyor 3 — so the
+multiplicity is animation frames, not `.ltg` packs, and the tile universe is small.
+
+**6. The goal side is where the cost actually is, and it does not saturate.** Reproducible as
+`harvest.py codebook --goals`. Decoding ~175 goal boards against the 55-entry codebook leaves **93
+(sample A) / 117 (sample B) further distinct sprites**, 3.79% / 4.52% of tiles, and at the last board of
+either the set was still growing by one every ten boards or so. Unknown tiles per goal board, sample B:
+
+| unknown cells | 0 | 1 | 2 | 3-5 | 6-10 | >10 |
+|---|---:|---:|---:|---:|---:|---:|
+| goal boards | 3 | 10 | 12 | 28 | 57 | **63** |
+
+That distribution is the *before* row of the table in [*What is left*](#what-is-left-re-costed): one
+label collapses it, which is why the number to carry forward is 1.37% and not 4.52%.
+
+**Why, and why it is a labelling job rather than an ambiguity.** A start board only ever shows *authored*
+states: the tank faces up, no laser is in flight, and no block has been pushed anywhere. The residual is
+the states only play produces — the tank in the other three directions, an anti-tank over ice or water, a
+roto-mirror flipped by a laser, a beam mid-flight, and above all **the block pushed into water**, which
+is **68.5% / 69.7% of all instances on the two samples** on its own. That one is `Engine.cs:731`: pushing
+a block (`obt == 5`) onto water sets **`PF = 0` and `BMF = 19`** — functionally dirt, drawn as a sunken
+block. Which is the general shape of the whole residual: **`BMF → PF` is many-to-one, and `PF` is the
+only half the solver wants.** So each of them has one right answer, and 26 were labelled by eye off a
+contact sheet in one look during the spike.
+
+**7. `LaserTank.lvl` 10's goal board is in hand.** `/2016/06/10-valley-of-death.html`, decoded with
+**one** undecoded cell — and that cell is the tank at (6,0), identified from its crop, one move short of
+the flag at (7,0). The post *does* carry counters (the item's warning that they are not universal still
+stands, `Challenge-I 1901` has none): **179 moves / 52 shots** against the `.ghs` record's 124/55.
+
+The shape of that solution is the finding:
+
+* **Zero of the ten anti-tanks are destroyed.** Six of them are somewhere else.
+* Minimum total push distance over both direction groups, by exhaustive assignment, is **30** — against
+  52 shots spent. So level 10 is won by *rearranging* anti-tanks, not by clearing them, and the goal
+  board names the cells they have to end up in. (A push preserves an anti-tank's facing — `MoveObj`
+  moves it and never rotates it — so `>` can only be matched to `>`, and the two direction groups are
+  matched independently. Which anti-tank became which within a group is still a choice, and the numbers
+  here take the minimum-cost one.)
+* This is not news about the mechanic — `Heuristic.cs:957` already counts anti-tanks as pushable, and the
+  comment beneath it is about level 10 by name. It is news about the *quantity*, and about the gradient.
+  `--analyze` on level 10 offers **five** board changes at the root, three of which "open somewhere new
+  to stand", and it cannot rank them. The goal board can: pushing (1,13) **up** closes the distance to
+  its goal cell (0,12) from 2 to 1, while both pushes of (13,14) — left to (12,14), up to (13,13) — open
+  the distance to (15,14) from 2 to 3. **A key that distinguishes those three is exactly what this level
+  has never had.**
+* **A hand-arithmetic result was wrong before the code checked it.** Matching goal anti-tanks to start
+  anti-tanks by eye gave a total push distance of exactly 52, equal to the shot count, which read as a
+  beautiful confirmation. The exhaustive assignment says 30. Same failure mode as session 33's 896-byte
+  record: an arithmetic coincidence is the most convincing kind of wrong answer, and the fix is the same
+  — reconcile against a number you did not derive.
+
+**8. And level 6 "Cascade" still has no post.** Checked against the full index rather than by search now:
+of `LaserTank.lvl` 1-20, levels **3, 4, 6, 7, 11, 13 and 20 have no post at all**. So this item can reach
+one of the two open levels and not the other, and item 5 is unchanged by all of the above.
+
+### What is left, re-costed
+
+The spike answered the feasibility question, so what remains is two pieces of work and neither is a fetch:
+
+1. **Label the residual**, and the loop for it is built and demonstrated:
+
+   ```bash
+   python tools/harvest.py sheet     # -> build/harvest/residual.{png,json}
+   # put a PF symbol in each "pf" of residual.json, reading the sheet
+   python tools/harvest.py label     # -> bench/goal-tiles.json, committed
+   python tools/harvest.py codebook --goals    # what is left
+   ```
+
+   The split is load-bearing. The start-bootstrapped half is derivable and stays in gitignored
+   `build/harvest/codebook.json`; **the hand-labelled half is `bench/goal-tiles.json` and is
+   committed**, by the rule that directory exists for — nothing re-derives a human's answer, and input
+   in a gitignored directory is input the project does not have.
+
+   **One label is most of the job, and that is measured, not assumed.** Sprite 0 is the block pushed
+   into water; labelling it `.` (`Engine.cs:731`: `PF = 0`, `BMF = 19`) moves the residual over the same
+   173 goal boards from **2,003 unknown tiles (4.52%) to 606 (1.37%)**:
+
+   | unknown cells per goal board | 0 | 1 | 2 | 3-5 | 6-10 | >10 |
+   |---|---:|---:|---:|---:|---:|---:|
+   | before, 117 sprites unlabelled | 3 | 10 | 12 | 28 | 57 | **63** |
+   | after **one** label, 116 left | 10 | **69** | 25 | 41 | 17 | **11** |
+
+   Boards with at most one unknown cell go **13 → 79 of 173**, and the commonest remaining sprite is
+   9.1% of instances against the first one's 69.7% — so what is left is a long flat tail of tank and
+   anti-tank poses over the various terrains. **Half a session** for the rest, front-loaded.
+
+2. **`--goal-board`** — bank `(collection, level, goal PF, moves, shots)` and rank by cells-still-
+   differing. **A layer-sized build**, and for once it has its acceptance test written in advance:
+   level 10, whose goal board is decoded and whose three root pushes it must separate.
+
+The derivable artefacts land under `build/harvest/` (gitignored, re-fetchable): `index.jsonl`, `img/`,
+`fetched.json`, `codebook.json`, `residual.{png,json}`. Rebuilding all of it from nothing is
+`index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s).
 
 ---
 

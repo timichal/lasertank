@@ -221,8 +221,30 @@ is in [`SOLVER.md`](../../SOLVER.md#status).
 
 ## The state of the tree and of `build/`
 
-**As session 31 left it.** `build/` is current (`bash src/build.sh`) and carries `--push-fire-tier` and
-the tenth rung.
+**Session 34 added three files and touched no engine and no solver code.** `tools/harvest.py` (814 lines,
+the blogspot harvester: `index`/`map`/`fetch`/`codebook`/`sheet`/`label`/`decode`), `tools/png.py`
+(a stdlib PNG reader and writer, needed because this machine has neither PIL nor numpy) and
+**`bench/goal-tiles.json`, which is committed and holds one entry.** Nothing under `src/` changed, so
+**the standing engine claim and every solver number are untouched** — no gate was re-run because nothing
+a gate covers moved.
+
+* **The two-halves split is the part to understand before touching it.** A blogspot *start* screenshot
+  labels its own 256 tiles, because the corpus already knows that board — so that codebook is derivable
+  and lives in gitignored `build/harvest/codebook.json` (55 entries). Nothing labels the states only
+  *play* produces, so those are hand input and live in **`bench/goal-tiles.json`**, committed, per the
+  rule that directory exists for. `harvest.py` merges the two on every read and says which is which.
+* **The one entry in it is a worked example, not a stub.** `4776b082c1cedd55` → `.` is the block pushed
+  into water (`Engine.cs:731`: `PF = 0`, `BMF = 19`), and it alone takes the goal-side residual from
+  4.52% of tiles to **1.37%**, and goal boards with more than ten unknown cells from 63 to 11 of 173.
+  116 sprites remain and they are a flat tail — the commonest is 9.1% of what is left.
+* **Artefacts in `build/harvest/`** (gitignored, all re-derivable): `index.jsonl` (6,218 posts), `img/`
+  (~250 screenshots), `fetched.json`, `codebook.json`, `residual.{png,json}`. Rebuilt from nothing by
+  `index` (46 s) + `fetch --limit 150 --goals` (~7 min) + `codebook --goals` (~45 s).
+* **`data/` is unchanged** — a harvested goal board is hint-assisted and no decision has been taken
+  about where such boards are allowed to live, so the spike deliberately banked none of them there.
+
+**Everything below is as session 31 left it.** `build/` is current (`bash src/build.sh`) and carries
+`--push-fire-tier` and the tenth rung.
 
 * **What the code is:** `Heuristic.FireSwept`/`FireCells`, `Push.FireTier` + `TierFire` + `Node.Swept` +
   the `fire:` trace line, the flag in `Program.cs`, and a `push-fire` rung in `Auto.cs`'s ladder — **so
@@ -519,6 +541,40 @@ clock. `LaserTank.lvl` 10 is still unsolved and 166 of the 168 levels no arm sol
   576 bytes and is documented in `PROGRESS.md`; at 576 the corpus totals **20,914**, which is the number
   `SOLVER.md` has always quoted. **The cross-check that caught it was a total the project already knew
   — read the format, and reconcile against a number you did not derive.**
+
+**session 34 — item 6's spike, and it produced a level rather than a percentage.** Ran the ~2 h
+feasibility spike session 33 had costed, and it came back positive at every step, so it shipped as
+`tools/harvest.py` + `tools/png.py` rather than as a scratch script. The numbers are in
+[item 6](next-actions.md#session-34--the-spike-and-every-number-it-produced); the four things worth more
+than the numbers:
+
+* **A "scraping project" was two orders of magnitude cheaper than costed, and the reason is that nobody
+  had looked at the feed.** The Blogger JSON feed serves the post *body*, so the whole index — 6,218
+  posts, titles and image URLs — is 42 requests and 46 seconds, with no HTML parsing anywhere. The item
+  had been carrying a scraping-project estimate since it was raised. **Before costing a crawl, check
+  whether the site has an API.**
+* **Session 33's best find was over-generalised from one post, and the correction matters.** The
+  `Coll_NNN_G4.png` convention that makes a multi-flag subgoal sequence free text is **later-era only**;
+  the 2016-era posts, which are exactly the ones covering `LaserTank.lvl` 1-19, use `10a`/`10b` and carry
+  no cell names. So the two levels this project actually cares about were in the era where the pixel
+  decode *was* the whole question. One post is a sample of one, even when what it shows is real.
+* **A bootstrap that grades itself.** Because every post's collection and level come from its title, a
+  start screenshot is 256 *labelled* tiles for free — so the codebook builds itself, and decoding each
+  board against the codebook built from only the boards before it makes the curve honest and a
+  disagreement a hard error. Two independent samples: **55 entries each, 0 conflicts over ~38,000
+  labelled tiles, agreeing on 54 of 55 and disagreeing on none.** *What is not stable is which board
+  teaches the last tile* — 10, 37 and 97 across three runs. Quote the size, not the position.
+* **An arithmetic coincidence is the most convincing kind of wrong answer, and this is the second session
+  in a row it has happened.** Matching level 10's goal anti-tanks to its start anti-tanks by eye gave a
+  total push distance of exactly **52**, equal to the post's shot count, which read as a beautiful
+  confirmation of the whole decode. The exhaustive assignment says **30**. Same shape as session 33's
+  896-byte record, same fix: reconcile against a number you did not derive.
+* **The spike's last hour went on the *next* step's tooling, and it changed that step's size.** The
+  residual was going to be labelled off a contact sheet built by a throwaway script, which would have
+  left the next session to rebuild it — so `sheet` and `label` are subcommands, and labelling one sprite
+  proved the loop closes and measured what it buys (4.52% → 1.37%). **A phase costed as "half a session
+  of eyeballing" was worth ten minutes of making the eyeballing resumable**, because the artefact a
+  spike leaves behind is what decides whether its successor starts or restarts.
 
 ---
 
