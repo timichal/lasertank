@@ -63,6 +63,24 @@
 // learned evaluation takes held-out top-4 from 13.6% to 18.2% overall and from
 // 5.7% to 10.4% on held-out human recordings.  Over the corpus that is worth
 // **+28 levels and none lost**: 444 -> 472 of the 4,185-level stride sample.
+//
+// **Session 27 -- two defects between that fit and the beam, both now fixed.**
+// Neither was in the model.
+//
+//   1. `Eval.Score` divided the fixed-point sum by `Eval.Scale` to hand the beam
+//      a number in work units.  An integer divide, and the model's whole dynamic
+//      range is smaller than one unit of its own output (the `work` weight is
+//      157, i.e. 0.15 of a key per unit of WorkDistance), so the ranking rounded
+//      away: the minimum tied in 786 of 815 instrument groups and the beam's own
+//      tie order decided them.  Everything now works in fixed point instead.
+//   2. `Rank()` asked `_eval != null` rather than the caller's flag, and
+//      Search.cs builds `_eval` when *either* side wants it while `PushLearned`
+//      defaults to true -- so from 4765ae9 on, the subgoal beam ranked by the
+//      learned key whatever `--sg-eval` said, and that flag gated nothing.
+//      Rank() now takes the flag.
+//
+// The pair is why the +28 above did not reproduce in session 25: the "plain
+// layer 3" that pass was compared against was the same searcher.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -240,15 +258,24 @@ namespace LaserTank.Solver
             return new Eval(w, Path.GetFileName(path));
         }
 
+        /// The score, left in `Scale` fixed point.
+        ///
+        /// It used to divide by `Scale` here, to hand the beam a number in work
+        /// units.  That divide is integer and the model's whole dynamic range is
+        /// smaller than one unit of its own output -- the `work` weight is 157,
+        /// i.e. 0.15 of a key per unit of WorkDistance -- so the ranking rounded
+        /// away and the minimum tied in 786 of 815 instrument groups.  A key
+        /// that ties everywhere is decided by the beam's tie order, not by the
+        /// model.  Every caller now works in fixed point instead: see Rank().
         public int Score(int[] f)
         {
             long s = 0;
             for (int i = 0; i < Feat.N; i++) s += (long)W[i] * f[i];
-            s /= Scale;
-            // The beam sorts ascending and Cut() compares ints, so clamp rather
-            // than let a pathological weight set wrap.
-            if (s < -1000000) s = -1000000;
-            if (s > 1000000) s = 1000000;
+            // The beam sorts ascending and Cut() compares ints by subtraction,
+            // so clamp rather than let a pathological weight set wrap.  Real
+            // scores are in the thousands; this is headroom, not a range.
+            if (s < -100000000) s = -100000000;
+            if (s > 100000000) s = 100000000;
             return (int)s;
         }
     }
@@ -280,7 +307,9 @@ namespace LaserTank.Solver
         /// The learned evaluation, or null for layer 2's WorkDistance.
         private Eval _eval;
 
-        /// The subgoal beam's ranking key.
+        /// A ranking key in `Eval.Scale` fixed point: the learned evaluation,
+        /// or `work` at the same scale so that the two are interchangeable and
+        /// every hand-built addend beside them is one `Eval.Scale` per work unit.
         ///
         /// Consulted only *after* Offer() has settled whether a successor
         /// advanced, so this is an ordering and nothing more: a learned
@@ -288,12 +317,26 @@ namespace LaserTank.Solver
         /// admit one the shipped acceptance test refused.  That is the same
         /// contract layer 3's jitter has, and for the same reason -- it is what
         /// keeps layers 2 and 3 intact underneath.
-        private int Rank(int work)
+        ///
+        /// `learned` is the caller's own flag, not `_eval != null`.  It used to
+        /// be the latter, and `_eval` is built when *either* side asks for it
+        /// (Search.cs) while `PushLearned` defaults to true -- so the subgoal
+        /// beam ranked by the learned evaluation whatever `--sg-eval` said, and
+        /// that flag gated nothing at all.
+        private int Rank(int work, RankKey key)
         {
-            if (_eval == null) return work;
+            if (key == RankKey.None) return 0;
+            if (key == RankKey.Work || _eval == null) return work * Eval.Scale;
             Feat.Extract(_e, _h, work, _feat);
-            return _eval.Score(_feat);
+            int s = _eval.Score(_feat);
+            // Coarse is the score rounded to work units and lifted back, i.e.
+            // exactly what the old divide produced, ordering included.
+            return key == RankKey.Coarse ? (s / Eval.Scale) * Eval.Scale : s;
         }
+
+        /// Whether a key needs the model built at all.
+        internal static bool Needs(RankKey k) =>
+            k == RankKey.Learned || k == RankKey.Coarse;
 
         private readonly HashSet<ulong> _collectSeen = new HashSet<ulong>();
 

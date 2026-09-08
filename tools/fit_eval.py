@@ -54,6 +54,13 @@ NAMES = ["bias", "work", "work_far", "flagdist", "flag_unreach", "manhattan",
 NF = len(NAMES)
 SCALE = 1024
 
+# The C# side keeps the score in this fixed point rather than dividing back to
+# work units -- it used to divide, and an integer divide by 1024 rounded the
+# whole model away, because its dynamic range is smaller than one unit of its
+# own output (session 27).  So a weight written here is read there unchanged,
+# and anything hand-written for --eval-weights has to be scaled the same way:
+# bench/seed-weights.txt is the seed vector under that rule.
+
 # The seed vector, which is WorkDistance exactly -- see Weights.cs.  Kept here
 # so the report can score the baseline through the same code path as a fit
 # model, rather than through a second implementation of the same sum.

@@ -47,6 +47,21 @@ namespace LaserTank.Solver
         public long Nodes;           // search -> driver: ApplyKey calls so far
     }
 
+    /// Which key a beam sorts by.  Both --sg-eval and --push-eval take one.
+    ///
+    /// `Coarse` is `Learned` rounded back to work units, which is what
+    /// Eval.Score's old `s /= Scale` produced -- and, because Rank() used to
+    /// read `_eval != null` instead of its caller's flag, what *every* subgoal
+    /// and push run has actually been sorting by since 4765ae9.  It is kept as
+    /// a key of its own rather than deleted, because it is not a degenerate
+    /// one: over layer 0's 3,787 failures it solves 73 where WorkDistance
+    /// solves 44.  A learned score rounded to work units is a learned score
+    /// with fewest-keypresses-first as its tie-break, which is a real ranking.
+    ///
+    /// `None` is H = 0, so Cut() orders by Tier and then by G alone -- the
+    /// control the learned key had never been benched against.
+    public enum RankKey { Work, Learned, Coarse, None }
+
     public sealed class SolveOptions
     {
         public int MaxKeys = 1200;         // keystream cap; also the depth cap
@@ -219,7 +234,7 @@ namespace LaserTank.Solver
         // trajectories, the successor the winner used is in the expansion's
         // group 97.6% of the time and WorkDistance ranks it 100th of a median
         // 395.  The constraint was never coverage.  See Learn.cs.
-        public bool SgLearned = false;     // rank by the learned evaluation
+        public RankKey SgEval = RankKey.Work;   // --sg-eval; see RankKey
         public Eval Eval;                  // null -> Weights.Default
 
         // ---- layer 5: push macros (Push.cs) -------------------------------
@@ -296,7 +311,30 @@ namespace LaserTank.Solver
         /// the ferry term, and **6** ranked by the learned evaluation -- inside
         /// the solved population's p90 of 8 for the first time.  The benches
         /// agree: ferry 14 -> 15, deep 17 -> 19 at width 48.
-        public bool PushLearned = true;
+        /// `none` is the control the learned key has never been benched
+        /// against: H = 0, so Cut() orders by Tier and then by G -- fewest
+        /// keypresses first among the same tier.  It exists because at the
+        /// shipped weights the divide in Eval.Score tied the key almost
+        /// everywhere, so `learned` on the push rungs was mostly *being* that
+        /// control, and a fix to the key has to beat it rather than beat `work`.
+        public RankKey PushEval = RankKey.Coarse;
+
+        /// The one scalar the fixed-point fix introduces: what a work unit of
+        /// the hand-built addends (ferry, stop, dead, shield) is worth against
+        /// the learned score.  Only `learned` reads it -- under `work`,
+        /// `coarse` and `none` the key is already in work units x Eval.Scale
+        /// and the ratio cancels.
+        ///
+        /// 0 means *the key's own price for a work unit*, i.e. the fitted
+        /// `work` weight (157 at the shipped vector), which is the value that
+        /// makes the hand terms cost what the model charges for the same thing.
+        /// Eval.Scale is WorkDistance's price and is 6.5x heavier -- the same
+        /// units error as the divide, one level out.  Measured: ferry 15 -> 18
+        /// and deep 28 -> 27 moving from 1024 to 157, the first configuration
+        /// that is not worse than `coarse` on either list.  Derived rather than
+        /// written down so that a refit moves it.
+        public int PushHandScale = 0;
+
         public int PushFerry = 1;          // weight on Heuristic.RouteFerry; 0 is off
         public int PushRestarts = 6;       // extra attempts after a dead-end, each
                                            // doubling the width; 0 is off
@@ -367,7 +405,7 @@ namespace LaserTank.Solver
             _lvlPath = lvlPath;
             _opt = opt;
             _cancel = opt.Cancel;
-            if (opt.SgLearned || opt.PushLearned) _eval = opt.Eval ?? Eval.Default();
+            if (Needs(opt.SgEval) || Needs(opt.PushEval)) _eval = opt.Eval ?? Eval.Default();
         }
 
         public TLEVEL Level => _e.CurRecData;

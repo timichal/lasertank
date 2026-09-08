@@ -6,11 +6,20 @@
 #
 #   tools/campaign.sh     solutions/l0 build/reports/l0.jsonl --no-macro
 #   NODES=150000 tools/second_pass.sh  build/reports/l0.jsonl solutions/l34 \
-#                         build/reports/l3n.jsonl --no-ida --no-beam --subgoal
-#   NODES=150000 tools/second_pass.sh  build/reports/l3n.jsonl solutions/l34 \
+#                         build/reports/l3c.jsonl --no-ida --no-beam --subgoal --sg-eval coarse
+#   NODES=150000 tools/second_pass.sh  build/reports/l3c.jsonl solutions/l34 \
 #                         build/reports/l34.jsonl --no-ida --no-beam --subgoal --sg-eval learned
 #   NODES=150000 tools/second_pass.sh  build/reports/l34.jsonl solutions/l34 \
 #                         build/reports/l34pass4.jsonl --no-ida --no-beam --macro --macro-first
+#
+# Session 27: the middle pass carries --sg-eval coarse, and that is a *name* for
+# what it already did rather than a new configuration -- Rank() read `_eval !=
+# null` instead of its caller's flag, so a bare --subgoal ranked by the learned
+# evaluation rounded to work units.  Naming it made the *third* pass a different
+# searcher for the first time: +73 / +20 / +3, composite 494 of 4,185.  The
+# +44 / +30 / +3 further down is the pre-4765ae9 attribution and is history --
+# `--sg-eval work` is the searcher that scores 44, and appended after the two
+# passes above it adds 0.
 #
 # NODES matters more than it looks: the default below is 1M, and every number
 # quoted for these passes -- the +44 / +30 / +3 further down, the 441/444/472
@@ -68,7 +77,11 @@ sub=$2
 report=$3
 shift 3
 
-exe="$root/build/lasertank-solve.exe"
+# LT_SOLVE overrides the binary, for the same reason $LT_CORE exists (PROGRESS):
+# a running solve holds build/lasertank-solve.exe open, so `dotnet publish -o
+# build` cannot replace it and the only way to bench a change during a long run
+# is to point at the project's own bin/.
+exe="${LT_SOLVE:-$root/build/lasertank-solve.exe}"
 [ -x "$exe" ] || { echo "no $exe -- run bash src/build.sh" >&2; exit 1; }
 [ -f "$first" ] || { echo "no first-pass report at $first" >&2; exit 1; }
 mkdir -p "$(dirname "$report")"

@@ -75,9 +75,9 @@ and it is an argument for *Next actions* item 1.) The variable now lives in the 
 
 ```bash
 STRIDE=5 NODES=150000 tools/campaign.sh solutions/l0 build/reports/l0.jsonl --no-macro
-NODES=150000 tools/second_pass.sh build/reports/l0.jsonl  solutions/l34 build/reports/l3n.jsonl \
-                     --no-ida --no-beam --subgoal
-NODES=150000 tools/second_pass.sh build/reports/l3n.jsonl solutions/l34 build/reports/l34.jsonl \
+NODES=150000 tools/second_pass.sh build/reports/l0.jsonl  solutions/l34 build/reports/l3c.jsonl \
+                     --no-ida --no-beam --subgoal --sg-eval coarse
+NODES=150000 tools/second_pass.sh build/reports/l3c.jsonl solutions/l34 build/reports/l34.jsonl \
                      --no-ida --no-beam --subgoal --sg-eval learned
 NODES=150000 tools/second_pass.sh build/reports/l34.jsonl solutions/l34 build/reports/l34pass4.jsonl \
                      --no-ida --no-beam --macro --macro-first
@@ -85,13 +85,20 @@ python tools/verify_solutions.py build/solutions/l0     # layer 0's own solution
 python tools/verify_solutions.py build/solutions/l34    # everything the three passes added
 ```
 
+**`--sg-eval coarse` on the middle pass is session 27's, and it is not a tuning knob — it is the
+key that pass has been using since `4765ae9` without saying so.** `Rank()` read `_eval != null`
+rather than its caller's flag, so a bare `--subgoal` ranked by the learned evaluation rounded to
+work units. That is now a key with a name, and writing it here makes the command mean what it ran.
+Naming it also made the *third* pass a different searcher for the first time — `learned` used to be
+the same one — which is where **476 -> 494** comes from. *Next actions* item 1.
+
 `report_stats.py` reads any of those reports (`--diff` compares two layers); the composite is the
 *union* of the four, which is why the two verify runs are separate. A level solved by an earlier
 pass is skipped by a later one, so no `.lpb` is ever written twice.
 
 ---
 
-## Five rules the sessions each paid to learn
+## Six rules the sessions each paid to learn
 
 These are the reason the numbers in this file can be trusted.
 
@@ -109,6 +116,15 @@ These are the reason the numbers in this file can be trusted.
 - **A solo bench score is the wrong statistic for a portfolio member.** Every specialist since
   layer 6 looks like a one-to-two-level loss alone and adds three to six levels to the *union* with
   the rung beside it, because the levels it fails are not the levels that rung fails. Measure unions.
+- **A flag that gates nothing looks exactly like a feature that does nothing.** `--sg-eval` gated
+  nothing for nine commits: `Rank()` asked `_eval != null` and `_eval` is built when *either* beam
+  wants the model, so plain layer 3 and `--sg-eval learned` were one searcher. Session 25 measured
+  them identical *to the node* — the right observation — and attributed it to the divide in
+  `Eval.Score`, which was also real and also a defect, and stopped there. **When a searcher and its
+  control come out node-identical, at least one of them is not what its name says; check both ends
+  before believing the feature is inert.** The cheap version of that check is the equivalence test
+  layer 4 already documents — run it, and run it against a control you have separately proved is a
+  different searcher.
 - **A penalty every board pays is not a penalty.** A weight that every successor of every held board
   incurs makes the beam's best score *rise* and steers nothing. Use a tier (an ordering that cannot
   refuse a state) instead. Same family of error as a heuristic that returns 0 — the best score there
@@ -123,13 +139,14 @@ These are the reason the numbers in this file can be trusted.
 
 | | state |
 |---|---|
-| Layers 0-4, the chain | **476 of the 4,185-level stride sample (11.4%)**, every solution verified through both engines -- re-measured from scratch in session 25 against the 472 the four passes banked before the machine move. **491 (11.7%) with layer 4's weight vector scaled by `Eval.Scale`**, which is a defect rather than a tuning knob -- see *Next actions* item 1 |
+| Layers 0-4, the chain | **494 of the 4,185-level stride sample (11.8%)** -- session 27, with layer 4's two ranking defects fixed and the chain's middle pass carrying `--sg-eval coarse`. A **strict superset** of session 25's 476 and of every intermediate configuration measured, 96 of 96 new solutions through the two-engine gate. See *Next actions* item 1 for the three chains that were compared and why this one |
 | Layer 5 — push macros | board-change search. Ferry bench **18/50**, deep **25/50** on the session-25 lists (9 and 17 in the session-17 configuration); 20/50 and 21/50 on the lost originals |
 | Layer 6 — the read | derives what is in the way and what can change it. Ships inside layer 5's rung (15/50 against 9/50 without it). Its anti-tank-on-the-route rule is `--read-antitank-wall`, **off by default** — see *Layer 8* |
 | Layer 6's fourth derivation | *what does this change make possible?* — `--push-enables`; own rung, adds 4 ferry / 5 deep, **solves `LaserTank.lvl` 1 in 67 s with no flags** |
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
+| The fourth pass, rehearsed | **82 of 250 (32.8%)** of the levels the chain fails, as the **union of five arms at 40M nodes** on a 1-in-15 stride of the whole failure population — session 26, 269 of 269 solutions through the two-engine gate. No single arm scores above **61 (24.4%)**, so the pass is a chain of arms rather than a configuration. *Next actions* item 2 |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item 3, and the shorter files for 8 and 9 it lists); **6 and 10 open**, and 10 is no longer a budget case — two 900M-node runs came back unsolved at depth 2 |
 
 *One number moved for a reason worth knowing before trusting the rest: the ferry bench is **19/50**
@@ -151,23 +168,48 @@ The per-tier and per-collection curve at 150k nodes:
 | Deadly | 56 | 1 | 1 | 1 | 1 | **1** | — |
 | **all** | **4,185** | 395 (9.4%) | 416 | 441 | 444 | **472 (11.3%)** | **1.6×** |
 
-**Re-measured from scratch in session 25** -- new machine, empty `build/`, same commands and the
-same 150k budget -- and the chain reproduces to four levels:
+That curve is the original attribution and is kept as history: its per-pass columns are the
+pre-`4765ae9` searchers, and two of them no longer exist under those names. The shipped chain's
+per-tier state today (session 27, `coarse` -> `learned`, `build/reports/fix2-chain.jsonl`):
 
-| | layer 0 | + L3 pass | + L4 pass | + L1 pass | composite |
+| tier | levels | solved | rate | median ratio |
+|---|---:|---:|---:|---:|
+| Kids | 960 | **374** | 39.0% | 1.5× |
+| Easy | 2,118 | **110** | 5.2% | 1.6× |
+| Medium | 784 | **9** | 1.1% | 1.5× |
+| Hard | 257 | 0 | — | — |
+| Deadly | 56 | 1 | 1.8% | — |
+| **all** | **4,185** | **494** | **11.8%** | **1.5×** |
+
+**Re-measured from scratch in session 25**, then re-attributed in session 27 once `--sg-eval` was
+found to gate nothing. Same 150k budget, same `build/reports/l0.jsonl` throughout -- layer 0 never
+touches `Rank()`, so only the two middle passes move:
+
+| chain | layer 0 | + pass 2 | + pass 3 | + L1 pass | composite |
 |---|---:|---:|---:|---:|---:|
-| the four passes as banked | 395 | +44 | +30 | +3 | **472 (11.3%)** |
-| session 25, this tree | **398** | **+73** | **+0** | **+5** | **476 (11.4%)** |
-| ...with layer 4's vector x `Eval.Scale` | 398 | +73 | **+17** | +3 | **491 (11.7%)** |
+| the four passes as banked (pre-`4765ae9`) | 395 | +44 | +30 | +3 | **472 (11.3%)** |
+| session 25, this tree | **398** | `--subgoal` **+73** | `--sg-eval learned` **+0** | +5 | **476 (11.4%)** |
+| session 27, `work` -> `learned` | 398 | **+44** | **+39** | +3 | **484 (11.6%)** |
+| **session 27, `coarse` -> `learned` -- shipped** | 398 | **+73** | **+20** | +3 | **494 (11.8%)** |
 
-Kids 364 (37.9%), Easy 103 (4.9%), Medium 8, Hard 0, Deadly 1; 476 of 476 solutions through the
-two-engine gate, zero divergences. **The total reproduces and the attribution does not.** Layer 3's
-pass gained 29 and layer 4's pass lost all 30. Layer 4's loss is explained and measured (item 1
-below); layer 3's gain is **not attributed yet**. What it is not: nondeterminism -- the same pass run
-twice is identical to the node on all 255 `Beginner-I` failures. The candidate is that layers 6-8
-edited `Heuristic.cs`, which `Subgoal.cs` reaches through `FrontierObstacles` (`Subgoal.cs:223`), so
-the subgoal pass may not be the searcher that scored 44; a revert-one-thing run over the same
-population would settle it, the way session 20's buried-flag fix was settled.
+Kids 374 (39.0%), Easy 110 (5.2%), Medium 9, Hard 0, Deadly 1; 96 of 96 new solutions through the
+two-engine gate, zero divergences, and the 494 is a **strict superset** of both 484 and 476.
+
+**Session 25's open question is closed, and the answer was not in `Heuristic.cs`.** Its layer-3 pass
+scored 73 where the attribution says 44 because `Rank()` tested `_eval != null` instead of its
+caller's flag: a bare `--subgoal` was already ranking by the learned evaluation, quantised to work
+units by the divide in `Eval.Score`. Restore true `WorkDistance` and the pass is **44 again, exactly**
+-- the third row above. So all three numbers in this table are real and they are three different
+searchers, not one searcher measured three times.
+
+Two things that fall out of it and are worth more than the composite:
+
+- **The accidental key is the best of the three.** 73 against `WorkDistance`'s 44 over the same
+  3,787 failures, 33 levels only it solves against 4. It ships as `--sg-eval coarse`.
+- **`WorkDistance` is now dominated outright.** A `--sg-eval work` pass appended after
+  `coarse` -> `learned` adds **0** -- every level it can reach is already in the union. Layer 2's
+  own key survives in the code as the acceptance test's `work` input and as `coarse`'s largest
+  term; as a *ranking* for this pass it is retired.
 
 `build/reports/chain.jsonl` is rebuilt — by `tools/chain_union.py` now, so the recipe is a script
 rather than a sentence — and the three `bench/` lists are back, regenerated and committed.
@@ -181,6 +223,23 @@ attack on it.
 ---
 
 ## Next actions
+
+> **The state of the tree and of `build/`, as session 27 left it.** Read this before running
+> anything, because two of the names below changed meaning.
+>
+> * **Session 27's code changes are in the working tree and not committed.** Michal writes the git
+>   history; the solver is built and published (`build/lasertank-solve.exe`), and `bench/seed-weights.txt`
+>   is a new untracked file that belongs in the next commit with the rest.
+> * **`build/reports/` is rebuilt under the recipe's own names**: `l0.jsonl`, `l3c.jsonl` (the
+>   `--sg-eval coarse` pass, 73), `l34.jsonl` (`--sg-eval learned`, 20), `l34pass4.jsonl` (macro, 3),
+>   and **`chain.jsonl` = 494**. Session 25's four are kept beside them as `*-s25.jsonl` — note that
+>   `l34.jsonl` and `chain.jsonl` are *not* the files of that name any session before 27 wrote, so a
+>   number quoted against them rebases. `build/solutions/l34` holds the 96 the three passes added,
+>   all through the gate.
+> * **The push benches live in `build/bench/{ferry,deep}-{coarse,learned,work,none,hs128,hs157}.jsonl`**,
+>   which is what item 1's two tables are computed from via `tools/arms_union.py`.
+> * **`LT_SOLVE=<exe>`** overrides the binary in `bench.sh` / `campaign.sh` / `second_pass.sh`, which
+>   is how a change gets benched while a long solve holds `build/` open.
 
 > **Session 24's item 0 is done — session 25.** The layer-0 campaign and all three passes have been
 > re-run on this machine, `build/reports/{l0,l3n,l34,l34pass4,chain}.jsonl` and
@@ -197,88 +256,231 @@ attack on it.
 >   60. Part is the population and part is layer 8's barrier fix moving 164 rows out of GAUNTLET, so
 >   the old label was a pre-fix read. Levels were not hand-picked to match the old description.
 
-**1. Layer 4's learned evaluation does not act, and the fix is worth 15 levels of composite.**
-*(In progress, session 26, in a parallel session.)* Two additions from *Pointers from a second
-reader*, item 4: the push-side fix is `Rank(work) + Eval.Scale * (ferry + stop + dead + shield)`
-in `PushH` -- tiers are untouched, the addends keep their relation, and the one new scalar is the
-ratio of learned score to hand terms; and bench the push side against a `--push-eval none`
-control (H = 0, `Tier` then `G`), because at the shipped weights `learned` on the push rungs has
-been sorting mostly by keystream length and that, not a feature, may be what levels 6 and 8
-"wanted".
-Measured, not inferred: `--sg-eval learned` at the shipped `Weights.cs` vector is identical **to the
-node** to plain layer 3 on all 255 `Beginner-I` layer-0 failures at 150k and all 50 deep-bench levels
-at 400k, so the pass adds 0 of 3,714 where this file credits it +30.
+**1. Layer 4's learned evaluation did not act. Two defects, both fixed — session 27.**
+*(Done, session 27. The chain question is settled — `coarse` -> `learned`, 476 -> **494** — and
+what is still open is the push side, which the benches below split by population and item 2's arms
+are the place to decide.)*
 
-**The vector is right and the arithmetic that reads it is wrong.** `tools/fit_eval.py` writes
-`round(w * SCALE)` (line 307), so `Weights.cs` is in `Eval.Scale` fixed point exactly as its header
-says, and `Eval.Score`'s `s /= Scale` (`Learn.cs:248`) is the intended inverse -- but it is an
-*integer* divide, and the model's whole dynamic range is smaller than one unit of its own output.
-`--sg-trace` on `Beginner-I` 6 reports `work=6..15`, against a `work` weight of 157, i.e. 0.15 per
-work unit. So the divide rounds the ranking away and the key ties: over the instrument's own
-expansion groups the minimum score is tied in **786 of 815**, and breaking those ties by `work` cuts
-the disagreement with `WorkDistance` from 611 groups to 127. **A key that ties everywhere is decided
-by the beam's tie order, not by the model** -- and the beam's tie order here is the order the
-expansion offered, which is `WorkDistance`'s.
+**Defect one was the divide, which session 25 found.** `Eval.Score` ended with `s /= Scale` to hand
+the beam a number in work units. Integer, and the model's whole dynamic range is smaller than one
+unit of its own output — the `work` weight is 157, i.e. 0.15 of a key per unit of `WorkDistance` —
+so the ranking rounded away and the minimum tied in 786 of 815 instrument groups. `Eval.Score` now
+leaves the score in fixed point and every caller works there: `Rank()`'s non-learned branch is
+`work * Eval.Scale`, layer 3's jitter is `Eval.Scale * Jitter()`, and `PushH`'s hand-built addends
+are lifted by `--push-hand-scale` (default: the fitted `work` weight — see the sweep below). `--push-trace`'s
+`best=` column and `--push-line`'s `line-h` divide back before printing, so every reading of them
+in this file is still in work units.
 
-Undo the divide -- session 25 did it by handing the same vector x 1024 to `--eval-weights`, which is
-numerically identical and needed no rebuild -- and it acts: 28 of the 255 levels take a different
-path, the pass adds **17**, and the composite goes **476 -> 491 of 4,185**
-(`build/reports/chain-scaled.jsonl`, 20 of 20 new solutions verified).
+**Defect two is why the divide looked like the whole story, and it is the larger one.** `Rank()`
+asked `_eval != null`, not its caller's flag, and `Search.cs` builds `_eval` when *either* beam
+wants the model while `PushLearned` defaulted to true. **So from `4765ae9` on, the subgoal beam
+ranked by the learned key whatever `--sg-eval` said.** Session 25's "`--sg-eval learned` is
+identical *to the node* to plain layer 3" was correct and had a second cause it did not look for:
+they were one searcher. Two consequences beyond the pass:
 
-Two things to know before fixing it, which is why session 25 measured it and did not ship it:
+* **`--sg-eval` gated nothing for nine commits**, so every "layer 2", "layer 3" and "layer 4"
+  number measured on this tree since is a number for the same ranking.
+* **The driver ran a duplicate rung.** `Auto.cs`'s `layer 3` and `learned` rungs were the same
+  search, so one lane of the portfolio was spent twice. Fixed.
 
-* **The documented equivalence check cannot be run as written.** *Layer 4* offers the seed vector
-  `{work: 1, work_far: 1000, far_man: 1}` as the check that the learned key reproduces layer 3
-  exactly. In `fit_eval.py`, which is float throughout, that vector **is** `WorkDistance`. Handed to
-  `--eval-weights` it is a flat key -- every score divides to zero -- and scores 11/255 where plain
-  scores 27. The seed file has to be written x `Scale` like any other; scaled, it reproduces
-  `WorkDistance` exactly (0 of 815 groups disagree). Worth fixing in the text either way: the
-  equivalence is the only check that says the ranking hook is still a ranking hook.
-* **The fix is not a one-liner, because `Push.cs:167` mixes `Rank()`'s output with work-unit
-  addends** (`+ ferry + stop + dead + shield`). Scaling the vector -- or dropping the divide, which is
-  numerically the same -- makes the learned term 1024x larger and swamps every layer 5-8 tier. So the
-  campaign above licenses the subgoal side only; the push side needs the two benches first.
+**The accidental key is not a degenerate one, so it is now a key of its own.** Rounding a learned
+score back to work units is *learned score, ties broken by fewest keypresses* — which is exactly
+what *Pointers* item 4 guessed the push rungs were really sorting by. It is `coarse`, and both
+`--sg-eval` and `--push-eval` now take `work|learned|coarse|none`:
 
-`Weights.cs` and the `/= Scale` divide arrived in the *same* commit (`8752317`), and neither has
-changed since, so **no committed revision of this tree has a learned key that acts** -- the +30 was
-not measured through the path that ships. How it *was* measured is not recoverable: it would have
-been an `--eval-weights` file written by `fit_eval.py --fit` into `build/`, and `build/` is gone.
-Session 24's lesson a second time, one layer down.
-
-**2. The fourth pass, at a budget that matches what layer 5 costs.** The decision pass came out
-positive — 15 of 255 (5.9%) of the levels the shipped chain fails, all verified — so the open
-question is not *whether* layer 5 pays but *how much of the corpus is worth spending on it*. One push
-expansion is a whole closure, so this is the one pass that has to be budgeted in tens of millions of
-nodes rather than hundreds of thousands.
-
-```bash
-# the whole population the chain fails, not a 1-in-15 sample of it, at 40M nodes
-NODES=40000000 BUDGET_MS=1800000 JOBS=12 bash tools/second_pass.sh \
-    build/reports/chain.jsonl solutions/l5 build/reports/l5.jsonl \
-    --no-ida --no-beam --push --push-read
-python tools/report_stats.py build/reports/l5.jsonl
-python tools/verify_solutions.py build/solutions/l5
-```
-
-Budget it as hours: 3,713 levels at 40M nodes is 10x the sample pass at 10x the budget. `SAMPLE=15`
-first if a rehearsal is wanted (~20 minutes at 12 jobs). `build/reports/chain.jsonl` exists again;
-if it is gone, `tools/chain_union.py` rebuilds it from the four chain reports rather than a
-hand-retyped union.
-
-**Run it in five arms and compare unions, not solo counts.** Layers 7 and 8 have *never* seen the
-corpus — two benches and an ablation is all that is behind them — so those arms are the measurement
-they are missing, not a nice-to-have:
-
-| arm | flags on top of `--no-ida --no-beam --push --push-read` |
+| key | what it is |
 |---|---|
-| plain | — |
-| layer 6's fourth derivation | `--push-enables 8` |
-| layer 7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` |
-| layer 8, learned key | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` |
-| layer 8, work key | the same plus `--push-eval work` |
+| `work` | `WorkDistance` (x `Eval.Scale`). What layers 2-3 are documented to use |
+| `coarse` | `Eval.Score` rounded to work units. What every run from `4765ae9` to now actually used |
+| `learned` | `Eval.Score` at full resolution. What layer 4 was fit to be |
+| `none` | H = 0, so `Cut()` orders by `Tier` then `G`. The control that had never been run |
+
+**`coarse` is the push default and reproduces the old binary to the node** — 0 of 50 differing on
+the ferry bench, 0 of 50 on the deep bench, and `ferry 18/50 / deep 25/50` at the shipped flags,
+which are this file's rebased baselines. **Nothing layers 5-8 measured has moved.** The subgoal
+default is `work`, which restores what layers 2-3 say they do; the chain carries the flag it wants.
+
+**The push side, benched as this file asked — and the answer is not the one item 1 predicted.**
+Four keys, both lists, 4M nodes, 16 jobs, on top of `--no-ida --no-beam --push --push-read`:
+
+| push key, 4M | ferry solo | only it | deep solo | only it |
+|---|---:|---:|---:|---:|
+| `coarse` — the shipped key | **18** | 0 | 25 | 1 |
+| `learned` — the fix | 15 | **0** | **28** | 2 |
+| `work` | 15 | 1 | 19 | 0 |
+| `none` — H = 0 | **18** | **6** | 19 | **3** |
+| greedy union of the four | **25** | | **33** | |
+
+Three things in that table, in the order they change what to run:
+
+* **`none` is the most complementary key on both lists and never wins solo.** It adds **+6** to the
+  ferry union and **+4** to the deep one in greedy order, where the shipped single arm is 18 and 25.
+  *Pointers* item 4 asked whether `none` would *reproduce* `learned`; it does better than that — it
+  is a different searcher of the same strength, and the pair is worth a quarter more than either.
+  **The three-arm fourth pass in item 2 should be benched with a `none` arm before it is started**;
+  it is the cheapest arm in the set to add and the only one with evidence of complementarity from
+  two independent lists.
+* **`none` does not buy back the wall clock, and that kills half of item 10's motivation.** 171k
+  nodes/s against `work`'s 173k and `coarse`'s 163k. The tiers still need everything `PushH`
+  derives — the flag Dijkstra, the fire map, the matching, `_lastDead` — so H = 0 turns off the
+  *ranking*, not the cost. Item 10's memoisation is still the way to that.
+* **`learned` splits by population and is dominated on one of them.** Ferry: 15 solo and **0
+  exclusive** against `coarse`'s 18 — strictly worse. Deep: 28 against 25, best solo in the set.
+  Two benches, opposite orders, which is this file's first rule verbatim. The push side is a
+  corpus question and item 2's arms are where it gets answered.
+
+**The one scalar, swept — and `Eval.Scale` is the wrong value for it.** `--push-hand-scale` prices
+one work unit of the ferry/stop/dead/shield terms against the learned score. `Eval.Scale` = 1024 is
+their historic relation, but the learned key prices a work unit at its own `work` weight of **157**,
+so at 1024 the hand terms are 6.5x heavier than the key they are added to — which is the same
+units error as the divide, one level out.
+
+| `--push-hand-scale` under `--push-eval learned` | 128 | **157 — now the default** | 1024 (`Eval.Scale`) | 8192 |
+|---|---:|---:|---:|---:|
+| ferry-levels | **18** | **18** | 15 | 16 |
+| deep-levels | **28** | 27 | **28** | — |
+
+**157 is not a fitted number, it is `Weights.cs`'s `work` weight**, i.e. the value that makes a work
+unit of the hand terms cost what the learned key itself charges for one. At it, `learned` scores
+**18 / 27** against `coarse`'s **18 / 25** — the first configuration in this table that is not worse
+than the shipped key on either list. `Eval.Scale` costs three ferry levels for nothing, so if the
+push side ships a learned key at all it ships with this scalar set — so `--push-hand-scale`
+defaults to it, derived as `Weights.Default[work]` rather than written down, so that a refit moves
+it. Verified node-identical to `--push-hand-scale 157` on all 50 ferry levels.
+
+Two cautions before that reads as a result. It is **two benches of fifty**, and the swept arms carry
+**0 exclusive levels** on either list — 157 and 128 are inside `coarse`'s and `learned`'s unions, so
+what the scalar buys is a better *single* arm and not a better union. The union on both lists is
+still driven by `none`: ferry 18 -> 24 with `coarse`, deep 28 -> 32 with `none` then 33 with
+`coarse`. **The scalar is worth setting; it is not worth a campaign on its own.**
+
+**What the chain does with the two keys — three configurations, one population, one budget.**
+`build/reports/l0.jsonl` is reused throughout: layer 0 never calls `Rank()`, so only the middle
+passes move. All at 150k, all through the two-engine gate.
+
+| chain | pass 2 | pass 3 | + macro | composite |
+|---|---|---|---:|---:|
+| session 25, as it shipped | `--subgoal` +73 | `--sg-eval learned` +0 | +5 | 476 |
+| `work` -> `learned` | +44 | +39 | +3 | 484 |
+| **`coarse` -> `learned`** | **+73** | **+20** | +3 | **494 (11.8%)** |
+
+**494 is a strict superset of 484 and of 476**, which is unusual for a re-ranking and is worth the
+sentence: it happens because pass 2 is unchanged from session 25's and pass 3 only ever attacks what
+pass 2 failed, so nothing is re-ranked out of the result. The `work` chain is *not* a superset of
+476 — it loses 10 and gains 18 — which is layer 4's founding finding again.
+
+**And `WorkDistance` is retired as a ranking for this pass.** A `--sg-eval work` pass appended after
+`coarse` -> `learned` adds **0**: every level it can reach is already in the union. This is
+derivable from the three reports rather than run, because a second pass attacks exactly the previous
+one's failures, so the levels it would add are exactly the ones it solves and `coarse` does not.
+
+**What this cost, stated plainly.** Nothing in `Weights.cs` changed and nothing was refit; the model
+was correct all along and two lines of arithmetic between it and the beam were not. The +30 this
+file credited layer 4 with was never measured through the path that ships (`Weights.cs` and the
+divide arrived in the same commit, `8752317`), and it is still not recovered — **+20 is what the
+learned key is worth on this tree**, on top of a pass 2 that is itself a learned key.
+
+**2. The fourth pass — rehearsed in session 26, and the rehearsal changed the shape of it.** The
+decision pass came out positive — 15 of 255 (5.9%) of the levels the shipped chain fails — so the
+open question was never *whether* layer 5 pays but *how much of the corpus is worth spending on it*.
+One push expansion is a whole closure, so this is the one pass budgeted in tens of millions of nodes
+rather than hundreds of thousands.
+
+**All five arms have now been run at `SAMPLE=15`** — a 1-in-15 stride over the whole 3,709-level
+failure population, 250 levels every arm was given, `NODES=40000000 BUDGET_MS=1800000 JOBS=16`,
+each arm on the whole machine in turn. **269 of 269 solutions through the two-engine gate, zero
+divergences.**
+
+| arm | flags on top of `--no-ida --no-beam --push --push-read` | solo | only it solves | greedy union |
+|---|---|---:|---:|---|
+| layer 8, work key | the layer-8 set plus `--push-eval work` | **61** (24.4%) | 5 | 61 |
+| layer 7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` | 54 | **8** | +14 → 75 |
+| layer 6's fourth derivation | `--push-enables 8` | 52 | 2 | +5 → 80 |
+| layer 8, learned key | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` | 57 | 2 | +2 → 82 |
+| plain | — | 38 | **0** | **+0 → 82 (32.8%)** |
+
+*(Session 27: every arm here that does not say `--push-eval work` ran on the default key, which is
+now spelled `coarse` — the same searcher, so the table stands. What has changed is that there are
+now two more keys to put in it: `learned` at full resolution, and `none`, which on both benches is
+the most complementary of the four. See item 1.)*
 
 Note the raised `--max-keys`: 1,200 is a silent cap on any level whose solution runs long, which is
 exactly the population this pass is.
+
+**The union is 82 of 250 (32.8%) where the file's fourth-pass argument rests on 5.9%.** Read the
+comparison honestly: the 15/255 was `Beginner-I` alone at ~4M nodes, this is all thirteen
+collections at 40M, so both the population and the budget differ and what it licenses is *40M buys
+much more than 4M*, not a 5.5x improvement in the searcher.
+
+Four things the arms say that their solo counts do not:
+
+* **The best single arm is not the pass.** `l8work` solves 61; the chain of three solves 82.
+  Shipping the winner alone costs 21 levels, a quarter of the result. This is layer 1's founding
+  finding a fourth time, and it is why the instruction was *compare unions*.
+* **Two arms are dead weight — and it took all five to know which.** `plain` contributes **0**
+  exclusive levels and **+0** to the union, and `l8learned`, second-best solo at 57, adds **+2**
+  because it overlaps `l8work` in 50 of 68. After two arms `plain` still held 4 exclusive levels
+  and after three it held 1; only the fifth arm retired it. **The full run wants three arms —
+  `l8work`, `layer7`, `enables` — for 80 of the 82.**
+* **`--push-eval work` beats the learned key on the push side, which corroborates item 1 over the
+  corpus rather than over a bench.** 61 against 57 solo, 11 exclusive against 7 head-to-head. Item
+  1's reason for not shipping the scale fix is that `Push.cs:167` mixes `Rank()`'s output with
+  work-unit addends; this says that mixing is already costing the learned key *today, at the
+  shipped weights*. Item 1's "the push side needs the two benches first" now has a population
+  behind it.
+* **Layers 7 and 8 are validated over the corpus for the first time.** They were carrying two
+  benches and an ablation. Layer 7 is the most complementary arm in the set — 8 exclusive and +14
+  in greedy order on top of the best arm.
+
+What the rehearsal does **not** show, stated plainly: **`Hard` and `Deadly` are 0 of 21 in every
+arm**, so none of this touches the two tiers that have never fallen; and **98.8% of the 168 the
+union misses still stop on `budget`**, so even the best arm is nowhere near a structural ceiling at
+40M. Extrapolated to all 3,709 the union is ~1,216 levels and a composite near **1,690 of 4,185
+(~40%)** against 476 today — a stride-sample estimate, not a promise, and the sample is 250 levels.
+
+**The full run has not been started; it is a multi-day machine commitment.** Priced from the
+rehearsal rather than guessed: an unsolved level at 40M nodes costs a median **275 s** at 16 jobs
+(117 s near-solo — the search is bandwidth-bound, and effective parallelism is only ~6.4x at 16
+jobs, so buying more jobs does not recover it). That is **~18 h per arm** over the full population,
+so the three-arm pass is **~54 h**.
+
+**Before starting it, add a fourth arm and re-price.** Session 27's push benches put `--push-eval
+none` at +6 on the ferry union and +4 on the deep one, from a solo score that never wins — the same
+signature layer 7 has, and layer 7 is the most complementary arm in the table above. An arm is
+~18 h, so the question is worth a `SAMPLE=15` rehearsal of `none` against the existing three
+before committing 54 hours to a set chosen without it.
+
+```bash
+# three arms, in greedy order, each into its own report so the union can be recomputed.
+# Run them one at a time: each wants the whole machine, and 16 jobs is already past
+# the point where more parallelism buys anything.
+L8="--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8
+    --push-shot-run 16 --push-beam 128 --max-keys 5000"
+run () {   # run <arm> <flags...>
+  arm=$1; shift
+  NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
+      build/reports/chain.jsonl "l5/$arm" "build/reports/l5-$arm.jsonl" \
+      --no-ida --no-beam --push --push-read "$@"
+  python tools/verify_solutions.py "build/l5/$arm"
+}
+run l8work  $L8 --push-eval work
+run layer7  --push-stop 1 --push-shot-run 16 --push-beam 128
+run enables --push-enables 8
+
+python tools/arms_union.py l8work=build/reports/l5-l8work.jsonl \
+    layer7=build/reports/l5-layer7.jsonl enables=build/reports/l5-enables.jsonl
+```
+
+Run `l8work` first — it is the largest single result, so it lands earliest if the run is
+interrupted. `build/reports/chain.jsonl` is what all three are pointed at; if it is gone,
+`tools/chain_union.py` rebuilds it from the four chain reports rather than a hand-retyped union.
+**Session 27 rebuilt it and it now reads 494, not 476** — the rehearsal's 82 was measured against
+the old one, so the full run attacks 18 fewer levels than the rehearsal did and the extrapolation
+below is very slightly optimistic. Session 25's reports are kept beside it as `*-s25.jsonl`.
+**Interaction with item 7:** that item draws the solved-vs-budget curve for the *chain's* four
+searchers and notes the push rungs become affordable as a fifth pass at 50M. These arms are that
+fifth pass, already measured at 40M — run item 7 first if the question is the production curve,
+this if the question is what layer 5 adds.
 
 **And the benches as a check, not as a decision — rebased in session 25.** The lists are
 reconstructions, so the old pair has nothing to be equal to; these four numbers are the new ones,
@@ -464,6 +666,9 @@ not. `LaserTank.lvl` 10, width 8, 6M nodes, one thread:
 | `--push --push-eval work` (no read) | 16.6 | 360k |
 | `--push --push-eval learned` (no read) | 29.9 | 200k |
 | `--push --push-read` (learned, the shipped rung) | 36.2 | **166k** |
+
+*(Session 27: `learned` in these two rows is the key now spelled `coarse`. The rename does not move
+the seconds — `Feat.Extract` and `Eval.Score` run either way; only the last arithmetic differs.)*
 
 The same node count costs **2-8x the seconds**, and none of it is the engine: it is `PushH` per
 emitted successor — a Dijkstra from the flag, the fire map, the reach flood, the ferry matching and
@@ -928,11 +1133,15 @@ frontier but can never admit a state the shipped search refused. The check: the 
 `--sg-eval learned` with it reproduces layer 3 exactly — identical keystreams, node counts and stop
 reasons on all 50 deep-bench levels. `far_man` exists only so that equivalence can be exact.
 
-> **Session 25: write that seed vector x `Eval.Scale` before handing it to `--eval-weights`.** These
-> are float weights and the C# path is fixed point, so `{1, 1000, 1}` reaches `Eval.Score` as a flat
-> key rather than as `WorkDistance` — 11 of 255 against plain's 27. `{1024, 1024000, 1024}` is the
-> equivalence, exactly (0 of 815 instrument groups disagree). The same divide is why the *shipped*
-> vector no longer acts at all: *Next actions* item 1.
+> **Session 27: the check is banked and it runs.** It lived here as prose and as a vector that could
+> not be handed to `--eval-weights` as written; it is now **`bench/seed-weights.txt`**, in git beside
+> the level lists, and `--sg-eval learned --eval-weights bench/seed-weights.txt` reproduces plain
+> layer 3 on **0 of 50** deep-bench levels differing. The weights are written x `Eval.Scale`, which is
+> not a workaround: `fit_eval.py` writes `round(w * SCALE)` (line 307), so that is the convention any
+> weight file is read under, and `Rank()`'s non-learned branch is `work * Eval.Scale` for the same
+> reason. The *unscaled* `{1, 1000, 1}` differs on 2 of 50 — close, because the vector is right and
+> only the jitter beside it is then 1,024x too strong. Session 25 read the same file as a flat key
+> because the divide was still there; it is not.
 
 **The campaign: 69 against layer 3's 44 over the same 3,790 failures — and it is not a superset.**
 Three of layer 3's are lost, which is the structural difference: a *restart* is additive by
@@ -1064,7 +1273,9 @@ Two traps in reading its output:
   row at K.
 - **The `line-h` column is not a distance** unless you say `--push-eval work`. This layer's default
   key is layer 4's learned model, so the number is a seventeen-feature score in which `work` is one
-  term and everything layers 5-8 add is added outside it. The tell: a line that ends on the flag does
+  term and everything layers 5-8 add is added outside it. (Session 27: that default is now spelled
+  `--push-eval coarse` and the column is divided back to work units before printing; `learned` is
+  the same model at full resolution.) The tell: a line that ends on the flag does
   not end at 0 — level 9's winning line ends at 70.
 - **`--budget-ms` matters here** and its default of 4 s will bite: without it the instrument stops
   after a quarter of a million nodes and reports the line lost at depth 2 when nothing of the sort
@@ -1489,9 +1700,11 @@ adds **zero** levels to the three-rung portfolio on either bench while losing th
 A shorter ascent on one level and no union movement is exactly the evidence that says *keep the flag,
 do not spend a core*.
 
-**Seven: the ranking key splits per level.** `--push-eval` defaults to `learned`, in which `work` is
-one term at weight 157 and everything layers 5-8 add is added outside it; on `--push-eval work` the
-key is `WorkDistance` plus the terms and therefore reaches 0 on a win.
+**Seven: the ranking key splits per level.** `--push-eval` defaults to the learned model, in which
+`work` is one term at weight 157 and everything layers 5-8 add is added outside it; on `--push-eval
+work` the key is `WorkDistance` plus the terms and therefore reaches 0 on a win. *(Session 27: the
+default is now named `coarse` — same key, same numbers, byte-identical on both benches — and the
+`learned` in this table means it. See Status.)*
 
 | lvl | ascent, `learned` | ascent, `work` + the terms |
 |---:|---:|---:|
@@ -1867,7 +2080,12 @@ src/LaserTank.Solver/
 
 ```
 campaign.sh       one solver campaign over all 13 collections into one report.
-                    Node-governed, not wall-clock.  STRIDE=N samples every Nth level
+                    Node-governed, not wall-clock.  STRIDE=N samples every Nth level.
+                    LT_SOLVE=<exe> overrides the binary in all three runners below
+                    as well -- a live solve holds build/lasertank-solve.exe open, so
+                    `dotnet publish -o build` cannot replace it and this is the only
+                    way to bench a change during a long run.  Same reason $LT_CORE
+                    exists for the engine (PROGRESS)
 second_pass.sh    re-attack a campaign's unsolved levels with a different searcher,
                     into the same solutions dir.  SAMPLE=N takes every Nth failure
 bench.sh          one labelled configuration over one banked level list.  Its header
@@ -1877,6 +2095,10 @@ report_stats.py   read a campaign .jsonl: per-tier and per-collection rates, sto
 chain_union.py    union the chain's four per-pass reports into chain.jsonl -- the
                     shipped chain's per-level state, and what the fourth pass has
                     to be pointed at.  Was a sentence in this file until session 25
+arms_union.py     compare several arms of one pass by what each *adds*: solo count,
+                    levels only it solves, the cumulative union in greedy order, the
+                    pairwise overlap matrix.  Session 26, because item 2 says to
+                    compare unions and there was no tool that did
 rankdump.py       layer 4's instrument: replay every winning .lpb and dump the group
                     of successors the shipped expansion offered at each shot boundary
 fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regenerate
@@ -1900,7 +2122,9 @@ verify_solutions.py  the gate.  Both engines, WIN on each, byte-identical traces
 > reproduce through the path that ships (*Next actions* item 1).
 
 The banked level lists live in **`bench/`**, committed — see the README there for why, and for what
-belongs beside them. The reports they are compared through stay in `build/reports/`, which is
+belongs beside them. `bench/seed-weights.txt` lives there too and is not a level list: it is layer
+4's equivalence check, the vector that *is* `WorkDistance` written in the features, in `Eval.Scale`
+fixed point. It was prose in this file until session 27, and prose is not a check. The reports they are compared through stay in `build/reports/`, which is
 gitignored and machine-local. The lists, all `Beginner-I` and all regenerated in session 25 with
 their rules in their own headers: `bench-levels.txt` (60 levels layer 0 failed — described as
 GAUNTLET-heavy when it was first cut, FERRY 30 of 60 through today's read, which is partly the
@@ -2100,7 +2324,9 @@ Three findings, in the order they cost time:
 - **The attribution inside the chain has moved even though the total has not**: layer 3's pass is
   +73 where it was +44, and that is *not* nondeterminism (the same pass twice is identical to the
   node). Unattributed, deliberately — a revert-one-thing run over the same population is what would
-  settle it.
+  settle it. *(Session 27 ran it: the +73 pass was not layer 3. `Rank()` read `_eval != null`
+  rather than `--sg-eval`, so a bare `--subgoal` was already the learned key; restore
+  `WorkDistance` and the pass is 44 exactly.)*
 
 The session's own lesson is session 24's with a second example: **a measurement that lives only in
 `build/` is not banked either.** Layer 4's +30 was real once and there is now no path in the tree
@@ -2114,3 +2340,73 @@ dominance prune the closure does not take, what the push rungs' `learned` key ac
 the shipped weights, and one arithmetic disagreement: level 10 at width 1024 runs ~5.7M nodes a
 depth and reaches depth 9 in 39M, so the "depth 2 at 900M" reading needs a `--push-trace` before
 it decides anything.
+
+**session 26 — the fourth pass, rehearsed.** *Next actions* item 2, in a session parallel to the
+second reader's above. All five arms run at `SAMPLE=15` — a 1-in-15 stride over the whole
+3,709-level failure population, 250 levels each arm was given, 40M nodes, 16 jobs, each arm on the
+whole machine in turn. **The union is 82 of 250 (32.8%)** where the fourth-pass argument rested on
+5.9%, and **269 of 269 solutions passed the two-engine gate**. Three findings, in the order they
+change what to run:
+
+- **The pass is a chain of arms, not a configuration.** Best solo arm 61, union of three 82;
+  shipping the winner alone would cost 21 levels. `plain` contributes **0** exclusive levels and
+  `l8learned` **+2**, so the full run wants three arms for 80 of the 82 — but `plain` still held 4
+  exclusive levels after two arms and 1 after three, so it took all five to retire it. **An arm's
+  solo count does not predict what it adds, and no smaller experiment would have said so.**
+- **`--push-eval work` beats the learned key on the push side over the corpus** (61 to 57 solo, 11
+  exclusive to 7), which is item 1's `Push.cs:167` warning showing up as levels rather than as a
+  bench. Item 1's decision not to ship the scale fix is better supported than when it was written.
+- **Layers 7 and 8 have now seen the corpus**, which two benches and an ablation were standing in
+  for. Layer 7 is the most complementary arm in the set.
+
+The full run was priced from the rehearsal and **not started**: ~275 s per unsolved level at 16 jobs
+(117 s near-solo — bandwidth-bound, ~6.4x effective parallelism), so ~18 h an arm and ~54 h for the
+three. `tools/arms_union.py` is new and is what the union numbers come from; the instruction to
+compare unions had no tool behind it.
+
+The session's lesson is a small one about instruments: **the pricing probe was measured at the wrong
+concurrency and was 2.4x optimistic**, because `SAMPLE=100` left each collection 1-4 levels and the
+timings came out near-solo. A cost measured at a parallelism the real run will not use is not a cost.
+
+And a citation worth having, found this session: **LaserTank is NP-complete** — Alexandersson and
+Restadh, [arXiv:1908.05966](https://arxiv.org/abs/1908.05966), by reduction from 3-SAT, and the
+hardness survives a board of only mirrors and solid blocks with the tank confined to a single
+column. It offers the solver nothing algorithmically, and its **NP-membership half does not
+transfer**: that holds for the restricted element set, and the paper conjectures PSPACE-completeness
+with a richer one — which is the corpus. Worth knowing mainly because it says there is no polynomial
+trick being missed, which is what *depth is the binding constraint* already says empirically.
+
+**session 27 — the learned key acts, and the reason it did not was a flag that gated nothing.**
+*Next actions* item 1, start to finish. Two defects between `Weights.cs` and the beam, neither in
+the model: the integer divide in `Eval.Score` that session 25 found, and — the larger one —
+`Rank()` testing `_eval != null` instead of its caller's flag, so that from `4765ae9` **every
+subgoal run ranked by the learned evaluation whatever `--sg-eval` said**. The composite is
+**476 -> 494 of 4,185 (11.8%)**, a strict superset, 96 of 96 new solutions through the two-engine
+gate. Four things, in the order they change what to run:
+
+- **Session 25's unattributed +73 is attributed, and it was not `Heuristic.cs`.** Restore true
+  `WorkDistance` to the pass and it scores **44 again, exactly** — the number the original
+  attribution claims. The three chain configurations are three different searchers.
+- **The accident was an improvement, so it is now a key.** A learned score rounded to work units is
+  a learned score with fewest-keypresses-first as its tie-break, and over 3,787 failures it solves
+  73 against `WorkDistance`'s 44 with 33 exclusive against 4. It ships as `coarse`; both
+  `--sg-eval` and `--push-eval` take `work|learned|coarse|none`. `coarse` reproduces the old binary
+  to the node — 0 of 50 on each bench, and the *same 73 levels* over the corpus — so nothing layers
+  5-8 measured moves. `WorkDistance` as a ranking for this pass is retired: appended after
+  `coarse` -> `learned` it adds **0**.
+- **`--push-eval none` is the most complementary push key on both benches and never wins solo**:
+  +6 to the ferry union and +4 to the deep one, where the shipped single arm is 18 and 25. It is
+  also the cheapest arm in the set to add, and item 2's three-arm pass should bench it before the
+  54-hour run starts. It does *not* buy back wall clock — the tiers still need everything `PushH`
+  derives — so item 10's memoisation is still the route to that.
+- **The driver was running a duplicate rung.** `Auto.cs`'s `layer 3` and `learned` rungs were the
+  same search from `4765ae9`, so one lane of the portfolio was spent twice. The `subgoal` rung now
+  says `coarse` and the `learned` rung says `learned`; the first is what it was already doing, so
+  the portfolio keeps its measured behaviour and gains a lane.
+
+The session's lesson is the sixth rule at the top of this file: **a flag that gates nothing looks
+exactly like a feature that does nothing**, and session 25 measured the symptom correctly, found one
+real cause, and stopped. Two smaller ones worth keeping: the equivalence check layer 4 documents is
+now `bench/seed-weights.txt` in git rather than a sentence, and it passes (0 of 50); and
+`LT_SOLVE=<exe>` overrides the binary in the three runners, because the previous way to bench a
+solver change during a long solve was to wait for it.

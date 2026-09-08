@@ -129,7 +129,7 @@ namespace LaserTank.Solver
                 seen.Add(_e.StateHash());
                 frontier = new List<Node>
                 {
-                    new Node { S = CopyOf(root), G = 0, H = Rank(_h.WorkDistance(_e)) },
+                    new Node { S = CopyOf(root), G = 0, H = Rank(_h.WorkDistance(_e), _opt.SgEval) },
                 };
             }
             List<Node> next = new List<Node>();
@@ -366,12 +366,19 @@ namespace LaserTank.Solver
                 // The ranking key, and the jitter goes *here* rather than into
                 // `work` above: `advanced` has already been decided from the
                 // true distance, so layer 3's noise can only ever reorder the
-                // frontier, never change what is admitted to it.  Layer 4
+                // frontier, never change what is admitted to it.  Scaled because
+                // Rank() is in Eval.Scale fixed point, so --sg-noise keeps the
+                // magnitude in work units it has always had -- exactly, under
+                // `work` and `coarse`.  Under `learned` it does not: that key
+                // prices a work unit at Weights.cs's own `work` weight of 157,
+                // so N units of noise land as ~6.5N there.  Measured with it,
+                // not tuned around it; see --push-hand-scale for the same units
+                // question on the push side, where it *is* a knob.  Layer 4
                 // replaces the key itself the same way and for the same reason
                 // -- Rank() is only ever consulted after `advanced` is settled,
                 // so a learned evaluation can reorder the frontier and can
                 // never widen or narrow what is admitted to it.
-                H = Rank(work) + Jitter(),
+                H = Rank(work, _opt.SgEval) + Eval.Scale * Jitter(),
                 Hash = hash,
                 Tier = advanced ? 0 : 1,
             };
@@ -478,7 +485,7 @@ namespace LaserTank.Solver
                 next.Add(new Node
                 {
                     S = _e.Snapshot(Take()), G = s.KeyLen,
-                    H = Rank(_h.WorkDistance(_e)) + Jitter(), Hash = h,
+                    H = Rank(_h.WorkDistance(_e), _opt.SgEval) + Eval.Scale * Jitter(), Hash = h,
                 });
             }
         }

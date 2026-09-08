@@ -164,10 +164,33 @@ namespace LaserTank.Solver
             // see TierLost.  Valid until the next call, like everything else the
             // heuristic publishes.
             _lastDead = dead > 0;
-            return (_opt.PushLearned ? Rank(work) : work) + ferry + stop + dead + shield;
+            if (_opt.PushEval == RankKey.None) return 0;
+            // Everything here is in Eval.Scale fixed point: Rank() publishes the
+            // learned score without the divide that used to round it away, and
+            // the hand-built addends are lifted to the same scale so that they
+            // keep the exact relation to each other and to WorkDistance they
+            // have always had.  PushHandScale is the one new degree of freedom
+            // -- the ratio of learned score to hand terms, which was never
+            // tuned because the learned term was inert.  Under `work` it is
+            // Rank() that carries the scale and the ratio cancels.
+            int hand = _opt.PushEval == RankKey.Learned ? HandScale : Eval.Scale;
+            return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield);
         }
 
         // ---- restarts ------------------------------------------------------
+
+        /// SolveOptions.PushHandScale, resolved: 0 means the fitted `work`
+        /// weight, and a vector whose `work` weight is 0 or negative falls back
+        /// to Eval.Scale rather than collapsing the hand terms.
+        private int HandScale
+        {
+            get
+            {
+                if (_opt.PushHandScale > 0) return _opt.PushHandScale;
+                int w = _eval == null ? 0 : _eval.W[1];      // Feat "work"
+                return w > 0 ? w : Eval.Scale;
+            }
+        }
 
         /// The width for the attempt in progress.  A field rather than the
         /// option because a restart widens it and one SolveOptions is shared by
@@ -271,7 +294,10 @@ namespace LaserTank.Solver
                         "  push d={0,3} front={1,5} boards={2,5} best={3,5} closure~{4,5} "
                         + "trunc={5,4} nodes={6}",
                         depth, next.Count, DistinctBoards(next),
-                        next.Count > 0 ? next[0].H : -1,
+                        // In work units: H is Eval.Scale fixed point since the
+                        // divide came out of Eval.Score, and every reading of
+                        // this column in SOLVER.md is a work distance.
+                        next.Count > 0 ? next[0].H / Eval.Scale : -1,
                         _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes);
                     if (_opt.PushTraceBoard && next.Count > 0) TraceBoard(next[0]);
                     if (_opt.PushRead)
@@ -481,7 +507,7 @@ namespace LaserTank.Solver
                     b.Append(c < Name.Length ? Name[c] : '?');
                 }
                 if (y == 0) b.Append("   tank ").Append(n.S.Tank.X).Append(',').Append(n.S.Tank.Y);
-                if (y == 1) b.Append("   h=").Append(n.H);
+                if (y == 1) b.Append("   h=").Append(n.H / Eval.Scale);
                 b.Append(Environment.NewLine);
             }
             Console.Error.Write(b.ToString());
