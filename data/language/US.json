@@ -1,0 +1,506 @@
+{
+ "code": "US",
+ "name": "English - ( Example )",
+ "author": "Jim Kindley",
+ "sourceEncoding": "cp1252",
+ "sourceLines": 238,
+ "buttons": {
+  "ButText1": "Undo",
+  "ButText2": "Save Position",
+  "ButText3": "Restore Position",
+  "ButText4": "New",
+  "ButText5": "<< Level",
+  "ButText6": "Level >>",
+  "ButText7": "Hint",
+  "ButText8": "Restart",
+  "ButText9": "Load Level"
+ },
+ "text": {
+  "txt001": "The Level file can not be found\nPlease select a new one",
+  "txt002": "Level Files (*.LVL)",
+  "txt004": "Pick LaserTank Level File",
+  "txt005": "Playback Files (*.LPB)",
+  "txt006": "Save Playback File",
+  "txt007": "LaserTank Error",
+  "txt008": "Old High Score > M:",
+  "txt009": "M: ",
+  "txt010": " S: ",
+  "txt011": " I: ",
+  "txt012": "Congratulation's You beat it !!",
+  "txt013": "Playback Level : ",
+  "txt014": "\nRecorded by ",
+  "txt015": "\nCan Not be found in the current level file\n< ",
+  "txt016": "Do You want to Continue Recording ?",
+  "txt017": "&Play",
+  "txt018": "&Pause",
+  "txt019": "Out of Memory - Undo Roll Over",
+  "txt020": "Open Playback file",
+  "txt021": "LaserTank Hint",
+  "txt022": "Level NOT Saved, Save Data ?",
+  "txt023": " - Kids",
+  "txt024": " - Easy",
+  "txt025": " - Medium",
+  "txt026": " - Hard",
+  "txt027": " - Deadly",
+  "txt028": " - [Editor]",
+  "txt029": "LaserTank Editor",
+  "txt031": "NOT a Valid LaserTank Graphics Set",
+  "txt032": "game.bmp and/or mask.bmp Not Found",
+  "txt033": "Open Playback file for Resume",
+  "txt034": "Return to Game",
+  "txt035": "< NO HINT SUBMITTED FOR THIS LEVEL >",
+  "txt036": "LaserTank Level #",
+  "txt037": "Select LaserTank Graphics Directory",
+  "txt038": "Game in Progress ...",
+  "txt039": "You will lose game data.\nDo you want to save the game ?",
+  "txt040": "Beat",
+  "txt041": "All",
+  "txt042": "Completed %d of %d levels",
+  "txt043": "Difficulty Set = ",
+  "txt044": "KEMHD",
+  "txt045": "LaserTank Graphics file Not Found !",
+  "REC_Title": " LaserTank *** RECORDING ***",
+  "help01": "Editor Instructions",
+  "help02": "Revisions",
+  "help03": "Writing Your Own Levels",
+  "HelpFileName": "Language\\LaserTank.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "About LaserTank",
+  "ID_ABOUTBOX_OK": "&Ok",
+  "ID_ABOUTBOX_04": "By Jim Kindley",
+  "ID_ABOUTBOX_06": "Version",
+  "ID_DEADBOX_UNDO": "&Undo Last Move",
+  "ID_DEADBOX_DEAD": "YOU ARE DEAD ! ! !",
+  "ID_DEADBOX_RESTART": "&ReStart",
+  "ID_DIFFBOX_00": "Game Difficulty",
+  "ID_DIFFBOX_01": "&Ok",
+  "ID_DIFFBOX_02": "&Kids",
+  "ID_DIFFBOX_03": "&Easy",
+  "ID_DIFFBOX_04": "&Medium",
+  "ID_DIFFBOX_05": "&Hard",
+  "ID_DIFFBOX_06": "&Deadly",
+  "ID_DIFFBOX_07": "&All",
+  "ID_DIFFBOX_08": "Select",
+  "ID_GRAPHBOX_00": "Select Graphics Set",
+  "ID_GRAPHBOX_01": "Select One",
+  "ID_GRAPHBOX_02": "&Internal Graphics",
+  "ID_GRAPHBOX_03": "&User Graphics ",
+  "ID_GRAPHBOX_04": "&Close",
+  "ID_GRAPHBOX_05": "Author :",
+  "ID_GRAPHBOX_06": "LaserTank Graphic Set Description",
+  "ID_GRAPHBOX_08": "&View Opening Screen ",
+  "ID_GRAPHBOX_09": "Change &Directory",
+  "ID_LOADLEV_00": "Pick Level to Load",
+  "ID_LOADLEV_01": "&Cancel",
+  "ID_LOADLEV_03": "&Filter",
+  "ID_LOADLEV_04": "File:",
+  "ID_LOADLEV_05": "- File Loading Error -",
+  "ID_LOADLEV_06": "Lev#   Name                           Author",
+  "ID_LOADLEV_07": "or Direct Level Number Entry >>",
+  "ID_HINTBOX_00": "Modify Hint",
+  "ID_HINTBOX_01": "&Ok",
+  "ID_HINTBOX_02": "&Cancel",
+  "ID_SEARCH_00": "Filter Level Data",
+  "ID_SEARCH_01": "Enter Search String :",
+  "ID_SEARCH_02": "Search By",
+  "ID_SEARCH_03": "&Title",
+  "ID_SEARCH_04": "&Author",
+  "ID_SEARCH_05": "&Cancel",
+  "ID_SEARCH_06": "&Ok",
+  "ID_SEARCH_08": "&Only Unsolved Levels",
+  "ID_SEARCH_09": "&Filter by Difficulty",
+  "ID_SEARCH_10": "&Kids",
+  "ID_SEARCH_11": "&Easy",
+  "ID_SEARCH_12": "&Medium",
+  "ID_SEARCH_13": "&Hard",
+  "ID_SEARCH_14": "&Deadly",
+  "ID_RETBOX_00": "&Return to Game",
+  "ID_WINBOX_00": "&Ok",
+  "ID_WINBOX_01": "You Won ! ! !",
+  "ID_WINBOX_02": "File :",
+  "ID_WINBOX_03": "- Error -",
+  "ID_LOADTID_00": "Pick Tunnel ID #",
+  "ID_LOADTID_03": "&Ok",
+  "ID_LOADTID_04": "Enter the ID Number for this Tunnel",
+  "ID_HIGHBOX_00": "! New High Score !",
+  "ID_HIGHBOX_01": "&Ok",
+  "ID_HIGHBOX_02": "Level Number :",
+  "ID_HIGHBOX_03": "Level Name :",
+  "ID_HIGHBOX_04": "Moves :",
+  "ID_HIGHBOX_05": "Shots :",
+  "ID_HIGHBOX_10": "Initials :",
+  "ID_HIGHBOX_12": "Global HS :",
+  "ID_HIGHBOX_13": "- No Data -",
+  "ID_HIGHLIST_00": "High Scores",
+  "ID_HIGHLIST_01": "&Ok",
+  "ID_HIGHLIST_02": "- File Loading Error -",
+  "ID_HIGHLIST_03": "Lev#  Name                          Moves  Shots  Initials",
+  "ID_GHIGHLIST_00": "Global High Scores",
+  "ID_GHIGHLIST_01": "&Ok",
+  "ID_GHIGHLIST_02": "Lev#  Name                             M      S   Init   M     S  Init",
+  "ID_GHIGHLIST_03": "Global",
+  "ID_GHIGHLIST_04": "Local",
+  "ID_GHIGHLIST_05": "- No Data -",
+  "ID_GHIGHLIST_06": "&Beat",
+  "ID_RECBOX_00": "Recording Game",
+  "ID_RECBOX_01": "Please Enter Your Name",
+  "ID_RECBOX_02": "&Ok",
+  "ID_PLAYBOX_00": "Playback Game",
+  "ID_PLAYBOX_01": "&Close",
+  "ID_PLAYBOX_02": "&Play",
+  "ID_PLAYBOX_03": "&Reset",
+  "ID_PLAYBOX_04": "&Fast",
+  "ID_PLAYBOX_05": "&Slow",
+  "ID_PLAYBOX_06": "S&tep",
+  "ID_PLAYBOX_07": "Step :",
+  "ID_PLAYBOX_08": "of",
+  "ID_PLAYBOX_11": "Speed",
+  "ID_PICKLEVEL_00": "Save LaserTank Level",
+  "ID_PICKLEVEL_01": "&Ok",
+  "ID_PICKLEVEL_02": "Enter the Level Number to",
+  "ID_PICKLEVEL_03": "Save :",
+  "ID_PICKLEVEL_06": "= Add",
+  "ID_PICKLEVEL_08": "&Clear High Score"
+ },
+ "about": [
+  "LaserTank is HelpWare and you can use it for free.\n\n",
+  "After you became a skilled player, maybe you will want to make one or more levels, using the Level Editor, and send them to us, with your playback (LPB files).\n\n",
+  "We will update the software every now and then and add all the good levels that are sent. ",
+  "See  \"Writing your own levels\" and \"Recording & Playback\" in the help file.\n\n",
+  "(Please, be inventive and do try not to replicate waht is already existing).\n\n",
+  "(There is already so many levels available on the LaserTank WEB site).\n\n",
+  "If you beat any of the High Scores, make sure you have the most recent Global High Score file, send a zip file with the playbacks for the levels you beat and your LaserTank.hs file.\n\n",
+  "You can e-mail the file's to: lasertank@globetrotter.net\n\n",
+  "For more levels, Graphics files, & the most recent Global High Score file check out the\n",
+  "LaserTanks WEB site : http://www.jccontrols.net/laser\n\n",
+  "For Help or more info about this game join or check out the Yahoo Group at :\n",
+  "   http://groups.yahoo.com/lasertank\n"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "&Game",
+    "items": [
+     {
+      "text": "&New",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "&Load Level...",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "&Skip Level",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "&Previous Level",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "Last Level Playe&d",
+      "cmd": 118,
+      "accel": "BkSp"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Open Data File...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&View High Scores",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "&Global High Score List",
+      "cmd": 906,
+      "accel": "G"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Record Game",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "S&ave Recording",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "Resume Re&cording",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "Play&back Game...",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Pr&int GameBoard",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Exit",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&Move",
+    "items": [
+     {
+      "text": "&ReStart",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "&Undo Last Move/Shot",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "&Save Position",
+      "cmd": 111,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Restore &Position",
+      "cmd": 112,
+      "accel": "Crtl+V"
+     },
+     {
+      "text": "RePla&y",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "&Options",
+    "items": [
+     {
+      "text": "&Animation",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "Soun&d",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "&Remember Last Level",
+      "cmd": 109
+     },
+     {
+      "text": "S&kip Completed Levels",
+      "cmd": 116
+     },
+     {
+      "text": "Au&toRecord",
+      "cmd": 115
+     },
+     {
+      "text": "Disable &Warnings",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Size",
+      "items": [
+       {
+        "text": "&Small",
+        "cmd": 120
+       },
+       {
+        "text": "&Medium",
+        "cmd": 121
+       },
+       {
+        "text": "&Large",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "Change &Difficulty...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "Change &Graphics ...",
+      "cmd": 226,
+      "accel": "Ctrl+G"
+     }
+    ]
+   },
+   {
+    "text": "&Editor [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "&Help",
+    "items": [
+     {
+      "text": "&Hint",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Index",
+      "cmd": 902
+     },
+     {
+      "text": "&Quick Help",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "&Revisions (History)",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&About",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "&Editor",
+    "items": [
+     {
+      "text": "&Clear Field",
+      "cmd": 601,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "&Load Level...",
+      "cmd": 602,
+      "accel": "Ctrl+L"
+     },
+     {
+      "text": "&Save Level",
+      "cmd": 603,
+      "accel": "Ctrl+S"
+     },
+     {
+      "text": "Save &As...",
+      "cmd": 606
+     },
+     {
+      "text": "&Exit",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&Hint",
+    "cmd": 605
+   },
+   {
+    "text": "&Shift",
+    "items": [
+     {
+      "text": "&Right",
+      "cmd": 710,
+      "accel": "Ctrl+Direction"
+     },
+     {
+      "text": "&Left",
+      "cmd": 711
+     },
+     {
+      "text": "&Up",
+      "cmd": 712
+     },
+     {
+      "text": "&Down",
+      "cmd": 713
+     }
+    ]
+   },
+   {
+    "text": "&Close Editor [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "&Difficulty",
+    "items": [
+     {
+      "text": "&Kids",
+      "cmd": 701
+     },
+     {
+      "text": "&Easy",
+      "cmd": 702
+     },
+     {
+      "text": "&Medium",
+      "cmd": 703
+     },
+     {
+      "text": "&Hard",
+      "cmd": 704
+     },
+     {
+      "text": "&Deadly",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "&Help",
+    "items": [
+     {
+      "text": "&Editor",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "&Writing Levels",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&About",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

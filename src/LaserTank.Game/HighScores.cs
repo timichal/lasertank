@@ -168,10 +168,31 @@ namespace LaserTank.Game
             return r;
         }
 
-        /// One line of the "old score" text HSBox builds from txt008/010/011
-        /// ("Old High Score > M:", "M: ", " S: ", " I: ") -- the three labels
-        /// with the record's three fields.  Kept because those strings are the
-        /// original's and step 6 will read them out of language.dat.
+        /// One line of the "old score" text HSBox builds from txt009/010/011
+        /// ("M: ", " S: ", " I: ") -- the three labels with the record's three
+        /// fields.  Step 6 made them the language's; txt008, "Old High Score >
+        /// M:", is the *whole* prefix in the original and is not used here,
+        /// because this port prints the fields after its own sentence rather
+        /// than in HSBox's layout.
+        ///
+        /// The labels carry their own spacing in all ten files -- "M: " with a
+        /// trailing space, " S: " with one on each side -- so this concatenates
+        /// and adds nothing.  Trimming them would look tidier in the source and
+        /// wrong on screen.
+        public static string Describe(THSREC r, Language lang) =>
+            r == null ? "-"
+              : lang["txt009"] + r.Moves + lang["txt010"] + r.Shots
+                + lang["txt011"] + r.Name;
+
+        /// The same three fields with the labels the English file happens to
+        /// carry, frozen -- for `--play`'s `highscore` line, which is an
+        /// *instrument* output that tools/list_check.py parses.
+        ///
+        /// Step 6 is where this had to split in two.  A gate's output must not
+        /// move when the player picks a language, and there is no reading of
+        /// `[DATA] Language` under which it should: the screen is localised, a
+        /// measurement is not.  Same rule as an instrument not writing the
+        /// player's state, pointed at stdout instead of at the INI.
         public static string Describe(THSREC r) =>
             r == null ? "-" : $"M: {r.Moves} S: {r.Shots} I: {r.Name}";
     }

@@ -16,21 +16,22 @@ validation plan, not a ranking of the two halves.
 **Where the project is.** Phases 1-3 complete: a C reference oracle (`oracle/`), a C#
 transliteration that traces byte-identically to it on the whole recorded corpus
 (`src/LaserTank.Core/`), and a differential fuzzer (`tools/fuzz.py`) with 20,626 cases and no
-divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is under way: steps 0-5 are
-done** — `src/LaserTank.Game/` is a playable game with the game around it, and now an editor too. It
-draws any level from `Game.BMF` with any of the four sprite sheets, runs a fixed 20 Hz tick, takes
-the keyboard through the original's own `WM_KEYDOWN` filter and on the original's own accelerator
-keys, plays the original's sixteen WAVs off the sound ids the tick itself computes, undoes, saves
-and restores a position, picks levels and shows both high-score lists out of `.lvl`/`.hs`/`.ghs`,
-writes a `.hs` the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all
-three of the original's speeds, takes the mouse — both as a *move order* through the original's own
-`MouseOperation` pathfinder and as the editor's brush — edits and saves a `.lvl` byte-faithfully,
-and remembers its graphics set, board size, sound, animation, auto-record, player initials and the
-level you were on in a `LaserTank.ini` with the original's own section and key names.
+divergences. Phase 4 (the solver) is in `SOLVER.md`. **Phase 5 (Godot) is complete: steps 0-6 are
+all done** — `src/LaserTank.Game/` is a playable game with the game around it, an editor, and ten
+languages. It draws any level from `Game.BMF` with any of the four sprite sheets, runs a fixed
+20 Hz tick, takes the keyboard through the original's own `WM_KEYDOWN` filter and on the original's
+own accelerator keys, plays the original's sixteen WAVs off the sound ids the tick itself computes,
+undoes, saves and restores a position, picks levels and shows both high-score lists out of
+`.lvl`/`.hs`/`.ghs`, writes a `.hs` the 2010 binary would recognise byte for byte, records and plays
+back `.lpb` at all three of the original's speeds, takes the mouse — both as a *move order* through
+the original's own `MouseOperation` pathfinder and as the editor's brush — edits and saves a `.lvl`
+byte-faithfully, shows its UI in any of the original's ten translations with a picker on Ctrl+L, and
+remembers its graphics set, board size, sound, animation, auto-record, player initials, language and
+the level you were on in a `LaserTank.ini` with the original's own section and key names.
 `atlas_check.py`, `tick_check.py`, `options_check.py`, `sound_check.py`, `undo_check.py`,
-`list_check.py`, `roundtrip_check.py`, `mouse_check.py` and `editor_check.py` gate those six steps.
-**There are no stubs left in the transliteration.** Step 6 below is still a plan with an exit
-criterion rather than a wish list.
+`list_check.py`, `roundtrip_check.py`, `mouse_check.py`, `editor_check.py` and `lang_check.py` gate
+those seven steps. **There are no stubs left in the transliteration**, and no step of Phase 5 is
+left as a plan.
 
 **Build, then check nothing rotted** (about three minutes all in):
 
@@ -47,8 +48,14 @@ Those four are the fidelity gates and must be green before anything else is beli
 it ever does not, read the line-ending trap in *Environment notes* before anything else. Never run
 it while a solver process is alive (see the same section).
 
-**If a solve is running, that block does not work as written** and the first symptom is a build
-failure, not a red gate: `src/build.sh` publishes into `build/`, which a live `lasertank-solve.exe`
+**Since 2026-09-08 the two halves of the project run on two machines** — this repo's *game* work
+(this file) on one, the *solver* (`SOLVER.md`) on the other. So the live-solve trap below is no
+longer the default case here: on the game machine `build/` is usually free and the plain build block
+above works. It is kept because it still applies the moment a solve is started locally, which the
+interactive driver makes easy to do without thinking about it.
+
+**If a solve is running on this machine, that block does not work as written** and the first symptom
+is a build failure, not a red gate: `src/build.sh` publishes into `build/`, which a live `lasertank-solve.exe`
 holds open. Build into each project's own `bin/` and point the tools at it instead — and skip
 `test_fuzz.py` until the solve is done, because it rebuilds the core:
 
@@ -59,7 +66,7 @@ python tools/replay_all.py --engine "$LT_CORE"   # replay_all takes --engine, no
 python tools/sweep.py                            # everything on engines.py reads $LT_CORE
 ```
 
-Phase 5 adds nine gates of its own, all about the presentation rather than the rules, so they are
+Phase 5 adds ten gates of its own, all about the presentation rather than the rules, so they are
 listed apart from the four and nothing in Phases 1-4 depends on them:
 
 ```bash
@@ -72,18 +79,20 @@ python tools/list_check.py                     # step 4: list rows + .hs bytes v
 python tools/roundtrip_check.py                # step 4: record -> replay -> oracle, ~150 s
 python tools/mouse_check.py                    # step 5: MouseOperation vs the oracle, ~12 s
 python tools/editor_check.py                   # step 5: the editor + the .lvl it writes, ~25 s
+python tools/lang_check.py                     # step 6: 10 languages back to the 2007 bytes, ~25 s
 ```
 
-All nine want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
-`undo_check` and `mouse_check` need only the two engines, `editor_check`'s third half skips loudly
-without Godot and its first two do not need it, the rest need Godot outright. Every one that runs the
+All ten want Godot; `atlas_check` and `sound_check`'s WAV half degrade to a loud SKIP without it,
+`undo_check` and `mouse_check` need only the two engines, `editor_check`'s third half and
+`lang_check`'s fourth skip loudly without Godot and their earlier halves do not need it, the rest
+need Godot outright. Every one that runs the
 project **rebuilds its C# first**, because `godot --path` does not and would otherwise report green
 for the previous session's assembly — see *Environment notes*. None of them touches
 `build/lasertank-solve.exe`, so all are safe to run beside a live solver. `options_check` opens
 three brief windows for its pixel measurements (`--shot` needs a rendering device); `--no-window`
 skips that half. The corpus halves of `sound_check`, `undo_check` and `roundtrip_check` drive
 `build/lasertank-core.exe`, which a live solve locks against rebuilding — `$LT_CORE` points them at
-a locally built one instead (*Environment notes*).
+a locally built one instead (*Environment notes*). `lang_check` drives it too, for `--lang-dump`.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
 `src/LaserTank.Core/Engine.cs` differs from a literal transliteration by the word `partial`, twice:
@@ -97,7 +106,11 @@ left unported for lack of a caller) plus commands 111 and 112. **Step 5 closed t
 reach it. All of those are a transliteration getting *closer* to the C, not further from it, and the
 corpus proves each: 208/208 on the sound stream, 400 scripts of undo and 5,000 of mouse diffed
 against the oracle's own `UndoStep` and `MouseOperation`, and 3,000 edit scripts against its own
-`ChangeGO`.
+`ChangeGO`. **Step 6 added `Language.cs` to Core and is the one part of the port that is
+deliberately not a transliteration** — `LANGUAGE.C` reads a positional file the port does not ship,
+so the ten translations were converted once into keyed UTF-8 JSON and the gate ties that JSON back
+to the 2007 bytes instead. The argument is in step 6 below; the short version is that the thing
+being ported is a *file format for a closed population of ten files*, not a rule.
 `Engine.Search.cs` has not changed since the solver's first layer. **If a solver change
 seems to need an engine change, that is the signal to stop and re-read.**
 
@@ -108,21 +121,21 @@ seems to need an engine change, that is the signal to stop and re-read.**
 
 ## Status
 
-**Phases 1-3 complete. Phase 5 under way: steps 0-5 done, step 6 (i18n) next.**
+**Phases 1-3 complete. Phase 5 complete: steps 0-6 all done.**
 
 | | state |
 |---|---|
 | C reference oracle | replays the whole corpus; ground truth, never refactored |
 | C# core | **byte-identical to the oracle on all 187 recordings** with `--field --bmf`, on 400 undo scripts and 5,000 mouse scripts with `--script`, and on 3,000 edit scripts with `--edit`. **No stubs left** |
 | Differential fuzzer | harness proven by fault injection; 20,626 cases, 0 divergences |
-| Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md` |
-| Presentation (Godot) | **steps 0-5 done**: a playable game with the game around it, and an editor. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter and its own accelerator table, the sixteen WAVs off the engine's own `SoundPlay` ids, undo / save / restore position, the level picker and both high-score lists, a `.hs` writer faithful to the byte, record and playback at all three speeds, the mouse on both of the window proc's arms (a move order through `MouseOperation`, and the editor's brush), a `.lvl` writer that round-trips an untouched level byte for byte, and a `LaserTank.ini` that remembers nine keys under the original's names. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` + `undo_check.py` + `list_check.py` + `roundtrip_check.py` + `mouse_check.py` + `editor_check.py` |
+| Solver | four shipped layers, five more as driver rungs; 11.3% of a 4,185-level sample against a goal of all 20,914 — see `SOLVER.md`. **Since 2026-09-08 the solver runs on the other machine, so treat that number as a last-known value rather than current** |
+| Presentation (Godot) | **steps 0-6 done — the phase is finished**: a playable game with the game around it, an editor, and ten languages. Board renders from `Game.BMF`, all four sheets decode, 20 Hz tick, keyboard through the original's `WM_KEYDOWN` filter and its own accelerator table, the sixteen WAVs off the engine's own `SoundPlay` ids, undo / save / restore position, the level picker and both high-score lists, a `.hs` writer faithful to the byte, record and playback at all three speeds, the mouse on both of the window proc's arms (a move order through `MouseOperation`, and the editor's brush), a `.lvl` writer that round-trips an untouched level byte for byte, the original's ten translations on a Ctrl+L picker, and a `LaserTank.ini` that remembers ten keys under the original's names. Gated by `atlas_check.py` + `tick_check.py` + `options_check.py` + `sound_check.py` + `undo_check.py` + `list_check.py` + `roundtrip_check.py` + `mouse_check.py` + `editor_check.py` + `lang_check.py` |
 
 **The gates, and what green looks like.** `replay_all.py` 187 replayed / 181 win / 6 documented
 non-winners / 0 unexpected, and 112/112 `Tutor-with-Playbacks` matching their bundled `.ghs` on
 moves *and* shots. `test_difftrace.py` 29 passed. `test_fuzz.py` 25 passed. `sweep.py` 2,347/2,347
 identical. `tools/verify_solutions.py` over any solver output — every `.lpb` wins on both engines
-with byte-identical traces. Phase 5's seven: `atlas_check.py` OK (2,347 levels clean, 4 sheets
+with byte-identical traces. Phase 5's ten: `atlas_check.py` OK (2,347 levels clean, 4 sheets
 cross-checked), `tick_check.py` 208/208 agreeing with the oracle plus 100 ticks in 5 s,
 `options_check.py` OK (25 checks: the INI's semantics and round trip, the strict `Yes` test on all
 four Yes/No keys, mode 1 == mode 2 pixels for every pack, the three board sizes, the laser bar
@@ -135,7 +148,13 @@ the flag posts a score), `roundtrip_check.py` OK (60 cases, six runs each), `mou
 `editor_check.py` OK (3,000 edit scripts against the oracle's own `ChangeGO`; some 160 unedited
 levels drawn from all 23 collections re-saved byte-identically; the `GetWindowText` write widths rebuilt in
 Python; 60 edited levels whose saved board matches the trace, whose gap is zero-filled and which
-the oracle loads; 6 more saved through the *game's* editor and matching the driver byte for byte).
+the oracle loads; 6 more saved through the *game's* editor and matching the driver byte for byte),
+`lang_check.py` OK (2,293 source lines rebuilt out of the JSON and compared **as bytes in their own
+codepage** across all ten files, 90 ignored exactly where the original ignores them; the tab policy
+that licenses the one asymmetry, measured; the key set and both menu trees against the frozen
+`LT32L_US.H` and `lt32l_us.inc`; ten `--lang-dump`s identical to a Python rebuild; three fallback
+cases on a synthetic partial language; ten more resolved identically inside the game, plus 5 INI
+checks).
 
 **Everything is ported.** `MouseOperation` was the last stub and step 5 wrote it. The reason it
 survived two phases is worth keeping in view: it is driven by `MBuffer`, which only
@@ -146,11 +165,30 @@ What reached it in the end was the same move that reached `UndoStep`: **a new in
 diff. `NotPortedException` stays in the tree, wired up in `fuzz.py`'s signatures, because the
 argument behind it has not changed.
 
-**Next action for this half of the project: Phase 5, step 6 — i18n**, which is `language.dat`
-through `LANGUAGE.C` and is the smallest step left. Steps 0-5 are done and all nine Phase 5 gates
-are green. Phase 3's fuzzer can keep running in parallel on new seeds and the 12 collections its
-first campaign never touched; `undo_check.py`, `mouse_check.py` and `editor_check.py` are three more
-campaigns of the same kind on the same engine, and all four are worth leaving running.
+**Next action for this half of the project: pick one — Phase 5 has no step 7.** The phase set out to
+finish the port faithfully so that nothing mechanical could move while the game was built around it,
+and it did that: steps 0-6 are done and all ten Phase 5 gates are green beside the four fidelity
+ones. What is *deliberately* left, and was named as left at the time rather than forgotten:
+
+- **The UI redesign the phase was always a prelude to.** Step 2 wrote down the line — *the mechanics
+  must be identical, the UI need not be* — and every step since has recorded its UI details as
+  "written down rather than locked down" for exactly this. The rules gates (`replay_all.py`,
+  `sweep.py`, `test_difftrace.py`, `tick_check.py`'s 208/208) are what must not move;
+  `options_check.py`'s pixel arithmetic is the one gate *expected* to be edited when the look changes
+  on purpose.
+- **The six dialogs step 5 left out**, all of them file-picker or modal-prompt shaped: Load Level
+  inside the editor (602), Save As (606), the `LoadTID` tunnel dialog *as a dialog*, the "save
+  changes?" prompt, the Difficulty dialog (225) and Print (126).
+- **A menu bar.** Step 6 converted all 73 menu items of both trees, with their command ids and
+  accelerator labels, so `Language.MainMenu` / `EditorMenu` is a ready-made model for one — but the
+  port is still key-driven and has no menu widget. This is the cheapest remaining piece of the
+  original that is *fully specified data* rather than design work.
+- **More fuzzing, indefinitely.** Phase 3's fuzzer can keep running on new seeds and the 12
+  collections its first campaign never touched; `undo_check.py`, `mouse_check.py` and
+  `editor_check.py` are three more campaigns of the same kind on the same engine, and all four are
+  worth leaving running.
+- **The solver**, which is a goal in its own right and is the larger unfinished half of the project:
+  11.3% of a 4,185-level sample against a goal of all 20,914. See `SOLVER.md`.
 
 **Blocked on:** nothing.
 
@@ -426,7 +464,7 @@ replayed tick-for-tick through the 25-year-old C with zero divergences.)
 
 ---
 
-## Phase 5 — Presentation & features  ◐  (steps 0-5 done)
+## Phase 5 — Presentation & features  ☑  (steps 0-6 all done)
 
 **Where the fidelity line actually runs, decided out loud in the step 2 session and worth reading
 before the next UI change: the mechanics of the puzzles must be exactly the same — every level has
@@ -1132,7 +1170,109 @@ here, cycled with `T`, because a modal prompt per painted cell is worse than a m
 changes?" prompt on the way out (`Modified` is tracked and shown, but there is no message box), the
 Difficulty dialog (225) and Print (126).
 
-**Step 6 — i18n.** `language.dat` via `LANGUAGE.C`.
+**Step 6 — i18n. ☑ DONE.** The original's ten translations, on a picker, in the game.
+
+**This is the one step of the port that deliberately does not transliterate its C, and the decision
+was the whole of the step's design work.** `LANGUAGE.C` exists to read a *positional* file:
+`Language\Language.dat` is 240 lines in six fixed-size sections (`SIZE_MMENU` 49, `SIZE_EMENU` 24,
+`SIZE_BUTTON` 9, `SIZE_TEXT` 48, `SIZE_DIALOGS` 96, `SIZE_ABOUTMSG` 14, `LT32L_US.H:42`), comments
+and blanks skipped, each translation in whichever 8-bit codepage its author's Windows happened to
+use, with the language chosen by *which of the ten `Setups/` trees you installed* — there is no INI
+key and no in-game switch (`LANGFile` is built at `LTANK.C:1421` and never varies). Transliterating
+that reader would have bought nothing: **the population of such files is closed.** The ten that
+shipped in 2007 are all there will ever be, no rule reads a UI string, and a port that kept the
+format would be maintaining a line-counting parser forever to serve files nobody will write again.
+So the conversion happens **once**, in `tools/convert_language.py`, and the game reads keyed UTF-8
+JSON out of `data/language/`.
+
+That is a deviation from the project's usual answer, so it comes with the usual price: the
+conversion has to be *checkable against the artifact*, not merely plausible. Three things make it
+so, and none of them is "it loads and looks right".
+
+- **Nothing is hand-typed.** The 153 string keys are parsed out of the frozen `LT32L_US.H` —
+  `ButText1..9`, `txt001..txt045`, `REC_Title`, `help01..03`, `HelpFileName`, and the 96 `ID_*`
+  dialog slots — and the menu trees' shape, command ids and separator positions out of the frozen
+  `lt32l_us.inc`. The text section's numbering has two gaps (there is no `txt003` and no `txt030`),
+  which is exactly what a hand-written table gets wrong.
+- **The gate runs the conversion backwards.** `lang_check.py` rebuilds every one of the 240 source
+  lines out of the JSON — undoes the escape conversion, re-attaches the accelerator hint after a
+  tab, re-encodes to that file's own codepage — and compares **bytes** with the original line.
+  2,293 lines across the ten files, byte for byte. That is what would catch a mangled accent, a
+  shifted section, a dropped string or a mis-keyed slot.
+- **The 90 lines it cannot rebuild are asserted, not excused.** Nine lines per file address a menu
+  *separator*, and the JSON keeps no text for one because the original never applies one either —
+  `ChangeMenuText` checks `ItemInfo.fType == MFT_STRING` and a separator's is not. That is why all
+  ten files carry the untranslated word `SEPARATOR` in those slots, and the gate asserts they do.
+
+**The codepages are a measurement, not a guess, and one directory name lies.** Nothing in the
+distribution records them. They were established by decoding every file under every candidate and
+reading the result: `cp1252` for US/Fr/De/Du/Pt/Sp/Sw, `cp1250` for Hr (Croatian needs č ć ž š đ,
+and cp1252 renders them as è ‘ ž š ð), and — the surprise — **`Cs` and `Ct` are Simplified and
+Traditional Chinese, not Czech**, in `gbk` and `big5`. Roy Chen's two files, 2,348 and 1,833 high
+bytes, identical in size and line count, which is what made them look like a duplicated pair of
+Czech files until they were decoded.
+
+**Two findings from the corpus that are worth keeping in view.**
+
+*The `while(!feof(fd))` bug is real and the port is free of it by construction.* `InitLanguage`'s
+loop reads with `fgets`, then unconditionally chops the last character with
+`szTmp[strlen(szTmp)-1] = '\0'`. On the iteration after the final line, `fgets` returns NULL and —
+per C99 7.19.7.2, so this is *defined*, not luck — leaves the buffer unchanged, so **the last
+non-comment line is applied twice, the second time one character shorter, into the next slot.** In
+the English file that lands the yahoo-group line into `about[12]` with its trailing newline eaten,
+which is why the About box shows it twice. It is a genuine quirk of a *loader the port does not
+have*, so there is nothing to transliterate it into; it is recorded here rather than in *Quirk
+hazards* because no port code can exhibit it.
+
+*Four of the ten files are labelled 90% or less, and the fallback still never fires.* A translator
+who skipped a line copied the English one rather than leaving it blank, and the only section any
+file actually stops short in is `about` — which does not fall back, because borrowing the English
+tail would put two languages in one paragraph. So the shipped corpus resolves **zero** strings
+through `Language.Load`'s fill-from-base branch. The first run of the gate asserted that six
+languages would exercise it and failed, which was the gate being right: the honest fix was to keep
+the fallback (a future file, or a hand-edited one, needs it, and the alternative is
+`[ID_WINBOX_03]` on a label) and have `check_fallback` build the partial file the corpus does not
+contain — one key blanked, one removed outright, one section truncated, and a translated key that
+must *not* be overwritten. Both ways of being absent are separate lines of code and both are tested.
+
+**The one invented behaviour, named as one:** `[DATA] Language`, plus the picker on **Ctrl+L** that
+writes it. The original has neither. Ctrl+L is free in `ACC1` — plain `L` is Load Level, and the
+editor's own Ctrl+L (602) is on `ACC2`, a different table that only applies while `EditorOn` — and
+the picker is modelled on `GraphBox` deliberately rather than for symmetry: the graphics dialog *is*
+the original's own Options-menu entry (226), so copying its three load-bearing properties puts the
+new dialog where a player already expects this kind of choice. The choice applies immediately (so
+the panel redraws in the language being previewed — the file names are `Fr` and `Hr`, and being able
+to *read* the answer is the point), there is no Cancel, and the game keeps ticking underneath while
+keys go to the dialog.
+
+**Where the strings actually landed.** `GraphicsMenu`'s two English constants became
+`ID_GRAPHBOX_00`/`_05`, its pack list `ID_GRAPHBOX_02`/`_03`; `LevelList`'s three captions became
+`ID_LOADLEV_00`/`ID_HIGHLIST_00`/`ID_GHIGHLIST_00` (and the level picker stopped saying "Select a
+Level", which was ours, and started saying "Pick Level to Load", which is the original's); the win
+line takes `txt012`, the playback panel `txt013`/`txt014`, the death line `ID_DEADBOX_DEAD`, the old
+score `txt009`/`txt010`/`txt011`, and F5 now retitles the window with `REC_Title` the way
+`SetWindowText(MainH, REC_Title)` does. **`HighScores.Describe` had to split in two**, and that is
+the rule worth carrying forward: `--play`'s `highscore` line is an *instrument* output that
+`list_check.py` parses, so it keeps frozen English labels while the screen gets the localised ones.
+A gate's output must not move when the player picks a language — the same rule as *an instrument
+must not write the player's state*, pointed at stdout.
+
+*Exit — MET.* `lang_check.py`, four halves: the tab policy measured over all ten files; **2,293
+source lines rebuilt out of the JSON and compared as bytes in their own codepage**, 90 ignored
+exactly where the original ignores them; the key set and both menu trees checked against the frozen
+header and `.inc`; ten `--lang-dump`s identical to a Python rebuild of the same dump, plus three
+fallback cases on a synthetic partial language; and ten more resolved identically *inside the game*
+through the same `BoardView.Strings` property every label reads, plus 5 INI checks (an absent key
+defaults to the base, the picker's choice survives a restart, it really loads, an unknown code
+degrades to the base rather than to `[key]` labels, and a foreign key in the file survives). And the
+four fidelity gates and the nine earlier Phase 5 gates are green with all of it in.
+
+**Not in step 6, on purpose:** a menu *bar* (the model is there — all 73 items with command ids and
+accelerator labels — but the port is still key-driven), the `.ln` files under `Setups/Language/`
+(a different and older 4.0-era format, superseded by the `.dat`s and not read by the 2007 build),
+`LoadImageFile`'s per-language `Control.bmp` / `Opening.bmp` / `LaserTank.hlp`, and translating the
+port's *own* legend lines — those have no key in the original because the original has no such
+strip, and they fall back to English by having only an English form.
 
 ### What to be careful about
 
@@ -1194,6 +1334,26 @@ Difficulty dialog (225) and Print (126).
   passed every read-back test in the project and still corrupted 20,914 levels' worth of trailing
   bytes. When constraint 2 says *writable*, the check is a byte-for-byte identity round trip on
   files nobody edited, not a load-and-compare.
+- **A gate's own output must not move with a player's setting.** Step 6 is where this bit: the
+  `highscore` line `--play` prints is parsed by `list_check.py`, and localising the labels in it
+  would have made a fidelity tool's output depend on `[DATA] Language`. `HighScores.Describe` has
+  two forms for that reason — frozen English for the instrument, the loaded language for the screen.
+  Same rule as *an instrument must not write the player's state*, pointed at stdout instead of at a
+  file.
+- **`text=True` on a subprocess decodes with the *locale* codec, and fails silently.** Every gate in
+  `tools/` used it, which was fine while every output was ASCII. Step 6's is not: on the first byte
+  cp1252 leaves undefined (0x8d, inside `ã`) the reader thread raises `UnicodeDecodeError`,
+  `subprocess` swallows it in the thread, and `p.stdout` comes back **empty** — so four of the ten
+  languages looked like a crashed game rather than a decoding bug. `lang_check.run_godot` captures
+  bytes and decodes UTF-8 explicitly. Any new gate whose output can carry non-ASCII must do the
+  same.
+- **Not everything the original does is a rule worth porting, and the test is whether the input
+  population is open.** Step 6 declined to transliterate `LANGUAGE.C` because the files it reads are
+  a closed set of ten, frozen in 2007, and nothing in the rules reads a UI string — so the format is
+  a one-time import rather than a behaviour. That reasoning does **not** generalise to `.lvl`,
+  `.lpb`, `.hs` or the graphics packs: those are all still written, by this port among others, which
+  is why every one of them is read and written by a transliteration. When the temptation to convert
+  rather than transliterate comes up again, the question is who else will ever write the file.
 - **Godot 4.7.2 Mono** is installed but has no `godot` alias (needs admin) — call the `.exe` by
   path; see *Environment notes*.
 
@@ -1206,7 +1366,7 @@ Difficulty dialog (225) and Print (126).
 | `original/src/LTANK.C` | 1572 | Win32 window proc. **`WM_TIMER` at `:579` is the real game loop.** |
 | `original/src/LTANK2.C` | 1834 | Game logic *and* GDI rendering, interleaved |
 | `original/src/LTANK_D.C` | 1319 | Dialogs (level picker, high scores, playback, graphics) |
-| `original/src/LANGUAGE.C` | 279 | i18n from `language.dat` |
+| `original/src/LANGUAGE.C` | 279 | i18n from `Language.dat`. **Read, not transliterated** — step 6 says why; `LT32L_US.H` and `lt32l_us.inc` are the tables it needs |
 | `original/src/lt_sfx.c` | 62 | WAV playback |
 | `original/src/LTANK.H` | — | Structs, object-ID table, tunnel macros |
 
@@ -1416,6 +1576,8 @@ data/       game content = the regression corpus
   solutions/  what the interactive driver banks — one hand-supervised level at a
               time, each already through the two-engine gate
   graphics/   .ltg packs      meta/  changelogs & name indexes
+  language/   the ten translations as keyed UTF-8 JSON, converted once from
+              original/src/Setups/*/Language/Language.dat -- see Phase 5 step 6
 oracle/     the C reference oracle — see oracle/README.md
   stub/       minimal <windows.h> that shadows the real one
   win32_stub.c  real memory/files/messages, no-op GDI
@@ -1429,10 +1591,13 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    Engine.Sound.cs — SoundPlay's body: SoundLog?.Add, nothing else
                    Editor.cs — ChangeGO, the Shifts, Clear Field (Phase 5 step 5);
                    in Core on GraphicsFile.cs's test, not reachable from Tick()
+                   Language.cs — the UI strings + both menu trees (step 6).  The
+                   one file here that is NOT a transliteration; step 6 says why
                    LevelFile.cs also carries LevelRecord — the raw 576 bytes and
                    the editor's own write widths (hazards #16-#18)
   LaserTank.Cli/   Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
                    EditDriver.cs — `--edit`, the editor as a token stream
+                   LangDump.cs — `--lang-dump` / `--lang-list`, step 6's own output
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
   LaserTank.Game/  the Godot 4.7 project.  BoardView.cs draws Game.BMF and routes
                    keys, Session.cs is LTANK.C's driver half (WM_TIMER, WM_KEYDOWN,
@@ -1444,9 +1609,11 @@ src/        the C# port         build.sh -> build/lasertank-core.exe + lasertank
                    HighScores.cs is AssignHSFile + CheckHighScore + the HS global,
                    Recorder.cs is command 123 and PBWindow, Sfx.cs is lt_sfx.c (one
                    player, monophonic), EditMode.cs is commands 201/601/603/604/
-                   605/701-705/710-713 and the palette (step 5), Step4Check.cs is
-                   the two headless dumps list_check.py compares against, Paths.cs
-                   finds data/.  Built by Godot or `dotnet build`, never published
+                   605/701-705/710-713 and the palette (step 5), LanguageMenu.cs
+                   is step 6's picker (Ctrl+L -- a dialog the original has no
+                   equivalent for), Step4Check.cs and Step6Check.cs are the
+                   headless dumps list_check.py and lang_check.py compare
+                   against, Paths.cs finds data/.  Built by Godot or `dotnet build`, never published
                    into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
 tools/      see below; the solver-only tools are listed in SOLVER.md
@@ -1521,6 +1688,18 @@ editor_check.py   Phase 5 step 5's exit criterion, in three halves: 3,000 edit
                     board tied to the trace, and the oracle -- which *is* the
                     2010 loader -- opening what was written); and the game's own
                     editor saving the same bytes as the driver
+lang_check.py     Phase 5 step 6's gate, in four halves: the tab policy that
+                    licenses its one asymmetry; 2,293 source lines rebuilt out of
+                    data/language/*.json and compared as BYTES in each file's own
+                    codepage against the frozen Setups/*/Language.dat; the key set
+                    and both menu trees against LT32L_US.H and lt32l_us.inc; the
+                    C# --lang-dump and the game's own --check-lang against a
+                    Python rebuild, plus a synthetic partial language for the
+                    fallback and 5 INI checks.  No oracle: see step 6 on why
+convert_language.py the one-time import behind that -- reads the ten Language.dat
+                    files with their measured codepages and the two frozen
+                    headers, writes data/language/*.json.  `--check` reports
+                    staleness without writing
 bump_rate.py      classify consumed keys; bumps = desync signature
 dump_level.py     print a .lvl level as ASCII with its hint
 unpack_lpb_txt.py decode a Text-Converter .txt wrapper back to .lpb
@@ -1861,7 +2040,7 @@ throughout and it rebuilds the core, which Windows will not allow while `laserta
 `build/LaserTank.Core.dll` open (see *Environment notes*). Everything it gates is unchanged:
 `Engine.cs` is 89 added lines and none removed. Run it once the solve is done.
 
-**2026-09-08, session 26 — Phase 5 step 5: the mouse, and the level editor.** The step had two
+**2026-09-08, session 29 — Phase 5 step 5: the mouse, and the level editor.** The step had two
 halves and one cause: both are driven by the mouse, which is the one input this project had never
 had. The first half closed the last stub. `MouseOperation` survived two phases of differential
 testing not because it is hard but because **nothing could reach it** — it is driven by `MBuffer`,
@@ -1901,10 +2080,43 @@ dropping every echo in `_UnhandledInput` had quietly made undo a one-shot. That 
 regression, not a UI choice, so it is fixed rather than argued about; the other accelerators stay
 one-shot on purpose, which *is* a UI choice and is written down as one.
 
+**2026-09-08, session 30 — Phase 5, step 6: i18n, and the phase is finished.** The ten
+translations, converted once out of `original/src/Setups/*/Language/Language.dat` into keyed UTF-8
+JSON, on a Ctrl+L picker, wired into every label the game already drew. **The step's real work was
+the decision not to transliterate `LANGUAGE.C`** — the file it reads is a positional 240-line format
+in ten different 8-bit codepages, chosen by which installer you ran, and the population of such
+files closed in 2007; the reasoning, and the test it generalises to ("who else will ever write this
+file"), are in the step and in *What to be careful about*. The price of that deviation is a gate that
+runs the conversion **backwards**: `lang_check.py` rebuilds 2,293 source lines out of the JSON and
+compares them as bytes in each file's own codepage, and asserts that the 90 it cannot rebuild are
+exactly the menu-separator lines the original does not apply either.
+
+Four things the measurements said and guessing would not have. The codepages are nowhere in the
+distribution and had to be established by decoding — and **`Cs`/`Ct` turned out to be Simplified and
+Traditional Chinese, not Czech**, which the identical file sizes had disguised. `Du`'s about-message
+line 233 begins with a **real 0x09 byte**, so the round trip's escape inversion is deliberately
+asymmetric between the menu sections and the rest, with a `check_tab_policy` half that measures both
+halves of that claim over all ten files rather than assuming it. **The fallback never fires on the
+shipped corpus** — the partial translations copied English lines instead of leaving them blank, so
+the gate's first run correctly failed an assertion that six languages would exercise it, and the fix
+was a synthetic partial language rather than a weakened check or a deleted branch. And `text=True`
+on a subprocess decodes with the *locale* codec: on `ã`'s 0x8d the reader thread raises inside
+`subprocess` and `p.stdout` comes back empty, so four languages looked like a crashed game.
+
+Two smaller rules came out of it. `HighScores.Describe` **split in two** — a gate parses `--play`'s
+`highscore` line, so an instrument's output must not move when the player picks a language, which is
+*an instrument must not write the player's state* pointed at stdout. And `[DATA] Language` plus the
+picker are the step's **only** invented behaviour, named as such in `Options.PsLang` and in
+`LanguageMenu`'s header, because the original genuinely has no such setting.
+
+All fourteen gates green with it in — the four fidelity ones, and Phase 5's ten. `test_fuzz.py`
+left the tree byte-clean.
+
 *Sessions 9-22 were all solver work and are logged in `SOLVER.md`. Their standing engine claim,
 re-checked at the end of each: `Engine.cs` differs from a literal transliteration by the word
 `partial` — on the class, and (since step 3) on `SoundPlay`, whose body is in `Engine.Sound.cs` —
 plus (since step 4) `UndoStep`, `SavePosition` and `RestorePosition`, and (since step 5)
 `MouseOperation`, `FindTarget`, `AddKBuff` and `MouseClick`, all of which are transliterations of
-`LTANK2.C` and `LTANK.C` that Phase 2 had no caller for. `Engine.Search.cs` has not changed since
-the solver's layer 0.*
+`LTANK2.C` and `LTANK.C` that Phase 2 had no caller for. Step 6 added nothing to it: `Language.cs`
+is presentation data on `GraphicsFile.cs`'s test and no path inside `Tick()` can reach it.
+`Engine.Search.cs` has not changed since the solver's layer 0.*

@@ -1,0 +1,503 @@
+{
+ "code": "Cs",
+ "name": "Simplified Chinese (100% complete)",
+ "author": "Roy Chen",
+ "sourceEncoding": "gbk",
+ "sourceLines": 235,
+ "buttons": {
+  "ButText1": "复 原",
+  "ButText2": "储 存 位 置",
+  "ButText3": "回 复 位 置",
+  "ButText4": "新游戏",
+  "ButText5": "<前一关",
+  "ButText6": "下一关>",
+  "ButText7": "提 示",
+  "ButText8": "重新玩",
+  "ButText9": "到 任 一 关"
+ },
+ "text": {
+  "txt001": "找不到关卡文件\n请选择另外一个",
+  "txt002": "关卡文件 (*.LVL)",
+  "txt004": "挑选 LaserTank 关卡文件",
+  "txt005": "关卡记录文件 (*.LPB)",
+  "txt006": "储存关卡记录文件",
+  "txt007": "LaserTank 错误讯息",
+  "txt008": "旧高分记录 > M:",
+  "txt009": "M: ",
+  "txt010": " S: ",
+  "txt011": " I: ",
+  "txt012": "恭喜，你过关了 !!",
+  "txt013": "播放关卡 : ",
+  "txt014": "\n记录人 : ",
+  "txt015": "\nC在目前关卡的文件找不到\n< ",
+  "txt016": "您要继续记录 ?",
+  "txt017": "&P播放",
+  "txt018": "&P暂停",
+  "txt019": "记忆体不足 - 复原记录会被覆盖",
+  "txt020": "开启关卡记录文件",
+  "txt021": "LaserTank 提示",
+  "txt022": "关卡并未储存，是否要存档 ?",
+  "txt023": " - 儿童",
+  "txt024": " - 简单",
+  "txt025": " - 中等",
+  "txt026": " - 困难",
+  "txt027": " - 难得要死",
+  "txt028": " - [编辑器]",
+  "txt029": "LaserTank 编辑器",
+  "txt031": "不是有效的 LaserTank 画面设置",
+  "txt032": "找不到 game.bmp 和/或 mask.bmp",
+  "txt033": "开启关卡记录文件以回复",
+  "txt034": "回游戏",
+  "txt035": "< 这个关卡没有提示 >",
+  "txt036": "LaserTank 关卡 #",
+  "txt037": "选择 LaserTank 画面储存的目录",
+  "txt038": "游戏进行中...",
+  "txt039": "你会失去的游戏记录.\n你是否要存档 ?",
+  "txt040": "过关",
+  "txt041": "全选",
+  "txt042": "完成 %d 于 %d 关",
+  "txt043": "游戏困难度 = ",
+  "txt044": "KEMHD",
+  "txt045": "找不到 LaserTank 画面文件 !",
+  "REC_Title": " LaserTank *** 记录中 ***",
+  "help01": "编辑器指示",
+  "help02": "版本",
+  "help03": "编辑您自己的关卡",
+  "HelpFileName": "Language\\LaserTankCT.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "关于 LaserTank",
+  "ID_ABOUTBOX_OK": "&O确定",
+  "ID_ABOUTBOX_04": "由 Jim Kindley 制作",
+  "ID_ABOUTBOX_06": "版本",
+  "ID_DEADBOX_UNDO": "&U复原最后动作",
+  "ID_DEADBOX_DEAD": "你死啦 ! ! !",
+  "ID_DEADBOX_RESTART": "&R重新玩",
+  "ID_DIFFBOX_00": "游戏困难度",
+  "ID_DIFFBOX_01": "&O确定",
+  "ID_DIFFBOX_02": "&K儿童",
+  "ID_DIFFBOX_03": "&E简单",
+  "ID_DIFFBOX_04": "&M中等",
+  "ID_DIFFBOX_05": "&H困难",
+  "ID_DIFFBOX_06": "&D难得要死",
+  "ID_DIFFBOX_07": "&A全选",
+  "ID_DIFFBOX_08": "选择",
+  "ID_GRAPHBOX_00": "选择游戏画面",
+  "ID_GRAPHBOX_01": "选一个",
+  "ID_GRAPHBOX_02": "&B预设画面",
+  "ID_GRAPHBOX_03": "&U你自己的画面",
+  "ID_GRAPHBOX_04": "&关闭",
+  "ID_GRAPHBOX_05": "作者 :",
+  "ID_GRAPHBOX_06": "LaserTank 画面描述",
+  "ID_GRAPHBOX_08": "&V查看开启画面",
+  "ID_GRAPHBOX_09": "&D改变目录",
+  "ID_LOADLEV_00": "选择要玩的关卡",
+  "ID_LOADLEV_01": "&C取消",
+  "ID_LOADLEV_03": "&F过滤器",
+  "ID_LOADLEV_04": " 关卡文件:",
+  "ID_LOADLEV_05": "- 文件载入错误 -",
+  "ID_LOADLEV_06": "编号     名称                           作者",
+  "ID_LOADLEV_07": "    直接输入关卡编号 >>",
+  "ID_HINTBOX_00": "修改提示",
+  "ID_HINTBOX_01": "&O确定",
+  "ID_HINTBOX_02": "&C取消",
+  "ID_SEARCH_00": "过滤关卡",
+  "ID_SEARCH_01": "输入搜寻字串 :",
+  "ID_SEARCH_02": "寻找",
+  "ID_SEARCH_03": "&T关卡名称",
+  "ID_SEARCH_04": "&A作者",
+  "ID_SEARCH_05": "&C取消",
+  "ID_SEARCH_06": "&O确定",
+  "ID_SEARCH_08": "&O只找未过关的关卡",
+  "ID_SEARCH_09": "&F依困难度搜寻",
+  "ID_SEARCH_10": "&K儿童",
+  "ID_SEARCH_11": "&E简单",
+  "ID_SEARCH_12": "&M中等",
+  "ID_SEARCH_13": "&H困难",
+  "ID_SEARCH_14": "&D难得要死",
+  "ID_RETBOX_00": "回游戏",
+  "ID_WINBOX_00": "&O确定",
+  "ID_WINBOX_01": "您赢啦 ! ! !",
+  "ID_WINBOX_02": "关卡文件:",
+  "ID_WINBOX_03": "- 错误 -",
+  "ID_LOADTID_00": "选择隧道编号",
+  "ID_LOADTID_03": "&O确定",
+  "ID_LOADTID_04": "输入隧道编号 :",
+  "ID_HIGHBOX_00": "! 新的高分记录 !",
+  "ID_HIGHBOX_01": "&O确定",
+  "ID_HIGHBOX_02": "关卡编号:",
+  "ID_HIGHBOX_03": "关卡名称:",
+  "ID_HIGHBOX_04": "移动数:",
+  "ID_HIGHBOX_05": "射击数:",
+  "ID_HIGHBOX_10": "原先记录:",
+  "ID_HIGHBOX_12": "全球记录:",
+  "ID_HIGHBOX_13": "- 无记录 -",
+  "ID_HIGHLIST_00": "高分记录",
+  "ID_HIGHLIST_01": "&O确定",
+  "ID_HIGHLIST_02": "- 文件载入错误 -",
+  "ID_HIGHLIST_03": "编号    名称                      移动数  射击数  过关人",
+  "ID_GHIGHLIST_00": "全球高分记录",
+  "ID_GHIGHLIST_01": "&O确定",
+  "ID_GHIGHLIST_02": "编号    名称                           移动  射击 过关人   移动  射击 过关人",
+  "ID_GHIGHLIST_03": "全球",
+  "ID_GHIGHLIST_04": "本地",
+  "ID_GHIGHLIST_05": "- 无记录 -",
+  "ID_GHIGHLIST_06": "&B达到",
+  "ID_RECBOX_00": "记录游戏",
+  "ID_RECBOX_01": "请输入您的姓名",
+  "ID_RECBOX_02": "&O确定",
+  "ID_PLAYBOX_00": "播放关卡",
+  "ID_PLAYBOX_01": "&C关闭",
+  "ID_PLAYBOX_02": "&P播放",
+  "ID_PLAYBOX_03": "&R重新开始",
+  "ID_PLAYBOX_04": "&F快",
+  "ID_PLAYBOX_05": "&S慢",
+  "ID_PLAYBOX_06": "&T步进",
+  "ID_PLAYBOX_07": "第:",
+  "ID_PLAYBOX_08": "于",
+  "ID_PLAYBOX_11": "播放速度",
+  "ID_PICKLEVEL_00": "储存 LaserTank 关卡",
+  "ID_PICKLEVEL_01": "&O确定",
+  "ID_PICKLEVEL_02": "输入关卡编号",
+  "ID_PICKLEVEL_03": "储存 :",
+  "ID_PICKLEVEL_06": "= 增加",
+  "ID_PICKLEVEL_08": "&C清除高分记录"
+ },
+ "about": [
+  "     LaserTank 是 HelpWare， 您可以免费使用。\n\n",
+  "     在您成为了一个熟练的玩家之后，您可能会想要制作一个或更多新关卡，您可使用关卡编辑器，然后将新关卡和您的关卡记录文件 (.LPB) 一起寄给我们。\n\n",
+  "     我们在每次更新软体时，会加入所有收到的好关卡。您可参考线上帮助中有关 \"编辑您自己的关卡\"  和 \"记录和播放关卡\"  的说明。\n\n",
+  "     (请设法创造新的，而不要重复现有的。)\n\n",
+  "     (在 LaserTank 网站上有很多好玩的关卡。)\n\n",
+  "     如果您达到任何新的高分记录，请先确定您的全球高分记录文件 (.GHS) 是最新的，然后将您达到新高分记录关卡的关卡记录文件和您的LaserTank.hs 文件包裹成一个压缩文件 (.zip) 寄给我们。\n\n",
+  "     您可以 e-mail 您的文件到 : lasertank@globetrotter.net\n\n",
+  "    您可以在 LaserTanks 网站找到更多关卡、图形文件，和最新的全球高分记录文件，网址 :\nhttp://www.jccontrols.net/laser  (英文网站)\n\n",
+  "     要得到关于这个游戏软体的更多协助及资讯，您可以加入或查看雅虎的爱好者组织，网址 : \nhttp://groups.yahoo.com/lasertank  (英文网站)"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "&G游戏",
+    "items": [
+     {
+      "text": "&N新游戏",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "&L至任一关...",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "&S至下一关",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "&P至前一关",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "至前一个玩过的关卡",
+      "cmd": 118,
+      "accel": "BkSp"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&O开启关卡文件...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&V查看高分记录",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "&G全球高分记录",
+      "cmd": 906,
+      "accel": "G"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&R记录关卡",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "&A储存记录",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "&C回复记录",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "&B播放关卡...",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&I列印游戏画面",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&E离开游戏",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&M动作",
+    "items": [
+     {
+      "text": "&R重新玩",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "&U复原最后移动/射击",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "&S储存位置",
+      "cmd": 111,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "&P回复位置",
+      "cmd": 112,
+      "accel": "Crtl+V"
+     },
+     {
+      "text": "&Y重播",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "&O选项",
+    "items": [
+     {
+      "text": "&A动画",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "&N音效",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "&R记住最后玩过的关卡",
+      "cmd": 109
+     },
+     {
+      "text": "&K跳过已过关的关卡",
+      "cmd": 116
+     },
+     {
+      "text": "&T自动记录",
+      "cmd": 115
+     },
+     {
+      "text": "&W关闭警示",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&S画面尺寸",
+      "items": [
+       {
+        "text": "&S小",
+        "cmd": 120
+       },
+       {
+        "text": "&M中",
+        "cmd": 121
+       },
+       {
+        "text": "&L大",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "&D游戏困难度...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "&G选择游戏画面...",
+      "cmd": 226,
+      "accel": "Ctrl+G"
+     }
+    ]
+   },
+   {
+    "text": "&E编辑关卡 [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "&H帮助",
+    "items": [
+     {
+      "text": "&H提示",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&I帮助主题",
+      "cmd": 902
+     },
+     {
+      "text": "&Q快速帮助",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "&R更新记录(历史)",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&A关于...",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "&E编辑",
+    "items": [
+     {
+      "text": "&C清除场地",
+      "cmd": 601,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "&L开启关卡...",
+      "cmd": 602,
+      "accel": "Ctrl+L"
+     },
+     {
+      "text": "&S储存关卡",
+      "cmd": 603,
+      "accel": "Ctrl+S"
+     },
+     {
+      "text": "&A以另外的档名储存...",
+      "cmd": 606
+     },
+     {
+      "text": "&E离开游戏",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&H提示",
+    "cmd": 605
+   },
+   {
+    "text": "&S调整场地",
+    "items": [
+     {
+      "text": "&R右",
+      "cmd": 710,
+      "accel": "Ctrl+方向键"
+     },
+     {
+      "text": "&L左",
+      "cmd": 711
+     },
+     {
+      "text": "&U上",
+      "cmd": 712
+     },
+     {
+      "text": "&D下",
+      "cmd": 713
+     }
+    ]
+   },
+   {
+    "text": "&回到游戏 [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "&D困难度",
+    "items": [
+     {
+      "text": "&K儿童",
+      "cmd": 701
+     },
+     {
+      "text": "&E简单",
+      "cmd": 702
+     },
+     {
+      "text": "&M中等",
+      "cmd": 703
+     },
+     {
+      "text": "&H困难",
+      "cmd": 704
+     },
+     {
+      "text": "&D难得要死",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "&H帮助",
+    "items": [
+     {
+      "text": "&E编辑器简介",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "&W编辑关卡",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&A关于...",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,506 @@
+{
+ "code": "De",
+ "name": "German",
+ "author": "Manfred Sauke",
+ "sourceEncoding": "cp1252",
+ "sourceLines": 238,
+ "buttons": {
+  "ButText1": "Zurück",
+  "ButText2": "Position speichern",
+  "ButText3": "Position abrufen",
+  "ButText4": "Neu",
+  "ButText5": "<< Level",
+  "ButText6": "Level >>",
+  "ButText7": "Tipp",
+  "ButText8": "Anfang",
+  "ButText9": "Level öffnen"
+ },
+ "text": {
+  "txt001": "Level-Datei nicht gefunden\nBitte neu auswählen",
+  "txt002": "Level-Dateien (*.LVL)",
+  "txt004": "Level-Datei öffnen",
+  "txt005": "Playback-Dateien (*.LPB)",
+  "txt006": "Aufzeichnung speichern",
+  "txt007": "Vehler",
+  "txt008": "Alter High Score > M:",
+  "txt009": "M: ",
+  "txt010": " S: ",
+  "txt011": " I: ",
+  "txt012": "Congratulation's You beat it !!",
+  "txt013": "Levelname : ",
+  "txt014": "\nAufgezeichnet von ",
+  "txt015": "\nNicht in der aktuellen Level-Datei gefunden\n< ",
+  "txt016": "Weiter aufzeichnen ???",
+  "txt017": "Start",
+  "txt018": "Pause",
+  "txt019": "Out of Memory - Undo Roll Over",
+  "txt020": "Playback-Datei öffnen",
+  "txt021": "Tipp",
+  "txt022": "Level NICHT gespeichert, jetzt speichern ?",
+  "txt023": " - Kids",
+  "txt024": " - Einfach",
+  "txt025": " - Mittel",
+  "txt026": " - Hart",
+  "txt027": " - Tödlich",
+  "txt028": " - [Editor]",
+  "txt029": "LaserTank Editor",
+  "txt031": "Grafik-Datei kann nicht geöffnet werden",
+  "txt032": "Datei game.bmp und/oder mask.bmp nicht gefunden",
+  "txt033": "Playback-Datei öffnen",
+  "txt034": "Zurück zum Spiel",
+  "txt035": "< SORRY...KEIN TIPP VORHANDEN... >",
+  "txt036": "LaserTank Level #",
+  "txt037": "Ordner auswählen",
+  "txt038": "Spiel läuft ...",
+  "txt039": "Level *nicht* gespeichert.\nJetzt speichern?",
+  "txt040": "GHS",
+  "txt041": "Alle",
+  "txt042": "Gelöst: %d von %d Leveln",
+  "txt043": "Schwierigkeitsgrade = ",
+  "txt044": "KEMHT",
+  "txt045": "LaserTank Grafik-Datei nicht gefunden !",
+  "REC_Title": " LaserTank *** AUFNAHME ***",
+  "help01": "Editor Instructions",
+  "help02": "Revisions",
+  "help03": "Writing Your Own Levels",
+  "HelpFileName": "Language\\LaserTankDE.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "Über LaserTank",
+  "ID_ABOUTBOX_OK": "OK",
+  "ID_ABOUTBOX_04": "Deutsch: Manfred Sauke ",
+  "ID_ABOUTBOX_06": "Version",
+  "ID_DEADBOX_UNDO": "Z U R Ü C K",
+  "ID_DEADBOX_DEAD": "DU BIST TOT ! ! !",
+  "ID_DEADBOX_RESTART": "ANFANG",
+  "ID_DIFFBOX_00": "Schwierigkeitsgrade",
+  "ID_DIFFBOX_01": "OK",
+  "ID_DIFFBOX_02": "Kids",
+  "ID_DIFFBOX_03": "Einfach",
+  "ID_DIFFBOX_04": "Mittel",
+  "ID_DIFFBOX_05": "Hart",
+  "ID_DIFFBOX_06": "Tödlich",
+  "ID_DIFFBOX_07": "Alle",
+  "ID_DIFFBOX_08": "Auswählen",
+  "ID_GRAPHBOX_00": "Grafik auswählen",
+  "ID_GRAPHBOX_01": "Auswählen:",
+  "ID_GRAPHBOX_02": "Originalgrafik",
+  "ID_GRAPHBOX_03": "Benutzergrafik",
+  "ID_GRAPHBOX_04": "Ende",
+  "ID_GRAPHBOX_05": "Autor :",
+  "ID_GRAPHBOX_06": "Beschreibung :",
+  "ID_GRAPHBOX_08": "Startbildschirm",
+  "ID_GRAPHBOX_09": "Ordner wählen",
+  "ID_LOADLEV_00": "Level öffnen",
+  "ID_LOADLEV_01": "Ende",
+  "ID_LOADLEV_03": "Filter",
+  "ID_LOADLEV_04": "Datei:",
+  "ID_LOADLEV_05": "- Datei nicht gefunden ?!? -",
+  "ID_LOADLEV_06": "Level#  Name                           Autor",
+  "ID_LOADLEV_07": "oder Levelnummer eingeben >>",
+  "ID_HINTBOX_00": "Tipp eingeben",
+  "ID_HINTBOX_01": "OK",
+  "ID_HINTBOX_02": "Ende",
+  "ID_SEARCH_00": "Level suchen",
+  "ID_SEARCH_01": "Suchbegriff eingeben :",
+  "ID_SEARCH_02": "Suche nach",
+  "ID_SEARCH_03": "Titel",
+  "ID_SEARCH_04": "Autor",
+  "ID_SEARCH_05": "Ende",
+  "ID_SEARCH_06": "OK",
+  "ID_SEARCH_08": "Nur ungelöste Level",
+  "ID_SEARCH_09": "Filter nach Schwierigkeitsgrad",
+  "ID_SEARCH_10": "Kids",
+  "ID_SEARCH_11": "Einfach",
+  "ID_SEARCH_12": "Mittel",
+  "ID_SEARCH_13": "Hart",
+  "ID_SEARCH_14": "Tödlich",
+  "ID_RETBOX_00": "Zurück zum Spiel",
+  "ID_WINBOX_00": "OK",
+  "ID_WINBOX_01": "Gewonnen ! ! !",
+  "ID_WINBOX_02": "Datei :",
+  "ID_WINBOX_03": "- Fehler -",
+  "ID_LOADTID_00": "Nummer des Tunnels eingeben",
+  "ID_LOADTID_03": "OK",
+  "ID_LOADTID_04": "Nummer für diesen Tunnel :",
+  "ID_HIGHBOX_00": "! Neuer High Score !  M = Schritte  S = Schüsse",
+  "ID_HIGHBOX_01": "OK",
+  "ID_HIGHBOX_02": "Levelnummer :",
+  "ID_HIGHBOX_03": "Levelname :",
+  "ID_HIGHBOX_04": "   M :",
+  "ID_HIGHBOX_05": "   S :",
+  "ID_HIGHBOX_10": "Initialen :",
+  "ID_HIGHBOX_12": "Global HS :",
+  "ID_HIGHBOX_13": "- Keine Daten -",
+  "ID_HIGHLIST_00": "High Scores",
+  "ID_HIGHLIST_01": "OK",
+  "ID_HIGHLIST_02": "- Datei nicht gefunden -",
+  "ID_HIGHLIST_03": "Lev#  Name                            M        S       I",
+  "ID_GHIGHLIST_00": "Global High Scores",
+  "ID_GHIGHLIST_01": "OK",
+  "ID_GHIGHLIST_02": "Lev#  Name                             M      S   Init   M     S  Init",
+  "ID_GHIGHLIST_03": "Global",
+  "ID_GHIGHLIST_04": "Lokal",
+  "ID_GHIGHLIST_05": "- Keine Daten -",
+  "ID_GHIGHLIST_06": "GHS",
+  "ID_RECBOX_00": "Level aufzeichnen",
+  "ID_RECBOX_01": "Bitte Namen eingeben :",
+  "ID_RECBOX_02": "OK",
+  "ID_PLAYBOX_00": "Level wiedergeben",
+  "ID_PLAYBOX_01": "Schließen",
+  "ID_PLAYBOX_02": "Start",
+  "ID_PLAYBOX_03": "Anfang",
+  "ID_PLAYBOX_04": "Schnell",
+  "ID_PLAYBOX_05": "Langsam",
+  "ID_PLAYBOX_06": "Schritt",
+  "ID_PLAYBOX_07": "Schritt :",
+  "ID_PLAYBOX_08": "-->",
+  "ID_PLAYBOX_11": "Tempo",
+  "ID_PICKLEVEL_00": "Level speichern",
+  "ID_PICKLEVEL_01": "OK",
+  "ID_PICKLEVEL_02": "Levelnummer eingeben",
+  "ID_PICKLEVEL_03": "Nummer :",
+  "ID_PICKLEVEL_06": "= Neu",
+  "ID_PICKLEVEL_08": "High Score löschen"
+ },
+ "about": [
+  "LaserTank ist Helpware und du bekommst es umsonst.\n\nWenn du ein erfahrener Spieler geworden bist, schreibe mit dem Editor ein oder mehrere neue Level und schicke sie uns, zusammen mit einer Aufzeichnung der Lösung.\n\n",
+  "Die Level-Dateien werden immer mal wieder mit allen guten neuen Leveln ergänzt, die eingeschickt wurden. Siehe auch \"Eigene Level schreiben\" und \"Aufzeichnen und wiedergeben\" in der Hilfe-Datei.\n\n(Bitte sei erfinderisch und kopiere keine Level, die es schon gibt).\n\n",
+  "(Es gibt schon sehr viele Level auf der LaserTank-Website).\n\n",
+  "Wenn du einen der High Scores verbessert hast, überzeuge dich, dass ",
+  "deine Global High Score-Liste auf dem neusten Stand ist und schicke ",
+  "uns die LPB-Datei mit der Lösung.\n\n",
+  "Schicke deine E-Mail an : lasertank@globetrotter.net\n\n",
+  "Mehr Level, die aktuellen Global High Score-Listen und Grafik-Dateien ",
+  "findest du auf der LaserTank-Website : \n",
+  "   http://www.jccontrols.net/laser\n\n",
+  "Für weitere Tips und Informationen schau mal in die Yahoo-Gruppe rein :\n",
+  "   http://groups.yahoo.com/lasertank\n"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "Spiel",
+    "items": [
+     {
+      "text": "Neu",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "Level öffnen...",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "Nächstes Level",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "Vorheriges Level",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "Zuletzt gespieltes Level",
+      "cmd": 118,
+      "accel": "<-"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Level-Datei laden...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "High Scores...",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "Global High Score-Liste...",
+      "cmd": 906,
+      "accel": "G"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Level aufzeichnen",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "Aufzeichnung speichern...",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "Aufzeichnung zusammenfassen...",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "Aufzeichnung wiedergeben...",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Spielfeld drucken...",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Beenden",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "Schritt",
+    "items": [
+     {
+      "text": "Anfang",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "Zurück",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "Position speichern",
+      "cmd": 111,
+      "accel": "Strg+C"
+     },
+     {
+      "text": "Position abrufen",
+      "cmd": 112,
+      "accel": "Strg+V"
+     },
+     {
+      "text": "Zusammenfassen",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "Optionen",
+    "items": [
+     {
+      "text": "Animation",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "Sound",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "Letztes Level merken",
+      "cmd": 109
+     },
+     {
+      "text": "Gelöste Level überspringen",
+      "cmd": 116
+     },
+     {
+      "text": "AutoAufnahme",
+      "cmd": 115
+     },
+     {
+      "text": "Warnungen deaktivieren",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Fenstergröße",
+      "items": [
+       {
+        "text": "Klein",
+        "cmd": 120
+       },
+       {
+        "text": "Mittel",
+        "cmd": 121
+       },
+       {
+        "text": "Groß",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "Schwierigkeitsgrade...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "Grafik auswählen...",
+      "cmd": 226,
+      "accel": "Strg+G"
+     }
+    ]
+   },
+   {
+    "text": "Editor [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "Hilfe",
+    "items": [
+     {
+      "text": "Tipp",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Index",
+      "cmd": 902
+     },
+     {
+      "text": "Schnelle Hilfe",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "Revisions",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Über LaserTank",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "Editor",
+    "items": [
+     {
+      "text": "Feld räumen",
+      "cmd": 601,
+      "accel": "Strg+C"
+     },
+     {
+      "text": "Level öffnen...",
+      "cmd": 602,
+      "accel": "Strg+L"
+     },
+     {
+      "text": "Level speichern",
+      "cmd": 603,
+      "accel": "Strg+S"
+     },
+     {
+      "text": "Level speichern als...",
+      "cmd": 606
+     },
+     {
+      "text": "Beenden",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "Tipp",
+    "cmd": 605
+   },
+   {
+    "text": "Verschieben ",
+    "items": [
+     {
+      "text": "Rechts",
+      "cmd": 710,
+      "accel": "Strg+Richtung"
+     },
+     {
+      "text": "Links",
+      "cmd": 711
+     },
+     {
+      "text": "Hoch",
+      "cmd": 712
+     },
+     {
+      "text": "Runter",
+      "cmd": 713
+     }
+    ]
+   },
+   {
+    "text": "Editor schließen [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "Schwierigkeit",
+    "items": [
+     {
+      "text": "Kids",
+      "cmd": 701
+     },
+     {
+      "text": "Einfach ",
+      "cmd": 702
+     },
+     {
+      "text": "Mittel",
+      "cmd": 703
+     },
+     {
+      "text": "Hart",
+      "cmd": 704
+     },
+     {
+      "text": "Tödlich",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "Hilfe",
+    "items": [
+     {
+      "text": "Editor",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "Eigene Level schreiben",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Über LaserTank",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,507 @@
+{
+ "code": "Du",
+ "name": "Dutch (95% complete)",
+ "author": "Ron Meijer",
+ "sourceEncoding": "cp1252",
+ "sourceLines": 239,
+ "buttons": {
+  "ButText1": "Undo",
+  "ButText2": "Positie Opslaan",
+  "ButText3": "Herstel Positie",
+  "ButText4": "Nieuw",
+  "ButText5": "<< Spel",
+  "ButText6": "Spel >>",
+  "ButText7": "Hint",
+  "ButText8": "Herstart",
+  "ButText9": "Open het Spel"
+ },
+ "text": {
+  "txt001": "The Level file can not be found\nPlease select a new one",
+  "txt002": "Spel Bestanden (*.LVL)",
+  "txt004": "Gebruik alleen LaserTank Level Bestanden",
+  "txt005": "Playback Bestanden (*.LPB)",
+  "txt006": "Save Playback File",
+  "txt007": "LaserTank Fout",
+  "txt008": "Oude Hoogste Score > B:",
+  "txt009": "B: ",
+  "txt010": " S: ",
+  "txt011": " I: ",
+  "txt012": "Gefeliciteerd Je hebt hem verslagen !!",
+  "txt013": "Playback Bestand : ",
+  "txt014": "\nRecord Maker",
+  "txt015": "\nCan Not be found in the current level file\n< ",
+  "txt016": "Wil je blijven opnemen?",
+  "txt017": "&Speel",
+  "txt018": "&Pauze",
+  "txt019": "Out of Memory - Undo Roll Over",
+  "txt020": "Open Playback bestand",
+  "txt021": "LaserTank Hint",
+  "txt022": "Spel NIET OPGESLAGEN, Bestand Opslaan ?",
+  "txt023": " - Kinderen",
+  "txt024": " - Eenvoudig",
+  "txt025": " - Middel",
+  "txt026": " - Heftig",
+  "txt027": " - Dodelijk",
+  "txt028": " - [Bewerker]",
+  "txt029": "LaserTank Bewerker",
+  "txt031": "Kan niet gevonden worden in het huidige bestand",
+  "txt032": "spel.bmp en/of masker.bmp Niet Gevonden",
+  "txt033": "Open Afspeel bestand voor vervolg",
+  "txt034": "Te&rug naar het Spel",
+  "txt035": "< GEEN HINT VOOR DIT SPEL BIJGELEVERD >",
+  "txt036": "LaserTank Spel #",
+  "txt037": "Zoek LaserTank Grafisch Bestands-map",
+  "txt038": "Spel Loopt ...",
+  "txt039": "Je verliest de Spel Gegevens.\nWil je het Spel Opslaan ?",
+  "txt040": "Beat",
+  "txt041": "Alles",
+  "txt042": "Completed %d of %d levels",
+  "txt043": "Difficulty Set = ",
+  "txt044": "KEMHD",
+  "txt045": "LaserTank Graphics file Not Found !",
+  "REC_Title": " LaserTank *** OPNAME ***",
+  "help01": "Editor Instructions",
+  "help02": "Revisions",
+  "help03": "Writing Your Own Levels",
+  "HelpFileName": "Language\\LaserTankDu.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "Over LaserTank",
+  "ID_ABOUTBOX_OK": "&Ok",
+  "ID_ABOUTBOX_04": "By Jim Kindley",
+  "ID_ABOUTBOX_06": "Versie",
+  "ID_DEADBOX_UNDO": "Ter&ug laatste zet",
+  "ID_DEADBOX_DEAD": "JE BENT DOOD ! ! !",
+  "ID_DEADBOX_RESTART": "Te&rug Begin",
+  "ID_DIFFBOX_00": "Spel Moeilijkheid",
+  "ID_DIFFBOX_01": "&Ok",
+  "ID_DIFFBOX_02": "&Kinderen",
+  "ID_DIFFBOX_03": "&Eenvoudig",
+  "ID_DIFFBOX_04": "&Middel",
+  "ID_DIFFBOX_05": "&Heftig",
+  "ID_DIFFBOX_06": "&Dodelijk",
+  "ID_DIFFBOX_07": "&Alle",
+  "ID_DIFFBOX_08": "Zoek uit",
+  "ID_GRAPHBOX_00": "Selecteer Grafisch Bestand",
+  "ID_GRAPHBOX_01": "Selecteer:",
+  "ID_GRAPHBOX_02": "&Bestaand Grafische",
+  "ID_GRAPHBOX_03": "&Eigen Grafische",
+  "ID_GRAPHBOX_04": "&Sluit",
+  "ID_GRAPHBOX_05": "Maker :",
+  "ID_GRAPHBOX_06": "LaserTank Grafische Achtergrond",
+  "ID_GRAPHBOX_08": "Bekijk &Openings Beeld",
+  "ID_GRAPHBOX_09": "&Verander Bestand",
+  "ID_LOADLEV_00": "Zoek Spel om te Openen",
+  "ID_LOADLEV_01": "&Herstel",
+  "ID_LOADLEV_03": "&Filter",
+  "ID_LOADLEV_04": "  Bestand:",
+  "ID_LOADLEV_05": "- Fout met het Openen -",
+  "ID_LOADLEV_06": "Spel   Naam                           Maker",
+  "ID_LOADLEV_07": "of Spel nummer intoetsen >>",
+  "ID_HINTBOX_00": "Maak je Hint",
+  "ID_HINTBOX_01": "&Ok",
+  "ID_HINTBOX_02": "&Herstel",
+  "ID_SEARCH_00": "Filter voor Spelletjes",
+  "ID_SEARCH_01": "Vul Zoekopdracht in :",
+  "ID_SEARCH_02": "Zoek Bij",
+  "ID_SEARCH_03": "&Titel",
+  "ID_SEARCH_04": "M&aker",
+  "ID_SEARCH_05": "&Herstel",
+  "ID_SEARCH_06": "&Ok",
+  "ID_SEARCH_08": "Alleen &Onopgeloste",
+  "ID_SEARCH_09": "&Filter moeilijkheid",
+  "ID_SEARCH_10": "&Kinderen",
+  "ID_SEARCH_11": "&Eenvoudig",
+  "ID_SEARCH_12": "&Middel",
+  "ID_SEARCH_13": "&Heftig",
+  "ID_SEARCH_14": "&Dodelijk",
+  "ID_RETBOX_00": "Te&rug naar het Spel",
+  "ID_WINBOX_00": "&Ok",
+  "ID_WINBOX_01": "Je wint!",
+  "ID_WINBOX_02": "Spel:",
+  "ID_WINBOX_03": "- Fout -",
+  "ID_LOADTID_00": "Zoek Soort Tunnel #",
+  "ID_LOADTID_03": "&Ok",
+  "ID_LOADTID_04": "Toets Nummer voor deze Tunnel in",
+  "ID_HIGHBOX_00": "! Nieuwste Record !",
+  "ID_HIGHBOX_01": "&Ok",
+  "ID_HIGHBOX_02": "Spel Nummer :",
+  "ID_HIGHBOX_03": "Spel Naam   :",
+  "ID_HIGHBOX_04": "Zet:",
+  "ID_HIGHBOX_05": "Schot:",
+  "ID_HIGHBOX_10": "Initialen:",
+  "ID_HIGHBOX_12": "Wereld Rec:",
+  "ID_HIGHBOX_13": "- No Data -",
+  "ID_HIGHLIST_00": "Hoogste Punten",
+  "ID_HIGHLIST_01": "&Ok",
+  "ID_HIGHLIST_02": "- Fout met Openen -",
+  "ID_HIGHLIST_03": "Spel  Naam                        Beweging Schot Initialen",
+  "ID_GHIGHLIST_00": "Wereld Record",
+  "ID_GHIGHLIST_01": "&Ok",
+  "ID_GHIGHLIST_02": "Spel  Naam                             B      S   Init   B     S  Init",
+  "ID_GHIGHLIST_03": "Wereld",
+  "ID_GHIGHLIST_04": "JIJ",
+  "ID_GHIGHLIST_05": "- geen Data -",
+  "ID_GHIGHLIST_06": "&Beste",
+  "ID_RECBOX_00": "Opname Spel",
+  "ID_RECBOX_01": "Hier je naam invullen",
+  "ID_RECBOX_02": "&Ok",
+  "ID_PLAYBOX_00": "Spel Afspelen",
+  "ID_PLAYBOX_01": "S&luit",
+  "ID_PLAYBOX_02": "S&peel",
+  "ID_PLAYBOX_03": "&Opnieuw",
+  "ID_PLAYBOX_04": "&Snel",
+  "ID_PLAYBOX_05": "&Rustig",
+  "ID_PLAYBOX_06": "S&tap",
+  "ID_PLAYBOX_07": "Stap :",
+  "ID_PLAYBOX_08": "van",
+  "ID_PLAYBOX_11": "Snelheid",
+  "ID_PICKLEVEL_00": "Sla LaserTank Spel Op",
+  "ID_PICKLEVEL_01": "&Ok",
+  "ID_PICKLEVEL_02": "Toets het Spel-nummer in",
+  "ID_PICKLEVEL_03": "Als :",
+  "ID_PICKLEVEL_06": "= Add",
+  "ID_PICKLEVEL_08": "S&choonmaken punten"
+ },
+ "about": [
+  "     Laser Tank is HelpWare en je kunt het gratis gebruiken.\n\n",
+  "     Nadat je een geoefend speler bent geworden, zou je misschien een of twee spelletjes (Levels) willen maken, met gebruikmaking van de Level Editor en ze dan naar ons toesturen met je playback (LPB files).\n\n",
+  "     We zullen de software en alle goede spelletjes die toegezonden zijn zo nu en dan bijwerken (\"updaten\"). Zie:\"je eigen spelletjes maken\" en \"opnemen & afspelen\"in het help file.\n\n",
+  "     (Wees alstjeblieft inventief en probeer niet datgene dat al bestaat te imiteren.)\n",
+  "     (Er zijn al zo veel spelletjes te vinden op de LaserTank WEB site.)\n\n",
+  "     Als U één van de High Scores verslagen heeft en U heeft het meest recente Wereld record, de Global High Score file, stuur me dan een zip met de playbacks van dit nummer en het LaserTank.hs bestand.\n\n",
+  "     U kunt me de bestanden e-mailen naar:\n",
+  "\t      lasertank@globetrotter.net\n\n",
+  "     Voor nieuwe levels, andere grafisch bewerkingen & de meest recente Global High Score file, kijk bij:\n",
+  "     LaserTank WEB site:\n",
+  "        http://www.jccontrols.net/laser\n",
+  "     For Help or more info about this game join or check out the Yahoo Group at :\n",
+  "        http://groups.yahoo.com/lasertank\n"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "&Spel",
+    "items": [
+     {
+      "text": "&Nieuw",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "Open Spe&l...",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "&Sla Spel over",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "S&pel Hiervoor",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "Laast Gespeel&de Spel",
+      "cmd": 118,
+      "accel": "BkSp"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Open Bestand...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Voor Jouw Hoogste Punten",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "&Gehele Wereld Punten",
+      "cmd": 906,
+      "accel": "G"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Record (Opname) Spel",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "Bew&aar Recording",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "Herstart Re&cording",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "Play&back (Afspelen) Spel...",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Uitpr&inten Spelveld",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Afsluit&en",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&Zet",
+    "items": [
+     {
+      "text": "He&rstart",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "Ter&ug Laatste Zet/Schot",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "&Sla Positie op",
+      "cmd": 111,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Herstart &Positie",
+      "cmd": 112,
+      "accel": "Crtl+V"
+     },
+     {
+      "text": "Afspelen (RePla&y)",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "&Mogelijkheden",
+    "items": [
+     {
+      "text": "&Animatie",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "Gelui&den",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "&Registreer Laatste Spel",
+      "cmd": 109
+     },
+     {
+      "text": "Sla Voltoo&id Spel over",
+      "cmd": 116
+     },
+     {
+      "text": "Au&tomatisch Opnemen",
+      "cmd": 115
+     },
+     {
+      "text": "Zet &Waarschuwingen uit",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Gr&ootte",
+      "items": [
+       {
+        "text": "&Klein",
+        "cmd": 120
+       },
+       {
+        "text": "&Middel",
+        "cmd": 121
+       },
+       {
+        "text": "&Groot",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "Verander Moeilijkhei&d...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "Verander &Grafisch ...",
+      "cmd": 226,
+      "accel": "Ctrl+G"
+     }
+    ]
+   },
+   {
+    "text": "B&ewerker [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "&Help",
+    "items": [
+     {
+      "text": "&Hint",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Index",
+      "cmd": 902
+     },
+     {
+      "text": "&Quick Hulp",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "Ove&rzicht",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Alles van het Spel",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "B&ewerker",
+    "items": [
+     {
+      "text": "Terrein S&choonmaken",
+      "cmd": 601,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Spe&l Openen...",
+      "cmd": 602,
+      "accel": "Ctrl+L"
+     },
+     {
+      "text": "&Spel Opslaan",
+      "cmd": 603,
+      "accel": "Ctrl+S"
+     },
+     {
+      "text": "Opslaan &Als...",
+      "cmd": 606
+     },
+     {
+      "text": "Afsluit&en",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&Hint",
+    "cmd": 605
+   },
+   {
+    "text": "&Shift",
+    "items": [
+     {
+      "text": "&Rechts",
+      "cmd": 710,
+      "accel": "Ctrl+Richting"
+     },
+     {
+      "text": "&Links",
+      "cmd": 711
+     },
+     {
+      "text": "&Boven",
+      "cmd": 712
+     },
+     {
+      "text": "Bene&den",
+      "cmd": 713
+     }
+    ]
+   },
+   {
+    "text": "&Sluit Bewerker [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "Moeilijkhei&d",
+    "items": [
+     {
+      "text": "&Kinderen",
+      "cmd": 701
+     },
+     {
+      "text": "&Eenvoudig",
+      "cmd": 702
+     },
+     {
+      "text": "&Middel",
+      "cmd": 703
+     },
+     {
+      "text": "&Heftig",
+      "cmd": 704
+     },
+     {
+      "text": "&Dodelijk",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "&Help",
+    "items": [
+     {
+      "text": "B&ewerker",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "Spelletjes ont&werpen",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Alles van het Spel",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

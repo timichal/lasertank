@@ -72,6 +72,11 @@ namespace LaserTank.Game
         private Session _s;
         private Atlas _atlas;
         private Options _opt;
+
+        /// The UI strings, converted from the original's ten Language.dat files
+        /// (Core/Language.cs).  Read through `Strings`, never directly.
+        private Language _lang;
+        private LanguageMenu _langMenu;
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
         private GraphicsMenu _menu;
@@ -122,6 +127,20 @@ namespace LaserTank.Game
                 GetTree().Quit(Step4Check.CheckScores(cs));
                 return;
             }
+            // Step 6's two, on the same terms: no INI, no pack, no level, and
+            // safe to run eight at a time.  --check-lang goes through _lang and
+            // the Strings property, so it reads what a label would read.
+            if (ArgStr(args, "--check-lang") is string clg)
+            {
+                _lang = LoadLanguage(clg);
+                GetTree().Quit(Step6Check.CheckLang(clg, _lang));
+                return;
+            }
+            if (ArgStr(args, "--check-lang-ini") is string cli)
+            {
+                GetTree().Quit(Step6Check.CheckLangIni(cli));
+                return;
+            }
 
             // The tick rate is a project setting, so a stale project.godot
             // would silently play the game at 60 Hz.  Fail loudly instead.
@@ -166,6 +185,13 @@ namespace LaserTank.Game
             // the same arrangement --pack and --zoom have.  The player's way in
             // is the S key, which is command 102.
             bool? soundArg = ParseYesNo(ArgStr(args, "--sound"));
+
+            // The language before anything that could want a label.  --lang
+            // overrides the INI for this run only, the way --pack and --zoom do;
+            // the player's way in is Ctrl+L, which has no command id in the
+            // original because the original has no such dialog (Options.PsLang).
+            _lang = LoadLanguage(ArgStr(args, "--lang") ?? _opt.LanguageCode);
+            _langMenu = new LanguageMenu(this);
 
             _packs = Packs.Scan(_opt.GraphicsDir);
             _menu = new GraphicsMenu(this);
@@ -365,6 +391,14 @@ namespace LaserTank.Game
                 Resize();
             }
 
+            // `--open-lang` puts the picker up before the frame is captured,
+            // so `--shot` can show the panel.  A dialog that only a keystroke
+            // can open is otherwise unphotographable, and step 2's lesson --
+            // measure pixels, do not look at them -- needs a pixel to measure.
+            if (Array.IndexOf(args, "--open-lang") >= 0)
+                _langMenu.Show(Language.Available(Paths.Data(Language.DirName)),
+                               Strings.Code);
+
             string shot = ArgStr(args, "--shot");
             if (shot != null)
             {
@@ -485,6 +519,49 @@ namespace LaserTank.Game
             if (_pack != null) _opt.SetGraphics(_pack.Mode, _pack.File);
         }
 
+        /// `data/language/<code>.json`, with the base language behind it.
+        ///
+        /// Complains once and carries on when the directory is missing: a port
+        /// with no strings should say so rather than crash on the first label,
+        /// and `[ID_WINBOX_03]` on screen is a clearer bug report than a stack
+        /// trace out of _Draw.
+        private static Language LoadLanguage(string code)
+        {
+            string dir = Paths.Data(Language.DirName);
+            Language got = Language.Load(dir, code);
+            if (got == null)
+                GD.PrintErr("no languages under " + dir
+                            + " -- run: python tools/convert_language.py");
+            return got;
+        }
+
+        /// Every label on screen goes through here.
+        ///
+        /// Never null once _Ready has run: Language.Load falls back to the base
+        /// language for an unknown code and Strings falls back again to an empty
+        /// one if data/language/ is missing outright, so a label is at worst
+        /// `[ID_WINBOX_03]` and never a NullReferenceException in the middle of
+        /// a draw.  `--check-lang` reads this same property, which is the point
+        /// of it being a property.
+        internal Language Strings => _lang ?? Language.Empty;
+
+        /// The language picker's live preview, and step 6's whole apply path.
+        /// Nothing is reloaded but the strings -- no sheet, no level, no tick --
+        /// because nothing else depends on them.
+        internal void ApplyLanguage(string code)
+        {
+            Language got = Language.Load(Paths.Data(Language.DirName), code);
+            if (got != null) _lang = got;
+            QueueRedraw();
+        }
+
+        /// The picker's Close, on GraphBox's terms: there is no Cancel, so
+        /// leaving persists the language that is already on screen.
+        internal void PersistLanguage()
+        {
+            if (_lang != null) _opt.SetLanguage(_lang.Code);
+        }
+
         /// SetGameSize (LTANK2.C:1729), less the window furniture: sizes 1..3,
         /// persisted to [SCREEN] Size on the spot as it does.
         internal void SetSize(int size)
@@ -591,6 +668,15 @@ namespace LaserTank.Game
                 return;
             }
 
+            // The language picker, on exactly the same terms as the graphics
+            // one -- modal for keys, not for the clock.  See LanguageMenu.
+            if (_langMenu != null && _langMenu.Open)
+            {
+                _langMenu.Key(k.Keycode);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
             // Same for the level picker and the two score lists.  On Enter they
             // hand back a level number, which is `EndDialog(Dialog, i + 100)`
             // and the `if (i > 100)` that meets it (LTANK.C:910).
@@ -670,7 +756,7 @@ namespace LaserTank.Game
             switch (k.Keycode)
             {
                 // ---- levels -------------------------------------------------
-                case Key.L: OpenList(ListMode.Levels); break;         // 106
+                case Key.L when !ctrl: OpenList(ListMode.Levels); break;   // 106
                 case Key.S: _s?.Load(_s.Level + 1); break;            // 107
                 case Key.P: _s?.Load(_s.Level - 1); break;            // 119
                 case Key.Bracketright: _s?.Load(_s.Level + 1); break; // ours
@@ -711,6 +797,14 @@ namespace LaserTank.Game
                 // ---- options ------------------------------------------------
                 // Command 226, the Options menu's "Graphics" (LTANK.C:1122).
                 case Key.G when ctrl: _menu.Show(_packs, _pack); break;
+                // Step 6's picker.  No command id: the original has no such
+                // dialog, and Ctrl+L is free in ACC1 -- L alone is Load Level,
+                // and the editor's own Ctrl+L (602) is on ACC2, a different
+                // table that only applies while EditorOn.
+                case Key.L when ctrl:
+                    _langMenu.Show(Language.Available(Paths.Data(Language.DirName)),
+                                   Strings.Code);
+                    break;
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
@@ -768,6 +862,7 @@ namespace LaserTank.Game
         {
             if (!mb.Pressed) { _held = 0; return; }
             if (_menu != null && _menu.Open) return;
+            if (_langMenu != null && _langMenu.Open) return;
             if (_list != null && _list.Open) return;
             if (_s != null && _s.Pb.PanelUp) return;
 
@@ -851,13 +946,24 @@ namespace LaserTank.Game
             catch (Exception ex) { _error = ex.Message; }
         }
 
-        /// Command 123 (F5).  The original's checkmark is the window title
-        /// ("LaserTank *** RECORDING ***", txt046); here it is the HUD.
+        /// Command 123 (F5).  The original's checkmark is the window title --
+        /// `SetWindowText(MainH, REC_Title)` -- and step 6 made that reachable,
+        /// so it is the window title here too, and the HUD as well because a
+        /// title bar is easy to miss.  REC_Title leads with a space in all ten
+        /// files; that is the translators' own byte and it stays.
         private void ToggleRecording()
         {
             if (_s == null) return;
-            _error = _s.Rec2.Toggle() ? "recording" : "recording off";
+            bool on = _s.Rec2.Toggle();
+            _error = on ? "recording" : "recording off";
+            DisplayServer.WindowSetTitle(on ? Strings["REC_Title"].TrimStart()
+                                            : AppTitle);
         }
+
+        /// LT32L_US.H:10.  Not a language string: `App_Title` is a compile-time
+        /// constant in the original, outside the 240 lines, and none of the ten
+        /// files translates it.
+        private const string AppTitle = "LaserTank";
 
         /// Command 101, New Game (F2): back to the remembered level, or level 1.
         /// `LastLevel = CurLevel; CurLevel = 0; if (RLL) CurLevel = [DATA]
@@ -944,6 +1050,7 @@ namespace LaserTank.Game
             var board = new Rect2(Margin, Margin, 16 * Cell, 16 * Cell);
             _edit?.Draw(this, font, _atlas);
             if (_menu.Open) _menu.Draw(this, font, board);
+            if (_langMenu.Open) _langMenu.Draw(this, font, board, Strings);
             if (_list.Open) _list.Draw(this, font, _mono, board);
             if (_s.Pb.PanelUp) DrawPlaybackPanel(font, board);
         }
@@ -1109,9 +1216,9 @@ namespace LaserTank.Game
                 return _s.Pb.Open ? "playback reached the flag"
                                   : "SOLVED -- Enter for the next level, F6 saves it";
             string s = "SOLVED";
-            if (r.Global) s += " -- Congratulation's You beat it !!";
+            if (r.Global) s += " -- " + Strings["txt012"];
             else if (r.Personal) s += " -- your best yet";
-            else s += " -- your best stands at " + HighScores.Describe(r.Old);
+            else s += " -- your best stands at " + HighScores.Describe(r.Old, Strings);
             if (r.Target != null && !r.Global)
                 s += "   (par " + r.Target.Moves + "/" + r.Target.Shots + ")";
             if (r.Error != null) s += "   [.hs not written: " + r.Error + "]";
@@ -1134,9 +1241,13 @@ namespace LaserTank.Game
             float y = panel.Position.Y + 17;
 
             // txt013 + LName + txt014 + Author: "Playback Level : " and
-            // "\nRecorded by " (LANGUAGE.C:54).
+            // "\nRecorded by " (LANGUAGE.C:54), now out of the loaded language.
+            // txt014 leads with a newline because the original builds a
+            // MessageBox body out of these four pieces; this is one line on a
+            // panel, so the newline is turned into the spacing it stands for.
             DrawString(font, new Vector2(x, y),
-                       $"Playback Level : {pb.Rec.LName}   Recorded by {pb.Rec.Author}",
+                       Strings["txt013"] + pb.Rec.LName + "  "
+                       + Strings["txt014"].Replace("\n", " ") + pb.Rec.Author,
                        HorizontalAlignment.Left, w, 13, Colors.White);
             // ID_PLAYBOX_09 / _10: the count of keys played, over the total.
             DrawString(font, new Vector2(x, y + 18),
@@ -1206,8 +1317,14 @@ namespace LaserTank.Game
                 : _s.Now switch
                 {
                     Session.State.Won => (WinLine(), Colors.LightGreen),
-                    Session.State.Dead => ("DEAD -- U undoes the last move, R restarts",
-                                           Colors.OrangeRed),
+                    // ID_DEADBOX_DEAD is the dialog's own headline ("YOU ARE
+                    // DEAD ! ! !"); the two keys after it are this port's
+                    // legend, because DeadBox offers them as buttons and there
+                    // are no buttons here.
+                    Session.State.Dead =>
+                        (Strings["ID_DEADBOX_DEAD"]
+                         + " -- U undoes the last move, R restarts",
+                         Colors.OrangeRed),
                     _ => (_error ?? "", Colors.Yellow),
                 };
             if (what != "")
@@ -1231,6 +1348,7 @@ namespace LaserTank.Game
                 "L levels  V scores  G global  S/P next/prev  ctrl+G gfx",
                 "F5 rec  F6 save  F7 play  F4 replay  F8 auto-rec",
                 "Z size  I smooth  N sound  A anim  F9 editor  Esc quit",
+                "ctrl+L language",
             };
             for (int i = 0; i < legend.Length; i++)
                 DrawString(font, new Vector2(Margin, y + 56 + 16 * i), legend[i],

@@ -40,12 +40,16 @@ namespace LaserTank.Game
 
     public sealed class LevelList
     {
-        // IDM_LOADLEV_00, IDM_HIGHLIST_00, IDM_GHIGHLIST_00 (LT32L_US.H).
-        private static readonly Dictionary<ListMode, string> Titles = new()
+        // ID_LOADLEV_00, ID_HIGHLIST_00, ID_GHIGHLIST_00 (LT32L_US.H).  Step 6
+        // took the English out: these are now the keys, and the caption comes
+        // from the loaded language.  The Levels one also stops saying "Select a
+        // Level" and starts saying what the original's dialog says, which is
+        // "Pick Level to Load".
+        private static readonly Dictionary<ListMode, string> TitleKeys = new()
         {
-            [ListMode.Levels] = "Select a Level",
-            [ListMode.MyScores] = "High Scores",
-            [ListMode.GlobalScores] = "Global High Scores",
+            [ListMode.Levels] = "ID_LOADLEV_00",
+            [ListMode.MyScores] = "ID_HIGHLIST_00",
+            [ListMode.GlobalScores] = "ID_GHIGHLIST_00",
         };
 
         /// DifCList (LTANK_D.C:24), which is COLORREF -- 0x00BBGGRR, so the
@@ -288,7 +292,8 @@ namespace LaserTank.Game
             float y = panel.Position.Y + Pad_ + 12;
 
             n.DrawString(font, new Vector2(x, y),
-                         $"{Titles[Mode]}   {_fileLabel}   ({_rows.Length})",
+                         $"{_view.Strings[TitleKeys[Mode]]}   {_fileLabel}   "
+                         + $"({_rows.Length})",
                          HorizontalAlignment.Left, w, 14, Colors.White);
             y += Line + 5;
 
