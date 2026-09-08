@@ -8,7 +8,8 @@ is about the *game*.
 them, all with a non-zero `.ghs` entry and therefore all known-solvable — mostly for the sake of
 proving it can be done.** No public automated LaserTank solver does this. That is the point of the
 project's second half, and every layer below is a measured step toward it; the current honest number
-is **11.3% of a 4,185-level sample** and the whole of the interesting work is in the 3,700-level tail.
+is **11.8% of a 4,185-level sample** (494 levels, session 27) and the whole of the interesting work
+is in the 3,691-level tail.
 
 Two useful side effects, secondary but real:
 
@@ -104,7 +105,11 @@ These are the reason the numbers in this file can be trusted.
 
 - **Bench on the corpus, not on a filtered population.** `bench/bench-levels.txt` is levels
   layer 0 failed. It flattered layers 1 and 2, overstated layer 3's budget scaling and *understated*
-  layer 4. A bench picks parameters; only a campaign decides what ships.
+  layer 4. A bench picks parameters; only a campaign decides what ships. **And a bench
+  over-reports *complementarity* as readily as strength** — session 27 measured `--push-eval none`
+  at +6 on the ferry union and +4 on the deep one, the signature that makes layer 7 the best arm of
+  the fourth pass, and over 255 corpus levels it came back the weakest arm of six with one exclusive
+  level. Two independent fifty-level lists agreeing is not a population.
 - **Govern by `--nodes`, never wall clock.** A node is one `Engine.ApplyKey`. Seconds are not
   reproducible on a machine that is also running the gates. (The first campaign was wall-clock
   budgeted and had to be thrown away.)
@@ -146,7 +151,7 @@ These are the reason the numbers in this file can be trusted.
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
-| The fourth pass, rehearsed | **82 of 250 (32.8%)** of the levels the chain fails, as the **union of five arms at 40M nodes** on a 1-in-15 stride of the whole failure population — session 26, 269 of 269 solutions through the two-engine gate. No single arm scores above **61 (24.4%)**, so the pass is a chain of arms rather than a configuration. *Next actions* item 2 |
+| The fourth pass, rehearsed | **84 of 255 (32.9%)** of the levels the chain fails, as the **union of six arms at 40M nodes** on a 1-in-15 stride of the whole failure population — session 26's five plus session 28's `none`, 306 of 306 solutions through the two-engine gate. No single arm scores above **61 (23.9%)**, so the pass is a chain of arms rather than a configuration; **the three that ship are 81 (31.8%)** and the other three are worth +3 between them for ~54 h. *Next actions* item 2 |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/` (any one of them may be temporarily deleted for a manual re-run — see *Next actions*, item 3, and the shorter files for 8 and 9 it lists); **6 and 10 open**, and 10 is no longer a budget case — two 900M-node runs came back unsolved at depth 2 |
 
 *One number moved for a reason worth knowing before trusting the rest: the ferry bench is **19/50**
@@ -224,12 +229,42 @@ attack on it.
 
 ## Next actions
 
-> **The state of the tree and of `build/`, as session 27 left it.** Read this before running
-> anything, because two of the names below changed meaning.
+**What is open, and what each one costs.** Items 1, 9 and 12 are done. Of the rest, three are
+worth the machine and the other three are cheap:
+
+| | what it is | cost | why now |
+|---|---|---|---|
+| **2** | the fourth pass, three arms over the whole failure population | **~54 h**, one arm at a time | rehearsed twice, recipe final, biggest single result available (~1,172 levels extrapolated) |
+| **7** | the solved-vs-budget curve, three budgets over the short-record failures | comparable to one arm per budget | the production number the project is measured by; never run above 150k on purpose |
+| **8** | one traced level-10 run | ~1 h at `--jobs 1` | settles a contradiction between sessions 23 and 26 before anything is built for that level |
+| 3 | re-polish the banked solutions | ~150 s | free, and layer 4 is fit on those trajectories |
+| 10, 11 | wall clock: profile then memoise `PushH`; the closure-dominance prune | code, instrument first | 166k nodes/s against layer 0's 1.4M is the tax on every push run above |
+| 5 | levels 6 and 10 | needs item 8 first | 10 is item 8; 6 wants a decomposition |
+
+**Run 8 before 2** if the machine is free for an hour: it is the only one that can change what the
+other two are for, and it is an hour against 54. **Run 7 before 2** if the question is the
+production number rather than what layer 5 adds -- they attack the same population from opposite
+ends, and item 2's own note says so.
+
+> **The state of the tree and of `build/`, as session 28 left it.**
 >
-> * **Session 27's code changes are in the working tree and not committed.** Michal writes the git
->   history; the solver is built and published (`build/lasertank-solve.exe`), and `bench/seed-weights.txt`
->   is a new untracked file that belongs in the next commit with the rest.
+> * **Session 28's changes are in the working tree and not committed** -- `SOLVER.md`, `Auto.cs`,
+>   `Program.cs`. Michal writes the git history. Session 27's are committed (`594c63c`), so the
+>   note below about *its* changes being unstaged is history and not the current state.
+> * **`build/` is rebuilt and published** (`bash src/build.sh`), so `build/lasertank-solve.exe`
+>   carries `--max-round` and `--max-keys-record`. Both are **off by default** and no number
+>   measured before this session changes.
+> * **The `none` arm is `build/reports/l5-s15-l8none.jsonl`**, solutions in `build/l5-s15/l8none`
+>   (37, all gated), beside session 26's five as `build/reports/l5-s15-*.jsonl` -- that is the
+>   prefix `arms_union.py` wants, and **`chain-s25.jsonl`** (the 476 chain) is the report all six
+>   arms were pointed at. The full run in item 2 points at `chain.jsonl` (494) instead, which is
+>   why its numbers will not be comparable with the rehearsal's arm-by-arm.
+
+> **The state of `build/` as session 27 left it**, which is still what these names mean. Read it
+> before running anything, because two of them changed meaning in that session.
+>
+> * *(Session 27's own "not committed" note is retired: that work is `594c63c`, `bench/seed-weights.txt`
+>   included.)*
 > * **`build/reports/` is rebuilt under the recipe's own names**: `l0.jsonl`, `l3c.jsonl` (the
 >   `--sg-eval coarse` pass, 73), `l34.jsonl` (`--sg-eval learned`, 20), `l34pass4.jsonl` (macro, 3),
 >   and **`chain.jsonl` = 494**. Session 25's four are kept beside them as `*-s25.jsonl` — note that
@@ -319,7 +354,11 @@ Three things in that table, in the order they change what to run:
   is a different searcher of the same strength, and the pair is worth a quarter more than either.
   **The three-arm fourth pass in item 2 should be benched with a `none` arm before it is started**;
   it is the cheapest arm in the set to add and the only one with evidence of complementarity from
-  two independent lists.
+  two independent lists. ***Session 28 ran that rehearsal and the transfer failed***: over the
+  fourth pass's 255 corpus levels `none` is **37 solo, the weakest of six arms**, and **+2** on the
+  three-arm union with one exclusive level. The bullet above is a true statement about the two
+  benches and a false prediction about the corpus — see item 2, and rule 1 at the top, which this
+  is now the sharpest example of.
 * **`none` does not buy back the wall clock, and that kills half of item 10's motivation.** 171k
   nodes/s against `work`'s 173k and `coarse`'s 163k. The tiers still need everything `PushH`
   derives — the flag Dijkstra, the fire map, the matching, `_lastDead` — so H = 0 turns off the
@@ -386,28 +425,43 @@ open question was never *whether* layer 5 pays but *how much of the corpus is wo
 One push expansion is a whole closure, so this is the one pass budgeted in tens of millions of nodes
 rather than hundreds of thousands.
 
-**All five arms have now been run at `SAMPLE=15`** — a 1-in-15 stride over the whole 3,709-level
-failure population, 250 levels every arm was given, `NODES=40000000 BUDGET_MS=1800000 JOBS=16`,
+**All five arms were run at `SAMPLE=15`** — a 1-in-15 stride over the 476 chain's whole 3,709-level
+failure population, **255** levels every arm was given, `NODES=40000000 BUDGET_MS=1800000 JOBS=16`,
 each arm on the whole machine in turn. **269 of 269 solutions through the two-engine gate, zero
-divergences.**
+divergences** — and session 28 added a sixth arm on the same 255 levels, `$L8 --push-eval none`,
+37 more solutions, also all gated. **The table immediately below is session 26's five, with the
+flags each was given; the sixth arm and the recomputed six-arm greedy order are in *Session 27
+asked for a fourth arm* further down. The pass ships the first three rows.**
 
 | arm | flags on top of `--no-ida --no-beam --push --push-read` | solo | only it solves | greedy union |
 |---|---|---:|---:|---|
-| layer 8, work key | the layer-8 set plus `--push-eval work` | **61** (24.4%) | 5 | 61 |
-| layer 7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` | 54 | **8** | +14 → 75 |
-| layer 6's fourth derivation | `--push-enables 8` | 52 | 2 | +5 → 80 |
-| layer 8, learned key | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` | 57 | 2 | +2 → 82 |
-| plain | — | 38 | **0** | **+0 → 82 (32.8%)** |
+| layer 8, work key | the layer-8 set plus `--push-eval work` | **61** (23.9%) | 5 | 61 |
+| layer 7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` | 55 | **9** | +15 → 76 |
+| layer 6's fourth derivation | `--push-enables 8` | 52 | 2 | +5 → 81 |
+| layer 8, learned key | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` | 57 | 2 | +2 → 83 |
+| plain | — | 38 | **0** | **+0 → 83 (32.5%)** |
+
+*(**Session 28 recomputed this table** from the five banked reports with `tools/arms_union.py`, and
+it moves by one or two everywhere: the population is **255**, not the 250 the session-26 text says,
+and every report on disk has 255 rows, so the union is **83 (32.5%)** and layer 7 is 55 solo with 9
+exclusive. Nothing was re-run and no conclusion changes -- the greedy order, the two dead arms and
+layer 7's complementarity are all as they were. The numbers below and in *Status* are the
+recomputed ones; a future `arms_union.py` over these files will print 255 and 83.)*
 
 *(Session 27: every arm here that does not say `--push-eval work` ran on the default key, which is
 now spelled `coarse` — the same searcher, so the table stands. What has changed is that there are
 now two more keys to put in it: `learned` at full resolution, and `none`, which on both benches is
-the most complementary of the four. See item 1.)*
+the most complementary of the four — and which session 28 then ran as a sixth arm, where it came
+back the weakest of the set. See item 1 for the benches and the table above for the corpus.)*
 
 Note the raised `--max-keys`: 1,200 is a silent cap on any level whose solution runs long, which is
-exactly the population this pass is.
+exactly the population this pass is. **Only two of the five arms carried it, and session 28 measured
+what that cost**: `Challenge-IV` 641 is banked at 1,764 and 1,876 keys by the two `--max-keys 5000`
+arms and is unreachable *in principle* by the other three, whose longest banked solutions are 623
+(`layer7`), 1,074 (`enables`) and 1,152 (`plain`) -- two of them within 15% of a cap they cannot
+cross. Run every arm of the full pass with `--max-keys 5000 --max-keys-record` (item 12).
 
-**The union is 82 of 250 (32.8%) where the file's fourth-pass argument rests on 5.9%.** Read the
+**The union is 83 of 255 (32.5%) where the file's fourth-pass argument rests on 5.9%.** Read the
 comparison honestly: the 15/255 was `Beginner-I` alone at ~4M nodes, this is all thirteen
 collections at 40M, so both the population and the budget differ and what it licenses is *40M buys
 much more than 4M*, not a 5.5x improvement in the searcher.
@@ -433,10 +487,11 @@ Four things the arms say that their solo counts do not:
   in greedy order on top of the best arm.
 
 What the rehearsal does **not** show, stated plainly: **`Hard` and `Deadly` are 0 of 21 in every
-arm**, so none of this touches the two tiers that have never fallen; and **98.8% of the 168 the
+arm**, so none of this touches the two tiers that have never fallen; and **98.8% of the 171 the
 union misses still stop on `budget`**, so even the best arm is nowhere near a structural ceiling at
-40M. Extrapolated to all 3,709 the union is ~1,216 levels and a composite near **1,690 of 4,185
-(~40%)** against 476 today — a stride-sample estimate, not a promise, and the sample is 250 levels.
+40M. Extrapolated over the 494 chain's 3,691 failures the three-arm union is **~1,172 levels** and
+the composite near **1,670 of 4,185 (~40%)** against 494 today — a stride-sample estimate, not a
+promise, and the sample is 255 levels.
 
 **The full run has not been started; it is a multi-day machine commitment.** Priced from the
 rehearsal rather than guessed: an unsolved level at 40M nodes costs a median **275 s** at 16 jobs
@@ -444,11 +499,58 @@ rehearsal rather than guessed: an unsolved level at 40M nodes costs a median **2
 jobs, so buying more jobs does not recover it). That is **~18 h per arm** over the full population,
 so the three-arm pass is **~54 h**.
 
-**Before starting it, add a fourth arm and re-price.** Session 27's push benches put `--push-eval
-none` at +6 on the ferry union and +4 on the deep one, from a solo score that never wins — the same
-signature layer 7 has, and layer 7 is the most complementary arm in the table above. An arm is
-~18 h, so the question is worth a `SAMPLE=15` rehearsal of `none` against the existing three
-before committing 54 hours to a set chosen without it.
+**Session 27 asked for a fourth arm before starting. Session 28 ran it, and the answer is no —
+the pass ships as three arms.** `--push-eval none` was the candidate because session 27's push
+benches put it at +6 on the ferry union and +4 on the deep one from a solo score that never wins,
+which is layer 7's signature exactly. Rehearsed at `SAMPLE=15` on the *same 255 levels* the four
+banked arms attacked (`chain-s25.jsonl`'s failures — the 494 chain's stride sample is a different
+253 levels and would have been comparable with nothing), same 40M / 16 jobs / 1,800 s, 2 h 15 m,
+**37 of 37 solutions through the two-engine gate:**
+
+| arm | solo | only it | greedy union |
+|---|---:|---:|---|
+| l8work | **61** (23.9%) | 5 | 61 |
+| layer7 | 55 | **8** | +15 → 76 |
+| enables | 52 | 2 | +5 → **81** |
+| **l8none — session 28** | **37** (14.5%) | **1** | **+2 → 83** |
+| l8learned | 57 | 1 | +1 → 84 |
+| plain | 38 | 0 | +0 → 84 (32.9%) |
+
+**37 solo is the worst of the six — below `plain`'s 38 — and +2 on the three-arm union is what
+`l8learned` was already worth.** The two levels it adds are `Gary-I` 1541 and `LaserTank` 161, and
+`l8learned` finds 161 too, so `none`'s unique contribution across all six arms is **one level**.
+An arm is ~18 h; +2 on a 255-level stride extrapolates to ~29 levels of the full population, and
+the three-arm pass is ~1,178. **Not worth it, and the reason is this file's first rule with a new
+face: a bench can *over*-report complementarity as readily as it over-reports strength.** The
+ferry and deep lists are fifty levels each and are made of layer-0 failures; `none` being the most
+complementary key on both said nothing about the corpus, where it is the weakest arm in the set.
+Two independent lists agreeing is not a population.
+
+*(What the rehearsal does not retire is `none` itself: it is a different searcher, it holds a level
+nothing else in the set solves, and it costs nothing to keep as a rung. What it retires is the
+claim that a bench union predicts a corpus union.)*
+
+**The rehearsal command, written down because a seventh arm will want it** -- the difference from
+the full run below is `SAMPLE=15`, the report it attacks (`chain-s25.jsonl`, so a new arm is
+comparable with the six), and the `l5-s15` naming `arms_union.py` globs:
+
+```bash
+SAMPLE=15 NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
+    build/reports/chain-s25.jsonl l5-s15/l8none build/reports/l5-s15-l8none.jsonl \
+    --no-ida --no-beam --push --push-read \
+    --push-reach --push-ferry-match --push-ferry-maze \
+    --push-dead 20 --push-fire 8 --push-shot-run 16 \
+    --push-beam 128 --max-keys 5000 --push-eval none
+python tools/verify_solutions.py build/l5-s15/l8none
+python tools/arms_union.py l8work=build/reports/l5-s15-l8work.jsonl \
+    layer7=build/reports/l5-s15-layer7.jsonl enables=build/reports/l5-s15-enables.jsonl \
+    l8none=build/reports/l5-s15-l8none.jsonl \
+    l8learned=build/reports/l5-s15-l8learned.jsonl plain=build/reports/l5-s15-plain.jsonl
+```
+
+**2 h 15 m at 16 jobs, median 316 s a level, 40M nodes on 216 of the 255.** That is the price of
+asking this question, and it is 1/8th of the arm it was deciding about -- the rehearsal-before-arm
+pattern paid for itself here even though the answer was no.
 
 ```bash
 # three arms, in greedy order, each into its own report so the union can be recomputed.
@@ -460,7 +562,8 @@ run () {   # run <arm> <flags...>
   arm=$1; shift
   NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
       build/reports/chain.jsonl "l5/$arm" "build/reports/l5-$arm.jsonl" \
-      --no-ida --no-beam --push --push-read "$@"
+      --no-ida --no-beam --push --push-read \
+      --max-keys 5000 --max-keys-record "$@"
   python tools/verify_solutions.py "build/l5/$arm"
 }
 run l8work  $L8 --push-eval work
@@ -471,10 +574,15 @@ python tools/arms_union.py l8work=build/reports/l5-l8work.jsonl \
     layer7=build/reports/l5-layer7.jsonl enables=build/reports/l5-enables.jsonl
 ```
 
+**The `--max-keys 5000 --max-keys-record` on every arm is session 28's and is not in the
+rehearsal's numbers** — `layer7` and `enables` ran the rehearsal at the default 1,200 and could not
+cross it; item 12 has what that cost. It is free and it can only raise a cap, so the full run
+carries it, and it is the one difference between this recipe and the arms tabled above.
+
 Run `l8work` first — it is the largest single result, so it lands earliest if the run is
 interrupted. `build/reports/chain.jsonl` is what all three are pointed at; if it is gone,
 `tools/chain_union.py` rebuilds it from the four chain reports rather than a hand-retyped union.
-**Session 27 rebuilt it and it now reads 494, not 476** — the rehearsal's 82 was measured against
+**Session 27 rebuilt it and it now reads 494, not 476** — the rehearsal's 83 was measured against
 the old one, so the full run attacks 18 fewer levels than the rehearsal did and the extrapolation
 below is very slightly optimistic. Session 25's reports are kept beside it as `*-s25.jsonl`.
 **Interaction with item 7:** that item draws the solved-vs-budget curve for the *chain's* four
@@ -552,16 +660,17 @@ carries the evidence and the caveats for each. They are ordered by expected valu
 are runs, not code.
 
 **7. Draw the solved-vs-budget curve over the short-record failures, and bank what it solves.**
-338 unsolved levels in the sample have a `.ghs` record of ≤40 moves+shots, 715 of ≤60, and 95.9% of
-failures stop on `budget`. This is the production number the whole project is measured by, and it
-has never been run above 150k except by accident (`l3n-1m.jsonl`, 3.3x the levels). One list, three
-budgets, every solution through the gate:
+**Re-counted in session 28 against the 494 chain** (the 338/715 below were the 476 chain's):
+**314** of the 3,691 unsolved levels in the sample have a `.ghs` record of <= 40 moves+shots,
+**687** of <= 60, 1,037 of <= 80, and **95.9%** of the failures still stop on `budget`. This is the
+production number the whole project is measured by, and it has never been run above 150k except by
+accident (`l3n-1m.jsonl`, 3.3x the levels). One list, three budgets, every solution through the gate:
 
 ```bash
 # the unsolved with a short record, from the chain's final state
 python - <<'EOF'
 import json
-rows=[json.loads(l) for l in open("build/reports/chain.jsonl",encoding="utf-8")]
+rows=[json.loads(l) for l in open("build/reports/chain.jsonl",encoding="utf-8-sig")]
 with open("bench/short-record-failures.txt","w") as f:
     for r in rows:
         if not r["solved"] and 0 < r["ghs_moves"]+r["ghs_shots"] <= 60:
@@ -571,31 +680,71 @@ EOF
 for N in 1000000 10000000 50000000; do
   R=build/reports/curve-$N; S=solutions/curve-$N
   NODES=$N bash tools/second_pass.sh build/reports/chain.jsonl $S $R-l0.jsonl  --no-ida
-  NODES=$N bash tools/second_pass.sh $R-l0.jsonl  $S $R-l3.jsonl  --no-ida --no-beam --subgoal
+  NODES=$N bash tools/second_pass.sh $R-l0.jsonl  $S $R-l3.jsonl  --no-ida --no-beam --subgoal --sg-eval coarse
   NODES=$N bash tools/second_pass.sh $R-l3.jsonl  $S $R-l4.jsonl  --no-ida --no-beam --subgoal --sg-eval learned
   NODES=$N bash tools/second_pass.sh $R-l4.jsonl  $S $R-l1.jsonl  --no-ida --no-beam --macro --macro-first
   python tools/verify_solutions.py build/$S
 done
 ```
 
-`second_pass.sh` re-attacks a report's failures, so the whole 3,709 run and `--order ghs` puts the
-short records first; `SAMPLE=` or a list through `bench.sh` if only the ≤60 population is wanted.
+**The `--sg-eval coarse` on the second pass is session 28's correction, and without it this run
+measures the wrong chain.** Since session 27 a bare `--subgoal` means `--sg-eval work`, which is
+the ranking that pass is *retired* for — appended after `coarse` -> `learned` it adds 0. The three
+searchers the shipped 494 is made of are `--no-ida` (layer 0), `--subgoal --sg-eval coarse` and
+`--subgoal --sg-eval learned`, in that order, and the script above now says so. Any curve run with
+a bare `--subgoal` is a curve for a chain this tree does not ship.
+
+`second_pass.sh` re-attacks a report's failures, so the whole 3,691 run and `--order ghs` puts the
+short records first; `SAMPLE=` or a list through `bench.sh` if only the <= 60 population is wanted.
 Report the solved count per budget as a table in *Status*. **Keep 150k for attribution; this is a
-different question**, and at 50M the push rungs (`--push --push-read`, item 2's five arms) become
-affordable as a fifth pass.
+different question**, and at 50M the push rungs (`--push --push-read`, item 2's arms) become
+affordable as a fifth pass. Carry `--max-keys 5000 --max-keys-record` from 10M up: at these budgets
+a solution can outrun the default 1,200 cap, and item 12 has the two that did.
 
-**8. Level 10, one traced run before anything is built for it.** `--push-trace` at width 1024, the
-`push-ferry-work` flags (item 4's level-9 command, `--push-beam 1024`, `--push-restarts 0`), 400M
-nodes, `--jobs 1`, and read the `d=` column. If it climbs past 50 and does not win, level 10 is a
-ranking problem at that width and item 11 applies; if it stalls at a small depth, find the
-multiplier (`--push-enables`, `--push-read-opens N>0`) and record the flags in the report this
-time. 39M nodes reached depth 9 in session 26 with best 62 → 28.
+**8. Level 10, one traced run before anything is built for it.** Read the `d=` column: if it climbs
+past 50 and does not win, level 10 is a ranking problem at that width and item 11 applies; if it
+stalls at a small depth, find the multiplier (`--push-enables`, `--push-read-opens N>0`) and
+**record the flags in the report this time**. 39M nodes reached depth 9 in session 26 with best
+62 -> 28. Session 28 wrote the command out in full, because the previous version of this item said
+"item 4's level-9 command with three changes" and reconstructing it is where a flag goes missing:
 
-**9. A `--max-round N` for the driver, then run it unattended.** `Auto.cs:609` has no round cap, so
-the portfolio cannot be pointed at a collection and left. With the cap, `--lanes 4 --max-round 3`
-over `Beginner-I` is the overnight run that gives every rung its chances at 25.6M and banks to
-`data/solutions/` through the gate. This is item 7's counterpart for the rungs the chain does not
-contain.
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10 \
+  --no-ida --no-beam --push --push-read --push-eval work --read-antitank-wall \
+  --push-reach --push-ferry-match --push-ferry-maze \
+  --push-dead 20 --push-fire 8 --push-shot-run 16 \
+  --push-beam 1024 --push-restarts 0 --max-keys 5000 \
+  --push-trace --nodes 400000000 --budget-ms 14400000 --jobs 1 \
+  --out build/trace10 2> build/trace10.err
+```
+
+Three deliberate differences from item 4's level-9 command, all of them the point of the run:
+`--push-beam 1024` (not 2048) because that is the width session 26's arithmetic is quoted at,
+`--push-restarts 0` so the depth column is one search rather than thirty stitched together, and
+`--jobs 1` because a trace from sixteen interleaved workers is unreadable. The trace goes to
+**stderr**, hence the redirect -- and it is the whole output of the run, so do not lose it the way
+the widths in item 4's directory names were lost. Level 10's record is 124 + 55 = **179**, so
+`--max-keys-record` would compute 995 and the raise-only rule keeps 5,000; the flag is pointless
+here and that is fine.
+
+**9. A `--max-round N` for the driver -- done, session 28.** *(The unattended run itself has not
+been made; the flag it needed exists.)* `--max-round N` gives up on a level after round **N**,
+numbered the way the driver prints them, so `--max-round 3` is four rounds ending at 25.6M and
+`--max-round 5` ends at 409.6M. It only ever raises a stopping condition the driver did not have:
+without it the loop condition was `!won && !lane.Skip && !_quit`, i.e. a lane stays on one level
+until a key is pressed, which is why the portfolio could not be pointed at a collection and left.
+
+Three things it touches beyond the loop, because an unattended run reads its own log afterwards:
+the banner says `budget x4 each round to round N` when the cap is set and nothing when it is not;
+a level the cap gives up on prints **`unsolved in N rounds`** rather than `skipped`, which is
+reserved for a keypress (`stopped` stays the Ctrl-C case); and those levels land in the closing
+`still unsolved:` list while the `skipped` counter stays 0. Verified on `Beginner-I` with stdin
+redirected: `--from 26 --to 31 --max-round 0 --nodes 50000` banks 28 and 29 through the gate,
+reports `unsolved in 1 round` for 30 and 31, and exits by itself.
+
+The overnight run is now one command -- `--lanes 4 --max-round 3` over `Beginner-I`, every rung its
+chances at 25.6M, banked to `data/solutions/` through the gate. It is item 7's counterpart for the
+rungs the chain does not contain.
 
 **10. Wall clock on the push rungs: profile, then memoise `PushH` per board.** 166k nodes/s on the
 shipped push rung against 1.4M on layer 0, and the difference is heuristic work repeated for every
@@ -611,9 +760,30 @@ that emitted zero fresh successors). If it is tens of percent on the ferry bench
 and key the per-board cap on `(BoardKey, TankRegion)` rather than `BoardKey`. Re-bench both lists;
 expect the node count per solved level to fall rather than the solved count to rise.
 
-**12. Per-level `MaxKeys` from the record.** `clamp(5 × (ghs_moves + ghs_shots) + 100, 1200, 8000)`,
-default kept where the record is 0. Two silent truncations in this file already; the third consumer
-of a number `--order ghs` and `--trim-ratio` already read.
+**12. Per-level `MaxKeys` from the record -- done as `--max-keys-record`, session 28, and the
+measurement moved the reason for it.** `clamp(5 x (ghs_moves + ghs_shots) + 100, --max-keys, 8000)`,
+the global kept where the record is 0 or `RecMax`'s 65500. **Raise-only by construction** -- the
+floor is whatever `--max-keys` asked for, so a run carrying the flag can reach every keystream the
+same run without it could, and it is off by default: no number in this file moves. It applies in
+`SolveOne`, so the driver's rungs get it on top of whatever they `Tune` (the push rungs already
+hard-code 5,000 for this exact reason, `Auto.cs:296`).
+
+**The cap is real and it is the floor, not the multiplier.** Over the 757 solved rows with a record
+in the five rehearsal arms plus `chain.jsonl`, `clamp(5x + 100, 1200, 8000)` covers **755** of the
+solutions actually found -- and the two it misses are the two that matter: `Challenge-IV` 641, banked
+by both `--max-keys 5000` arms at **1,764 and 1,876 keys against a record of 143**, which is 13x its
+record and which *no multiplier of it reaches* (12x + 100 = 1,816, still short). A floor of 2,000
+covers all 757. So the record does not predict solution length in the tail, and what the flag is
+worth is that no level is capped *below* what its record implies -- 1,367 of the chain's 3,691
+failures have a record long enough to lift them past 1,200, and 302 past 5,000, which is where the
+8,000 ceiling starts to bind rather than the formula.
+
+**And it is a confound in item 2's table.** `plain`, `enables` and `layer7` ran at the default
+1,200 and `l8learned`/`l8work` at 5,000, so two of the five arms **could not have emitted** the only
+two solutions in the population longer than 1,200 keys, at any budget. `layer7`'s longest banked
+solution is 623 keys and `enables`'s is 1,074 -- right against its cap. The full run should carry
+`--max-keys 5000 --max-keys-record` on **every** arm, which costs nothing and makes the arms
+comparable for the first time.
 
 Further out, and only after 7-9 have moved the number: a FESS-shaped rung for the Sokoban/ferry
 half of the corpus (pointer 7), and subgoal chaining over board changes with the acceptance tests
@@ -2398,7 +2568,9 @@ gate. Four things, in the order they change what to run:
   +6 to the ferry union and +4 to the deep one, where the shipped single arm is 18 and 25. It is
   also the cheapest arm in the set to add, and item 2's three-arm pass should bench it before the
   54-hour run starts. It does *not* buy back wall clock — the tiers still need everything `PushH`
-  derives — so item 10's memoisation is still the route to that.
+  derives — so item 10's memoisation is still the route to that. *(Session 28 ran the arm: 37 of
+  255 solo, the weakest of six, +2 on the three-arm union. The benches were right about the key and
+  wrong about what it would be worth.)*
 - **The driver was running a duplicate rung.** `Auto.cs`'s `layer 3` and `learned` rungs were the
   same search from `4765ae9`, so one lane of the portfolio was spent twice. The `subgoal` rung now
   says `coarse` and the `learned` rung says `learned`; the first is what it was already doing, so
@@ -2410,3 +2582,37 @@ real cause, and stopped. Two smaller ones worth keeping: the equivalence check l
 now `bench/seed-weights.txt` in git rather than a sentence, and it passes (0 of 50); and
 `LT_SOLVE=<exe>` overrides the binary in the three runners, because the previous way to bench a
 solver change during a long solve was to wait for it.
+
+**session 28 — the fourth arm, refused by the corpus.** *Next actions* item 2's gate, the run
+session 27 asked for before committing 54 hours: `--push-eval none` as a sixth arm at `SAMPLE=15`,
+on the same 255 levels the four banked arms attacked, 40M nodes, 16 jobs, 2 h 15 m, **37 of 37
+solutions through the two-engine gate.** **The answer is no** — 37 solo is the weakest of the six
+arms (`plain` scores 38) and it adds **+2** to the three-arm union, `l8learned`'s number, with one
+level nothing else in the set solves. So the pass ships as three arms and the 54 hours can start.
+Three things came out of the session, in the order they change what to run:
+
+- **A bench over-reports complementarity as readily as strength**, which is the first rule at the
+  top of this file wearing a face it had not worn. `none` was +6 on the ferry union and +4 on the
+  deep one from a solo score that never wins — layer 7's exact signature, and layer 7 is the best
+  arm of the pass. Over the corpus the same key is the worst arm of six. The two lists are fifty
+  layer-0 failures each; agreeing with each other is not the same as being a population.
+- **The five rehearsal arms were not run at the same keystream cap, and two of them could not have
+  emitted the pass's longest solutions.** `plain`, `enables` and `layer7` ran at the default
+  `MaxKeys` 1,200; `Challenge-IV` 641 is banked at **1,764 and 1,876 keys** by the two arms that
+  passed `--max-keys 5000`. `enables`'s longest is 1,074 and `plain`'s 1,152 — within 15% of a wall
+  they cannot cross. The full run's recipe now carries `--max-keys 5000 --max-keys-record` on every
+  arm, which is free and can only raise a cap. *Items 2 and 12.*
+- **Item 2's table was off by one or two throughout**, recomputed from the five banked reports with
+  `tools/arms_union.py`: the population is **255**, not 250, so the five-arm union is **83** and
+  layer 7 is 55 solo with 9 exclusive rather than 54 with 8. Nothing was re-run and no conclusion
+  moved, but a future `arms_union.py` over those files prints 255, and a number that cannot be
+  reproduced from the reports beside it is the thing sessions 24 and 25 each paid for once.
+
+Items **9** and **12** shipped alongside it, both off by default and neither touching a measured
+number: `--max-round N` finally makes the driver stop on its own (the loop condition had no cap, so
+an unattended run could never end), and `--max-keys-record` takes the keystream cap from each
+level's `.ghs` record instead of a global. The measurement behind the second one is worth more than
+the flag: over 757 solved rows with a record, `clamp(5 x record + 100, 1200, 8000)` covers 755 of
+the solutions actually found, and **the two it misses are the two that matter** — `Challenge-IV` 641
+at 13x its record, which no multiplier of the record reaches. **What binds on the deep population is
+the floor, not the formula**, so the flag is raise-only and the number to raise is `--max-keys`.
