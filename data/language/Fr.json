@@ -1,0 +1,513 @@
+{
+ "code": "Fr",
+ "name": "French  (100% Complet)",
+ "author": "Yves Maingoy & Donald Drouin",
+ "sourceEncoding": "cp1252",
+ "sourceLines": 240,
+ "buttons": {
+  "ButText1": "Annuler",
+  "ButText2": "Sauver la position",
+  "ButText3": "Restaurer la position",
+  "ButText4": "Nouveau",
+  "ButText5": "Précédent",
+  "ButText6": "Suivant",
+  "ButText7": "Indice",
+  "ButText8": "Début",
+  "ButText9": "Charger un tableau"
+ },
+ "text": {
+  "txt001": "La banque de tableau est introuvable\nS.V.P. Choisissez en une autre",
+  "txt002": "Banque de tableau (*.LVL)",
+  "txt004": "Choisissez une banque de tableau LaserTank     ",
+  "txt005": "Séquences de jeu (*.LPB)",
+  "txt006": "Sauvegarder une séquence de jeu      ",
+  "txt007": "Erreur LaserTank",
+  "txt008": "Ancien  record > P:",
+  "txt009": "P: ",
+  "txt010": " T: ",
+  "txt011": " I: ",
+  "txt012": "Bravo, Vous l'avez battu !!",
+  "txt013": "Rejouer la séquence : ",
+  "txt014": "\nEnregistré par ",
+  "txt015": "\nNe se trouve pas dans cette banque de tableau\n< ",
+  "txt016": "Voulez vous continuez l'enregistrement ?",
+  "txt017": "&Jouer",
+  "txt018": "&Pause",
+  "txt019": "Mémoire insufisante - trop de Undo",
+  "txt020": "Charger une séquence de jeu",
+  "txt021": "Indice LaserTank",
+  "txt022": "Voulez vous sauver le tableau avant ?",
+  "txt023": " - Enfants",
+  "txt024": " - Facile",
+  "txt025": " - Médium",
+  "txt026": " - Difficile",
+  "txt027": " - Mortel",
+  "txt028": " - [Editeur]",
+  "txt029": "Éditeur LaserTank",
+  "txt031": "Ce n'est pas un fichier graphique valide",
+  "txt032": "Ne trouve pas game.bmp et/ou mask.bmp",
+  "txt033": "Ouvrir une séquence pour continuer l'enregistrement",
+  "txt034": "Retourner au jeu",
+  "txt035": "< AUCUN INDICE DE SOUMIS POUR CE TABLEAU >",
+  "txt036": "Tableau laserTank #",
+  "txt037": "Choisissez le répertoire de vos graphiques",
+  "txt038": "Jeu en cours ...",
+  "txt039": "Vous perdrez tous vos déplacements.\nVoulez vous sauver votre séquence ?",
+  "txt040": "Battu",
+  "txt041": "Tous",
+  "txt042": "Vous avez complété %d des %d tableaux",
+  "txt043": "Niveau de difficulté = ",
+  "txt044": "EFMDM",
+  "txt045": "Fichier graphique non trouvé !",
+  "REC_Title": "LaserTank === ENREGISTREMENT ACTIVÉ ===",
+  "help01": "Instructions d'édition",
+  "help02": "Historique",
+  "help03": "Créez vos propres tableaux",
+  "HelpFileName": "Language\\LaserTankfr.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "A propos de LaserTank",
+  "ID_ABOUTBOX_OK": "&Ok",
+  "ID_ABOUTBOX_04": "Par Jim Kindley",
+  "ID_ABOUTBOX_06": "Version",
+  "ID_DEADBOX_UNDO": "Ann&uler l'action",
+  "ID_DEADBOX_DEAD": "VOUS ÊTES MORT !",
+  "ID_DEADBOX_RESTART": "&Recommencer",
+  "ID_DIFFBOX_00": "Changer la difficulté",
+  "ID_DIFFBOX_01": "&Ok",
+  "ID_DIFFBOX_02": "&Enfants",
+  "ID_DIFFBOX_03": "&Facile",
+  "ID_DIFFBOX_04": "&Médium",
+  "ID_DIFFBOX_05": "&Difficile",
+  "ID_DIFFBOX_06": "Mo&rtel",
+  "ID_DIFFBOX_07": "&Tous",
+  "ID_DIFFBOX_08": "Choisissez :",
+  "ID_GRAPHBOX_00": "Choisissez votre fichier graphique",
+  "ID_GRAPHBOX_01": "Votre choix :",
+  "ID_GRAPHBOX_02": "&Graphiques internes",
+  "ID_GRAPHBOX_03": "Graphiques des &BMP",
+  "ID_GRAPHBOX_04": "&Fermer",
+  "ID_GRAPHBOX_05": "Auteur :",
+  "ID_GRAPHBOX_06": "Description de ce fichier graphique :",
+  "ID_GRAPHBOX_08": "&Voir l'écran d'ouverture",
+  "ID_GRAPHBOX_09": "&Répertoire...",
+  "ID_LOADLEV_00": "Choisissez le tableau que vous désirez jouer",
+  "ID_LOADLEV_01": "&Annuler",
+  "ID_LOADLEV_03": "&Filtre",
+  "ID_LOADLEV_04": "Fichier:",
+  "ID_LOADLEV_05": "- File Loading Error -",
+  "ID_LOADLEV_06": " No#   Nom du tableau                 Auteur",
+  "ID_LOADLEV_07": "Ou entrez le numéro du tableau désiré->",
+  "ID_HINTBOX_00": "Modifier l'indice",
+  "ID_HINTBOX_01": "&Ok",
+  "ID_HINTBOX_02": "&Annuler",
+  "ID_SEARCH_00": "Filtrage des tableaux",
+  "ID_SEARCH_01": "Texte à rechercher :",
+  "ID_SEARCH_02": "Chercher par",
+  "ID_SEARCH_03": "&Tableau",
+  "ID_SEARCH_04": "&Auteur",
+  "ID_SEARCH_05": "&Annuler",
+  "ID_SEARCH_06": "&Ok",
+  "ID_SEARCH_08": "&Seulement les tableaux non résolus",
+  "ID_SEARCH_09": "&Filtrer par difficulté",
+  "ID_SEARCH_10": "&Enfants",
+  "ID_SEARCH_11": "&Facile",
+  "ID_SEARCH_12": "&Médium",
+  "ID_SEARCH_13": "&Difficile",
+  "ID_SEARCH_14": "&Mortel",
+  "ID_RETBOX_00": "&Retourner au jeu",
+  "ID_WINBOX_00": "&Ok",
+  "ID_WINBOX_01": "BRAVO ! ! !",
+  "ID_WINBOX_02": "Fichier :",
+  "ID_WINBOX_03": "- Erreur -",
+  "ID_LOADTID_00": "Choisir l'identité d'un tunnel",
+  "ID_LOADTID_03": "&Ok",
+  "ID_LOADTID_04": "Choisissez un numéro pour ce tunnel",
+  "ID_HIGHBOX_00": "! Nouveau Record !",
+  "ID_HIGHBOX_01": "&Ok",
+  "ID_HIGHBOX_02": "Tableau # :",
+  "ID_HIGHBOX_03": "Nom :",
+  "ID_HIGHBOX_04": "Pas :",
+  "ID_HIGHBOX_05": "Tirs :",
+  "ID_HIGHBOX_10": "Initiales :",
+  "ID_HIGHBOX_12": "Global HS :",
+  "ID_HIGHBOX_13": "- No Data -",
+  "ID_HIGHLIST_00": "Vos Records",
+  "ID_HIGHLIST_01": "&Ok",
+  "ID_HIGHLIST_02": "- File Loading Error -",
+  "ID_HIGHLIST_03": "  No# Nom du tableau                  Pas   Tirs Initiales",
+  "ID_GHIGHLIST_00": "Les records globaux",
+  "ID_GHIGHLIST_01": "&Ok",
+  "ID_GHIGHLIST_02": " No# Nom du Tableau                   Pas  Tirs  Init.  Pas   Tirs Init.",
+  "ID_GHIGHLIST_03": "Globaux",
+  "ID_GHIGHLIST_04": "Locaux",
+  "ID_GHIGHLIST_05": "- Pas de données -",
+  "ID_GHIGHLIST_06": "&Battu",
+  "ID_RECBOX_00": "Enregistrement de séquence",
+  "ID_RECBOX_01": "S.V.P. Entrez votre nom",
+  "ID_RECBOX_02": "&Ok",
+  "ID_PLAYBOX_00": "Voir la séquence",
+  "ID_PLAYBOX_01": "&Fermer",
+  "ID_PLAYBOX_02": "&Jouer",
+  "ID_PLAYBOX_03": "&Début",
+  "ID_PLAYBOX_04": "&Vite",
+  "ID_PLAYBOX_05": "&Lent",
+  "ID_PLAYBOX_06": "P&ar pas",
+  "ID_PLAYBOX_07": "Étape :",
+  "ID_PLAYBOX_08": "de",
+  "ID_PLAYBOX_11": "Vitesse :",
+  "ID_PICKLEVEL_00": "Sauvegarder un tableau LaserTank",
+  "ID_PICKLEVEL_01": "&Ok",
+  "ID_PICKLEVEL_02": "Entrez le numéro du tableau",
+  "ID_PICKLEVEL_03": "à sauver",
+  "ID_PICKLEVEL_06": "= Ajout",
+  "ID_PICKLEVEL_08": "&Effacer votre record"
+ },
+ "about": [
+  "     LaserTank est un Coopériciel et vous pouvez l'utiliser gratuitement.\n\n",
+  "     Lorsque vous deviendrez un joueur expérimenté, peut-être voudrez-vous créer un ou plusieurs tableaux, en utilisant l'éditeur de tableau et nous les faire parvenir ainsi que vos fichiers d'enregistrement (fichiers LPB).\n\n",
+  "     Voir \"Créer vos propres tableaux\" et \"Enregistrement et visionnement d'une séquence de jeu\" dans le fichier d'aide.\n\n",
+  "     De temps en temps, nous mettrons à jour le logiciel et ajouterons tous les bons tableaux qui nous seront envoyés.\n\n",
+  "     (S.V.P. soyez inventif et essayez de ne pas reproduire ce qui existe déjà)\n",
+  "     (Il y a déjà tant de tableaux disponibles sur le site web de Lasertank.)\n\n",
+  "     Si vous battez un des records globaux, assurez-vous d'avoir la plus récente liste des records globaux (.GHS), puis envoyez-moi un fichier compressé (.ZIP) du ou des fichiers de séquence de jeu (.LPB) correspondant aux tableaux battus, ainsi que votre fichier Lasertank.hs.\n\n",
+  "     Vous pouvez m'expédier ce fichier par courrier électronique à :\n",
+  "        lasertank@globetrotter.net\n\n",
+  "     Pour plus de tableaux, de fichiers graphiques et la plus récente liste des records globaux, visitez le site WEB de LaserTank à :\n",
+  "        http://pages.globetrotter.net/lasertank\n\n",
+  "     Pour de l'aide ou de l'information, joignez ou visitez le groupe Yahoo à :\n",
+  "        http://fr.groups.yahoo.com/group/Lasertank-fr/\n\n",
+  "     =========================\n     Adaptation française :\n     Donald Drouin et Yves Maingoy\n    =========================\n"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "&Jeu",
+    "items": [
+     {
+      "text": "&Nouvelle partie",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "Charger un tableau ( &Load )",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "Tableau &suivant",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "Tableau &précédent",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "&Dernier tableau joué",
+      "cmd": 118,
+      "accel": "<---"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Ouvrir une banque de tableau...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Voir vos records",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "Liste des records &globaux",
+      "cmd": 906,
+      "accel": "G"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "En&registrer les séquences de jeu",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "S&auvegarder l'enregistrement",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "&Continuer l'enregistrement",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "Visionner une séquence de &jeu",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Imprimer le tableau",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Quitter",
+      "cmd": 103,
+      "accel": "Alt+F4"
+     }
+    ]
+   },
+   {
+    "text": "&Mouvement",
+    "items": [
+     {
+      "text": "&Recommencer le tableau",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "Annuler le dernier pas ou tir ( &Undo )",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "&Sauvegarder la position",
+      "cmd": 111,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Restaurer la &position",
+      "cmd": 112,
+      "accel": "Crtl+V"
+     },
+     {
+      "text": "Rejouer &votre séquence",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "&Options",
+    "items": [
+     {
+      "text": "&Animation",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "So&n",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "Mémoriser le dernier tableau joué",
+      "cmd": 109
+     },
+     {
+      "text": "Sauter les tableaux complétés",
+      "cmd": 116
+     },
+     {
+      "text": "Auto-enregistrement",
+      "cmd": 115
+     },
+     {
+      "text": "Désactiver les avertissements",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Dimension",
+      "items": [
+       {
+        "text": "&Petit",
+        "cmd": 120
+       },
+       {
+        "text": "&Moyen",
+        "cmd": 121
+       },
+       {
+        "text": "&Grand",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "&Changer la difficulté...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "Changer les &graphiques...",
+      "cmd": 226,
+      "accel": "Ctrl+G"
+     }
+    ]
+   },
+   {
+    "text": "&Éditeur [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "&Aide",
+    "items": [
+     {
+      "text": "Indice  ( &Hint )",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Index",
+      "cmd": 902
+     },
+     {
+      "text": "&Aide rapide",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "His&torique",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "À &propos de LaserTank",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "&Éditeur",
+    "items": [
+     {
+      "text": "Vider le tableau        ( &Clear )",
+      "cmd": 601,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Charger un tableau  ( &Load )",
+      "cmd": 602,
+      "accel": "Ctrl+L"
+     },
+     {
+      "text": "&Sauvegarder le tableau",
+      "cmd": 603,
+      "accel": "Ctrl+S"
+     },
+     {
+      "text": "&Enregistrer sous...",
+      "cmd": 606
+     },
+     {
+      "text": "&Quitter",
+      "cmd": 103,
+      "accel": "Alt+F4"
+     }
+    ]
+   },
+   {
+    "text": "&Indice",
+    "cmd": 605
+   },
+   {
+    "text": "&Centrage",
+    "items": [
+     {
+      "text": "&Droite",
+      "cmd": 710,
+      "accel": "Ctrl+Flèche"
+     },
+     {
+      "text": "&Gauche",
+      "cmd": 711,
+      "accel": "    ''      ''"
+     },
+     {
+      "text": "&Haut",
+      "cmd": 712,
+      "accel": "    ''      ''"
+     },
+     {
+      "text": "&Bas",
+      "cmd": 713,
+      "accel": "    ''      ''"
+     }
+    ]
+   },
+   {
+    "text": "&Fermer l'éditeur [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "&Difficulté",
+    "items": [
+     {
+      "text": "&Enfants",
+      "cmd": 701
+     },
+     {
+      "text": "&Facile",
+      "cmd": 702
+     },
+     {
+      "text": "&Médium",
+      "cmd": 703
+     },
+     {
+      "text": "&Difficile",
+      "cmd": 704
+     },
+     {
+      "text": "M&ortel",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "&Aide",
+    "items": [
+     {
+      "text": "&Éditeur",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "&Créer vos propres tableaux",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "À &propos de LaserTank",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

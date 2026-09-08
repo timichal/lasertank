@@ -1,0 +1,513 @@
+{
+ "code": "Sw",
+ "name": "Swedish  (100% Complete)",
+ "author": "Charon Direnj",
+ "sourceEncoding": "cp1252",
+ "sourceLines": 240,
+ "buttons": {
+  "ButText1": "Ångra",
+  "ButText2": "Position i minne",
+  "ButText3": "Återställ position",
+  "ButText4": "Nytt",
+  "ButText5": "<< Föreg.",
+  "ButText6": "Nästa >>",
+  "ButText7": "Ledtråd",
+  "ButText8": "Börja om",
+  "ButText9": "Ladda bana"
+ },
+ "text": {
+  "txt001": "Kompilationen hittas ej\nVälj en annan",
+  "txt002": "Kompilation (*.lvl)",
+  "txt004": "Välj LaserTank-kompilation",
+  "txt005": "Inspelning (*.lpb)",
+  "txt006": "Spara inspelning",
+  "txt007": "LaserTank error",
+  "txt008": "Gammalt rekord > St:",
+  "txt009": "St: ",
+  "txt010": " Sk: ",
+  "txt011": " I: ",
+  "txt012": "Grattis, Du bräckte det !!",
+  "txt013": "Bana : ",
+  "txt014": "\nInspelad av ",
+  "txt015": "\nHittas ej i denna kompilation\n< ",
+  "txt016": "Vill Du återuppta inspelningen ?",
+  "txt017": "&Utför",
+  "txt018": "&Pausa",
+  "txt019": "Minnesbuffert tömd - börjar om",
+  "txt020": "Öppna inspelning",
+  "txt021": "LaserTank-ledtråd",
+  "txt022": "Banan har ändrats.\nVill Du spara ändringar ?",
+  "txt023": " - Barn",
+  "txt024": " - Lätt",
+  "txt025": " - Medel",
+  "txt026": " - Svår",
+  "txt027": " - Dödlig",
+  "txt028": " - [Editor]",
+  "txt029": "Editor i gång...",
+  "txt031": "Ogiltig som LaserTank-grafik",
+  "txt032": "game.bmp och/eller mask.bmp hittas ej",
+  "txt033": "Öppna inspelning att återuppta",
+  "txt034": "Återgå till spelet",
+  "txt035": "< INGEN LEDTRÅD LÄMNAD FÖR DENNA BANA >",
+  "txt036": "LaserTank-bana #",
+  "txt037": "Välj mapp med LaserTank-grafik",
+  "txt038": "Spel i gång...",
+  "txt039": "Du kommer förlora speldata.\nVill Du spara spelet ?",
+  "txt040": "Bräckta",
+  "txt041": "Alla",
+  "txt042": "%d av %d banor klarade",
+  "txt043": "Svårighetsgrad = ",
+  "txt044": "BLMSD",
+  "txt045": "LaserTank-grafikfil hittas ej !",
+  "REC_Title": "LaserTank *** SPELAR IN ***",
+  "help01": "Editorhjälp",
+  "help02": "Revisioner",
+  "help03": "Att Bygga Egna Banor",
+  "HelpFileName": "Language\\LaserTankSW.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "Om LaserTank",
+  "ID_ABOUTBOX_OK": "&OK",
+  "ID_ABOUTBOX_04": "av Jim Kindley",
+  "ID_ABOUTBOX_06": "Version",
+  "ID_DEADBOX_UNDO": "Ångra sl&utdrag",
+  "ID_DEADBOX_DEAD": "DU ÄR DÖD ! ! !",
+  "ID_DEADBOX_RESTART": "Bö&rja om",
+  "ID_DIFFBOX_00": "Svårighetsgrad",
+  "ID_DIFFBOX_01": "&OK",
+  "ID_DIFFBOX_02": "&Barn",
+  "ID_DIFFBOX_03": "&Lätt",
+  "ID_DIFFBOX_04": "&Medel",
+  "ID_DIFFBOX_05": "&Svår",
+  "ID_DIFFBOX_06": "&Dödlig",
+  "ID_DIFFBOX_07": "&Alla",
+  "ID_DIFFBOX_08": "Välj",
+  "ID_GRAPHBOX_00": "Ändra utseende",
+  "ID_GRAPHBOX_01": "Välj",
+  "ID_GRAPHBOX_02": "&Intern grafik",
+  "ID_GRAPHBOX_03": "&Extern grafik",
+  "ID_GRAPHBOX_04": "&OK",
+  "ID_GRAPHBOX_05": "Auktor :",
+  "ID_GRAPHBOX_06": "Beskrivning :",
+  "ID_GRAPHBOX_08": "&Visa intro",
+  "ID_GRAPHBOX_09": "&Bläddra...",
+  "ID_LOADLEV_00": "Välj bana att ladda",
+  "ID_LOADLEV_01": "Av&bryt",
+  "ID_LOADLEV_03": "&Sök",
+  "ID_LOADLEV_04": "Kompil.:",
+  "ID_LOADLEV_05": "- Fel vid laddning av fil -",
+  "ID_LOADLEV_06": "Bana # Namn                           Auktor",
+  "ID_LOADLEV_07": "eller ange banans nummer :",
+  "ID_HINTBOX_00": "Redigera ledtråd",
+  "ID_HINTBOX_01": "&OK",
+  "ID_HINTBOX_02": "&Avbryt",
+  "ID_SEARCH_00": "Filtrera bandata",
+  "ID_SEARCH_01": "Ange sökord :",
+  "ID_SEARCH_02": "Sök namn på",
+  "ID_SEARCH_03": "&Bana",
+  "ID_SEARCH_04": "&Auktor",
+  "ID_SEARCH_05": "Av&bryt",
+  "ID_SEARCH_06": "&OK",
+  "ID_SEARCH_08": "&Endast olösta banor",
+  "ID_SEARCH_09": "Svårighets&grad",
+  "ID_SEARCH_10": "&Barn",
+  "ID_SEARCH_11": "&Lätt",
+  "ID_SEARCH_12": "&Medel",
+  "ID_SEARCH_13": "&Svår",
+  "ID_SEARCH_14": "&Dödlig",
+  "ID_RETBOX_00": "&Återgå till spelet",
+  "ID_WINBOX_00": "&OK",
+  "ID_WINBOX_01": "Du vann ! ! !",
+  "ID_WINBOX_02": "Kompil.:",
+  "ID_WINBOX_03": "- Error -",
+  "ID_LOADTID_00": "Tunnel-ID",
+  "ID_LOADTID_03": "&OK",
+  "ID_LOADTID_04": "Ange ID-nummer för denna tunnel :",
+  "ID_HIGHBOX_00": "! Nytt rekord !",
+  "ID_HIGHBOX_01": "&OK",
+  "ID_HIGHBOX_02": "Bana # :",
+  "ID_HIGHBOX_03": "Banans namn :",
+  "ID_HIGHBOX_04": "Steg :",
+  "ID_HIGHBOX_05": "Skott :",
+  "ID_HIGHBOX_10": "Initialer :",
+  "ID_HIGHBOX_12": "Globalt rekord :",
+  "ID_HIGHBOX_13": "- Ingen data -",
+  "ID_HIGHLIST_00": "Egna rekord",
+  "ID_HIGHLIST_01": "&OK",
+  "ID_HIGHLIST_02": "- Filen laddades ej -",
+  "ID_HIGHLIST_03": "Bana # Namn                          Steg  Skott Initialer",
+  "ID_GHIGHLIST_00": "Globala rekord",
+  "ID_GHIGHLIST_01": "&OK",
+  "ID_GHIGHLIST_02": "Bana # Namn                            St     Sk  Init   St    Sk  Init",
+  "ID_GHIGHLIST_03": "Globala",
+  "ID_GHIGHLIST_04": "Egna",
+  "ID_GHIGHLIST_05": "- Ingen data -",
+  "ID_GHIGHLIST_06": "&Bräckta",
+  "ID_RECBOX_00": "Spela in",
+  "ID_RECBOX_01": "Ange Ditt namn :",
+  "ID_RECBOX_02": "&OK",
+  "ID_PLAYBOX_00": "Spela upp",
+  "ID_PLAYBOX_01": "&Stäng",
+  "ID_PLAYBOX_02": "&Utför",
+  "ID_PLAYBOX_03": "&Börja om",
+  "ID_PLAYBOX_04": "S&nabbt",
+  "ID_PLAYBOX_05": "S&akta",
+  "ID_PLAYBOX_06": "&Dragvis",
+  "ID_PLAYBOX_07": "Drag :",
+  "ID_PLAYBOX_08": "av",
+  "ID_PLAYBOX_11": "Tempo :",
+  "ID_PICKLEVEL_00": "Spara LaserTank-bana",
+  "ID_PICKLEVEL_01": "&OK",
+  "ID_PICKLEVEL_02": "Ange banans nummer ",
+  "ID_PICKLEVEL_03": "i kompil. :",
+  "ID_PICKLEVEL_06": "= Lägg till",
+  "ID_PICKLEVEL_08": "&Radera rekord"
+ },
+ "about": [
+  "     LaserTank är helpware och gratis för alla att använda.\n\n",
+  "     När Du bemästrat spelet kanske Du vill bygga egna banor med den inkluderade Editorn? Se \"Att Bygga Egna Banor\" och \"In- & Uppspelning\" i hjälpfilen.\n\n",
+  "     Maila sedan Dina banor till oss, tillsammans med inspelade lösningar.\n\n",
+  "     Vi uppdaterar mjukvaran med jämna mellanrum, och lägger då in alla bra banor som sänts till oss.\n\n",
+  "    (Lita till Din egen uppfinningsrikedom; Försök att inte upprepa vad andra gjort.)\n",
+  "    (Varje bana måste ha minst 1 möjlig lösning, som därför bifogas inspelad.)\n\n",
+  "     Om Du bräcker ett globalt rekord - förutsatt Du har den aktuella listan [*.ghs] - maila en zip:ad fil med inspelningen [*.lpb] samt listan över egna rekord [*.hs], så registreras Din bedrift i kommande uppdatering.\n\n",
+  "     Du kan maila filerna till :\n",
+  "        lasertank@globetrotter.net\n\n",
+  "     För ytterligare kompilationer, grafik, senast uppdaterade globala rekord m.m., besök LaserTanks hemsida :\n",
+  "        http://www.jccontrols.net/laser\n\n",
+  "     För hjälp eller vidare information om LaserTank, besök eller gå med i Yahoogruppen :\n",
+  "        http://groups.yahoo.com/group/Lasertank/\n\n",
+  "     =========================\n              Svensk bearbetning :\n                   Charon Direnj\n     =========================\n"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "&Spel",
+    "items": [
+     {
+      "text": "&Nytt",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "&Ladda bana...",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "&Nästa bana",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "&Föregående bana",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "Senaste &bana",
+      "cmd": 118,
+      "accel": "BkSp"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Ladda &kompilation...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Egna &rekord",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "&Globala rekord",
+      "cmd": 906,
+      "accel": "G"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Spela &in",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "&Spara inspelning",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "&Återuppta inspelning...",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "Spela &upp...",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Skriv ut spel&plan...",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Avsluta",
+      "cmd": 103,
+      "accel": "Alt+F4"
+     }
+    ]
+   },
+   {
+    "text": "&Drag",
+    "items": [
+     {
+      "text": "&Börja om",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "&Ångra",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "Position i &minne",
+      "cmd": 111,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Återställ &position",
+      "cmd": 112,
+      "accel": "Crtl+V"
+     },
+     {
+      "text": "Återge &alla drag",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "&Alternativ",
+    "items": [
+     {
+      "text": "&Animering",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "&Ljud",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "&Kom ihåg senaste bana",
+      "cmd": 109
+     },
+     {
+      "text": "&Hoppa över klarade banor",
+      "cmd": 116
+     },
+     {
+      "text": "Automatisk &inspelning",
+      "cmd": 115
+     },
+     {
+      "text": "&Varna inte",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Storlek",
+      "items": [
+       {
+        "text": "&Liten",
+        "cmd": 120
+       },
+       {
+        "text": "&Mellan",
+        "cmd": 121
+       },
+       {
+        "text": "&Stor",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "Svårighets&grad...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "&Utseende...",
+      "cmd": 226,
+      "accel": "Ctrl+G"
+     }
+    ]
+   },
+   {
+    "text": "&Editor [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "&Hjälp",
+    "items": [
+     {
+      "text": "&Ledtråd",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "LaserTank-&hjälp",
+      "cmd": 902
+     },
+     {
+      "text": "&Visa intro",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "&Revisioner",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Om LaserTank",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "&Editor",
+    "items": [
+     {
+      "text": "&Töm spelplan",
+      "cmd": 601,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "&Ladda bana...",
+      "cmd": 602,
+      "accel": "Ctrl+L"
+     },
+     {
+      "text": "&Spara",
+      "cmd": 603,
+      "accel": "Ctrl+S"
+     },
+     {
+      "text": "S&para som...",
+      "cmd": 606
+     },
+     {
+      "text": "&Avsluta",
+      "cmd": 103,
+      "accel": "Alt+F4"
+     }
+    ]
+   },
+   {
+    "text": "&Ledtråd",
+    "cmd": 605
+   },
+   {
+    "text": "&Rotera vy",
+    "items": [
+     {
+      "text": "&Höger",
+      "cmd": 710,
+      "accel": "Ctrl+Pil höger"
+     },
+     {
+      "text": "&Vänster",
+      "cmd": 711,
+      "accel": "  ''     ''  vänster"
+     },
+     {
+      "text": "&Upp",
+      "cmd": 712,
+      "accel": "  ''     ''  upp"
+     },
+     {
+      "text": "&Ned",
+      "cmd": 713,
+      "accel": "  ''     ''  ned"
+     }
+    ]
+   },
+   {
+    "text": "&Stäng editor [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "Svårighets&grad",
+    "items": [
+     {
+      "text": "&Barn",
+      "cmd": 701
+     },
+     {
+      "text": "&Lätt",
+      "cmd": 702
+     },
+     {
+      "text": "&Medel",
+      "cmd": 703
+     },
+     {
+      "text": "&Svår",
+      "cmd": 704
+     },
+     {
+      "text": "&Dödlig",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "&Hjälp",
+    "items": [
+     {
+      "text": "Editor&hjälp",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "&Att Bygga Egna Banor",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Om LaserTank",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

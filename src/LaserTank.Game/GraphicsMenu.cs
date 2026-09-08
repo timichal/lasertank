@@ -35,10 +35,25 @@ namespace LaserTank.Game
 {
     public sealed class GraphicsMenu
     {
-        // IDM_GRAPHBOX_00 and _05, the US English strings (LT32L_US.H:176).
-        // Step 6 replaces these with language.dat's.
-        private const string Title = "Select Graphics Set";
-        private const string AuthorLabel = "Author :";
+        // ID_GRAPHBOX_00 and _05.  Step 6 replaced the two English constants
+        // that used to be here with the language's own strings; the ids are the
+        // original's (LT32L_US.H:176) and the text now comes from whichever of
+        // the ten translations is loaded.
+        private string Title => _view.Strings["ID_GRAPHBOX_00"];
+        private string AuthorLabel => _view.Strings["ID_GRAPHBOX_05"];
+
+        /// ID_GRAPHBOX_02 and _03 for the two built-in entries, whose names are
+        /// GraphBox's own radio buttons rather than anything on disk; a .ltg
+        /// keeps the label Packs.Scan built, because a file name is not a
+        /// translatable string.  The `&` mnemonics come off -- there is no
+        /// Windows dialog here to underline a letter.
+        private string LabelOf(Pack p) => p.Mode switch
+        {
+            0 => Core.Language.StripAmpersand(_view.Strings["ID_GRAPHBOX_02"]).Trim(),
+            1 => Core.Language.StripAmpersand(_view.Strings["ID_GRAPHBOX_03"]).Trim()
+                 + " (" + Packs.GameBmp + " + " + Packs.MaskBmp + ")",
+            _ => p.Label,
+        };
 
         private readonly BoardView _view;
         private List<Pack> _packs;
@@ -169,7 +184,7 @@ namespace LaserTank.Game
                 Pack p = _packs[i];
                 bool cur = i == _sel;
                 string mark = cur ? ">" : " ";
-                string name = p.Label + (p.Available ? "" : "   (not found)");
+                string name = LabelOf(p) + (p.Available ? "" : "   (not found)");
                 Color tint = !p.Available ? Colors.DimGray : cur ? Colors.Yellow : Colors.Gainsboro;
                 n.DrawString(font, new Vector2(x, y), mark + " " + name,
                              HorizontalAlignment.Left, w, 13, tint);

@@ -1,0 +1,506 @@
+{
+ "code": "Sp",
+ "name": "Español ( 85% complete !)",
+ "author": "Sebastian Soto (2002)",
+ "sourceEncoding": "cp1252",
+ "sourceLines": 239,
+ "buttons": {
+  "ButText1": "Undo",
+  "ButText2": "Guardar Position",
+  "ButText3": "Cargar Position",
+  "ButText4": "Nuevo",
+  "ButText5": "<< Nivel",
+  "ButText6": "Nivel >>",
+  "ButText7": "Idea",
+  "ButText8": "Reiniciar",
+  "ButText9": "Cargar Nivel"
+ },
+ "text": {
+  "txt001": "El archivo de niveles no puede ser encontrado\nPlease select a new one",
+  "txt002": "Archivos de niveles (*.LVL)",
+  "txt004": "Selecciona archivo de niveles",
+  "txt005": "Archivos de reproducción (*.LPB)",
+  "txt006": "Guardar archivo de reproducción",
+  "txt007": "Error de LaserTank",
+  "txt008": "Puntaje máximo anterior > M:",
+  "txt009": "M: ",
+  "txt010": " D: ",
+  "txt011": " I: ",
+  "txt012": "Felicidades, lo venciste !!",
+  "txt013": "Nivel de reproducción: ",
+  "txt014": "\nGrabado por ",
+  "txt015": "\nCan Not be found in the current level file\n< ",
+  "txt016": "Quieres seguir grabando?",
+  "txt017": "Re&producir",
+  "txt018": "&Pausar",
+  "txt019": "Out of Memory - Undo Roll Over",
+  "txt020": "Abrir archivo de reproducción",
+  "txt021": "Idea en LaserTank",
+  "txt022": "Nivel no guardado, guardarlo?",
+  "txt023": " - Niños",
+  "txt024": " - Fácil",
+  "txt025": " - Mediano",
+  "txt026": " - Difícil",
+  "txt027": " - Sangriento",
+  "txt028": " - [Editor]",
+  "txt029": "Editor de LaserTank",
+  "txt031": "NOT a Valid LaserTank Graphics Set",
+  "txt032": "game.bmp and/or mask.bmp Not Found",
+  "txt033": "Open Playback file for Resume",
+  "txt034": "Return to Game",
+  "txt035": "< NO HINT SUBMITTED FOR THIS LEVEL >",
+  "txt036": "LaserTank Level #",
+  "txt037": "Select LaserTank Graphics Directory",
+  "txt038": "Game in Progress ...",
+  "txt039": "You will lose game data.\nDo you want to save the game ?",
+  "txt040": "Beat",
+  "txt041": "All",
+  "txt042": "Completed %d of %d levels",
+  "txt043": "Difficulty Set = ",
+  "txt044": "NFMDS",
+  "txt045": "LaserTank Graphics file Not Found !",
+  "REC_Title": " LaserTank ** GRABANDO **",
+  "help01": "Editor Instructions",
+  "help02": "Revisions",
+  "help03": "Writing Your Own Levels",
+  "HelpFileName": "Language\\LaserTankSp.hlp"
+ },
+ "dialogs": {
+  "ID_ABOUTBOX_00": "Acerca de LaserTank",
+  "ID_ABOUTBOX_OK": "&Si",
+  "ID_ABOUTBOX_04": "Por Jim Kindley",
+  "ID_ABOUTBOX_06": "Versión",
+  "ID_DEADBOX_UNDO": "&Deshacer última jugada",
+  "ID_DEADBOX_DEAD": "ESTÁS MUERTO ! ! !",
+  "ID_DEADBOX_RESTART": "&Reiniciar",
+  "ID_DIFFBOX_00": "Dificultad",
+  "ID_DIFFBOX_01": "S&i",
+  "ID_DIFFBOX_02": "&Niños",
+  "ID_DIFFBOX_03": "&Fácil",
+  "ID_DIFFBOX_04": "&Mediano",
+  "ID_DIFFBOX_05": "&Difícil",
+  "ID_DIFFBOX_06": "&Sangriento",
+  "ID_DIFFBOX_07": "&Todas",
+  "ID_DIFFBOX_08": "Selecciona",
+  "ID_GRAPHBOX_00": "Select Graphics Set",
+  "ID_GRAPHBOX_01": "Select One",
+  "ID_GRAPHBOX_02": "&Internal Graphics",
+  "ID_GRAPHBOX_03": "&User Graphics ",
+  "ID_GRAPHBOX_04": "&Cerrar",
+  "ID_GRAPHBOX_05": "Autor :",
+  "ID_GRAPHBOX_06": "LaserTank Graphic Set Description",
+  "ID_GRAPHBOX_08": "&View Opening Screen ",
+  "ID_GRAPHBOX_09": "Change &Directory",
+  "ID_LOADLEV_00": "Selecciona el nivel",
+  "ID_LOADLEV_01": "&Cancelar",
+  "ID_LOADLEV_03": "&Buscar",
+  "ID_LOADLEV_04": "Archivo :",
+  "ID_LOADLEV_05": "- Error al cargar el archivo -",
+  "ID_LOADLEV_06": "Nivel#  Nombre                         Autor",
+  "ID_LOADLEV_07": "or Direct Level Number Entry >>",
+  "ID_HINTBOX_00": "Cambiar idea",
+  "ID_HINTBOX_01": "&Si",
+  "ID_HINTBOX_02": "&Cancelar",
+  "ID_SEARCH_00": "Buscar datos de los niveles",
+  "ID_SEARCH_01": "Coloca la palabra de búsqueda :",
+  "ID_SEARCH_02": "Buscar por",
+  "ID_SEARCH_03": "&Título",
+  "ID_SEARCH_04": "&Autor",
+  "ID_SEARCH_05": "&Cancelar",
+  "ID_SEARCH_06": "&Si",
+  "ID_SEARCH_08": "&Only Unsolved Levels",
+  "ID_SEARCH_09": "&Filter by Difficulty",
+  "ID_SEARCH_10": "&Niños",
+  "ID_SEARCH_11": "&Fácil",
+  "ID_SEARCH_12": "&Mediano",
+  "ID_SEARCH_13": "&Difícil",
+  "ID_SEARCH_14": "&Sangriento",
+  "ID_RETBOX_00": "&Return to Game",
+  "ID_WINBOX_00": "&Si",
+  "ID_WINBOX_01": "GANASTE ! ! !",
+  "ID_WINBOX_02": "File :",
+  "ID_WINBOX_03": "- Error -",
+  "ID_LOADTID_00": "Pick Tunnel ID #",
+  "ID_LOADTID_03": "&Si",
+  "ID_LOADTID_04": "Enter the ID Number for this Tunnel",
+  "ID_HIGHBOX_00": "! Nuevo puntaje máximo !",
+  "ID_HIGHBOX_01": "&Si",
+  "ID_HIGHBOX_02": "Nivel número :",
+  "ID_HIGHBOX_03": "Nombre del nivel :",
+  "ID_HIGHBOX_04": "Movidas :",
+  "ID_HIGHBOX_05": "Disparos :",
+  "ID_HIGHBOX_10": "Iniciales :",
+  "ID_HIGHBOX_12": "PM Global :",
+  "ID_HIGHBOX_13": "- No hay Datos -",
+  "ID_HIGHLIST_00": "Puntajes máximos",
+  "ID_HIGHLIST_01": "&Si",
+  "ID_HIGHLIST_02": "- File Loading Error -",
+  "ID_HIGHLIST_03": "Nivel#  Nombre                Movidas  Disparos  Iniciales",
+  "ID_GHIGHLIST_00": "Puntajes máximos globales",
+  "ID_GHIGHLIST_01": "&Si",
+  "ID_GHIGHLIST_02": "Nivel#  Nombre                       M     D Inic.     M     D Inic.",
+  "ID_GHIGHLIST_03": "Global",
+  "ID_GHIGHLIST_04": "Local",
+  "ID_GHIGHLIST_05": "- No Data -",
+  "ID_GHIGHLIST_06": "&Beat",
+  "ID_RECBOX_00": "Grabando juego",
+  "ID_RECBOX_01": "Por favor coloca tu nombre",
+  "ID_RECBOX_02": "&Si",
+  "ID_PLAYBOX_00": "Reproducir juego",
+  "ID_PLAYBOX_01": "&Cerrar",
+  "ID_PLAYBOX_02": "Re&producir",
+  "ID_PLAYBOX_03": "&Resetear",
+  "ID_PLAYBOX_04": "R&ápido",
+  "ID_PLAYBOX_05": "&Lento",
+  "ID_PLAYBOX_06": "&Pasos",
+  "ID_PLAYBOX_07": "Paso :",
+  "ID_PLAYBOX_08": "de",
+  "ID_PLAYBOX_11": "Velocidad",
+  "ID_PICKLEVEL_00": "Guardar nivel de LaserTank",
+  "ID_PICKLEVEL_01": "&Si",
+  "ID_PICKLEVEL_02": "Anota el número del nivel a",
+  "ID_PICKLEVEL_03": "guardar :",
+  "ID_PICKLEVEL_06": "= Agregar",
+  "ID_PICKLEVEL_08": "&Borrar puntaje máximo"
+ },
+ "about": [
+  "     LaserTank es un programa que Vd. puede usar libremente pero requiere su ayuda y colaboración.\n\n",
+  "     Despues que Vd. se haya convertido en un jugador habilidoso, puede ser que desee crear uno o más niveles nuevos, usando el editor de niveles y enviándolos junto con los playbacks  (Carpeta LPB).\n\n",
+  "     Nosotros actulizaremos el programa cada tanto y agregaremos todos los buenos niveles que nos sean enviados   Vea: \"Escribiendo sus propios niveles\"  y \"Grabando y Playback \"  en la carpeta de Ayuda.\n\n",
+  "     (Por Favor, demuestre inventiva y no trate de replicar lo que ya existe. )\n",
+  "     (Ya hay muchos niveles disponibles en la página web de LaserTank. )\n\n",
+  "     Mira  \"Haciendo tus propios niveles\" en el archivo de ayuda.\n\n",
+  "     Traducido por Sebastian Soto (2002-2005) y Juan Antonio Zaratiegui (2004)\n\n",
+  "     Tú puedes enviarme tus niveles por E-mail :\n",
+  "        lasertank@globetrotter.net\n\n",
+  "     Para nuevos niveles, visita la página WEB de LaserTank :\n",
+  "        http://www.jccontrols.net/laser\n",
+  "     For Help or more info about this game join or check out the Yahoo Group at :\n",
+  "        http://groups.yahoo.com/lasertank\n"
+ ],
+ "menu": {
+  "main": [
+   {
+    "text": "&Juego",
+    "items": [
+     {
+      "text": "&Nuevo",
+      "cmd": 101,
+      "accel": "F2"
+     },
+     {
+      "text": "&Cargar nivel...",
+      "cmd": 106,
+      "accel": "L"
+     },
+     {
+      "text": "&Saltar nivel",
+      "cmd": 107,
+      "accel": "S"
+     },
+     {
+      "text": "&Previous Level",
+      "cmd": 119,
+      "accel": "P"
+     },
+     {
+      "text": "Last Level Playe&d",
+      "cmd": 118,
+      "accel": "BkSp"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Abrir archivo de niveles...",
+      "cmd": 108,
+      "accel": "O"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Ver puntajes máximos",
+      "cmd": 113,
+      "accel": "V"
+     },
+     {
+      "text": "&Lista de puntajes máximos global",
+      "cmd": 906
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Grabar juego",
+      "cmd": 123,
+      "accel": "F5"
+     },
+     {
+      "text": "G&uardar grabación",
+      "cmd": 117,
+      "accel": "F6"
+     },
+     {
+      "text": "Resume Re&cording",
+      "cmd": 125,
+      "accel": "F8"
+     },
+     {
+      "text": "&Reproducir juego...",
+      "cmd": 114,
+      "accel": "F7"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Pr&int GameBoard",
+      "cmd": 126
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "Sal&ir",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "J&ugada",
+    "items": [
+     {
+      "text": "&Reiniciar",
+      "cmd": 105,
+      "accel": "R"
+     },
+     {
+      "text": "&Deshacer última movida/disparo",
+      "cmd": 110,
+      "accel": "U"
+     },
+     {
+      "text": "&Guardar posición",
+      "cmd": 111,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "Restaurar &Posición",
+      "cmd": 112,
+      "accel": "Crtl+V"
+     },
+     {
+      "text": "RePla&y",
+      "cmd": 124,
+      "accel": "F4"
+     }
+    ]
+   },
+   {
+    "text": "&Opciones",
+    "items": [
+     {
+      "text": "&Animación",
+      "cmd": 104,
+      "accel": "A"
+     },
+     {
+      "text": "&Sonido",
+      "cmd": 102,
+      "accel": "N"
+     },
+     {
+      "text": "&Recordar último nivel",
+      "cmd": 109
+     },
+     {
+      "text": "Sa&ltar niveles completados",
+      "cmd": 116
+     },
+     {
+      "text": "A&utoGrabación",
+      "cmd": 115
+     },
+     {
+      "text": "Disable &Warnings",
+      "cmd": 127
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Tamaño",
+      "items": [
+       {
+        "text": "&Pequeño",
+        "cmd": 120
+       },
+       {
+        "text": "&Mediano",
+        "cmd": 121
+       },
+       {
+        "text": "&Grande",
+        "cmd": 122
+       }
+      ]
+     },
+     {
+      "text": "&Cambiar dificultad...",
+      "cmd": 225,
+      "accel": "D"
+     },
+     {
+      "text": "Change &Graphics ...",
+      "cmd": 226,
+      "accel": "Ctrl+G"
+     }
+    ]
+   },
+   {
+    "text": "&Editor [F9]",
+    "cmd": 201
+   },
+   {
+    "text": "&Ayuda",
+    "items": [
+     {
+      "text": "&Índice",
+      "cmd": 301,
+      "accel": "H"
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Index",
+      "cmd": 902
+     },
+     {
+      "text": "&Quick Help",
+      "cmd": 907,
+      "accel": "F1"
+     },
+     {
+      "text": "&Revisiones (Historia)",
+      "cmd": 904
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Acerca de...",
+      "cmd": 901
+     }
+    ]
+   }
+  ],
+  "editor": [
+   {
+    "text": "&Editor",
+    "items": [
+     {
+      "text": "&Clear Field",
+      "cmd": 601,
+      "accel": "Ctrl+C"
+     },
+     {
+      "text": "&Cargar...",
+      "cmd": 602,
+      "accel": "Ctrl+L"
+     },
+     {
+      "text": "&Guardar...",
+      "cmd": 603,
+      "accel": "Ctrl+S"
+     },
+     {
+      "text": "Save &As...",
+      "cmd": 606
+     },
+     {
+      "text": "&Salir",
+      "cmd": 103
+     }
+    ]
+   },
+   {
+    "text": "&Idea",
+    "cmd": 605
+   },
+   {
+    "text": "&Shift",
+    "items": [
+     {
+      "text": "&Right",
+      "cmd": 710,
+      "accel": "Ctrl+Direction"
+     },
+     {
+      "text": "&Left",
+      "cmd": 711
+     },
+     {
+      "text": "&Up",
+      "cmd": 712
+     },
+     {
+      "text": "&Down",
+      "cmd": 713
+     }
+    ]
+   },
+   {
+    "text": "&Cerrar Editor [F9]",
+    "cmd": 604
+   },
+   {
+    "text": "&Dificultad",
+    "items": [
+     {
+      "text": "&Niños",
+      "cmd": 701
+     },
+     {
+      "text": "&Fácil",
+      "cmd": 702
+     },
+     {
+      "text": "&Mediano",
+      "cmd": 703
+     },
+     {
+      "text": "&Difícil",
+      "cmd": 704
+     },
+     {
+      "text": "&Sangriento",
+      "cmd": 705
+     }
+    ]
+   },
+   {
+    "text": "&Ayuda",
+    "items": [
+     {
+      "text": "&Editor",
+      "cmd": 903,
+      "accel": "F1"
+     },
+     {
+      "text": "&Hacio niveles",
+      "cmd": 905
+     },
+     {
+      "separator": true
+     },
+     {
+      "text": "&Acerca de...",
+      "cmd": 901
+     }
+    ]
+   }
+  ]
+ }
+}

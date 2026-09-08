@@ -207,6 +207,19 @@ namespace LaserTank.Game
         public const string PsPBA = "Record Author";
         public const string PsYes = "Yes";
 
+        /// `[DATA] Language` -- the one key in this class the original does not
+        /// have, and the only invented behaviour in step 6.
+        ///
+        /// The 2007 program has no language setting at all: `LANGFile` is a
+        /// fixed `Language\Language.dat` beside the INI (LTANK.C:1421), and you
+        /// changed language by installing a different one of the ten `Setups/`
+        /// trees over your copy.  That is not a design decision worth
+        /// reproducing -- it is what shipping ten installers in 2007 forced --
+        /// and this port has all ten files at once, so it stores the choice
+        /// like every other option and shows a picker.  Named for the section
+        /// the original's other file-and-content keys live in.
+        public const string PsLang = "Language";
+
         private readonly Ini _ini;
 
         public Ini Ini => _ini;
@@ -279,6 +292,13 @@ namespace LaserTank.Game
             // empty box (LTANK_D.C:634, :983) and writes whatever comes back.
             Player = _ini.Get(SecData, PsUser);
             RecordAuthor = _ini.Get(SecData, PsPBA);
+
+            // [DATA] Language.  No default written on load: an absent key means
+            // the base language, and Language.Load resolves an unknown code to
+            // it too, so a hand-edited `Language=Klingon` degrades to English
+            // rather than to `[ID_WINBOX_03]` on every label.
+            LanguageCode = _ini.Get(SecData, PsLang);
+            if (LanguageCode.Length == 0) LanguageCode = Core.Language.BaseCode;
         }
 
         /// The original's Yes/No test, which is a `strcmp` against `psYes` and
@@ -387,6 +407,15 @@ namespace LaserTank.Game
             if (string.Equals(name, Player, StringComparison.OrdinalIgnoreCase)) return;
             Player = name;
             _ini.Set(SecData, PsUser, name);
+        }
+
+        /// `[DATA] Language` -- the picker's write.  See PsLang.
+        public string LanguageCode { get; private set; }
+
+        public void SetLanguage(string code)
+        {
+            LanguageCode = string.IsNullOrEmpty(code) ? Core.Language.BaseCode : code;
+            _ini.Set(SecData, PsLang, LanguageCode);
         }
 
         /// RecordBox's write (LTANK_D.C:990), unconditional there.

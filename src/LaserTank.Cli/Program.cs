@@ -9,12 +9,35 @@
 // main(), including where the message pump is drained relative to the trace.
 using System;
 using System.IO;
+using System.Text;
 using LaserTank.Core;
 
 namespace LaserTank.Cli
 {
     public static class Program
     {
+        /// `data/language/`, found by walking up from the executable.
+        ///
+        /// Paths.cs does the same walk in the game, but off `res://` and with
+        /// Godot's own API, and Core must stay Godot-free -- so this is the
+        /// headless half rather than a second policy.  `LT_DATA` overrides it
+        /// exactly as it overrides Paths.Root.
+        private static string DefaultLangDir()
+        {
+            string env = Environment.GetEnvironmentVariable("LT_DATA");
+            if (!string.IsNullOrEmpty(env))
+                return Path.Combine(env, Language.DirName);
+
+            string d = AppContext.BaseDirectory;
+            for (int up = 0; up < 8 && !string.IsNullOrEmpty(d); up++)
+            {
+                string cand = Path.Combine(d, "data", Language.DirName);
+                if (Directory.Exists(cand)) return cand;
+                d = Path.GetDirectoryName(d.TrimEnd('/', '\\'));
+            }
+            return Path.Combine("data", Language.DirName);
+        }
+
         private static void Usage()
         {
             Console.Error.WriteLine(
@@ -40,14 +63,21 @@ namespace LaserTank.Cli
 "  --save-level N  ... at this 1-based level number (default: --level)\n" +
 "  --set-name S   type S into the editor's Level Name box before saving\n" +
 "  --set-author S  ... and S into the Author box\n" +
-"  --set-hint S   ... and S into the Hint dialog (only then is Hint rewritten)\n");
+"  --set-hint S   ... and S into the Hint dialog (only then is Hint rewritten)\n" +
+"\n" +
+"  --lang-dir DIR  where the converted language files live (default data/language)\n" +
+"  --lang-list     list the installed languages, one code<TAB>name per line\n" +
+"  --lang-dump C   dump every resolved string, about line and menu node of\n" +
+"                  language C; a mode of its own, no level file needed\n");
         }
 
         public static int Main(string[] argv)
         {
             string levels = null, lpb = null, keys = null, script = null,
                    edit = null, tracePath = null, save = null,
-                   setName = null, setAuthor = null, setHint = null;
+                   setName = null, setAuthor = null, setHint = null,
+                   langDir = null, langDump = null;
+            bool langList = false;
             int saveLevel = 0;
             int level = 0;
             bool quiet = false, field = false, bmf = false, sound = false;
@@ -75,9 +105,28 @@ namespace LaserTank.Cli
                     case "--bmf": bmf = true; break;
                     case "--sound": sound = true; break;
                     case "--quiet": quiet = true; break;
+                    case "--lang-dir" when i + 1 < argv.Length: langDir = argv[++i]; break;
+                    case "--lang-dump" when i + 1 < argv.Length: langDump = argv[++i]; break;
+                    case "--lang-list": langList = true; break;
                     default: Usage(); return 2;
                 }
             }
+
+            // The language modes need no level file, so they answer before the
+            // checks below.  --lang-dir defaults the way Paths.cs does in the
+            // game: data/ beside the repo, found by walking up from the exe.
+            if (langList || langDump != null)
+            {
+                string dir = langDir ?? DefaultLangDir();
+                var stdout = new StreamWriter(Console.OpenStandardOutput(),
+                                              new UTF8Encoding(false));
+                stdout.NewLine = "\n";
+                int rc = langList ? LangDump.List(dir, stdout)
+                                  : LangDump.Dump(dir, langDump, stdout);
+                stdout.Flush();
+                return rc;
+            }
+
             if (levels == null
                 || (lpb == null && keys == null && script == null && edit == null))
             {
