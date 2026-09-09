@@ -13,7 +13,22 @@ enter the solver's headline rate.**  Its value is as a bootstrap: hint-assisted
 solutions are still real recordings, and real recordings are what --profile and
 basin.py measure and what layer 4 is fit on.
 
-Nine subcommands, cheapest first:
+**Run `complete`.**  It is the whole chain in one command and one report, and
+the nine phases below are the instruments to reach for when one of them is
+what is being worked on:
+
+  complete   index -> map -> fetch -> codebook -> tiles gate -> bank, into the
+             committed bench/goal-boards.json, with every phase's own output in
+             build/harvest/complete.log and, on stdout, one funnel and one
+             table: every post the decode did not finish on its own, why, and
+             whether that is intentional or is waiting on a human.  The last
+             line is the count of the latter.
+             ~65 min, against ~2h40 for the phases run one at a time -- three
+             of those phases decode all 7,484 goal boards at 37 minutes each
+             and `complete` needs only the one that banks them.  --report
+             re-prints the last run's table without running anything
+
+Ten subcommands, cheapest first:
 
   index      the whole post index from the Blogger feed -- title, URL, date and
              image URLs for all 6,218 posts in 42 requests, one minute.  No
@@ -54,6 +69,8 @@ Nine subcommands, cheapest first:
              undecoded cell in it rather than banking a key with a hole, and a
              level in stale.json rather than banking a target it cannot reach
 
+    python tools/harvest.py complete                    # the whole chain, ~65 min
+    python tools/harvest.py complete --report           # its table again, free
     python tools/harvest.py index                       # 42 requests, ~46 s
     python tools/harvest.py map                         # no network, no images
     python tools/harvest.py fetch --limit 150 --goals    # ~7 min
@@ -267,7 +284,7 @@ class Ticker:
             sys.stderr.flush()
 
 
-def cmd_index(args):
+def cmd_index(args, out=None):
     OUT.mkdir(parents=True, exist_ok=True)
     rows = []
     i = 1
@@ -306,6 +323,8 @@ def cmd_index(args):
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     print("index: %d posts of %d -> %s" % (len(rows), total, p))
+    if out is not None:
+        out["posts"] = len(rows)
     return 0
 
 
@@ -401,11 +420,12 @@ def posts_by_level(rows=None):
     return out
 
 
-def cmd_map(args):
+def cmd_map(args, out=None):
     rows = read_index()
     stat = collections.Counter()
     bad = []
     seen = set()
+    nocorpus = []
     for r in rows:
         p = parse_title(r["title"])
         if not p:
@@ -420,6 +440,7 @@ def cmd_map(args):
         if got is None:
             stat["collection or level not in corpus"] += 1
             bad.append((coll, n, name, None))
+            nocorpus.append((coll, n, name, r["url"]))
             continue
         seen.add((coll, n))
         if norm(got) in (norm(name), norm(PART.sub("", name))):
@@ -440,6 +461,12 @@ def cmd_map(args):
     for c in sorted(per):
         c_all = collection(c)
         print("  %-14s %5d covered of %5d" % (c, per[c], len(c_all) if c_all else -1))
+    if out is not None:
+        out["posts"] = len(rows)
+        out["solution posts"] = len(rows) - stat["not a solution post"]
+        out["not a solution post"] = stat["not a solution post"]
+        out["covered"] = len(seen)
+        out["nocorpus"] = nocorpus
     return 0
 
 
@@ -662,7 +689,7 @@ def manifest():
     return json.loads(p.read_text())
 
 
-def cmd_fetch(args):
+def cmd_fetch(args, out=None):
     """Download one start frame and every goal frame each level's posts carry.
 
     **Every part of a multi-part post is the same level and the same start
@@ -719,6 +746,13 @@ def cmd_fetch(args):
             got["start"] += 1
         else:
             got["no start image"] += 1
+            # Which of the two it is decides whether anyone can do anything
+            # about it: a post with no start screenshot is the blog's shape,
+            # a download that failed is this tool's problem.
+            if out is not None:
+                out.setdefault("nostart", []).append(
+                    (coll, n, rec["url"], "the post carries no start screenshot"
+                     if not start else "the start screenshot did not download"))
         if args.goals:
             for tag, bn, post in goals:
                 if fetch_one(post["imgs"][bn], img_path(coll, n, tag),
@@ -739,6 +773,10 @@ def cmd_fetch(args):
         print("  %-16s %5d" % (k, v))
     print("manifest -> %s  (%d this run, %d in all)"
           % (p, len(man), len(all_recs)))
+    if out is not None:
+        out["levels"] = len(all_recs)
+        out["start"] = sum(1 for r in all_recs if r["start"])
+        out["goal frames"] = sum(len(r["goals"]) for r in all_recs)
     return 0
 
 
@@ -835,7 +873,8 @@ STALE_README = (
     "The levels whose blog post is of a level the .lvl no longer matches -- "
     "tools/harvest.py codebook.  The post's start screenshot decodes to a "
     "board that is a genuine start position (tank on the .lvl's own T cell, "
-    "facing up, so not a play state) and yet disagrees with the .lvl, and "
+    "so not a play state -- the facing is free, since a turn in place changes "
+    "no PF) and yet disagrees with the .lvl, and "
     "tools/sprites.py -- which owes nothing to either side -- confirms the "
     "picture at every disagreeing cell.  The level was re-authored some time "
     "after the post.  **The consequence is on the goal boards, not the start "
@@ -910,7 +949,7 @@ def load_codebook(derived=True):
     return cb, tank, counts
 
 
-def cmd_codebook(args):
+def cmd_codebook(args, out=None):
     """Bootstrap the codebook from start screenshots.
 
     For every post the collection and level are known from its title, so a
@@ -930,10 +969,27 @@ def cmd_codebook(args):
     conflict on every later board that shows the tile honestly.
 
     The test is the tank: on a start board it is on the cell the `.lvl` stores
-    as `T` and it is facing up, both of which are in the pixels.  That needs
-    `tools/sprites.py`, which is the one thing here that does not come from the
-    corpus -- but it is used only to *admit* a board, never to label a tile, so
-    the curve below is still built from `.lvl` labels alone and is still honest.
+    as `T`, which is in the pixels.  That needs `tools/sprites.py`, which is the
+    one thing here that does not come from the corpus -- but it is used only to
+    *admit* a board, never to label a tile, so the curve below is still built
+    from `.lvl` labels alone and is still honest.
+
+    **The cell is the test; the facing is not, and requiring it cost six
+    boards.**  A turn in place is a move that changes no `PF` whatever, so a
+    screenshot taken after one is still a picture of the start position -- and
+    turning before the capture is an ordinary thing for a player to do.  The
+    check used to reject a non-up facing before it ever looked at the cell, and
+    on the full run that named six: `Challenge-V` 743 and `LaserTank` 19, 223,
+    283, 385 and 498, every one of which decodes to its `.lvl` with **0
+    unknown and 0 differing cells** -- the tank on its own `T` cell, turned.
+    What that cost was not labelling (their one new tile is their own turned
+    tank cell, which the derived sheet covers anyway) but the *checks a
+    rejected board skips*: those six levels were never conflict-checked
+    against the `.lvl`, so a re-authored one among them would have reached
+    `bank` as a live target.  A tank *off* the `T` cell is still a play state
+    and still rejected, which is what `LaserTank` 521 really was -- reported as
+    "tank facing right" where the tank is 20 cells and a whole solve away from
+    its start.
 
     **A conflict is arbitrated rather than merely counted**, and the same sheet
     does it.  A disagreement between the codebook and the `.lvl` at a cell has
@@ -963,7 +1019,7 @@ def cmd_codebook(args):
     cb = json.loads(cbpath().read_text()) if args.extend and cbpath().exists() else {}
     conflicts = []
     notstart = []
-    exact = noframe = 0
+    exact = noframe = turned = 0
     curve = []
     tick = Ticker("start boards", len(have))
     for k, r in enumerate(have):
@@ -979,10 +1035,13 @@ def cmd_codebook(args):
             print("  NOFRAME %s: %s\n           %s" % (r["start"], e, r["url"]))
             continue
         seat = [(cx, cy, facing[hs]) for (cx, cy), hs in t.items() if hs in facing]
+        # **The cell is the test and the facing is not.**  A turn in place is a
+        # move that changes no PF at all, so a picture taken after one is still
+        # a start position -- see the docstring for the six this used to reject.
         why = ("no tank in the picture" if not seat else
                "%d tanks in the picture" % len(seat) if len(seat) > 1 else
-               "tank facing %s" % seat[0][2] if seat[0][2] != "up" else
                "tank off the .lvl start cell"
+               + (", facing %s" % seat[0][2] if seat[0][2] != "up" else "")
                if B[seat[0][1]][seat[0][0]] != "T" else None)
         if why:
             # `pick_images`' document-order fallback is the one guess in the
@@ -993,6 +1052,7 @@ def cmd_codebook(args):
                 why += " [order-picked]"
             notstart.append((r["coll"], r["level"], why, r["url"]))
             continue
+        turned += seat[0][2] != "up"
         unk = bad = 0
         for (cx, cy), hs in t.items():
             true = B[cy][cx]
@@ -1018,11 +1078,13 @@ def cmd_codebook(args):
             cb.setdefault(hs, B[cy][cx])
     tick.done()
     order = sum(1 for c in notstart if c[2].endswith("[order-picked]"))
-    print("start boards: %d  (no frame: %d, not a start position: %d%s)"
+    print("start boards: %d  (no frame: %d, not a start position: %d%s%s)"
           % (len(curve), noframe, len(notstart),
-             ", of which %d order-picked" % order if order else ""))
+             ", of which %d order-picked" % order if order else "",
+             "; %d admitted with the tank turned in place" % turned
+             if turned else ""))
     for coll, lvl, why, url in notstart:
-        print("  NOT A START  %-14s %5d  %-40s %s" % (coll, lvl, why, url))
+        print("  NOT A START  %-14s %5d  %-44s %s" % (coll, lvl, why, url))
     print("  n  codebook  unknown  conflict")
     for n, sz, unk, bad in curve:
         if n <= 10 or unk or bad or n % 25 == 0 or n == len(curve):
@@ -1069,6 +1131,12 @@ def cmd_codebook(args):
                            json.loads(labelpath().read_text()).items()
                            if not k.startswith("_")})
         goal_residual(merged)
+    if out is not None:
+        out["start boards"] = len(curve)
+        out["turned in place"] = turned
+        out["notstart"] = notstart
+        out["stale"] = stale
+        out["unarbitrated"] = [c for c in conflicts if c[7] != "the .lvl"]
     # A STALE board is a finding, not a failure: the codebook came out right at
     # every one of its cells and `stale.json` carries the consequence on to
     # `bank`.  What still fails the gate is a conflict the sheet blames on the
@@ -1341,7 +1409,7 @@ def decode_board(path, cb, tank=None, packs=True):
     return g, unk, org, where, ""
 
 
-def cmd_tiles(args):
+def cmd_tiles(args, out=None):
     """What the sprite-sheet derivation covers, against both other halves.
 
     This is the gate on `tools/sprites.py`, and it is a gate rather than a
@@ -1410,15 +1478,33 @@ def cmd_tiles(args):
         print("goal residual: SKIPPED, no %s -- run: python %s sheet"
               % (side.relative_to(ROOT), pathlib.Path(__file__).name))
 
+    if out is not None:
+        out["clash"] = clash
+        out["not derived"] = absent
+        out["residual gate"] = side.exists()
+    # **The third check is `bank`'s own pass, and running both costs it
+    # twice.**  Decoding all 7,484 goal boards is 35 minutes and `bank` does
+    # exactly the same decode -- so `complete` takes the two cheap gates here
+    # and lets the bank pass report the boards, which is where the fixups and
+    # the refusals are anyway.  Standalone `tiles` still runs all three: it is
+    # the gate to run while working on sprites.py, where there is no bank.
+    if getattr(args, "gate_only", False):
+        return 1 if clash else 0
+
     cbfull, tank, n = load_codebook()
     print("\ndecoding every goal board against all three halves: %d start-"
           "bootstrapped + %d hand-labelled + %d derived = %d tiles"
           % (n["start"], n["hand"], n["derived"], len(cbfull)))
-    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"], r["url"])
+    # The frame's own url, not the level's: a multi-part post's later frames
+    # each have one, and it is also the key bench/post-fixups.json is written
+    # against -- so the level's url would both send the reader to a post the
+    # picture is not in and miss the fixup that answers the cell.
+    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"],
+              g.get("url", r["url"]))
              for r in manifest() for g in r["goals"]]
     per = collections.Counter()
     unk = collections.Counter()
-    nb = notank = 0
+    nb = notank = answered = notankfx = 0
     named = []
     tick = Ticker("goal boards", len(files))
     for coll, lvl, tag, f, url in files:
@@ -1435,8 +1521,19 @@ def cmd_tiles(args):
         notank += where is None
         unk.update(u)
         v = sum(u.values())
+        # What `bank` will do with this board, said here rather than left for
+        # the reader to cross-reference: an occluded cell is the one thing no
+        # derivation reaches, so the honest report is not "4 unknown tiles" but
+        # "3 of them already answered by hand, 1 open".  Counted per cell that
+        # actually fills a '?', the same condition bank applies.
+        fx = fixup(url).get("frames", {}).get(tag, {})
+        fill = sum(1 for at in fx.get("cells", {})
+                   if g[int(at[1:]) - 1][ord(at[0].upper()) - 65] == "?")
+        tankfx = where is None and bool(fx.get("tank"))
+        answered += fill
+        notankfx += tankfx
         if v or where is None or pk:
-            named.append((v, coll, lvl, tag, where, pk, url))
+            named.append((v, coll, lvl, tag, where, pk, url, fill, tankfx))
         per["0" if v == 0 else "1" if v == 1 else "2" if v == 2 else
             "3-5" if v <= 5 else "6-10" if v <= 10 else ">10"] += 1
     tick.done()
@@ -1446,7 +1543,13 @@ def cmd_tiles(args):
     print("\ngoal boards decoded: %d;  unknown tiles %d of %d (%.2f%%);  "
           "%d distinct" % (nb, sum(unk.values()), nb * 256,
                            100.0 * sum(unk.values()) / (nb * 256), len(unk)))
-    print("boards with no tank found: %d" % notank)
+    if sum(unk.values()):
+        print("  of those, %d answered by bench/post-fixups.json, %d open "
+              "(each one refuses its board in bank)"
+              % (answered, sum(unk.values()) - answered))
+    print("boards with no tank found: %d%s"
+          % (notank, "  (%d answered by bench/post-fixups.json)" % notankfx
+             if notankfx else ""))
     print("unknown cells per goal board:")
     for k in ("0", "1", "2", "3-5", "6-10", ">10"):
         if per[k]:
@@ -1455,18 +1558,22 @@ def cmd_tiles(args):
     # A percentage is not a finding.  0.02% of tiles was one image with no
     # 24-pixel grid in it at all plus four capture artifacts, and the histogram
     # above could not say which -- so every board that is not clean is named,
-    # worst first, with the post to go and look at.  `bank` refuses all of
-    # these except a clean board with no tank on it, which it banks with a null
-    # tank, so that one is the row worth reading.
+    # worst first, with the post to go and look at.  `bank` refuses every one
+    # of these unless bench/post-fixups.json answers it, which the note column
+    # says per row: a row with no note is a row to go and look at.
     if named:
         print("every goal board that is not plain-and-clean, worst first:")
-        for v, coll, lvl, tag, where, pk, url in sorted(named, reverse=True):
-            print("  %-14s %5d %-4s %3d unknown, tank %-12s %-16s %s"
+        for v, coll, lvl, tag, where, pk, url, fill, tankfx in sorted(
+                named, reverse=True):
+            note = ", ".join(
+                (["%d of %d from a post fixup" % (fill, v)] if fill else [])
+                + (["tank from a post fixup"] if tankfx else []))
+            print("  %-14s %5d %-4s %3d unknown, tank %-12s %-16s %-26s %s"
                   % (coll, lvl, tag, v,
                      "not found" if where is None
                      else "%s%d %s" % (chr(65 + where[0]), where[1] + 1,
                                        where[2]),
-                     pk or "", url))
+                     pk or "", note, url))
     if args.out:
         pathlib.Path(args.out).write_text(json.dumps(
             {h: {"pf": v[0], "tank": v[1], "is": v[2]}
@@ -1523,7 +1630,7 @@ BANK_README = (
 )
 
 
-def cmd_bank(args):
+def cmd_bank(args, out=None):
     """Decode every fetched goal screenshot into the bank the solver reads.
 
     This is the artefact `--goal-board` takes: (collection, level, goal PF,
@@ -1574,9 +1681,11 @@ def cmd_bank(args):
             for n in ns.split(","):
                 want.add((coll, int(n)))
 
-    out = []
+    banked = []
     stat = collections.Counter()
     refused = []
+    answered = []
+    nogoal = []
     recs = [r for r in manifest()
             if want is None or (r["coll"], r["level"]) in want]
     tick = Ticker("levels", len(recs))
@@ -1585,6 +1694,8 @@ def cmd_bank(args):
                        % (stat["banked"], stat["unknown cells -- refused"]))
         if not r["goals"]:
             stat["no goal image in the post"] += 1
+            nogoal.append((r["coll"], r["level"], "-",
+                           "the post carries no goal screenshot", r["url"]))
             continue
         if (r["coll"], r["level"]) in stale and not args.allow_stale:
             stat["re-authored since the post"] += 1
@@ -1612,19 +1723,35 @@ def cmd_bank(args):
             # about another board that happens to draw the same tile -- which
             # is exactly why it is not in the hash table beside it.
             fx = fixup(src).get("frames", {}).get(g["tag"], {})
+            fixed = []
             for at, pf in fx.get("cells", {}).items():
                 cx, cy = ord(at[0].upper()) - 65, int(at[1:]) - 1
                 if grid[cy][cx] == "?":
                     grid[cy][cx] = pf
+                    fixed.append("%s=%r" % (at.upper(), pf))
                     stat["cells filled from a post fixup"] += 1
-            u = sum(row.count("?") for row in grid)
+            # **Where the holes are, not just how many.**  The cell is the
+            # whole of what a human has to state, so a refusal that says "1
+            # undecoded cells" and nothing more sends the reader back through
+            # `decode` to find out which one -- twice, in two sessions.
+            holes = ["%s%d" % (chr(65 + x), y + 1)
+                     for y in range(16) for x in range(16) if grid[y][x] == "?"]
+            u = len(holes)
             if where is None and fx.get("tank"):
                 where = (fx["tank"]["x"], fx["tank"]["y"], fx["tank"]["dir"])
+                fixed.append("tank=%s%d %s" % (chr(65 + where[0]),
+                                               where[1] + 1, where[2]))
                 stat["tank from a post fixup"] += 1
+            if fixed:
+                answered.append((r["coll"], r["level"], g["tag"],
+                                 ", ".join(fixed), src))
             if u and not args.allow_unknown:
                 stat["unknown cells -- refused"] += 1
                 refused.append((r["coll"], r["level"], g["tag"],
-                                "%d undecoded cells" % u, src))
+                                "%d undecoded cell%s (%s)"
+                                % (u, "" if u == 1 else "s",
+                                   ", ".join(holes[:8])
+                                   + (" ..." if u > 8 else "")), src))
                 continue
             if where is None and not args.allow_unknown:
                 # **A goal frame with no tank in it is a faulty capture**, and
@@ -1663,24 +1790,49 @@ def cmd_bank(args):
         # board with the fewest flags left on it is the last of the sequence.
         boards.sort(key=lambda b: (-b["flags"], b["tag"]))
         c = hand.get("%s:%d" % (r["coll"], r["level"]), {})
-        out.append({"coll": r["coll"], "level": r["level"],
-                    "name": level_name(r["coll"], r["level"]),
-                    "url": r["url"],
-                    "moves": c.get("moves"), "shots": c.get("shots"),
-                    "goals": boards})
+        banked.append({"coll": r["coll"], "level": r["level"],
+                       "name": level_name(r["coll"], r["level"]),
+                       "url": r["url"],
+                       "moves": c.get("moves"), "shots": c.get("shots"),
+                       "goals": boards})
     tick.done()
 
     dest = pathlib.Path(args.out) if args.out else OUT / "goals.json"
-    write_json(dest, {"_README": BANK_README, "levels": out})
+    # **The destination is overwritten and a worse result is reported, never
+    # refused.**  `complete` writes the committed bench/goal-boards.json, so a
+    # run that banks fewer levels than the file on disk is a regression in the
+    # chain -- and guarding the write would hide it where the diff shows it.
+    # What this owes the reader is the comparison, which is these two numbers.
+    was = None
+    if dest.exists():
+        try:
+            old = json.loads(dest.read_text())["levels"]
+            was = [len(old), sum(len(r["goals"]) for r in old)]
+        except (ValueError, KeyError, TypeError):
+            was = None                          # not a bank; just overwrite it
+    write_json(dest, {"_README": BANK_README, "levels": banked})
     for k, v in stat.most_common():
         print("  %-28s %5d" % (k, v))
     # The post itself, because a refusal is something to go and look at: the
     # counters alone never said *which* board, let alone where to see it.
     for coll, lvl, tag, why, url in refused:
-        print("  REFUSED %-14s %5d %-4s %-22s %s" % (coll, lvl, tag, why, url))
+        print("  REFUSED %-14s %5d %-4s %-30s %s" % (coll, lvl, tag, why, url))
     print("bank -> %s  (%d levels, %d boards, %d with counters)"
-          % (dest, len(out), sum(len(r["goals"]) for r in out),
-             sum(1 for r in out if r["moves"] is not None)))
+          % (dest, len(banked), sum(len(r["goals"]) for r in banked),
+             sum(1 for r in banked if r["moves"] is not None)))
+    if was:
+        print("  it replaced a bank of %d levels and %d boards%s"
+              % (was[0], was[1], "   *** FEWER LEVELS THAN BEFORE ***"
+                 if len(banked) < was[0] else ""))
+    if out is not None:
+        out["dest"] = str(dest)
+        out["was"] = was
+        out["levels"] = len(banked)
+        out["boards"] = sum(len(r["goals"]) for r in banked)
+        out["refused"] = refused
+        out["answered"] = answered
+        out["nogoal"] = nogoal
+        out["stat"] = dict(stat)
     return 0
 
 
@@ -1742,6 +1894,334 @@ def cmd_decode(args):
     return rc
 
 
+# --------------------------------------------------------------- the one command
+
+# Every way a post can fail to reach the bank, and whether anyone has to do
+# anything about it.  `complete` prints these; the point of the table is the
+# last column, so each entry says what would resolve the row and who can.
+#   'why'    what the tool found, in the game's own A-P/1-16 coordinates
+#   'open'   True means it is waiting on Michal -- nothing else can supply it
+CLARIFY = "CLARIFY"
+
+# The bank a full run produces, committed: bench/ is where this project's
+# persistent solver artefacts live, and this one cannot be re-derived without
+# the blog.  See bench/README.md for the rule that directory pays for.
+BANK = ROOT / "bench" / "goal-boards.json"
+
+
+def _phase_args(**kw):
+    """A phase's own argv, as a namespace -- `complete` calls the same
+    functions the subcommands do rather than a private copy of them."""
+    return argparse.Namespace(**kw)
+
+
+def complete_rows(ph, man):
+    """The findings of every phase -> one row per post that the plain decode
+    did not finish on its own, merged by (collection, level, frame).
+
+    Merged because a post can fail twice and is still one post: the level that
+    contributes *nothing* carries both "no start screenshot" and "no goal
+    screenshot", and printing it twice would double a count the reader is
+    reading precisely to know how many posts are affected.
+
+    The two "no screenshot" populations come from the **manifest** rather than
+    from `fetch`'s findings, so `--offline` reports them too -- a post that
+    carries no start frame is a fact about the blog and does not need the
+    network to notice.  `fetch`'s own rows are then only the *other* reason
+    the file can be missing: a download that failed, which is this tool's
+    problem and not the blog's shape.
+    """
+    rows = {}
+
+    def add(kind, coll, lvl, tag, why, status, url, open_=False):
+        k = (coll, lvl, tag)
+        r = rows.setdefault(k, {"kind": kind, "coll": coll, "level": lvl,
+                                "tag": tag, "why": [], "status": [],
+                                "open": False, "url": url})
+        r["why"].append(why)
+        r["status"].append(status)
+        r["open"] = r["open"] or open_
+        r["url"] = r["url"] or url
+        return r
+
+    mp, ft = ph.get("map", {}), ph.get("fetch", {})
+    cb, bk = ph.get("codebook", {}), ph.get("bank", {})
+    stale = {(s["coll"], s["level"]): s for s in cb.get("stale", [])}
+    broke = {(c, l) for c, l, _, why in ft.get("nostart", [])
+             if "did not download" in why}
+
+    for coll, lvl, name, url in mp.get("nocorpus", []):
+        add("nocorpus", coll, lvl, "-",
+            "the post names a level this corpus does not ship",
+            "%s: retarget the post in bench/post-fixups.json, or ship the "
+            "collection" % CLARIFY, url, True)
+    for r in man:
+        if r["start"]:
+            continue
+        # A post with no start screenshot is the blog's shape and costs only
+        # the staleness check; a download that failed is this tool's problem.
+        bad = (r["coll"], r["level"]) in broke
+        add("nostart", r["coll"], r["level"], "-",
+            "the start screenshot did not download" if bad
+            else "the post carries no start screenshot",
+            "%s: the fetch failed, not the blog" % CLARIFY if bad
+            else "intentional: nothing to label from, and no staleness check "
+                 "for this level", r["url"], bad)
+    for coll, lvl, why, url in cb.get("notstart", []):
+        add("notstart", coll, lvl, "-",
+            "start frame is not a start position (%s)" % why,
+            "intentional: a play state teaches wrong labels, so it is not "
+            "learned from -- and no staleness check for this level", url)
+    for coll, lvl, tag, why, url in bk.get("nogoal", []):
+        add("nogoal", coll, lvl, tag, why,
+            "intentional: there is no board to bank", url)
+    for coll, lvl, tag, what, url in bk.get("answered", []):
+        add("answered", coll, lvl, tag,
+            "occluded cell, unreadable from any pixels",
+            "intentional: banked using your line in bench/post-fixups.json "
+            "(%s)" % what, url)
+    for coll, lvl, tag, why, url in bk.get("refused", []):
+        if why.startswith("stale"):
+            s = stale.get((coll, lvl), {})
+            add("stale", coll, lvl, tag,
+                "the .lvl no longer matches the picture",
+                "intentional: level re-authored after the post, %d cell%s, "
+                "sprites.py blames the .lvl at every one -- the goal is a "
+                "target this level cannot reach"
+                % (s.get("cells", 0), "" if s.get("cells") == 1 else "s"),
+                url)
+        elif "undecoded cell" in why:
+            add("undecoded", coll, lvl, tag, why,
+                "%s: state the PF symbol for %s in bench/post-fixups.json"
+                % (CLARIFY, why.split("(", 1)[1].rstrip(")")), url, True)
+        elif "no tank" in why:
+            add("notank", coll, lvl, tag, why,
+                "%s: state the tank's cell and facing in "
+                "bench/post-fixups.json" % CLARIFY, url, True)
+        else:
+            add("unreadable", coll, lvl, tag, why,
+                "%s: the decoder could not read this image" % CLARIFY, url,
+                True)
+    # A conflict the sheet cannot arbitrate is the one thing here that fails
+    # the gate rather than reporting a finding -- see cmd_codebook.
+    for coll, lvl, cx, cy, got, true, hs, who in cb.get("unarbitrated", []):
+        add("unarbitrated", coll, lvl, "-",
+            "start board disagrees with the .lvl at %s%d (codebook %s, corpus "
+            "%s) and the sprite sheet blames %s"
+            % (chr(65 + cx), cy + 1, got, true, who),
+            "%s: the derivation and the corpus disagree -- a gate failure, "
+            "not a finding" % CLARIFY, "", True)
+
+    for r in rows.values():
+        r["why"] = "; ".join(r["why"])
+        r["status"] = "; ".join(r["status"])
+    return sorted(rows.values(),
+                  key=lambda r: (not r["open"], r["kind"], r["coll"],
+                                 r["level"], r["tag"]))
+
+
+# Two of the categories are the *blog's shape* rather than findings -- a post
+# with no start screenshot, a post with no goal screenshot -- and at corpus
+# scale they are 79 of the 80 rows.  Listing them by name buries the one row
+# that needs reading, so they collapse to a line unless --all asks for them.
+# Nothing with an open row in it ever collapses.
+COLLAPSE = {
+    "nostart": "carry no start screenshot -- nothing to label from, and no "
+               "staleness check for those levels",
+    "nogoal": "carry no goal screenshot -- there is no board to bank",
+}
+
+
+def complete_report(rep, expand=False):
+    """The funnel and the table.  Reads what a run collected, so `--report`
+    re-prints it without re-running anything."""
+    f, rows = rep["funnel"], rep["rows"]
+
+    def line(n, what, note=""):
+        print(("  %7s  %-46s %s"
+               % ("{:,}".format(n) if n is not None else "?",
+                  what, note)).rstrip())
+
+    print("\n=== harvest complete === %s" % rep.get("when", ""))
+    line(f.get("posts"), "posts in the blog feed")
+    line(f.get("solution posts"), "carry a level solution",
+         "(%d do not: sidebar and index posts)" % f.get("not a solution", 0))
+    line(f.get("covered"), "distinct levels named by those posts")
+    line(f.get("with a goal frame"), "have a goal screenshot to decode",
+         "(%d carry none)" % f.get("no goal frame", 0))
+    dest, was = f.get("dest") or "?", f.get("was")
+    try:
+        dest = str(pathlib.Path(dest).relative_to(ROOT))
+    except (ValueError, TypeError):
+        pass
+    # The bank it replaced, when the count moved: bench/goal-boards.json is
+    # committed, so a run that banks fewer levels than the last one is a
+    # regression and the diff is where it shows.
+    delta = ""
+    if was and was[0] != f.get("banked levels"):
+        delta = ", was %s%s" % ("{:,}".format(was[0]),
+                                " *** FEWER NOW ***"
+                                if f.get("banked levels", 0) < was[0] else "")
+    line(f.get("banked levels"), "banked -> %s" % dest,
+         "(%s goal boards%s)"
+         % ("{:,}".format(f.get("banked boards", 0)), delta))
+    line(f.get("start boards"),
+         "start boards also read, to label the tile codebook",
+         "(%d not usable as one)" % f.get("start rejected", 0))
+
+    op = [r for r in rows if r["open"]]
+    hide = {k for k, rs in
+            [(k, [r for r in rows if r["kind"] == k]) for k in COLLAPSE]
+            if not expand and len(rs) > 3 and not any(r["open"] for r in rs)}
+    print("\n%d post%s the decode did not finish on its own, %d waiting on "
+          "you:" % (len(rows), "" if len(rows) == 1 else "s", len(op)))
+    i = 0
+    for r in rows:
+        if r["kind"] in hide:
+            continue
+        i += 1
+        print("  %3d  %-14s %5s %-2s  %s"
+              % (i, r["coll"], r["level"], r["tag"], r["why"]))
+        print("       %s%s" % (r["status"],
+                               "\n       %s" % r["url"] if r["open"] and
+                               r["url"] else ""))
+    for k in sorted(hide):
+        n = [r for r in rows if r["kind"] == k]
+        print("  %3s  %d posts %s" % ("+", len(n), COLLAPSE[k]))
+        print("       intentional: %s ... (--all lists them)"
+              % ", ".join("%s %d" % (r["coll"], r["level"]) for r in n[:4]))
+    print("\n= %s"
+          % ("nothing left to clarify" if not op
+             else "%d left to clarify -- each needs one line in "
+                  "bench/post-fixups.json" % len(op)))
+    # A gate that does not run has to say so, in the report and not only in
+    # the log -- this one was silent through a whole corpus-scale run.
+    if f.get("residual gate") is False:
+        print("note: the goal-residual gate did not run -- no "
+              "build/harvest/residual.json; `python tools/harvest.py sheet` "
+              "writes it")
+    if f.get("clash"):
+        print("note: %d tile%s where the derivation and the .lvl-labelled "
+              "codebook disagree -- `tiles` is the gate and it failed"
+              % (f["clash"], "" if f["clash"] == 1 else "s"))
+    return 0
+
+
+def cmd_complete(args):
+    """The whole chain, one command, and one table of what it dropped.
+
+    Six phases run today and each prints its own several hundred lines, so the
+    question the reader actually has -- *which posts are not in the bank, and
+    is that on purpose* -- was answered by reading five phase reports side by
+    side and cross-referencing them by hand.  That is what this command is:
+    the same phase functions, their output to a log, and the findings they
+    collect assembled into one funnel and one table whose last column says who
+    can resolve the row.  **The count that matters is the last line**: how many
+    rows are waiting on a human, which is 1 today.
+
+    **It also stops paying for the same decode three times.**  `codebook
+    --goals`, `tiles` and `bank` each walk all 7,484 goal boards -- **37
+    minutes apiece**, measured on the session 40 run, whose 2h40 is mostly
+    those three -- and the only difference between them is what they report.
+    So `complete` runs `tiles` as its two cheap gates (`--gate-only`, seconds)
+    and takes the per-board findings from the bank pass, which is the pass that
+    has the fixups and the refusals in it anyway; the residual sizing is not in
+    the chain at all, since it sized an item that is closed and `codebook
+    --goals` still runs it on demand.  **~65 minutes for the same artefacts and
+    strictly more reporting.**  The phases stay separate commands: they are the
+    instruments to reach for when one of them is what is being worked on.
+    """
+    OUT.mkdir(parents=True, exist_ok=True)
+    rep = OUT / "complete.json"
+    if args.report:
+        if not rep.exists():
+            raise SystemExit("no %s -- run: python %s complete"
+                             % (rep, pathlib.Path(__file__).name))
+        return complete_report(json.loads(rep.read_text()), args.all)
+
+    log = OUT / "complete.log"
+    ph, rc = {}, 0
+    t0 = time.time()
+    with open(log, "w", encoding="utf-8", errors="replace") as fh:
+        def run(name, fn, a):
+            """One phase: its findings kept, its output to the log."""
+            nonlocal rc
+            d = ph.setdefault(name, {})
+            print("\n=== %s ===" % name, file=fh, flush=True)
+            t = time.time()
+            sys.stderr.write("%s ...\n" % name)
+            if args.verbose:
+                r = fn(a, out=d)
+            else:
+                stdout, sys.stdout = sys.stdout, fh
+                try:
+                    r = fn(a, out=d)
+                finally:
+                    sys.stdout = stdout
+            d["seconds"] = time.time() - t
+            rc = max(rc, r or 0)
+            return r
+
+        if not args.offline:
+            run("index", cmd_index, _phase_args())
+        run("map", cmd_map, _phase_args())
+        if not args.offline:
+            run("fetch", cmd_fetch, _phase_args(
+                levels=None, collection=None, limit=0, seed=7, goals=True,
+                refetch=False))
+        else:
+            ph["fetch"] = {}
+        run("codebook", cmd_codebook,
+            _phase_args(limit=0, extend=False, goals=False))
+        run("tiles", cmd_tiles, _phase_args(out=None, gate_only=True))
+        # **The whole-run bank is a committed artefact and lives in bench/.**
+        # A full `complete` is the only thing that produces it, so it is the
+        # only thing that writes it: a scoped `bank --levels X` keeps the
+        # gitignored build/harvest/goals.json default rather than replacing
+        # 5,975 levels with one.  Re-deriving the bank needs nine years of
+        # blog, which is the whole reason it is committed -- bench/README.md.
+        run("bank", cmd_bank, _phase_args(
+            levels=None, out=args.out or str(BANK), allow_unknown=False,
+            allow_stale=False))
+
+    mp, ft = ph.get("map", {}), ph.get("fetch", {})
+    cb, bk = ph.get("codebook", {}), ph.get("bank", {})
+    man = manifest()
+    funnel = {
+        "posts": mp.get("posts"),
+        "solution posts": mp.get("solution posts"),
+        "not a solution": mp.get("not a solution post", 0),
+        "covered": mp.get("covered"),
+        "with a goal frame": sum(1 for r in man if r["goals"]),
+        "no goal frame": bk.get("stat", {}).get("no goal image in the post", 0),
+        "banked levels": bk.get("levels"),
+        "banked boards": bk.get("boards"),
+        "dest": bk.get("dest"),
+        "was": bk.get("was"),
+        "start boards": cb.get("start boards"),
+        "start rejected": len(cb.get("notstart", []))
+                          + sum(1 for r in man if not r["start"]),
+        "residual gate": ph.get("tiles", {}).get("residual gate"),
+        "clash": ph.get("tiles", {}).get("clash"),
+    }
+    out = {"when": time.strftime("%Y-%m-%d %H:%M"),
+           "seconds": round(time.time() - t0),
+           "phases": {k: round(v.get("seconds", 0)) for k, v in ph.items()},
+           "funnel": funnel, "rows": complete_rows(ph, man)}
+    write_json(rep, out)
+    complete_report(out, args.all)
+    print("\nphases: %s;  %s in all"
+          % (", ".join("%s %s" % (k, hms(v))
+                       for k, v in out["phases"].items()), hms(out["seconds"])))
+    print("every phase's own output -> %s" % log)
+    print("this table -> %s  (re-print it with: python %s complete --report)"
+          % (rep, pathlib.Path(__file__).name))
+    # The gate is the gate: a phase that failed is a failure whatever the table
+    # says.  A row waiting on a human is *not* a failure -- it is the tool
+    # working, so it does not touch the exit code; the last line reports it.
+    return rc
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1777,6 +2257,10 @@ def main():
 
     t = sub.add_parser("tiles", help="the sprite-sheet derivation, and its gate")
     t.add_argument("--out", help="write the derived hash -> PF table here")
+    t.add_argument("--gate-only", action="store_true",
+                   help="the two cheap gates without the 35-minute goal-board "
+                        "pass -- what `complete` runs, since `bank` decodes "
+                        "the same boards")
 
     k = sub.add_parser("bank", help="decode the goal screenshots into the "
                                     "bank --goal-board reads")
@@ -1791,6 +2275,23 @@ def main():
                         "their post -- unreachable targets, so for looking "
                         "at, never for solving")
 
+    p = sub.add_parser("complete", help="the whole chain in one command: one "
+                                        "funnel, one table of what it dropped")
+    p.add_argument("--out", help="the bank's destination, default "
+                                 "bench/goal-boards.json (committed: a full "
+                                 "run's bank cannot be re-derived offline)")
+    p.add_argument("--offline", action="store_true",
+                   help="skip index and fetch -- work from what is on disk")
+    p.add_argument("--verbose", action="store_true",
+                   help="every phase's own output on stdout as well as in "
+                        "build/harvest/complete.log")
+    p.add_argument("--report", action="store_true",
+                   help="re-print the last run's table from "
+                        "build/harvest/complete.json, running nothing")
+    p.add_argument("--all", action="store_true",
+                   help="name every post in the two collapsed categories -- "
+                        "the ones that carry no start or no goal screenshot")
+
     d = sub.add_parser("decode", help="a screenshot -> a 16x16 board")
     d.add_argument("images", nargs="+")
     d.add_argument("--check", action="store_true",
@@ -1800,7 +2301,7 @@ def main():
     args = ap.parse_args()
     return {"index": cmd_index, "map": cmd_map, "fetch": cmd_fetch,
             "codebook": cmd_codebook, "sheet": cmd_sheet, "label": cmd_label,
-            "tiles": cmd_tiles, "bank": cmd_bank,
+            "tiles": cmd_tiles, "bank": cmd_bank, "complete": cmd_complete,
             "decode": cmd_decode}[args.cmd](args)
 
 

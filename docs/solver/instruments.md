@@ -201,8 +201,21 @@ fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regen
                     The one tool here that is not stdlib-only: needs numpy
 basin.py          read a --profile dump: how far uphill a winning line goes, per level,
                     in keypresses and in board changes
-harvest.py        closed item 6: the blogspot goal-board harvester.  index / map /
-                    fetch / codebook / tiles / sheet / label / decode / bank, cheapest
+harvest.py        closed item 6: the blogspot goal-board harvester.  **`complete` is
+                    the one to run**: the whole chain into the committed
+                    bench/goal-boards.json (overwriting it, and reporting the bank it
+                    replaced), every phase's own output in
+                    build/harvest/complete.log, and on stdout one funnel plus one
+                    table -- every post the decode did not finish on its own, why,
+                    and whether that is intentional or waiting on a human, with the
+                    count of the latter as its last line (`--report` re-prints it
+                    free, `--all` names the two collapsed categories).  It is also
+                    the fast way: three phases decode all 7,484 goal boards at 37
+                    minutes each and `complete` needs only the one that banks them,
+                    so ~65 min against ~2h40 for the phases one at a time.  The nine
+                    phases stay separate commands because they are the instruments
+                    for working on a phase: index / map / fetch / codebook / tiles /
+                    sheet / label / decode / bank, cheapest
                     first.  `map`, `codebook` and `tiles` report rather than fetch --
                     `map` checks (collection, level) -> name against every .lvl and
                     needs no images at all, `codebook --goals` prints the saturation
@@ -221,12 +234,15 @@ harvest.py        closed item 6: the blogspot goal-board harvester.  index / map
                     final board last, and it *refuses* a board with an undecoded cell
                     rather than banking a ranking key with a hole in it.
                     **`codebook` learns only from a picture that is a start
-                    position** -- tank on the cell the .lvl stores as T, facing up,
-                    both read off the pixels.  The labels come from the .lvl, so a
-                    mid-solution screenshot labels every state play produced with
-                    what was there *before* play, and setdefault makes the first such
-                    board win for good; the check is what stops that, and it names
-                    every board it rejects.  Every loop that runs for minutes prints
+                    position** -- tank on the cell the .lvl stores as T, read off
+                    the pixels.  The labels come from the .lvl, so a mid-solution
+                    screenshot labels every state play produced with what was there
+                    *before* play, and setdefault makes the first such board win for
+                    good; the check is what stops that, and it names every board it
+                    rejects.  **The cell is the test and the facing is not**: a turn
+                    in place changes no PF, so a picture taken after one is still the
+                    start position, and requiring "facing up" rejected six boards
+                    that decode to their .lvl exactly (session 40)  Every loop that runs for minutes prints
                     a progress line on stderr -- rewritten in place on a tty, one new
                     line every ten seconds with an ETA when redirected -- and every
                     line reporting a board the tool will not use carries the post's
@@ -265,14 +281,14 @@ bank never fires. They decode to a clean, plausible, wrong board.
 * **The picture is not the position the filename claims.** 35 posts carry both `N.png` and `Na.png`, and
   the bare one is the start; a handful name an image for another collection outright
   (`LaserTank_452.png` in the Sokoban-I 452 post). `pick_images` decides both, and `codebook` no longer
-  takes any board on trust: it checks the tank is on the `.lvl`'s own `T` cell facing up. This matters
+  takes any board on trust: it checks the tank is on the `.lvl`'s own `T` cell. This matters
   out of proportion to the count, because `codebook` labels from the `.lvl` — one mid-solution board
   teaches a block sunk in water as `~` and a destroyed anti-tank as `v`, `setdefault` freezes it, and
   every later board that shows the tile honestly then reports a conflict. `tiles` is the gate that
   catches it after the fact, by disagreeing with `sprites.py`; the start-position check is what stops it
   happening.
 * **The blog's level pack is not always this corpus's.** A few start boards decode cleanly, tank on its
-  start cell facing up, and still disagree with `data/levels/*.lvl` — water where the corpus has tunnels,
+  own start cell, and still disagree with `data/levels/*.lvl` — water where the corpus has tunnels,
   two tile types swapped — *in every frame of the post*, which is what separates drift from a capture
   artifact. A goal board banked for such a level is a ranking key for **a different puzzle**. `codebook`
   now names each one with its post URL; nothing yet keeps them out of the bank.

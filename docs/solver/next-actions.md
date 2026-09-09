@@ -25,22 +25,31 @@ contributing nothing where 246 did. The diagnosis and the five fixes are in
 corpus-scale numbers from the first run are the [session 38 section](history.md#session-38--the-corpus-scale-run-and-what-its-two-complaints-were)
 above it.
 
-**The chain is rerunnable and the rerun is Michal's job.** The 12,487 images are cached and `fetch` skips
-what is on disk, so the only network is the ~1,000 images the old `pick_images` never asked for; no
-`--refetch`. Roughly 1h40m in all:
+**The chain has run** (session 40, `build/harvest-full.log`): 7,484 goal boards decoded with **4 unknown
+tiles in 1,915,904**, and `bank` wrote **5,975 levels / 7,462 boards** to `bench/goal-boards.json`. Three
+of the four unknowns were already answered by `bench/post-fixups.json`; **one cell is open** —
+`Sokoban-I` 1060 `b` at O2 — and it is the only thing standing between that run and a bank with no
+refusal in it but the 11 stale levels. The reading of it, and the six start boards the same run turned
+out to have been throwing away, are in
+[session 40](history.md#session-40--the-whole-chain-ran-clean-and-its-two-complaints-were-one-repair-and-one-instrument-bug).
+Rerunning costs almost no network — the 12,487 images are cached and `fetch` skips what is on disk; no
+`--refetch` — and it is now **one command**, ~65 min:
 
 ```bash
-python tools/harvest.py map                 # free; expect 1 retarget from bench/post-fixups.json
-python tools/harvest.py fetch --goals       # ~1,000 new images
-python tools/harvest.py codebook --goals    # ~40 min; watch for NOT A START ... [order-picked]
-python tools/harvest.py tiles               # names every board that is not clean
-python tools/harvest.py bank                # -> build/harvest/goals.json
+python tools/harvest.py complete            # the whole chain -> bench/goal-boards.json
+python tools/harvest.py complete --report   # that table again, free
 ```
+
+The phases are still separate commands (`index`, `map`, `fetch`, `codebook`, `tiles`, `bank`), which is
+what to reach for when one of them is what is being worked on. Running them one at a time costs ~2h40
+rather than ~65 min, because three of them decode all 7,484 goal boards at 37 minutes each and `complete`
+needs only the one that banks them.
 
 **What to bring back from it**: any `NOT A START ... [order-picked]` line — that is the one guess in the
 chain, zero of them on the 15-level sample it was falsified against — plus `tiles`' unclean-board list and
 `bank`'s refusals. A board with an *occluded* cell is the one thing no derivation reaches: it needs a line
-in `bench/post-fixups.json`, stating the `PF` symbol, and only Michal can supply it.
+in `bench/post-fixups.json`, stating the `PF` symbol, and only Michal can supply it. Both lists now say
+which rows are already answered there, so a row with no note is a row to go and look at.
 
 Three items inherit from it and
 none is blocked on it: `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply of **real

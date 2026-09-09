@@ -380,7 +380,9 @@ absent from it banks `moves`/`shots` as null.
 **Where the artefacts live.** The bank is derived, so it lands in gitignored `build/harvest/goals.json`
 (`bank` is one command over already-fetched images, half a second). The exception is
 **`bench/goal-boards.json`** — level 10 alone, ~1 KB — because the numbers above are quoted against it
-and a number that needs a network fetch to reproduce is not banked.
+and a number that needs a network fetch to reproduce is not banked. *(Session 40 turned that exception
+into the rule: `complete` writes the whole 5,975-level bank there, for the same reason at corpus scale.
+A scoped `bank --levels X` still defaults to `build/harvest/goals.json`.)*
 
 **Rebuilding the whole thing from nothing**, all of it under gitignored `build/harvest/` (`index.jsonl`,
 `img/`, `fetched.json`, `codebook.json`, `stale.json`, `residual.{png,json}`, `goals.json`):
@@ -609,6 +611,73 @@ python tools/harvest.py codebook --goals    # ~40 min; watch for NOT A START ...
 python tools/harvest.py tiles               # both pitches reported; names every unclean board
 python tools/harvest.py bank                # -> goals.json
 ```
+
+#### Session 40 — the whole chain ran clean, and its two complaints were one repair and one instrument bug
+
+Michal ran the rerun above end to end (`build/harvest-full.log`, gitignored). **It came out where session
+39 predicted**: 6,218 posts indexed, 6,044 (collection, level) pairs covered, 6,012 start boards admitted,
+**7,484 goal boards decoded with 4 unknown tiles in 1,915,904** (0.00%, 4 distinct), and `bank` wrote
+5,975 levels / 7,462 boards to `bench/goal-boards.json`. Twelve refusals: 11 stale levels — the same 11
+`stale.json` has always held — and **one board refused for an undecoded cell**. Both of the run's
+complaints turned out to be about the *report* rather than the decode, except for one genuinely new cell.
+
+**"4 unknown tiles" was 3 already answered plus 1 new, and `tiles` could not say which.** `LaserTank`
+899 at I2, `LaserTank` 901 at D15 and `Challenge-V` 727 at A7 are session 39's three occluded cells, each
+already stated in `bench/post-fixups.json`; `bank` fills all three and banks the boards, and the same run
+proves it (`cells filled from a post fixup: 3`). Reading the two phases side by side to work that out is
+exactly the cross-reference a report should do for the reader, so `tiles` now looks the fixup up per
+frame and says `1 of 1 from a post fixup` on the row — and `boards with no tank found: 1` likewise names
+`Challenge-I` 1598's fixup. **A row with no note is the row to go and look at**, and there was one:
+`Sokoban-I` 1060 `b` at **O2**, refused by `bank`. Same family as 899 and 901 — the tank drawn over an
+anti-tank, `PF` 10 against `PF` 4, which occludes the cell so completely that the background is
+unrecoverable too — so it needs a line in `post-fixups.json` and only Michal can supply it. What the
+pixels do give: the tank is at O2 facing right with the flag at P2 (the last frame, one move short), the
+ambiguity is `^` against `#` (an anti-tank facing up or its wreck), and the background narrows to dirt or
+*some* tunnel. The `.lvl` has tunnel 1 at O2 and its only other tunnel-1 cell at O4, and anti-tanks
+facing up demonstrably ride this level's tunnels — the same frame shows `^` at P4 and H7 where the `.lvl`
+has tunnels 6 and 7. So both candidates have a story and the pixels cannot choose: `^` if the anti-tank
+is real and the tank sprite is the artifact (which is how 899 and 901 resolved), `1` if the anti-tank is
+stale residue and the tank arrived through the tunnel from O4.
+
+**And the chain is one command now, because reading five phase reports side by side was the wrong job for
+a human.** Both complaints above are the same complaint: the question the reader has is *which posts are
+not in the bank, and is that on purpose*, and answering it meant cross-referencing `map`'s counters,
+`fetch`'s counters, `codebook`'s `NOT A START` list, `tiles`' unclean-board list and `bank`'s refusals by
+hand — five reports, several hundred lines, and the one row that needed a human was in none of them by
+itself. `harvest.py complete` runs the same phase functions, sends every phase's own output to
+`build/harvest/complete.log`, and prints one funnel and one table: a row per post the decode did not
+finish on its own, what was found, and **who can resolve it** — `intentional: ...` or `CLARIFY: ...` —
+with the count of the latter as the last line. `--report` re-prints it from `complete.json` for free,
+`--all` expands the two categories that are the blog's shape rather than findings (no start screenshot,
+no goal screenshot: 79 of the 80 rows, which is exactly why they collapse). It banks into the committed
+**`bench/goal-boards.json`**, which is where this project's persistent artefacts live and the only
+sensible home for a 5,975-level file that needs nine years of blog to re-derive — and it *overwrites*
+it, reporting the bank it replaced (`it replaced a bank of 5,975 levels and 7,462 boards`, and loudly
+when the new one is smaller), because guarding that write would hide a regression in the chain where the
+diff shows it.
+
+**It is also the measurement that came out of writing it: the chain was decoding every goal board three
+times.** `codebook --goals` (the residual sizing), `tiles` (the gate) and `bank` all walk the same 7,484
+boards at **37 minutes each**, and the only difference is what they report. The full run above cost 2h40
+for that reason. `complete` keeps `tiles`' two cheap gates (`--gate-only`, seconds) and takes the
+per-board findings from the bank pass — which is the pass that has the fixups and the refusals in it
+anyway — so the same artefacts come out in **~65 minutes** with strictly more reporting. The residual
+sizing is not in the chain at all any more: it sized an item that is closed, and `codebook --goals` still
+runs it on demand. What `complete` does *not* do is decide anything the phases did not: it is their
+findings, assembled.
+
+**Six of the eleven `NOT A START` boards were start boards, and the check's own short-circuit hid it.**
+The admission test read *facing up* before it read the cell, so a player who turned in place before taking
+the screenshot lost the board — and a turn in place changes no `PF` whatever. Measured on all six
+(`Challenge-V` 743, `LaserTank` 19, 223, 283, 385, 498): each decodes to its `.lvl` with **0 unknown and
+0 differing cells**, tank on its own `T` cell, turned. The cell is the test now and the facing is free,
+which admits them (6,018 start boards, 5 rejections) and leaves every real play state rejected —
+`LaserTank` 521 was reported as "tank facing right" when the tank is off its start cell and 20 cells into
+a solve, and the reason line says that now. **What the rejection cost was not labelling**: their one new
+tile is their own turned tank cell, which `sprites.py` derives anyway, so the codebook gains 6 entries and
+0 coverage. It cost the *checks a rejected board skips* — those six levels were never conflict-checked
+against the `.lvl`, so a re-authored one among them would have handed `bank` a target the level cannot
+reach, which is the one failure mode `stale.json` exists to stop.
 
 ### 8. Level 10, one traced run — and it answered a question the item did not ask.
 

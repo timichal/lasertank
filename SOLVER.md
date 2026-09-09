@@ -273,6 +273,14 @@ half a solution.** Three of the four items land ahead of item 5 on the ordering 
 (15) is the cheap falsifier item 5 has been open without. Item 5 is still the only open item that would
 move a level.
 
+**The whole chain then ran end to end and is one command** — `python tools/harvest.py complete`, ~65 min,
+one funnel and one table of every post the decode did not finish on its own with `intentional:` or
+`CLARIFY:` against each. Session 40's run banked **5,975 levels / 7,462 goal boards** with **4 unknown
+tiles in 1,915,904**, three of them already answered in `bench/post-fixups.json`; **one cell is open**
+(`Sokoban-I` 1060 `b` at O2) and one is all that stands between that run and a bank whose only refusals
+are the 11 re-authored levels —
+[session 40](docs/solver/history.md#session-40--the-whole-chain-ran-clean-and-its-two-complaints-were-one-repair-and-one-instrument-bug).
+
 **The complete blog harvest ran, and everything it reported as a loss had a cause worth the trip.**
 `tools/harvest.py fetch` over the whole 6,218-post index rather than item 6's 150-post sample:
 **5,779 start boards and 6,708 goal boards**, 34 minutes, and the goal-board bank goes from 141 levels
