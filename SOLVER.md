@@ -36,6 +36,7 @@ the oracle emits too (`--sound`), gated by `tools/sound_check.py`.
 | [`docs/solver/instruments.md`](docs/solver/instruments.md) | every flag that reports rather than searches, in cost order, plus the source map, the tools and the bench lists |
 | [`docs/solver/next-actions.md`](docs/solver/next-actions.md) | the open items in full: recipes, costs, and the evidence behind each |
 | [`docs/solver/history.md`](docs/solver/history.md) | closed items with their measurements, the session log, and the state of the tree |
+| [`docs/solver/human-strategy.md`](docs/solver/human-strategy.md) | the blog's ten-post *Lyf Series* on how a strong human plays, read against the layers — what it confirms, what it adds, and the three measurements it produced |
 
 ---
 
@@ -236,7 +237,7 @@ attack on it.
 
 ## What is open
 
-Five items, **in this order and not in numeric order**. Numbers are kept because these files refer to
+Nine items, **in this order and not in numeric order**. Numbers are kept because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
@@ -244,9 +245,13 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 | # | order | what it is | cost |
 |---|---|---|---|
 | **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
-| **5** | 2nd | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
-| **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
-| **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
+| **16** | 2nd | **four derivations the read does not have** — author intent, spending an irreversible resource, FMO mobility as a quantity, a per-carry constant in `MatchFerry`. Each is a distribution before it is a tier | two `--read-dump` columns and one replay decide two of them |
+| **15** | 3rd | **`--push-seed K`** — start the search from the K-th board change of a recording. **It is item 5's missing cheap falsifier** | a flag and eight short runs |
+| **13** | 4th | **the shot test** — a solution above the record's shot count is a measurably worse route (1.85x against 1.41x). A report column now; a `--best-of-round` rule with item 4 | free; the measurement is already run |
+| **5** | 5th | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
+| **14** | 6th | **per-level width from the record** — the driver ladders width globally. The free calibration is done and says the estimate sizes an order of magnitude, not a width | one run on the GAUNTLET tail |
+| **4** | 7th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
+| **7** | 8th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
 
 **The rule they are ordered by is *cheapest falsifier first, whatever kind of work it is*.**
@@ -254,9 +259,28 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 twenty-five hours of machine time once went into items that report percentages while the two levels
 in front of the project did not move and one banked solution got worse. Item 6 is what that second key
 bought: three sessions, and what came out was a decoded goal board for `LaserTank.lvl` 10 and a ranking
-key that separates its root pushes, rather than a percentage. With it closed the list is a 54-hour
-campaign, a three-budget curve, two campaigns that decide a default, and **one build** — item 5, which is
-also the only open item that would move a level.
+key that separates its root pushes, rather than a percentage.
+
+**Items 13-16 are new in session 37 and they all come from one source**, which is the second key paying
+out again: the harvest blog's ten-post *Lyf Series* on how a strong human plays, read against the layers
+in [`docs/solver/human-strategy.md`](docs/solver/human-strategy.md). Reading it produced three
+measurements before it produced any proposal — the record's shot count **is** layer 5's search depth
+(p50 1.00 over the 20 hand recordings, exact on level 6's 168), **66% of the solver's 452 solved rows
+already use the record's exact shot count** while the median keystream is 1.47x, and a win above the
+record's shot count is a measurably worse route. That last one reproduces the series' own first rule on
+our data, and it re-reads the whole `ratio` column: **1.5x is mostly the right plan driven badly, not
+half a solution.** Three of the four items land ahead of item 5 on the ordering rule, and one of them
+(15) is the cheap falsifier item 5 has been open without. Item 5 is still the only open item that would
+move a level.
+
+**A complete blog harvest is running** (Michal's own job — do not touch it): `tools/harvest.py fetch`
+over the whole 6,218-post index rather than item 6's 150-post sample, so the goal-board bank goes from
+**141 levels to as many of the 6,218 as decode cleanly**. Nothing on the list is blocked on it and three
+items inherit from it — `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply of real
+recordings on long levels, which is the off-distribution sample layer 4 is fit on and `--profile` /
+`basin.py`'s only input; the per-flag boards are a subgoal sequence for *Further out*'s chaining note; and
+item 16's falsifiers are all measured over the 20 hand recordings today. **What it does not supply is
+human routes** — a goal board names the destination, not the path.
 
 **Item 6 took three sessions and closed in session 36; the whole record is
 [closed item 6](docs/solver/history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).**
@@ -285,5 +309,6 @@ should *ask* a human for an answer the repo can already derive. Checking that co
 inputs were sitting in `original/src/`.
 
 **Item 2 wants the whole machine and nothing else on this list is waiting on it.** Its arms are
-node-governed, so extra load moves wall-clock readings and nothing else: launch the run and work item 5
-beside it.
+node-governed, so extra load moves wall-clock readings and nothing else: launch the run and work items
+16, 15 and 13 beside it — minutes, a flag with eight short runs, and a free report column, in that
+order — then item 5 with the falsifier 15 gives it.

@@ -1021,7 +1021,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-4th--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-8th--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

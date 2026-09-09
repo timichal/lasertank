@@ -1049,8 +1049,10 @@ Where the two that are left now stop, measured rather than guessed:
   of every board it holds is worse. `--push-ferry-stage` (holes left first, cheapest carry as the
   tie-break) was the attempt at forcing one carry at a time; it fills one hole and stalls. The shape that
   is missing is layer 2's, one level out: **commit to one (block, hole) pair, search only for that, then
-  re-derive** — a subgoal chain over board changes rather than one beam over the level. It is the one
-  open item with no cheap falsifier.
+  re-derive** — a subgoal chain over board changes rather than one beam over the level. It was the one
+  open item with no cheap falsifier; [next-actions](next-actions.md) item 15 (`--push-seed K`, the search
+  started from the K-th board change of the hand recording) is one, and the human record says the
+  *commit to one pair* half of the design is the bet `--push-ferry-stage` already lost.
 - **10 is a GAUNTLET, and that is the whole of it.** The traced run at width 1024 with the layer-8 flags,
   `--push-restarts 0`, `--jobs 1`:
 

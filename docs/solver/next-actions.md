@@ -1,12 +1,30 @@
 # Next actions — the open items in full
 
-Five items are open. The order and the reasoning behind it are in
+Nine items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 5, 4, 7, 10** — the tail of the session-33 ordering, with item 6 lifted off the front of it.
+Order: **2, 16, 15, 13, 5, 14, 4, 7, 10**. Items 13-16 are new in session 37 and they come from one
+source — the harvest blog's ten-post *Lyf Series* on how a strong human plays, read against the layers in
+[`human-strategy.md`](human-strategy.md). **They are not a wish list: three of the four arrive with their
+falsifier already run or costed in minutes**, which is what moves them past item 5 under this list's own
+ordering rule (*cheapest falsifier first, whatever kind of work it is*). What that rule does to the old
+order is worth stating: **item 5 moves from 2nd to 5th and gains a cheap falsifier it did not have**
+(item 15), which is a better outcome for it than staying at the front without one. Items 4, 7 and 10 keep
+their relative order and their reasoning; only their ordinals moved.
+
+**A complete harvest is running** (session 37, Michal's own job — do not touch it). `tools/harvest.py
+fetch` over the whole 6,218-post index rather than the 150-post sample item 6 measured on, so the
+goal-board bank goes from **141 levels to as many of the 6,218 as decode cleanly**. Three items inherit
+from it and none is blocked on it: `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply
+of **real recordings on long levels** — the off-distribution sample layer 4 is fit on and `--profile` /
+`basin.py`'s only input, which is 20 hand recordings today; the per-flag boards are a subgoal sequence for
+*Further out*'s chaining note; and item 16's falsifiers are all measured over those same 20 recordings, so
+a wider bank widens every one of them. **What it does not give is human *routes*** — a goal board names
+the destination, not the path, so "what did the human do next" stays a question only a recording answers.
+
 **Item 6 is closed** (session 36): the harvester, the derived tile table and `--goal-board` all shipped,
 and the full record with its measurements is
 [closed item 6](history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).
@@ -17,10 +35,12 @@ exactly the sample layer 4 is fit on and the one nothing else here can obtain. A
 boards it banks are a subgoal sequence nothing reads yet, which is *Further out*'s subgoal-chaining note
 with its acceptance test already in a file.
 
-**Item 2 is now first, and it is a machine commitment rather than a build.** Its rehearsal is done and
-its 54-hour run is fully specified, so it is ready to launch whenever the machine is free. Item 5 is the
-first *build* on the list and the only open item that would move a level in front of the project —
-`LaserTank.lvl` 6, which has no blogspot post at all and so was never in item 6's reach.
+**Item 2 stays first, and it is a machine commitment rather than a build.** Its rehearsal is done and
+its 54-hour run is fully specified, so it is ready to launch whenever the machine is free — and because
+its arms are node-governed, everything below it can run beside it. Items 16, 15 and 13 are what to do
+while it runs: **minutes, a flag and eight short runs, and a free report column.** Item 5 is still the
+only open item that would move a level in front of the project — `LaserTank.lvl` 6, which has no blogspot
+post at all and so was never in item 6's reach nor in the running harvest's.
 
 ---
 
@@ -173,7 +193,141 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 5 (2nd) — level 6's decomposition
+## 16 (2nd) — four derivations the read does not have
+
+**Source:** [`human-strategy.md`](human-strategy.md), the blog's *Lyf Series* read against the layers.
+Four things a strong human says out loud that no derivation in layers 6-8 computes. They are one item
+because **two of them share a falsifier and all four are `--read-dump` questions before they are tiers** —
+*a new layer should report a distribution before it reports a solved count*, and this is the cheapest
+place on the list to obey that rule.
+
+**The shared falsifier is two columns and one replay.** `--read-dump` already replays each winning
+recording, stops at every board change and asks whether the change the human made next was one the read
+named. Add two columns to that dump and it answers the first two derivations at once, in seconds:
+
+```bash
+ls data/demos/LaserTank/*.lpb > build/demos.txt
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl \
+    --lpb-list build/demos.txt --read-dump build/read.tsv     # 800 board changes, no search
+```
+
+- **The author's intent** — *"Objects were put on the map by the author for 4 reasons: useful, beautiful,
+  misleading, special hobby… especially when some object is weird on the map. Ask yourself 'Why is it
+  there?'"* A lone mirror, a single `*`, one crystal on an otherwise plain board is load-bearing far more
+  often than chance. The derivation is a count of each element's multiplicity in the level and a tier for
+  a board change that **first touches** an element the level has few of. **The falsifier: do the human's
+  800 board changes preferentially touch rare elements?** If the rate is flat against the offered
+  successors, the derivation is folklore and the item ends here for free.
+- **Spending a resource for no reason** — the series' *reversibility* section is a precise list of what
+  play consumes: a brick shot, a piece of thin ice walked, an anti-tank killed or pushed the way it faces,
+  a rotary mirror that cannot be turned back. The search knows two of these facts today (`_alive`'s frozen
+  block, `RouteDead`'s holes-against-live-blocks) and prices *spending* nothing at all. The derivation is
+  a tier **below** filler for a change that destroys something while naming no barrier, no `opens` and no
+  `enables`. **The falsifier is the same run: how often is the human's own change destructive with no
+  derived reason?** If that is common the tier would demote the human's move and is wrong. Note the
+  direction of error that is safe — a tier can only reorder, never refuse, which is the rule Layer 8's
+  `TierLost` was built on.
+- **FMO mobility as a quantity** — *"Some object is 'free' if it can be moved in a relatively large
+  area… It is generally easy to win if you have enough FMOs (except they are too crowded like
+  lasertank.lvl#0250)"*. `_alive[c]` is the boolean form of exactly this and `MazeFill` already computes
+  the BFS that would give it a size. **The falsifier is an `--analyze-tsv` column joined against the
+  solved set**, the way *number of fills* became the first quantity to predict the rate monotonically
+  (1 fill 9.9% → 9+ fills 0.7%): 64 seconds over the stride sample, and a column that does not predict is
+  a column that does not ship.
+- **A per-carry constant in `MatchFerry`** — the series defines a *unit* as six moves, the go-and-return
+  a knight's-move detour costs, and reasons about ferries in units rather than in cells. `MatchFerry`
+  sums push distance only, so it cannot see that two carries cost more than one carry of twice the
+  length — which is the whole content of the human's *"push blocks two by two, not one by one"*.
+  **Falsifier: `--ferry-weight`, which sweeps a weight offline against a recording without re-running the
+  solver, plus level 6's ascent (11 today).**
+
+**Cost:** two dump columns and a replay decides the first two; a `--analyze-tsv` column and a join decides
+the third; an offline sweep decides the fourth. Nothing here is a rung until its own distribution says so.
+
+---
+
+## 15 (3rd) — `--push-seed K`, the editor trick as an instrument
+
+**This is item 5's missing cheap falsifier, which is the reason it sits this high.** Item 5 is *"the one
+open item with no cheap falsifier"*; this is one, and it costs a flag and eight short runs.
+
+**The idea is the human method, mechanised.** *"Many have said the importance of using editor to remove
+objects to the places you want. Then you can start to try if some trick can work… The pivotal situation
+that you designed can help you a lot to save your resource of brain."* A player does not attack a
+168-push Sokoban from move one — they build the position they are unsure about and play from there.
+`--push-line` already replays a recording and keeps its state at **every board change** (`Line.cs`,
+`TraceLine`); nothing starts a search from one of them.
+
+**What it needs:** `TraceLine` records the board at each change but not the *key index* it happened at.
+Keep that, replay `keys[0..idx]` into a fresh engine (quirk #12 — never share an engine with a replayed
+candidate) and hand that snapshot to the search as its root. The `.lpb` writer must **prepend the
+replayed prefix**, or `verify_solutions.py` cannot replay the file from the level start and the gate
+cannot see it.
+
+```bash
+# level 6 has 168 board changes; sweep coarsely, then bisect the boundary
+for K in 0 24 48 72 96 120 144 160; do
+  build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 6 \
+      --push-seed data/demos/LaserTank/00006.lpb:$K \
+      --push --push-read --push-reach --push-ferry-match --push-ferry-maze \
+      --push-dead 20 --push-beam 512 --max-keys 5000 \
+      --nodes 40000000 --jobs 1 --out build/seed6/$K
+done
+```
+
+**How to read it.** The smallest K the beam finishes from is **the search's horizon in board changes**, in
+the unit `basin.py` and layer 5 already measure — the quantity every layer since 5 has attacked and none
+has measured directly. The K where it stops finishing is a **phase boundary candidate**, which is what
+item 5 needs to know before it decides what a phase is. Expect it monotone; a non-monotone reading is
+itself the finding — a *longer* suffix that solves where a shorter one does not means the line passes
+through a board the ranking key hates, and `--push-trace-board` at that K says which.
+
+**Two by-products, and one discipline.** Run over all 20 recordings it gives the horizon per level rather
+than per open level, which is a table this project has never had. And a win from a seed is a **real
+keystream** — human prefix, solver suffix — so it passes the two-engine gate. That makes it
+**hint-assisted**, and it takes `--goal-board`'s discipline exactly: its own output directory, a stamp on
+every report row, and **never in the headline rate**. The rule is enforced in code there rather than by
+convention, and the same code path is the one to reuse.
+
+---
+
+## 13 (4th) — the shot test: shots against the record as a route diagnostic
+
+**The falsifier is already run and it passed**, which is why this item is a build rather than a
+measurement. Over the 452 solved rows carrying a record in `fix2-chain.jsonl` + `gt-fire.jsonl`
+([`human-strategy.md`](human-strategy.md), measurements 2 and 3):
+
+| | n | median keys/record | p90 |
+|---|---:|---:|---:|
+| solution shots **>** record shots | 67 | **1.85** | **3.20** |
+| shots **==** record | 298 (66% of all) | 1.41 | 1.80 |
+| shots **<** record | 87 | 1.46 | 2.11 |
+
+The series' first rule is *"watch the number of shots. The more shots the more tasks… If GHS's shots are
+remarkably less than yours, it probably means you need to find another strategy"* — shots are a property
+of the **strategy**, moves of the **execution**. It reproduces here: a win that spends more shots than the
+record is a measurably worse route, and **66% of the solver's solutions already use the record's exact
+shot count while the median keystream is 1.47x**. That re-reads the whole `ratio` column — 1.5x is
+mostly the right plan driven badly, not half a solution.
+
+**Two halves, and the free one first.**
+
+- **A `report_stats.py` column** (`shots − ghs_shots`, and the count above the record). *The levels the
+  solver solves with the wrong strategy* is a named population nobody has looked at, it is where the
+  ratio tail lives, and it costs nothing — every report row already carries `shots` and `ghs_shots`.
+  It is also the population `Replan.Improve` provably cannot help, which is level 9's lesson turned into
+  a filter.
+- **The test inside `--best-of-round`**, which is where the verdict belongs to [item 4](#4-7th--the-campaign-that-decides-whether---best-of-round-is-a-default).
+  That flag judges a win by `keys / record ≤ 2.0`; the shot test and the ratio test **disagree on 58 of
+  the 452 rows** — 41 wins the ratio test closes the round on although their shot count says the strategy
+  is wrong, and 17 it keeps open although the shot count says the strategy is already right, so those
+  rounds can only buy polish. The change is *keep the round open when `shots > ghs_shots` whatever the
+  ratio; close it when `shots == ghs_shots` and the ratio is inside a looser bound*. **A level with no
+  record keeps the round open, as it does today.**
+
+---
+
+## 5 (5th) — level 6's decomposition
 
 *Level 10's half of this item is done: it is `--push-fire-tier`, it is
 [Layer 9](layers.md#layer-9--exposure-as-a-tier---own-rung-the-population-pays-the-example-does-not), it
@@ -186,7 +340,20 @@ says whether exposure stops falling, and if it does, where.*
 **Level 6 wants layer 2's decomposition one level out:** commit to one (block, hole) pair, search only for
 that, re-derive. It is the half furthest from falling on its own numbers — 142 pushes, six holes, and a
 beam that fills two of them and then finds every successor of every board worse. Nothing above it is
-blocked on it, and **it is the one open item with no cheap falsifier.**
+blocked on it, and it **was** the one open item with no cheap falsifier — [item
+15](#15-3rd----push-seed-k-the-editor-trick-as-an-instrument) is one, and it should be run first.
+
+**Two things the human record says about this item's *design*, and they pull in opposite directions**
+([`human-strategy.md`](human-strategy.md)). The series defines a phase precisely — *"divide a level into
+phases, that is, your savings in one phase won't cause sacrifices in another"* — so **a phase is an
+independence property**, which is testable off the maze BFS this item is going to run anyway: two carries
+are in different phases when neither's block-reach region nor its tank route touches the other's. That
+is the definition to build against, and level 6's six holes being a *strip* is the reason to expect it to
+say *one* phase, which would be a real answer rather than a null one. But the same author pushes blocks
+**two by two, not one by one**, because a lone carry pays the whole go-and-return, and level 6's hand line
+moves four blocks in its first five board changes — so *commit to one (block, hole) pair* is exactly the
+bet `--push-ferry-stage` already lost. **A phase has to be allowed to be a group of carries**, and item 15
+is what says how big a group.
 
 **Size it before building it, because the obvious sizing argument cuts the other way.** `barrier == 0` is
 26.2% of the corpus but is solved at **25.2% against 7.0%** — an artifact of the bucket holding OPEN and a
@@ -233,7 +400,45 @@ level 10's half of it and level 10 is still unsolved.
 
 ---
 
-## 4 (3rd) — the campaign that decides whether `--best-of-round` is a default
+## 14 (6th) — per-level width from the record, and the calibration that sizes it
+
+**The record's shot count is this project's search depth.** Over the 20 hand recordings, board changes
+divided by `.ghs` shots is p25 0.96 / **p50 1.00** / p75 1.09, exact on six of twenty, and level 6 is
+**168 board changes against a record of 425 moves / 168 shots**
+([`human-strategy.md`](human-strategy.md), measurement 1). Layer 8's framing arithmetic —
+`closure × width × board changes` against the node budget — has until now needed a **hand recording** to
+supply its third factor, and there are 20 of those against 20,914 levels with a record. The record
+supplies it for the whole corpus, and `--analyze-tsv`'s `poses` column supplies the closure for free.
+
+**The free half is done, and it tempers the item rather than supporting it.** Over `l8fire`'s 66 solved
+levels at a known width of 128, `nodes / (poses × width × ghs_shots)` reads:
+
+| the perfect-beam estimate against the nodes actually spent | p10 | p25 | **p50** | p75 | p90 |
+|---|---:|---:|---:|---:|---:|
+| factor | 1.9 | 4.6 | **14.2** | 59.9 | 446 |
+
+Levels 8 and 9 gave 22x and 47x and looked like a constant; over 66 levels the spread is **two and a half
+orders of magnitude**. **So the arithmetic sizes an order of magnitude, not a width** — which kills the
+version of this item that solves for the width exactly and leaves the version that is still worth a run:
+the driver ladders width *globally* (8 → 48 → 128 → 512 → 2,048, and 19,200 for the raw beam), so a level
+whose record says 12 board changes and one that says 168 are searched at the same width in the same
+round. Scaling the **round-1** width per level by `budget / (poses × ghs_shots)`, clamped, with the ladder
+still doubling from there, is a policy change the estimate is accurate enough to make.
+
+**The decision run** is item 5's 138-level GAUNTLET tail at a fixed 40M — the population is already
+committed and the control has already been run twice — global width against record-derived width, read as
+solved count and exclusive levels. **Raise-only, like `--max-keys-record`, so nothing that terminates
+today stops terminating.**
+
+**What not to re-derive:** *record shots = 0 as a licence to drop the space bar* was checked and is worth
+nothing (17 levels of 3,709), and **parity** — the series' part 3, a chessboard colouring that fixes the
+move count's parity — is an *optimality* tool and prunes nothing in a satisficing search. The shot test in
+[item 13](#13-4th--the-shot-test-shots-against-the-record-as-a-route-diagnostic) is the same diagnostic
+without parity's exceptions (ice, tunnels, tank movers, several flags).
+
+---
+
+## 4 (7th) — the campaign that decides whether `--best-of-round` is a default
 
 **The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
 115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
@@ -269,7 +474,7 @@ at the level). **Level 8's 308 has not.**
 
 ---
 
-## 7 (4th) — the solved-vs-budget curve
+## 7 (8th) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;
@@ -367,7 +572,12 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
   advisors are the read's derivations under another name. A rung, measured as a union. Its second gift is
   the **packing order**, derived backwards from the goal: which hole must be filled before which, from
   where a block can still be pushed *after* the others are down. `--push-ferry-match` is the forward half
-  of that; the backward half is what level 6's strip of six holes wants.
+  of that; the backward half is what level 6's strip of six holes wants. **Independent confirmation from
+  the human record**, which is worth something for a device chosen out of a paper: the series' advice for
+  a level you cannot crack is to work *"either forward from the starting position or backwards from the
+  ending position"*, and its author — ~70 records, 120 Deadly levels solved — names pure Sokoban with no
+  clear phases as the shape he is personally worst at. Our worst-solved non-trivial class is that one
+  (FERRY + SOKOBAN, 53% of the sample at 5.1%). See [`human-strategy.md`](human-strategy.md).
 - **Subgoal chaining over board changes, with the acceptance test already written.** Both open levels ask
   for layer 2's decomposition one level out, and the pieces exist. The acceptance test in `Subgoal.Offer`
   (`Subgoal.cs:344`) is a board test; for a gauntlet the board test is *the safe flood gained a named
@@ -385,7 +595,6 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
   boards, and a `Node` holds all of it — which is why 76,800 wide was 1.1 GB. Each node keeping only the
   keys since its parent, with the path rebuilt on a win, cuts both the copy and the residency
   several-fold. Width was the wall exactly once: level 9.
-
 ## Checked, and not opportunities
 
 - **Duplicate boards across the corpus:** 20,914 levels, 20,914 distinct playfields. No solution
@@ -399,3 +608,15 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
   worth nothing: `sterile=` is 0.05% / 0.07% on the two benches against a stated bar of tens of percent.
   See [`history.md`](history.md#closed-items--the-measurements-including-the-negative-ones) item 11 for
   the full reasoning, which is sound — it simply has almost nothing to prune.
+- **Parity — the chessboard colouring** the human record spends a whole part on
+  ([`human-strategy.md`](human-strategy.md), the series' part 3): colour the 16x16 field like a
+  chessboard and the tank's move count to a given cell has a fixed parity, so your score and the record's
+  must agree on it — except with several flags, tank movers, ice or tunnels. **It is an *optimality*
+  tool and prunes nothing in a satisficing search**, which is what this solver runs: it says your move
+  count cannot *equal* the record's, never that a state is unreachable. The same diagnostic without
+  parity's four exceptions is the shot test, [item
+  13](#13-4th--the-shot-test-shots-against-the-record-as-a-route-diagnostic), and that one is measured.
+- **"GHS shots ≪ the author's shots means the level has a shortcut"** — the human record's own rule for
+  finding easy levels, and **the input is not in the files.** `TLEVEL` is 576 bytes of `PF`, level name,
+  hint, author *name* and `SDiff` (`GameState.cs:118`); the author's own score is nowhere in a `.lvl`, and
+  the only score the corpus ships is the `.ghs` record. Nothing to compare it against.
