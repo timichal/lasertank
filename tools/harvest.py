@@ -24,6 +24,9 @@ Nine subcommands, cheapest first:
   fetch      download the start and goal screenshots for selected levels
   codebook   build the 24x24 tile codebook from start screenshots, whose boards
              the corpus already knows -- 256 labelled tiles per post, free.
+             Learns only from a picture that *is* a start position (tank on the
+             .lvl's own T cell, facing up); a play state labelled from the .lvl
+             labels everything play produced with what was there before it.
              --goals sizes what this half does *not* cover; that was the item's
              remaining cost until `tiles` derived all of it
   tiles      the goal-only sprites *derived* rather than labelled, from the
@@ -185,11 +188,76 @@ def get(url, timeout=60):
                                   timeout=timeout).read()
 
 
+def hms(s):
+    """Seconds as the coarsest unit that still says something: 45s, 7m, 1h12."""
+    s = int(s)
+    if s < 90:
+        return "%ds" % s
+    if s < 3600:
+        return "%dm" % round(s / 60.0)
+    return "%dh%02d" % (s // 3600, (s % 3600) // 60)
+
+
+class Ticker:
+    """The progress line for the loops that take minutes.
+
+    stderr and not stdout, because every subcommand's stdout is a report worth
+    redirecting to a file and a counter is not part of it.  Two shapes, though,
+    because a terminal and a log want different things: on a tty the line is
+    rewritten in place four times a second, and on a redirect -- which is the
+    run whose progress nobody can otherwise see -- it is one *new* line every
+    ten seconds, so `harvest ... > log 2>&1` collects a readable trail instead
+    of a megabyte of carriage returns.  `total` stays None until something
+    knows it, which for `index` is the first response; with it comes the
+    number these runs are actually watched for, which is how much is left.
+    """
+
+    def __init__(self, unit, total=None):
+        self.unit, self.total = unit, total
+        self.n = 0
+        self.t0 = self.last = time.monotonic()
+        self.pad = 0
+        try:
+            self.tty = sys.stderr.isatty()
+        except (AttributeError, ValueError):
+            self.tty = False
+        self.every = 0.25 if self.tty else 10.0
+
+    def tick(self, n=1, note=""):
+        self.n += n
+        t = time.monotonic()
+        if t - self.last < self.every and self.n != self.total:
+            return
+        self.last = t
+        eta = ""
+        if self.total and self.n:
+            el = t - self.t0
+            eta = "  %s elapsed, %s left" % (
+                hms(el), hms(el / self.n * (self.total - self.n)))
+        line = "  %d/%s %s%s%s" % (self.n, "?" if self.total is None
+                                   else self.total, self.unit, eta, note)
+        if self.tty:
+            # Pad to the longest line so far: the note changes length, and a
+            # short line written over a longer one leaves its tail behind.
+            self.pad = max(self.pad, len(line))
+            sys.stderr.write("\r" + line.ljust(self.pad))
+        else:
+            sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+
+    def done(self):
+        """Close the line -- on a tty, where one is still open and unterminated."""
+        if self.tty and self.n:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+
 def cmd_index(args):
     OUT.mkdir(parents=True, exist_ok=True)
     rows = []
     i = 1
     total = None
+    tick = Ticker("posts")
     while True:
         j = json.loads(get("%s?alt=json&max-results=150&start-index=%d" % (FEED, i)))
         f = j["feed"]
@@ -211,13 +279,13 @@ def cmd_index(args):
                 "published": e["published"]["$t"][:10],
                 "imgs": imgs,
             })
-        sys.stderr.write("\r  %d/%d posts" % (len(rows), total))
-        sys.stderr.flush()
+        tick.total = total
+        tick.tick(len(es))
         i += len(es)
         if len(rows) >= total:
             break
         time.sleep(0.2)
-    sys.stderr.write("\n")
+    tick.done()
     p = OUT / "index.jsonl"
     with open(p, "w", encoding="utf-8") as f:
         for r in rows:
@@ -305,7 +373,35 @@ def cmd_map(args):
 
 # ---------------------------------------------------------------- the images
 
-def pick_images(n, imgs):
+_prefixes = {}
+
+
+def name_prefixes(coll):
+    """The image-filename prefixes that name this collection and nothing else.
+
+    'Challenge-I' is written 'ChallengeI' and that is the only spelling every
+    collection but one uses; 235 Special-I posts write 'Special_519b.png',
+    dropping the '-I'.  The abbreviation to the part before the hyphen is
+    accepted exactly when it is unambiguous -- 'Special' names one shipped
+    .lvl, where 'Challenge', 'Sokoban', 'Beginner' and 'Gary' each name
+    several.  That is the whole rule, and it is the rule because the point of
+    reading the prefix is that it is a claim about which level the picture is
+    of: an abbreviation that could mean two collections makes no such claim,
+    and neither does the 2016 era's prefixless '540.png', which is why the
+    empty prefix is always allowed.
+    """
+    if not _prefixes:
+        stems = [p.stem for p in (ROOT / "data" / "levels").glob("*.lvl")]
+        first = collections.Counter(c.split("-")[0].lower() for c in stems)
+        for c in stems:
+            ok = {c.replace("-", "").lower()}
+            if first[c.split("-")[0].lower()] == 1:
+                ok.add(c.split("-")[0].lower())
+            _prefixes[c] = ok
+    return _prefixes.get(coll) or {coll.replace("-", "").lower()}
+
+
+def pick_images(coll, n, imgs):
     """-> (start basename, [(tag, goal basename)]).
 
     Two naming eras, both keyed by the level number.  2016: '10a.png' is the
@@ -314,22 +410,48 @@ def pick_images(n, imgs):
     'ChallengeI_1901_G4.png' per flag -- collection, level, and *which flag was
     reached in what order*, in the game's own column-row notation.  So for a
     multi-flag level the subgoal sequence needs no pixel decoding at all.
+
+    **Where a post carries both spellings the bare one is the start**, and
+    'Na.png' is the first goal frame.  35 posts do, and this read it the other
+    way round until session 37: both spellings assigned `start` and whichever
+    the post listed last won.  Those 35 are 34 of the 37 play states `codebook`
+    then took for start boards -- which is where its 982 conflicts and all 13
+    of its wrong labels came from.  Checked four ways: on LaserTank 1024,
+    Sokoban-I 141, Special-I 343 and Challenge-II 247 the bare name decodes to
+    the .lvl exactly, tank on its start cell facing up, and 'Na.png' does not.
+
+    **The collection prefix has to name this collection** (`name_prefixes`),
+    for the same reason: it is a claim about which level the picture is of, and
+    nine images in 6,218 posts claim a different one.  'LaserTank_452.png' in
+    the Sokoban-I 452 post is another level's screenshot and was 201 conflicts
+    on its own; 'LaserTank_826.png' under the title 'KaserTank - 826' is the
+    title typo `map` already reports, for a collection the corpus does not
+    ship.  Those nine are the whole of what the check costs: two starts and
+    seven goal frames.
     """
-    start = None
-    goals = []
+    pref = name_prefixes(coll)
+    named = lambda m: (m.group(1) or "").lower() in pref or not m.group(1)
+    bare, sfxa, goals = [], [], []
     for bn in imgs:
         b = bn.rsplit(".", 1)[0]
-        if re.fullmatch(r"(?i)(?:[a-z]+_?)?%d" % n, b):
-            start = bn
-        elif re.fullmatch(r"(?i)(?:[a-z]+_?)?%da" % n, b):
-            start = bn
-        elif re.fullmatch(r"(?i)(?:[a-z]+_?)?%d[b-z]" % n, b):
-            goals.append((b[-1].lower(), bn))
-        else:
-            m = re.fullmatch(r"(?i)[a-z]+_?%d_([A-Za-z]\d+)" % n, b)
-            if m:
-                goals.append((m.group(1).upper(), bn))
-    return start, sorted(goals)
+        m = re.fullmatch(r"(?i)([a-z]+)?_?%d(a?)" % n, b)
+        if m:
+            if named(m):
+                (sfxa if m.group(2) else bare).append(bn)
+            continue
+        m = re.fullmatch(r"(?i)([a-z]+)?_?%d([b-z])" % n, b)
+        if m:
+            if named(m):
+                goals.append((m.group(2).lower(), bn))
+            continue
+        m = re.fullmatch(r"(?i)([a-z]+)_?%d_([A-Za-z]\d+)" % n, b)
+        if m and named(m):
+            goals.append((m.group(2).upper(), bn))
+    # Demoted rather than dropped: it is a real goal frame and the only reason
+    # it cannot keep the post's own 'a' is that the start is already written as
+    # `<coll>_<n>_a.png`.  'a1' is that collision and nothing else.
+    goals += [("a1", bn) for bn in sfxa] if bare else []
+    return (bare or sfxa or [None])[0], sorted(goals)
 
 
 def fetch_one(url, dest):
@@ -394,9 +516,14 @@ def cmd_fetch(args):
     if p.exists():
         for r in json.loads(p.read_text()):
             keep[(r["coll"], r["level"])] = r
-    for coll, n in selected(args, by_level):
+    sel = selected(args, by_level)
+    tick = Ticker("levels", len(sel))
+    for coll, n in sel:
+        # The level goes in the note: this is the one subcommand on the
+        # network, so which post is being waited on is the useful half.
+        tick.tick(note="  %s %d" % (coll, n))
         post = by_level[(coll, n)][0]
-        start, goals = pick_images(n, post["imgs"])
+        start, goals = pick_images(coll, n, post["imgs"])
         rec = {"coll": coll, "level": n, "published": post["published"],
                "url": post["url"], "start": None, "goals": []}
         if start and fetch_one(post["imgs"][start], img_path(coll, n, "a")):
@@ -413,6 +540,7 @@ def cmd_fetch(args):
                     got["goal"] += 1
         man.append(rec)
         keep[(coll, n)] = rec
+    tick.done()
     OUT.mkdir(parents=True, exist_ok=True)
     all_recs = [keep[k] for k in sorted(keep)]
     p.write_text(json.dumps(all_recs, indent=1))
@@ -529,15 +657,36 @@ def cmd_codebook(args):
     built by hand.  Each board is decoded against the codebook built from the
     boards *before* it, so the printed curve is an honest saturation curve and
     a disagreement is a hard error rather than a self-fulfilling one.
+
+    **Whether the picture is a start position at all is checked first**, and
+    that check is the whole of session 37's fix.  The labels here come from the
+    `.lvl`, so a picture taken mid-solution labels every state play produced
+    with what was there *before* play -- a block sunk in water gets labelled
+    `~`, a destroyed anti-tank gets labelled `v` -- and `setdefault` makes the
+    first such board win for good.  37 of the 5,780 were play states and they
+    taught 13 wrong labels, every one of the 13 (traced back one at a time).
+    They also caused most of the 982 conflicts, because a wrong label is a
+    conflict on every later board that shows the tile honestly.
+
+    The test is the tank: on a start board it is on the cell the `.lvl` stores
+    as `T` and it is facing up, both of which are in the pixels.  That needs
+    `tools/sprites.py`, which is the one thing here that does not come from the
+    corpus -- but it is used only to *admit* a board, never to label a tile, so
+    the curve below is still built from `.lvl` labels alone and is still honest.
     """
+    import sprites
+    facing = {h: v[1] for h, v in sprites.Cells().table().items() if v[1]}
     have = [r for r in manifest() if r["start"] and (ROOT / r["start"]).exists()]
     if args.limit:
         have = have[:args.limit]
     cb = json.loads(cbpath().read_text()) if args.extend and cbpath().exists() else {}
     conflicts = []
+    notstart = []
     exact = noframe = 0
     curve = []
+    tick = Ticker("start boards", len(have))
     for k, r in enumerate(have):
+        tick.tick(note="  codebook %d, conflicts %d" % (len(cb), len(conflicts)))
         B = board(r["coll"], r["level"])
         if B is None:
             continue
@@ -545,7 +694,17 @@ def cmd_codebook(args):
             t, _ = tile_hashes(ROOT / r["start"])
         except Exception as e:
             noframe += 1
-            print("  NOFRAME %s: %s" % (r["start"], e))
+            tick.done()
+            print("  NOFRAME %s: %s\n           %s" % (r["start"], e, r["url"]))
+            continue
+        seat = [(cx, cy, facing[hs]) for (cx, cy), hs in t.items() if hs in facing]
+        why = ("no tank in the picture" if not seat else
+               "%d tanks in the picture" % len(seat) if len(seat) > 1 else
+               "tank facing %s" % seat[0][2] if seat[0][2] != "up" else
+               "tank off the .lvl start cell"
+               if B[seat[0][1]][seat[0][0]] != "T" else None)
+        if why:
+            notstart.append((r["coll"], r["level"], why, r["url"]))
             continue
         unk = bad = 0
         for (cx, cy), hs in t.items():
@@ -561,7 +720,11 @@ def cmd_codebook(args):
         curve.append((len(curve) + 1, len(cb), unk, bad))
         for (cx, cy), hs in t.items():
             cb.setdefault(hs, B[cy][cx])
-    print("start boards: %d  (no frame: %d)" % (len(curve), noframe))
+    tick.done()
+    print("start boards: %d  (no frame: %d, not a start position: %d)"
+          % (len(curve), noframe, len(notstart)))
+    for coll, lvl, why, url in notstart:
+        print("  NOT A START  %-14s %5d  %-30s %s" % (coll, lvl, why, url))
     print("  n  codebook  unknown  conflict")
     for n, sz, unk, bad in curve:
         if n <= 10 or unk or bad or n % 25 == 0 or n == len(curve):
@@ -569,9 +732,17 @@ def cmd_codebook(args):
     last = max([n for n, _, u, _ in curve if u] or [0])
     print("\ndecoded exactly against earlier boards only: %d of %d" % (exact, len(curve)))
     print("last board that taught the codebook a new tile: %d of %d" % (last, len(curve)))
-    print("codebook entries: %d   conflicts: %d" % (len(cb), len(conflicts)))
-    for c in conflicts[:20]:
-        print("  CONFLICT %s %d (%d,%d) codebook=%s corpus=%s %s" % c)
+    # By board, because a conflict is a property of a board and not of a cell:
+    # one disagreeing screenshot used to fill the whole list with its own cells.
+    per = collections.Counter((c[0], c[1]) for c in conflicts)
+    print("codebook entries: %d   conflicts: %d cells on %d boards"
+          % (len(cb), len(conflicts), len(per)))
+    urls = {(r["coll"], r["level"]): r["url"] for r in have}
+    for (coll, lvl), nc in per.most_common():
+        print("  CONFLICT %-14s %5d  %2d cells  %s"
+              % (coll, lvl, nc, urls.get((coll, lvl), "")))
+        for c in [c for c in conflicts if (c[0], c[1]) == (coll, lvl)][:10]:
+            print("      (%2d,%2d) codebook %s  corpus %s  %s" % c[2:])
     cbpath().write_text(json.dumps(cb, indent=0, sort_keys=True))
     print("codebook -> %s" % cbpath())
     if args.goals:
@@ -597,18 +768,22 @@ def goal_residual(cb):
     wants: the commonest of them all is a block pushed into water, which
     Engine.cs:731 records as PF = 0 with BMF = 19.
     """
-    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"])
+    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"], r["url"])
              for r in manifest() for g in r["goals"]]
     unk = collections.Counter()
     per = collections.Counter()
     n = noframe = 0
-    for coll, lvl, tag, f in files:
+    tick = Ticker("goal boards", len(files))
+    for coll, lvl, tag, f, url in files:
+        tick.tick(note="  %d sprites the start boards never label" % len(unk))
         if not f.exists():
             continue
         try:
             t, _ = tile_hashes(f)
-        except Exception:
+        except Exception as e:
             noframe += 1
+            tick.done()
+            print("  NOFRAME %-14s %5d %-4s  %s  %s" % (coll, lvl, tag, e, url))
             continue
         n += 1
         u = sum(1 for hs in t.values() if hs not in cb)
@@ -617,16 +792,18 @@ def goal_residual(cb):
                 unk[hs] += 1
         per["0" if u == 0 else "1" if u == 1 else "2" if u == 2 else
             "3-5" if u <= 5 else "6-10" if u <= 10 else ">10"] += 1
+    tick.done()
     if not n:
         print("\nno goal images -- run fetch with --goals")
         return
     print("\ngoal boards decoded: %d  (no frame: %d)" % (n, noframe))
     print("goal-only sprites the start boards never label: %d"
           % len(unk))
-    print("  instances: %d of %d tiles (%.2f%%);  commonest one alone: %d (%.1f%%)"
-          % (sum(unk.values()), n * 256, 100.0 * sum(unk.values()) / (n * 256),
-             unk.most_common(1)[0][1],
-             100.0 * unk.most_common(1)[0][1] / max(1, sum(unk.values()))))
+    if unk:
+        print("  instances: %d of %d tiles (%.2f%%);  commonest one alone: %d (%.1f%%)"
+              % (sum(unk.values()), n * 256, 100.0 * sum(unk.values()) / (n * 256),
+                 unk.most_common(1)[0][1],
+                 100.0 * unk.most_common(1)[0][1] / max(1, sum(unk.values()))))
     print("unknown cells per goal board:")
     for k in ("0", "1", "2", "3-5", "6-10", ">10"):
         if per[k]:
@@ -702,17 +879,21 @@ def cmd_sheet(args):
     if n["hand"]:
         print("%d sprites already hand-labelled in %s; this sheet is what is left"
               % (n["hand"], labelpath().relative_to(ROOT)))
-    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"])
+    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"], r["url"])
              for r in manifest() for g in r["goals"]]
     seen = {}
     cnt = collections.Counter()
-    for coll, lvl, tag, f in files:
+    tick = Ticker("goal boards", len(files))
+    for coll, lvl, tag, f, url in files:
+        tick.tick(note="  %d unlabelled sprites" % len(seen))
         if not f.exists():
             continue
         try:
             w, h, px = png.load(f)
             x0, y0 = origin(w, h, px)
-        except Exception:
+        except Exception as e:
+            tick.done()
+            print("  SKIPPED %-14s %5d %-4s  %s  %s" % (coll, lvl, tag, e, url))
             continue
         for cy in range(16):
             for cx in range(16):
@@ -726,6 +907,7 @@ def cmd_sheet(args):
                 cnt[hs] += 1
                 if hs not in seen:
                     seen[hs] = (bytes(b), coll, lvl, tag, cx, cy)
+    tick.done()
     if not seen:
         print("nothing unlabelled -- the codebook covers every goal tile")
         return 0
@@ -844,17 +1026,21 @@ def cmd_tiles(args):
     print("\ndecoding every goal board against all three halves: %d start-"
           "bootstrapped + %d hand-labelled + %d derived = %d tiles"
           % (n["start"], n["hand"], n["derived"], len(cbfull)))
-    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"])
+    files = [(r["coll"], r["level"], g["tag"], ROOT / g["file"], r["url"])
              for r in manifest() for g in r["goals"]]
     per = collections.Counter()
     unk = collections.Counter()
     nb = notank = 0
-    for coll, lvl, tag, f in files:
+    tick = Ticker("goal boards", len(files))
+    for coll, lvl, tag, f, url in files:
+        tick.tick(note="  %d unknown tiles" % sum(unk.values()))
         if not f.exists():
             continue
         try:
             g, u, _, where = decode_board(f, cbfull, tank)
-        except Exception:
+        except Exception as e:
+            tick.done()
+            print("  SKIPPED %-14s %5d %-4s  %s  %s" % (coll, lvl, tag, e, url))
             continue
         nb += 1
         notank += where is None
@@ -862,6 +1048,7 @@ def cmd_tiles(args):
         v = sum(u.values())
         per["0" if v == 0 else "1" if v == 1 else "2" if v == 2 else
             "3-5" if v <= 5 else "6-10" if v <= 10 else ">10"] += 1
+    tick.done()
     if not nb:
         print("\nno goal images -- run fetch with --goals")
         return 0
@@ -956,9 +1143,13 @@ def cmd_bank(args):
 
     out = []
     stat = collections.Counter()
-    for r in manifest():
-        if want is not None and (r["coll"], r["level"]) not in want:
-            continue
+    refused = []
+    recs = [r for r in manifest()
+            if want is None or (r["coll"], r["level"]) in want]
+    tick = Ticker("levels", len(recs))
+    for r in recs:
+        tick.tick(note="  %d banked, %d refused"
+                       % (stat["banked"], stat["unknown cells -- refused"]))
         if not r["goals"]:
             stat["no goal image in the post"] += 1
             continue
@@ -970,12 +1161,15 @@ def cmd_bank(args):
                 continue
             try:
                 grid, unk, _, where = decode_board(f, cb, tank)
-            except ValueError:
+            except ValueError as e:
                 stat["not a LaserTank window"] += 1
+                refused.append((r["coll"], r["level"], g["tag"], str(e), r["url"]))
                 continue
             u = sum(unk.values())
             if u and not args.allow_unknown:
                 stat["unknown cells -- refused"] += 1
+                refused.append((r["coll"], r["level"], g["tag"],
+                                "%d undecoded cells" % u, r["url"]))
                 continue
             stat["banked"] += 1
             boards.append({
@@ -998,11 +1192,16 @@ def cmd_bank(args):
                     "url": r["url"],
                     "moves": c.get("moves"), "shots": c.get("shots"),
                     "goals": boards})
+    tick.done()
 
     dest = pathlib.Path(args.out) if args.out else OUT / "goals.json"
     write_json(dest, {"_README": BANK_README, "levels": out})
     for k, v in stat.most_common():
         print("  %-28s %5d" % (k, v))
+    # The post itself, because a refusal is something to go and look at: the
+    # counters alone never said *which* board, let alone where to see it.
+    for coll, lvl, tag, why, url in refused:
+        print("  REFUSED %-14s %5d %-4s %-22s %s" % (coll, lvl, tag, why, url))
     print("bank -> %s  (%d levels, %d boards, %d with counters)"
           % (dest, len(out), sum(len(r["goals"]) for r in out),
              sum(1 for r in out if r["moves"] is not None)))
@@ -1021,6 +1220,12 @@ def cmd_decode(args):
     # 'ChallengeI' in a filename is 'Challenge-I' in data/levels/
     unhyphen = {c.replace("-", ""): c for c in
                 (p.stem for p in (ROOT / "data" / "levels").glob("*.lvl"))}
+    # The post the picture came from, so a disagreement can be looked at rather
+    # than only read about.  Optional: `decode` works on any file, fetched or not.
+    try:
+        posturl = {(r["coll"], r["level"]): r["url"] for r in manifest()}
+    except SystemExit:
+        posturl = {}
     rc = 0
     for path in args.images:
         g, unk, org, where = decode_board(path, cb, tank)
@@ -1050,6 +1255,8 @@ def cmd_decode(args):
         print("  %s %d %r   .ghs record %s" %
               (coll, n, level_name(coll, n),
                "%d moves %d shots" % rec if rec else "none"))
+        if posturl.get((coll, n)):
+            print("  %s" % posturl[(coll, n)])
         print("  %s: %d" % ("mismatches vs the corpus board" if tag == "a"
                             else "cells differing from the corpus board", len(diff)))
         for x, y, a, b in diff:

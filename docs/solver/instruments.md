@@ -219,7 +219,18 @@ harvest.py        closed item 6: the blogspot goal-board harvester.  index / map
                     `bank` is the last step and the only one the solver reads:
                     (collection, level, goal PF, tank, moves, shots) per level, the
                     final board last, and it *refuses* a board with an undecoded cell
-                    rather than banking a ranking key with a hole in it
+                    rather than banking a ranking key with a hole in it.
+                    **`codebook` learns only from a picture that is a start
+                    position** -- tank on the cell the .lvl stores as T, facing up,
+                    both read off the pixels.  The labels come from the .lvl, so a
+                    mid-solution screenshot labels every state play produced with
+                    what was there *before* play, and setdefault makes the first such
+                    board win for good; the check is what stops that, and it names
+                    every board it rejects.  Every loop that runs for minutes prints
+                    a progress line on stderr -- rewritten in place on a tty, one new
+                    line every ten seconds with an ETA when redirected -- and every
+                    line reporting a board the tool will not use carries the post's
+                    own URL, because the next question is always what it looks like
 sprites.py        not an instrument: the game's own sheet, and every board cell it
                     can draw.  Decodes original/src/Game.BMP + Mask.BMP (RLE8/RLE4),
                     shrinks them to 24 px the way GFXInit's StretchBlt does -- GDI's
@@ -245,6 +256,32 @@ hint-assisted recordings are *for* are in
 `--goal-board FILE` is also the cheapest way to read one: `--analyze --goal-board` adds a `goal` block
 to the read — how far the start board is from the banked one, and what each available board change does
 to that distance — and runs no search.
+
+**Three things a screenshot can be that its filename does not say.** All three first appeared when the
+harvester was run over the whole 6,044-post sample instead of a 150-post one, and all three are hazards
+to `bank` for the same reason: none of them produces an *undecoded* cell, so the refusal that guards the
+bank never fires. They decode to a clean, plausible, wrong board.
+
+* **The picture is not the position the filename claims.** 35 posts carry both `N.png` and `Na.png`, and
+  the bare one is the start; a handful name an image for another collection outright
+  (`LaserTank_452.png` in the Sokoban-I 452 post). `pick_images` decides both, and `codebook` no longer
+  takes any board on trust: it checks the tank is on the `.lvl`'s own `T` cell facing up. This matters
+  out of proportion to the count, because `codebook` labels from the `.lvl` — one mid-solution board
+  teaches a block sunk in water as `~` and a destroyed anti-tank as `v`, `setdefault` freezes it, and
+  every later board that shows the tile honestly then reports a conflict. `tiles` is the gate that
+  catches it after the fact, by disagreeing with `sprites.py`; the start-position check is what stops it
+  happening.
+* **The blog's level pack is not always this corpus's.** A few start boards decode cleanly, tank on its
+  start cell facing up, and still disagree with `data/levels/*.lvl` — water where the corpus has tunnels,
+  two tile types swapped — *in every frame of the post*, which is what separates drift from a capture
+  artifact. A goal board banked for such a level is a ranking key for **a different puzzle**. `codebook`
+  now names each one with its post URL; nothing yet keeps them out of the bank.
+* **A screenshot can catch `UpDateSprite` between its blits**, and it has two shapes, not one. Caught
+  after the mask blit the cell is black — that hashes to nothing and comes back undecoded, which is the
+  safe half and the one `sheet`/`label` was kept for. Caught *before* it, the cell is the bare terrain:
+  an anti-tank or a water tile silently missing from an otherwise perfect board. Only animated sprites
+  can do this, since only they are redrawn; the tell is the same tile present in a sibling frame of the
+  same post.
 
 ## The bench lists, and what belongs in `bench/`
 
