@@ -273,14 +273,37 @@ half a solution.** Three of the four items land ahead of item 5 on the ordering 
 (15) is the cheap falsifier item 5 has been open without. Item 5 is still the only open item that would
 move a level.
 
-**A complete blog harvest is running** (Michal's own job — do not touch it): `tools/harvest.py fetch`
-over the whole 6,218-post index rather than item 6's 150-post sample, so the goal-board bank goes from
-**141 levels to as many of the 6,218 as decode cleanly**. Nothing on the list is blocked on it and three
-items inherit from it — `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply of real
-recordings on long levels, which is the off-distribution sample layer 4 is fit on and `--profile` /
-`basin.py`'s only input; the per-flag boards are a subgoal sequence for *Further out*'s chaining note; and
-item 16's falsifiers are all measured over the 20 hand recordings today. **What it does not supply is
-human routes** — a goal board names the destination, not the path.
+**The complete blog harvest ran, and everything it reported as a loss had a cause worth the trip.**
+`tools/harvest.py fetch` over the whole 6,218-post index rather than item 6's 150-post sample:
+**5,779 start boards and 6,708 goal boards**, 34 minutes, and the goal-board bank goes from 141 levels
+to as many of those as decode cleanly. **Session 39 then worked through the drops that run had reported
+and the harvester now reaches 6,023 start boards and ~7,484 goal frames**, with 1 level contributing
+nothing where 246 did: the posts whose Blogger URLs carry no filename lose their goal frames to the same
+gap and are read by document order, a multi-part post's later parts are no longer discarded, the board
+frame's grey run is read as the *sprite pitch* it encodes rather than as a threshold (`SetGameSize`'s
+24/32/40, three posts at 32), the shipped `.ltg` packs are decodable so `LaserTank` 1619's EyeSaver+Grid
+frames come in, and the mid-blit capture turns out to derive like any other composite. Two of session
+38's own verdicts fell in the process — the black silhouette *is* derivable, and the cells it waved
+through as harmless are information-free rather than unlabelled, so they are stated by hand in
+`bench/post-fixups.json` and never inferred from a scratch recording — the full record is
+[session 39](docs/solver/history.md#session-39--the-logs-drops-and-the-two-that-were-the-instruments-fault).
+
+Back on the first run: `codebook` stopped it on **46 conflicting cells over 11
+boards** and **two `NOFRAME`** images, and neither turned out to be what it looked like — that record is
+[session 38](docs/solver/history.md#session-38--the-corpus-scale-run-and-what-its-two-complaints-were).
+**The conflicts are re-authored levels, not mislabelled tiles**: `tools/sprites.py` derives every one of
+those hashes from the game's own graphics and owes nothing to either side, and it backs the *codebook* at
+all 46 cells (**0 clashes across the whole 57-entry table**), so the screenshot is right and the `.lvl`
+has moved on since the post. That is a finding rather than a failure — but it is `bank`'s problem, because
+a goal board from a superseded revision is a target the current level **cannot reach**, and the search
+would chase it to the time limit. **Both `NOFRAME`s were Blogger serving a downscale**, not authors
+resizing screenshots: `fetch` asked the post's own URL first and got 512-wide resamples with no 24-pixel
+grid left in them; asked in the right order both come back at full size and decode clean. Nothing on the
+list is blocked on any of it and three items inherit from it — `--goal-board`'s hint-assisted bootstrap
+becomes a corpus-scale supply of real recordings on long levels, which is the off-distribution sample
+layer 4 is fit on and `--profile` / `basin.py`'s only input; the per-flag boards are a subgoal sequence
+for *Further out*'s chaining note; and item 16's falsifiers are all measured over the 20 hand recordings
+today. **What it does not supply is human routes** — a goal board names the destination, not the path.
 
 **Item 6 took three sessions and closed in session 36; the whole record is
 [closed item 6](docs/solver/history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).**

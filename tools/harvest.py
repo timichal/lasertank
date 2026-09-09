@@ -21,33 +21,46 @@ Nine subcommands, cheapest first:
              filenames are in it
   map        (collection, level) -> name, checked against the corpus .lvl.
              Reads the index; no network, no images
-  fetch      download the start and goal screenshots for selected levels
+  fetch      download the start and goal screenshots for selected levels --
+             every part of a multi-part post, and start-vs-goal from the post's
+             own order where the URLs carry no filename to read it off
   codebook   build the 24x24 tile codebook from start screenshots, whose boards
              the corpus already knows -- 256 labelled tiles per post, free.
              Learns only from a picture that *is* a start position (tank on the
              .lvl's own T cell, facing up); a play state labelled from the .lvl
              labels everything play produced with what was there before it.
              --goals sizes what this half does *not* cover; that was the item's
-             remaining cost until `tiles` derived all of it
+             remaining cost until `tiles` derived all of it.  Also the
+             *staleness* check: a start board that disagrees with its own .lvl
+             is a level re-authored since the post, and those go to stale.json
   tiles      the goal-only sprites *derived* rather than labelled, from the
              game's own sheet -- tools/sprites.py.  This is the gate on that
              derivation, and it retired `sheet`/`label` as the item's phase 1
   sheet      the sprites the derivation does not cover, as one contact sheet
-             plus a sidecar to fill in.  Empty over the whole sample; kept for
-             the tiles a screenshot catches mid-blit, which are not game states
+             plus a sidecar to fill in.  Empty over the 150-post sample and
+             three tiles at corpus scale -- and all three are *board* facts
+             rather than tile facts, so they live in bench/post-fixups.json
+             instead: the pixels of a tank over an anti-tank are the same
+             whatever is underneath, so the same hash means different things on
+             different boards and a hash table is the wrong shape for it.  It
+             also writes the residual.json `tiles`' second gate reads, so
+             skipping it silently skips that gate
   label      merge the filled-in sidecar into bench/goal-tiles.json
   decode     a screenshot -> a 16x16 board *and* where the tank is.  --check
              re-decodes a start screenshot and diffs it against the .lvl,
              which is the gate
   bank       every fetched goal screenshot decoded into one file: the bank
              `lasertank-solve --goal-board` reads.  Refuses a board with an
-             undecoded cell in it rather than banking a key with a hole
+             undecoded cell in it rather than banking a key with a hole, and a
+             level in stale.json rather than banking a target it cannot reach
 
     python tools/harvest.py index                       # 42 requests, ~46 s
     python tools/harvest.py map                         # no network, no images
     python tools/harvest.py fetch --limit 150 --goals    # ~7 min
     python tools/harvest.py codebook --goals
     python tools/harvest.py tiles                       # the derivation's gate
+    python tools/harvest.py sheet                       # what tiles could not derive
+    python tools/harvest.py label                       # after filling the sidecar in
     python tools/harvest.py fetch --levels LaserTank:10 --goals
     python tools/harvest.py decode build/harvest/img/LaserTank_10_a.png --check
     python tools/harvest.py bank                        # -> build/harvest/goals.json
@@ -63,7 +76,9 @@ reproduces the blog's pixels exactly and labels every state play produces --
 committed input for anything the sheet cannot draw, which so far is one tile
 caught between the mask blit and the sprite blit.
 
-Exit: 0 clean, 1 a decode disagreed with the corpus, 2 environment.
+Exit: 0 clean, 1 a decode disagreed with the corpus in a way the sprite sheet
+blames on the *codebook* -- a disagreement it blames on the .lvl is a stale
+post and a finding rather than a failure -- 2 environment.
 """
 import argparse
 import collections
@@ -317,19 +332,72 @@ def parse_title(t):
     return coll, int(m.group("num")), name, int(pm.group(1)) if pm else 0
 
 
+# Blogger's newer size suffix: `<blob>=s609`, `<blob>=w400-h316`.
+SIZED = re.compile(r"=[a-z]+\d+(?:-[a-z]+\d+)*$")
+
+
+def blob_id(bn):
+    """A *filename-less* Blogger basename -> the blob its renditions share.
+
+    Two URL shapes, and only one of them names the picture.  The old shape puts
+    the size in a path segment and keeps the author's filename --
+    `/s1600/LaserTank_725.png` -- which is what `pick_images` reads to tell a
+    start frame from a goal frame.  The newer `/img/a/<blob>=s609` shape carries
+    **no filename at all**: the several renditions of one picture differ only in
+    that suffix, and nothing in the URL says which level, let alone which frame.
+
+    Returns None for a basename that does have a filename, so every 2016-era
+    and every `<coll>_<n>.png` URL is untouched by this.  For the rest it
+    returns the blob, which collapses the renditions to one entry -- they were
+    two dict keys before, so a post with a start and a goal looked like four
+    pictures.
+    """
+    b = SIZED.sub("", bn)
+    return None if "." in b else b
+
+
+_fix = None
+
+
+def fixup(url):
+    """This post's committed correction, or {} -- see bench/post-fixups.json.
+
+    Three of 6,218 posts name the wrong level, and no rule can separate a typo
+    from a picture of a genuinely different level: `pick_images`' whole premise
+    is that a filename is a *claim* about which level a picture is of, and these
+    are the posts where the claim and the title disagree.  Deciding between them
+    means playing the level, so it is hand input and it is committed, and every
+    entry carries the note that says who checked it.
+    """
+    global _fix
+    if _fix is None:
+        p = ROOT / "bench" / "post-fixups.json"
+        _fix = {k: v for k, v in json.loads(p.read_text()).items()
+                if not k.startswith("_")} if p.exists() else {}
+    return _fix.get(url, {})
+
+
 def posts_by_level(rows=None):
-    """(collection, level) -> [post], in the feed's order."""
+    """(collection, level) -> [post], in the feed's order.
+
+    `imgs` keeps the *document* order of the post's pictures, because for a
+    filename-less post that order is the only claim there is; see `pick_images`.
+    """
     out = collections.defaultdict(list)
     for r in rows if rows is not None else read_index():
         p = parse_title(r["title"])
         if not p:
             continue
         coll, n, name, part = p
+        fx = fixup(r["url"])
+        coll, n = fx.get("coll", coll), fx.get("level", n)
         imgs = {}
         for u in r["imgs"]:
-            imgs.setdefault(u.rsplit("/", 1)[-1], u)
+            bn = u.rsplit("/", 1)[-1]
+            imgs.setdefault(blob_id(bn) or bn, u)
         out[(coll, n)].append({"url": r["url"], "published": r["published"],
-                               "name": name, "part": part, "imgs": imgs})
+                               "name": name, "part": part, "imgs": imgs,
+                               "image_level": fx.get("image_level", n)})
     return out
 
 
@@ -344,6 +412,10 @@ def cmd_map(args):
             stat["not a solution post"] += 1
             continue
         coll, n, name, _ = p
+        fx = fixup(r["url"])
+        if fx.get("coll") or fx.get("level"):
+            coll, n = fx.get("coll", coll), fx.get("level", n)
+            stat["retargeted by bench/post-fixups.json"] += 1
         got = level_name(coll, n)
         if got is None:
             stat["collection or level not in corpus"] += 1
@@ -401,7 +473,7 @@ def name_prefixes(coll):
     return _prefixes.get(coll) or {coll.replace("-", "").lower()}
 
 
-def pick_images(coll, n, imgs):
+def pick_images(coll, n, imgs, image_level=None):
     """-> (start basename, [(tag, goal basename)]).
 
     Two naming eras, both keyed by the level number.  2016: '10a.png' is the
@@ -428,12 +500,36 @@ def pick_images(coll, n, imgs):
     title typo `map` already reports, for a collection the corpus does not
     ship.  Those nine are the whole of what the check costs: two starts and
     seven goal frames.
+
+    **Where no image carries a filename, the post's own order is the fallback**,
+    and that is 242 of 6,044 levels -- 4% of the corpus, every one of which
+    contributed *nothing*, not merely no start, because the same filename
+    decides start-vs-goal and which-flag alike.  Those posts use the newer
+    `/img/a/<blob>=s609` shape (`blob_id`), so there is no claim to read and the
+    only thing left is that every post with filenames lays its pictures out
+    start first.  234 of the 242 carry exactly two.  This is the one guess in
+    the file and it is **arbitrated where the pixels are**: `codebook` admits a
+    start board only if the tank is on the `.lvl`'s own `T` cell facing up, so a
+    post listed the other way round is rejected there exactly as it is today
+    rather than teaching 256 wrong labels -- and it is rejected *by name*,
+    because `fetch` records which rule picked the start.  The fallback is
+    all-or-nothing per post: a post that names some of its pictures has made a
+    claim about those, and mixing a claim with an order is how a wrong answer
+    gets to look confident.
     """
     pref = name_prefixes(coll)
+    # The number the *filenames* use, which is the title's number except in the
+    # posts `fixup` corrects.  The collection prefix still has to name this
+    # collection: a wrong number is a typo, a wrong collection is a different
+    # level's screenshot, and the two are not the same mistake.
+    n = image_level if image_level is not None else n
     named = lambda m: (m.group(1) or "").lower() in pref or not m.group(1)
     bare, sfxa, goals = [], [], []
     for bn in imgs:
-        b = bn.rsplit(".", 1)[0]
+        # rstrip('.'): '419a..png' is one post's double dot, and rsplit alone
+        # leaves the stem '419a.', which matches nothing -- so LaserTank 419
+        # lost both of its frames to a typo.
+        b = bn.rsplit(".", 1)[0].rstrip(".")
         m = re.fullmatch(r"(?i)([a-z]+)?_?%d(a?)" % n, b)
         if m:
             if named(m):
@@ -451,32 +547,93 @@ def pick_images(coll, n, imgs):
     # it cannot keep the post's own 'a' is that the start is already written as
     # `<coll>_<n>_a.png`.  'a1' is that collision and nothing else.
     goals += [("a1", bn) for bn in sfxa] if bare else []
+    if not (bare or sfxa or goals):
+        blobs = [bn for bn in imgs if blob_id(bn)]
+        if blobs and len(blobs) == len(imgs) and len(blobs) <= 25:
+            return blobs[0], [(chr(ord("b") + i), bn)
+                              for i, bn in enumerate(blobs[1:])]
     return (bare or sfxa or [None])[0], sorted(goals)
 
 
-def fetch_one(url, dest):
+def png_width(d):
+    """A PNG's width from its IHDR, without decoding it.
+
+    Eight bytes of signature, then the IHDR chunk's length and type, then
+    width: so byte 16.  Cheap enough to check every download.
+    """
+    if not d.startswith(b"\x89PNG\r\n\x1a\n") or d[12:16] != b"IHDR":
+        return 0
+    return struct.unpack(">I", d[16:20])[0]
+
+
+# The board needs 16*24 px plus its frame plus the window chrome, and both
+# geometries the posts use are just over 600 wide (609x463, 619x473).  Anything
+# narrower is a *resample*, which is the point of the check below.
+MIN_W = 600
+
+
+def fetch_one(url, dest, refetch=False):
     """Blogger serves each image under several size directories; ask for the
     original.  Some posts answer 404 or 500 on a rewritten size, so try those
-    first and fall back to the URL exactly as the post gave it."""
-    if dest.exists():
+    first and fall back to the URL exactly as the post gave it.
+
+    **A size directory does not only crop the choice of rendition, it can
+    resample the image**, and a resampled screenshot has no 24-pixel grid left
+    in it -- which was both `NOFRAME`s of the first corpus-scale run.  Neither
+    post is unusable and neither was resized by its author: `SpecialI_491.png`
+    is 609x463 under `/s16000/` and 512x389 under the `/s1600/` the post itself
+    links, and `SpecialI_343a.png` is 619x473 under `/s1600/` and 512x391 under
+    its post's `/s619/`.  Blogger answers a small-size path with a downscale
+    even when the number is larger than the image (491's own `s1600` > 609), so
+    the *post's* URL is the last thing to ask, not the first -- which is what
+    this docstring said all along while the code tried it first.
+
+    So: rewrites first, and a rendition narrower than a LaserTank window is not
+    accepted while a candidate is still untried.  The widest of a bad set is
+    still written rather than dropped, because `origin` reporting NOFRAME on a
+    picture that is on disk beats having no picture to look at.
+
+    **Both URL shapes get rewritten, which they did not.**  The old one keeps
+    the size in a path segment (`/s1600/<name>.png`); the newer filename-less
+    one keeps it in a suffix (`<blob>=s609`), and rewriting `p[-2]` on that
+    replaces the literal `a` of `/img/a/` and asks for a URL that does not
+    exist.  Every one of those levels therefore fell straight through to the
+    post's own rendition -- which is the smallest one, and the one this
+    docstring exists to say should be asked for last.
+    """
+    if dest.exists() and not refetch:
         return True
     p = url.split("/")
-    tries = [url]
-    for s in ("s1600", "s16000"):
-        if p[-2] != s:
+    tries = []
+    for s in ("s16000", "s1600"):
+        if SIZED.search(p[-1]):
+            q = list(p)
+            q[-1] = SIZED.sub("=" + s, p[-1])
+        elif p[-2] != s:
             q = list(p)
             q[-2] = s
+        else:
+            continue
+        if "/".join(q) != url:
             tries.append("/".join(q))
+    tries.append(url)
+    best = None
     for u in tries:
         try:
             d = get(u)
         except urllib.error.HTTPError:
             continue
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(d)
         time.sleep(0.05)
-        return True
-    return False
+        w = png_width(d)
+        if best is None or w > best[0]:
+            best = (w, d)
+        if w >= MIN_W:
+            break
+    if best is None:
+        return False
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(best[1])
+    return True
 
 
 def selected(args, by_level):
@@ -506,6 +663,21 @@ def manifest():
 
 
 def cmd_fetch(args):
+    """Download one start frame and every goal frame each level's posts carry.
+
+    **Every part of a multi-part post is the same level and the same start
+    screenshot**; what differs is which flags its goal frames are of.  This read
+    `by_level[...][0]` and the feed is newest-first, so an 11-part level
+    contributed part 11's two frames and dropped the other 38 -- `Challenge-I`
+    306 is that level, and 83 levels lost 518 frames between them.  The final
+    board survived, because `bank` orders by flags still on the board rather
+    than by the post's layout, so what was lost was not the target but the
+    **per-flag subgoal sequence** that ordering exists to carry.
+
+    So: parts ascending, first part wins a tag collision (17 of the 535 collide,
+    all of them a genuine reshoot of the same flag), and each goal frame keeps
+    the url of the post it came from so a `bank` refusal names the right one.
+    """
     by_level = posts_by_level()
     got = collections.Counter()
     # Merge rather than replace: a `--levels LaserTank:10` after a `--limit 150`
@@ -522,21 +694,40 @@ def cmd_fetch(args):
         # The level goes in the note: this is the one subcommand on the
         # network, so which post is being waited on is the useful half.
         tick.tick(note="  %s %d" % (coll, n))
-        post = by_level[(coll, n)][0]
-        start, goals = pick_images(coll, n, post["imgs"])
-        rec = {"coll": coll, "level": n, "published": post["published"],
-               "url": post["url"], "start": None, "goals": []}
-        if start and fetch_one(post["imgs"][start], img_path(coll, n, "a")):
+        posts = sorted(by_level[(coll, n)],
+                       key=lambda q: (q["part"], q["published"]))
+        start = startpost = None
+        goals, seen = [], set()
+        for post in posts:
+            s, gg = pick_images(coll, n, post["imgs"], post["image_level"])
+            if start is None and s:
+                start, startpost = s, post
+            for tag, bn in gg:
+                if tag not in seen:
+                    seen.add(tag)
+                    goals.append((tag, bn, post))
+        goals.sort(key=lambda t: t[0])
+        rec = {"coll": coll, "level": n, "published": posts[0]["published"],
+               "url": posts[0]["url"], "start": None, "goals": []}
+        if start:
+            # Which rule picked it, so `codebook` can say so when it rejects
+            # one: a filename is a claim, an order is a guess.
+            rec["order"] = "document" if blob_id(start) else "filename"
+        if start and fetch_one(startpost["imgs"][start], img_path(coll, n, "a"),
+                               args.refetch):
             rec["start"] = str(img_path(coll, n, "a").relative_to(ROOT))
             got["start"] += 1
         else:
             got["no start image"] += 1
         if args.goals:
-            for tag, bn in goals:
-                if fetch_one(post["imgs"][bn], img_path(coll, n, tag)):
-                    rec["goals"].append(
-                        {"tag": tag,
-                         "file": str(img_path(coll, n, tag).relative_to(ROOT))})
+            for tag, bn, post in goals:
+                if fetch_one(post["imgs"][bn], img_path(coll, n, tag),
+                             args.refetch):
+                    rg = {"tag": tag,
+                          "file": str(img_path(coll, n, tag).relative_to(ROOT))}
+                    if post["url"] != rec["url"]:
+                        rg["url"] = post["url"]   # a later part of this level
+                    rec["goals"].append(rg)
                     got["goal"] += 1
         man.append(rec)
         keep[(coll, n)] = rec
@@ -553,37 +744,80 @@ def cmd_fetch(args):
 
 # ---------------------------------------------------------------- the decode
 
-def origin(w, h, px):
-    """The board's top-left pixel, from the frame drawn around it.
+# The inner frame row's grey run, measured end to end, -> the sprite pitch it
+# implies: 16 tiles of board plus 2 pixels of frame.  These are SetGameSize's
+# three zooms (LTANK2.C:1729): 386 is the 24-pixel shrink GFXInit's StretchBlt
+# produces, 514 the sheet's own 32-pixel cells, 642 the largest.  Measured over
+# every image in the corpus: 12,498 at 386, 5 at 514, none at 642 -- which is
+# in the table anyway, because recognising a zoom costs one derived table and
+# beats decoding a fourth surprise into garbage.
+FRAME_RUN = {16 * 24 + 2: 24, 16 * 32 + 2: 32, 16 * 40 + 2: 40}
 
-    The frame's horizontal lines are the only rows carrying a 384-pixel run of
+
+def origin(w, h, px):
+    """-> (board's top-left pixel x, y, sprite pitch), from the frame round it.
+
+    The frame's horizontal lines are the only rows carrying a long run of
     (128,128,128), and the run's own start is the left frame; the second such
     row is the inner one.  bytes.find does the scan, which is why this costs a
     millisecond rather than a 300k-iteration pixel loop.
+
+    **The run's own length is the measurement, and reading it as "at least 384"
+    cost three goal boards.**  It is 16 tiles of board plus 2 pixels of frame,
+    so it says what the sprite pitch is -- and three posts are not the 24-pixel
+    build at all but the game at the sheet's own 32-pixel cells, where the run
+    is 514 instead of 386.  `find` matched inside the longer run, a plausible
+    corner came back, and all 256 tiles decoded to unknown with nothing in the
+    output saying why.  Measuring the run end to end both refuses a window this
+    cannot read and *identifies* the two it can, which is why the pitch is a
+    return value rather than the module constant it used to be.
     """
-    run = GREY * 16 * PITCH
     hits = []
-    for y in range(h):
-        i = bytes(px[y * w * 3:(y + 1) * w * 3]).find(run)
-        if i >= 0:
-            hits.append((y, i // 3))
+    for pitch in sorted(FRAME_RUN.values()):
+        run = GREY * 16 * pitch
+        for y in range(h):
+            row = bytes(px[y * w * 3:(y + 1) * w * 3])
+            i = row.find(run)
+            if i < 0:
+                continue
+            s = i
+            while s >= 3 and row[s - 3:s] == GREY:
+                s -= 3
+            e = i
+            while e + 3 <= len(row) and row[e:e + 3] == GREY:
+                e += 3
+            hits.append((y, s // 3, (e - s) // 3))
+        if len(hits) >= 2:
+            break
     if len(hits) < 2:
-        raise ValueError("no 384-pixel board frame -- not a LaserTank window?")
-    return hits[1][1] + 2, hits[1][0] + 1
+        raise ValueError("no board frame -- not a LaserTank window?")
+    y, x, n = hits[1]
+    if n not in FRAME_RUN:
+        raise ValueError("board frame is %d px, not %s -- no whole-pixel sprite "
+                         "grid under it" % (n, " or ".join(
+                             str(k) for k in sorted(FRAME_RUN))))
+    return x + 2, y + 1, FRAME_RUN[n]
 
 
 def tile_hashes(path):
+    """-> ({(cx, cy): tile hash}, (x0, y0), pitch).
+
+    The pitch comes from the frame, not from a constant, so a screenshot of the
+    32-pixel build hashes its own 32-pixel cells.  A hash is md5 over the whole
+    tile, so the two pitches share one table without colliding: the byte
+    strings are different lengths.
+    """
     w, h, px = png.load(path)
-    x0, y0 = origin(w, h, px)
+    x0, y0, P = origin(w, h, px)
     out = {}
     for cy in range(16):
         for cx in range(16):
             b = bytearray()
-            for yy in range(PITCH):
-                i = ((y0 + cy * PITCH + yy) * w + x0 + cx * PITCH) * 3
-                b += px[i:i + PITCH * 3]
+            for yy in range(P):
+                i = ((y0 + cy * P + yy) * w + x0 + cx * P) * 3
+                b += px[i:i + P * 3]
             out[(cx, cy)] = hashlib.md5(bytes(b)).hexdigest()[:16]
-    return out, (x0, y0)
+    return out, (x0, y0), P
 
 
 def show(g):
@@ -595,6 +829,25 @@ def show(g):
 def cbpath():
     """The start-bootstrapped half: derivable, so it lives in gitignored build/."""
     return OUT / "codebook.json"
+
+
+STALE_README = (
+    "The levels whose blog post is of a level the .lvl no longer matches -- "
+    "tools/harvest.py codebook.  The post's start screenshot decodes to a "
+    "board that is a genuine start position (tank on the .lvl's own T cell, "
+    "facing up, so not a play state) and yet disagrees with the .lvl, and "
+    "tools/sprites.py -- which owes nothing to either side -- confirms the "
+    "picture at every disagreeing cell.  The level was re-authored some time "
+    "after the post.  **The consequence is on the goal boards, not the start "
+    "one**: a goal from a superseded revision is a target the current level "
+    "cannot reach, so `bank` refuses these rather than handing the solver a "
+    "board to chase forever."
+)
+
+
+def stalepath():
+    """Derivable from the corpus and the images, so it is gitignored too."""
+    return OUT / "stale.json"
 
 
 def labelpath():
@@ -641,10 +894,18 @@ def load_codebook(derived=True):
     if derived:
         import sprites
         before = set(cb)
-        for hs, (pf, facing, _) in sprites.Cells().table().items():
-            cb[hs] = pf
-            if facing:
-                tank[hs] = facing
+        # One table per pitch the frame gate accepts, merged: a tile hash is
+        # md5 over the whole cell, so a 24-pixel tile and a 32-pixel one cannot
+        # collide -- the byte strings are different lengths.
+        for pitch in sorted(set(FRAME_RUN.values())):
+            c = sprites.Cells(pitch=pitch)
+            for hs, (pf, facing, _) in c.table().items():
+                cb[hs] = pf
+                if facing:
+                    tank[hs] = facing
+            # The facing is derivable even where the PF is not, so a cell no
+            # table can label still says where the tank is: sprites.facings().
+            tank.update(c.facings())
         counts["derived"] = len(set(cb) - before)
     return cb, tank, counts
 
@@ -673,9 +934,29 @@ def cmd_codebook(args):
     `tools/sprites.py`, which is the one thing here that does not come from the
     corpus -- but it is used only to *admit* a board, never to label a tile, so
     the curve below is still built from `.lvl` labels alone and is still honest.
+
+    **A conflict is arbitrated rather than merely counted**, and the same sheet
+    does it.  A disagreement between the codebook and the `.lvl` at a cell has
+    exactly two causes, and they point opposite ways: either the codebook's
+    label is wrong, or the *screenshot* is of a level the `.lvl` no longer
+    matches -- the blog is nine years old and levels have been re-authored
+    under it.  `sprites.py` decides which, because it derives that hash from
+    the game's own graphics and owes nothing to either side.  All 46 cells of
+    the first corpus-scale run came back STALE: the picture is right, the
+    codebook keeps the right label, and the level has moved on.
+
+    A STALE board is then not allowed to *teach*.  `setdefault` makes the first
+    board to show a tile own it for good, so a stale board that came early
+    would poison a label with no conflict to show for it -- the honest boards
+    conflict, not the one that lied.  Ordering luck is not a check, so a board
+    that disagrees is excluded from the labelling pass altogether, exactly as a
+    play state is.  The levels are written to `stale.json` because a stale
+    *start* board means the post's *goal* boards are goals for a level revision
+    that no longer exists: unreachable targets, which is `bank`'s problem.
     """
     import sprites
-    facing = {h: v[1] for h, v in sprites.Cells().table().items() if v[1]}
+    sheet = sprites.Cells().table()
+    facing = {h: v[1] for h, v in sheet.items() if v[1]}
     have = [r for r in manifest() if r["start"] and (ROOT / r["start"]).exists()]
     if args.limit:
         have = have[:args.limit]
@@ -691,7 +972,7 @@ def cmd_codebook(args):
         if B is None:
             continue
         try:
-            t, _ = tile_hashes(ROOT / r["start"])
+            t, _, _ = tile_hashes(ROOT / r["start"])
         except Exception as e:
             noframe += 1
             tick.done()
@@ -704,6 +985,12 @@ def cmd_codebook(args):
                "tank off the .lvl start cell"
                if B[seat[0][1]][seat[0][0]] != "T" else None)
         if why:
+            # `pick_images`' document-order fallback is the one guess in the
+            # chain, and this is where it is arbitrated -- so say which rule
+            # picked the frame that failed, or the reader cannot tell a play
+            # state from a post listed goal-first.
+            if r.get("order") == "document":
+                why += " [order-picked]"
             notstart.append((r["coll"], r["level"], why, r["url"]))
             continue
         unk = bad = 0
@@ -714,17 +1001,28 @@ def cmd_codebook(args):
                 unk += 1
             elif got != true:
                 bad += 1
-                conflicts.append((r["coll"], r["level"], cx, cy, got, true, hs))
+                v = sheet.get(hs)
+                who = ("the .lvl" if v and v[0] == got else
+                       "the codebook" if v and v[0] == true else
+                       "unarbitrated")
+                conflicts.append((r["coll"], r["level"], cx, cy, got, true,
+                                  hs, who))
         if not unk and not bad:
             exact += 1
         curve.append((len(curve) + 1, len(cb), unk, bad))
+        # A board that disagrees teaches nothing: see the docstring.  Its own
+        # unknown cells are exactly the ones no later board can contradict.
+        if bad:
+            continue
         for (cx, cy), hs in t.items():
             cb.setdefault(hs, B[cy][cx])
     tick.done()
-    print("start boards: %d  (no frame: %d, not a start position: %d)"
-          % (len(curve), noframe, len(notstart)))
+    order = sum(1 for c in notstart if c[2].endswith("[order-picked]"))
+    print("start boards: %d  (no frame: %d, not a start position: %d%s)"
+          % (len(curve), noframe, len(notstart),
+             ", of which %d order-picked" % order if order else ""))
     for coll, lvl, why, url in notstart:
-        print("  NOT A START  %-14s %5d  %-30s %s" % (coll, lvl, why, url))
+        print("  NOT A START  %-14s %5d  %-40s %s" % (coll, lvl, why, url))
     print("  n  codebook  unknown  conflict")
     for n, sz, unk, bad in curve:
         if n <= 10 or unk or bad or n % 25 == 0 or n == len(curve):
@@ -738,13 +1036,30 @@ def cmd_codebook(args):
     print("codebook entries: %d   conflicts: %d cells on %d boards"
           % (len(cb), len(conflicts), len(per)))
     urls = {(r["coll"], r["level"]): r["url"] for r in have}
+    stale = []
     for (coll, lvl), nc in per.most_common():
-        print("  CONFLICT %-14s %5d  %2d cells  %s"
-              % (coll, lvl, nc, urls.get((coll, lvl), "")))
-        for c in [c for c in conflicts if (c[0], c[1]) == (coll, lvl)][:10]:
-            print("      (%2d,%2d) codebook %s  corpus %s  %s" % c[2:])
+        cells = [c for c in conflicts if (c[0], c[1]) == (coll, lvl)]
+        blame = collections.Counter(c[7] for c in cells)
+        # STALE only if the sheet blamed the .lvl for *every* cell: one cell it
+        # could not arbitrate is a board to go and look at, not a verdict.
+        is_stale = list(blame) == ["the .lvl"]
+        print("  %-8s %-14s %5d  %2d cells  %s  %s"
+              % ("STALE" if is_stale else "CONFLICT", coll, lvl, nc,
+                 "the .lvl no longer matches the picture" if is_stale
+                 else ", ".join("%d %s" % (n, w) for w, n in blame.most_common()),
+                 urls.get((coll, lvl), "")))
+        for c in cells[:10]:
+            print("      (%2d,%2d) codebook %s  corpus %s  %s  sheet blames %s"
+                  % c[2:])
+        if is_stale:
+            stale.append({"coll": coll, "level": lvl, "cells": nc,
+                          "url": urls.get((coll, lvl), "")})
     cbpath().write_text(json.dumps(cb, indent=0, sort_keys=True))
     print("codebook -> %s" % cbpath())
+    write_json(stalepath(), {"_README": STALE_README,
+                             "levels": sorted(
+                                 stale, key=lambda s: (s["coll"], s["level"]))})
+    print("stale levels -> %s  (%d)" % (stalepath(), len(stale)))
     if args.goals:
         # count the hand-labelled half as covered: the residual is what is
         # left to do, not what the bootstrap alone happens to reach
@@ -754,7 +1069,11 @@ def cmd_codebook(args):
                            json.loads(labelpath().read_text()).items()
                            if not k.startswith("_")})
         goal_residual(merged)
-    return 1 if conflicts else 0
+    # A STALE board is a finding, not a failure: the codebook came out right at
+    # every one of its cells and `stale.json` carries the consequence on to
+    # `bank`.  What still fails the gate is a conflict the sheet blames on the
+    # codebook, or one it cannot arbitrate at all.
+    return 1 if [c for c in conflicts if c[7] != "the .lvl"] else 0
 
 
 def goal_residual(cb):
@@ -779,7 +1098,7 @@ def goal_residual(cb):
         if not f.exists():
             continue
         try:
-            t, _ = tile_hashes(f)
+            t, _, _ = tile_hashes(f)
         except Exception as e:
             noframe += 1
             tick.done()
@@ -890,7 +1209,7 @@ def cmd_sheet(args):
             continue
         try:
             w, h, px = png.load(f)
-            x0, y0 = origin(w, h, px)
+            x0, y0, P = origin(w, h, px)
         except Exception as e:
             tick.done()
             print("  SKIPPED %-14s %5d %-4s  %s  %s" % (coll, lvl, tag, e, url))
@@ -898,15 +1217,15 @@ def cmd_sheet(args):
         for cy in range(16):
             for cx in range(16):
                 b = bytearray()
-                for yy in range(PITCH):
-                    i = ((y0 + cy * PITCH + yy) * w + x0 + cx * PITCH) * 3
-                    b += px[i:i + PITCH * 3]
+                for yy in range(P):
+                    i = ((y0 + cy * P + yy) * w + x0 + cx * P) * 3
+                    b += px[i:i + P * 3]
                 hs = hashlib.md5(bytes(b)).hexdigest()[:16]
                 if hs in cb:
                     continue
                 cnt[hs] += 1
                 if hs not in seen:
-                    seen[hs] = (bytes(b), coll, lvl, tag, cx, cy)
+                    seen[hs] = (bytes(b), coll, lvl, tag, cx, cy, P)
     tick.done()
     if not seen:
         print("nothing unlabelled -- the codebook covers every goal tile")
@@ -915,24 +1234,27 @@ def cmd_sheet(args):
     order = [h for h, _ in cnt.most_common()]
     s, cols = args.scale, args.cols
     rows = (len(order) + cols - 1) // cols
-    W, H = cols * PITCH * s, rows * PITCH * s
+    # The cell is the largest pitch present, because the 32-pixel build's
+    # tiles and the 24-pixel build's can both land in one residual.
+    cell = max(seen[h][6] for h in order)
+    W, H = cols * cell * s, rows * cell * s
     out = bytearray(W * H * 3)
     for k, hs in enumerate(order):
-        tile = seen[hs][0]
-        gx, gy = (k % cols) * PITCH * s, (k // cols) * PITCH * s
-        for yy in range(PITCH * s):
-            for xx in range(PITCH * s):
-                si = ((yy // s) * PITCH + (xx // s)) * 3
+        tile, P = seen[hs][0], seen[hs][6]
+        gx, gy = (k % cols) * cell * s, (k // cols) * cell * s
+        for yy in range(P * s):
+            for xx in range(P * s):
+                si = ((yy // s) * P + (xx // s)) * 3
                 di = ((gy + yy) * W + gx + xx) * 3
                 out[di:di + 3] = tile[si:si + 3]
     sheet = OUT / "residual.png"
     sheet.write_bytes(png.encode(W, H, out))
 
     side = OUT / "residual.json"
-    rec = [{"i": k, "hash": hs, "n": cnt[hs], "pf": "",
-            "first_seen": "%s %d %s at (%d,%d)"
+    rec = [{"i": k, "hash": hs, "n": cnt[hs], "pf": "", "pitch": seen[hs][6],
+            "first_seen": "%s %d %s at %s%d"
                           % (seen[hs][1], seen[hs][2], seen[hs][3],
-                             seen[hs][4], seen[hs][5])}
+                             chr(65 + seen[hs][4]), seen[hs][5] + 1)}
            for k, hs in enumerate(order)]
     side.write_text(json.dumps(rec, indent=1))
     print("%d unlabelled sprites, %d instances" % (len(order), sum(cnt.values())))
@@ -943,17 +1265,24 @@ def cmd_sheet(args):
     return 0
 
 
-def decode_board(path, cb, tank=None):
-    """One screenshot -> (PF board, unknown tiles, origin, where the tank is).
+_alt = {}
 
-    The tank is separate from the board on purpose: `PF` does not hold it --
-    BuildBMField clears `PF` at the tank's cell on load (`Engine.cs:348`) -- so
-    a cell the tank is standing on decodes to the terrain under it, and the
-    tank comes back as `(x, y, facing)`.  That is exactly the shape a goal
-    board wants, and it is what turned `LaserTank.lvl` 10's one undecoded cell
-    into derived data.
+
+def pack_table(pitch, pack):
+    """One `(pitch, pack)` derived table, built once and kept.
+
+    Lazy because the shipped packs cost 9 seconds for all of them against 0.7
+    for the internal sheet alone, and 12,502 of the corpus's 12,503 images do
+    not need them.
     """
-    t, org = tile_hashes(path)
+    key = (pitch, pack)
+    if key not in _alt:
+        import sprites
+        _alt[key] = sprites.Cells(pitch=pitch, pack=pack).table()
+    return _alt[key]
+
+
+def decode_one(t, cb, tank):
     g = [["?"] * 16 for _ in range(16)]
     unk = collections.Counter()
     where = None
@@ -965,7 +1294,51 @@ def decode_board(path, cb, tank=None):
             g[cy][cx] = s
         if tank and hs in tank:
             where = (cx, cy, tank[hs])
-    return g, unk, org, where
+    return g, unk, where
+
+
+def decode_board(path, cb, tank=None, packs=True):
+    """One screenshot -> (PF board, unknown tiles, origin, tank, graphics pack).
+
+    The tank is separate from the board on purpose: `PF` does not hold it --
+    BuildBMField clears `PF` at the tank's cell on load (`Engine.cs:348`) -- so
+    a cell the tank is standing on decodes to the terrain under it, and the
+    tank comes back as `(x, y, facing)`.  That is exactly the shape a goal
+    board wants, and it is what turned `LaserTank.lvl` 10's one undecoded cell
+    into derived data.
+
+    **A screenshot is not necessarily of the internal sheet**, and assuming it
+    was cost `LaserTank` 1619 both of its frames: the post is of *EyeSaver+Grid*
+    -- a `.ltg` pack this repo already ships under `data/graphics/` -- and every
+    one of its 256 tiles came back unknown, teal where dirt is olive.  So when
+    the internal table leaves unknowns behind, each shipped pack is tried and
+    the best decode wins.  That is safe rather than a fishing expedition
+    because it was measured first: across all eight `(pack, pitch)` tables,
+    **no hash carries two different `PF` values**, so a match is a match and
+    the fallback cannot invent an agreement.  The chosen pack comes back so the
+    bank can record which graphics the picture was of.
+    """
+    t, org, pitch = tile_hashes(path)
+    g, unk, where = decode_one(t, cb, tank)
+    if unk and packs:
+        import sprites
+        best = (sum(unk.values()), "", g, unk, where)
+        for name, pk in sprites.packs().items():
+            if not pk:
+                continue
+            tab = pack_table(pitch, pk)
+            cb2 = dict(cb)
+            tk2 = dict(tank or {})
+            for h, v in tab.items():
+                cb2[h] = v[0]
+                if v[1]:
+                    tk2[h] = v[1]
+            g2, unk2, where2 = decode_one(t, cb2, tk2)
+            if sum(unk2.values()) < best[0]:
+                best = (sum(unk2.values()), name, g2, unk2, where2)
+        _, name, g, unk, where = best
+        return g, unk, org, where, name
+    return g, unk, org, where, ""
 
 
 def cmd_tiles(args):
@@ -982,13 +1355,21 @@ def cmd_tiles(args):
         as the terrain plus a tank facing, and that reconciliation is checked.
       * the **goal residual**, the sprites a start board can never label.
       * every **goal board**, decoded end to end, as unknown cells per board.
+
+    The first check is against the 24-pixel table only, because that is the
+    build every start screenshot in the corpus is of; the 32-pixel table has
+    nothing to check it against and is reported rather than gated.
     """
     import sprites
     c = sprites.Cells()
     t = c.table()
-    print("derived from %s: %d cells with an unambiguous PF, %d dropped as "
-          "PF-ambiguous" % (pathlib.Path(sprites.GAME_BMP).name, len(t),
-                            len(c.conflicts())))
+    for pitch in sorted(set(FRAME_RUN.values())):
+        cc = c if pitch == PITCH else sprites.Cells(pitch=pitch)
+        tt = t if pitch == PITCH else cc.table()
+        print("derived from %s at %dx%d: %d cells with an unambiguous PF, "
+              "%d dropped as PF-ambiguous"
+              % (pathlib.Path(sprites.GAME_BMP).name, pitch, pitch, len(tt),
+                 len(cc.conflicts())))
 
     cb = json.loads(cbpath().read_text()) if cbpath().exists() else {}
     agree = tankok = clash = absent = 0
@@ -1021,6 +1402,13 @@ def cmd_tiles(args):
             if r["hash"] not in t:
                 print("  not derived: n=%-4d %s  %s"
                       % (r["n"], r["hash"], r["first_seen"]))
+    else:
+        # A gate that does not run has to say so.  This one was silent through
+        # the whole corpus-scale run -- `sheet` writes residual.json and the run
+        # never called it, so the middle of the three checks the docstring
+        # promises simply was not there, and nothing in the output said so.
+        print("goal residual: SKIPPED, no %s -- run: python %s sheet"
+              % (side.relative_to(ROOT), pathlib.Path(__file__).name))
 
     cbfull, tank, n = load_codebook()
     print("\ndecoding every goal board against all three halves: %d start-"
@@ -1031,13 +1419,14 @@ def cmd_tiles(args):
     per = collections.Counter()
     unk = collections.Counter()
     nb = notank = 0
+    named = []
     tick = Ticker("goal boards", len(files))
     for coll, lvl, tag, f, url in files:
         tick.tick(note="  %d unknown tiles" % sum(unk.values()))
         if not f.exists():
             continue
         try:
-            g, u, _, where = decode_board(f, cbfull, tank)
+            g, u, _, where, pk = decode_board(f, cbfull, tank)
         except Exception as e:
             tick.done()
             print("  SKIPPED %-14s %5d %-4s  %s  %s" % (coll, lvl, tag, e, url))
@@ -1046,6 +1435,8 @@ def cmd_tiles(args):
         notank += where is None
         unk.update(u)
         v = sum(u.values())
+        if v or where is None or pk:
+            named.append((v, coll, lvl, tag, where, pk, url))
         per["0" if v == 0 else "1" if v == 1 else "2" if v == 2 else
             "3-5" if v <= 5 else "6-10" if v <= 10 else ">10"] += 1
     tick.done()
@@ -1061,6 +1452,21 @@ def cmd_tiles(args):
         if per[k]:
             print("  %-5s %4d boards (%.1f%%)" % (k, per[k],
                                                   100.0 * per[k] / nb))
+    # A percentage is not a finding.  0.02% of tiles was one image with no
+    # 24-pixel grid in it at all plus four capture artifacts, and the histogram
+    # above could not say which -- so every board that is not clean is named,
+    # worst first, with the post to go and look at.  `bank` refuses all of
+    # these except a clean board with no tank on it, which it banks with a null
+    # tank, so that one is the row worth reading.
+    if named:
+        print("every goal board that is not plain-and-clean, worst first:")
+        for v, coll, lvl, tag, where, pk, url in sorted(named, reverse=True):
+            print("  %-14s %5d %-4s %3d unknown, tank %-12s %-16s %s"
+                  % (coll, lvl, tag, v,
+                     "not found" if where is None
+                     else "%s%d %s" % (chr(65 + where[0]), where[1] + 1,
+                                       where[2]),
+                     pk or "", url))
     if args.out:
         pathlib.Path(args.out).write_text(json.dumps(
             {h: {"pf": v[0], "tank": v[1], "is": v[2]}
@@ -1128,11 +1534,38 @@ def cmd_bank(args):
     A board with an unknown cell in it is **refused** rather than banked with a
     hole.  A goal board is a ranking key, and a key with a '?' in it prices
     that cell as "already right" wherever the search happens to be: the one
-    failure mode that is worse than having no key at all.  --allow-unknown
-    banks them anyway, which is for looking at them, not for solving.
+    failure mode that is worse than having no key at all.  So is a board with
+    **no tank in it**, which is the same defect one step earlier: every real
+    goal frame shows the tank, so a frame without one is a picture of a moment
+    the game never displayed and is wrong somewhere the decode cannot see.
+    --allow-unknown banks both anyway, which is for looking at them, not for
+    solving.
+
+    **A level `codebook` found stale is refused for the same reason, one step
+    worse.**  An undecoded cell prices one cell wrongly; a goal board from a
+    level revision that no longer exists prices the whole board as reachable
+    when it is not, so the key bottoms out above zero and the search chases it
+    to the time limit.  14 of the 5,779 start boards in the corpus-scale run
+    disagree with their `.lvl`; 11 are re-authored levels and are what
+    `stale.json` holds.  A *missing* `stale.json` is a hard stop for the
+    same reason a missing codebook is -- both come out of `codebook`, so a
+    codebook without a stale list is one from before the check existed.
+    --allow-stale banks anyway, which is for looking.
     """
     cb, tank, _ = load_codebook()
     hand = counters()
+    stale = set()
+    if stalepath().exists():
+        stale = {(s["coll"], s["level"])
+                 for s in json.loads(stalepath().read_text())["levels"]}
+    elif not args.allow_stale:
+        # A hard stop rather than a note, for the same reason load_codebook
+        # stops on a missing codebook: the two come out of the same command, so
+        # a codebook without a stale list is one from before the check existed
+        # -- and banking an unreachable target is worse than banking nothing.
+        raise SystemExit("no %s -- run: python tools/harvest.py codebook "
+                         "(or --allow-stale to bank without the check)"
+                         % stalepath())
     want = None
     if args.levels:
         want = set()
@@ -1153,28 +1586,71 @@ def cmd_bank(args):
         if not r["goals"]:
             stat["no goal image in the post"] += 1
             continue
+        if (r["coll"], r["level"]) in stale and not args.allow_stale:
+            stat["re-authored since the post"] += 1
+            refused.append((r["coll"], r["level"], "-",
+                            "stale: re-authored", r["url"]))
+            continue
         boards = []
         for g in r["goals"]:
             f = ROOT / g["file"]
             if not f.exists():
                 stat["image not fetched"] += 1
                 continue
+            # A frame from a later part of a multi-part post has its own url;
+            # a refusal that printed the level's url sent the reader to a post
+            # the picture is not in.
+            src = g.get("url", r["url"])
             try:
-                grid, unk, _, where = decode_board(f, cb, tank)
+                grid, unk, _, where, pk = decode_board(f, cb, tank)
             except ValueError as e:
-                stat["not a LaserTank window"] += 1
-                refused.append((r["coll"], r["level"], g["tag"], str(e), r["url"]))
+                stat["no board grid"] += 1
+                refused.append((r["coll"], r["level"], g["tag"], str(e), src))
                 continue
-            u = sum(unk.values())
+            # The one thing the pixels cannot say, said by hand: see
+            # bench/post-fixups.json.  Per *board*, so it is never a claim
+            # about another board that happens to draw the same tile -- which
+            # is exactly why it is not in the hash table beside it.
+            fx = fixup(src).get("frames", {}).get(g["tag"], {})
+            for at, pf in fx.get("cells", {}).items():
+                cx, cy = ord(at[0].upper()) - 65, int(at[1:]) - 1
+                if grid[cy][cx] == "?":
+                    grid[cy][cx] = pf
+                    stat["cells filled from a post fixup"] += 1
+            u = sum(row.count("?") for row in grid)
+            if where is None and fx.get("tank"):
+                where = (fx["tank"]["x"], fx["tank"]["y"], fx["tank"]["dir"])
+                stat["tank from a post fixup"] += 1
             if u and not args.allow_unknown:
                 stat["unknown cells -- refused"] += 1
                 refused.append((r["coll"], r["level"], g["tag"],
-                                "%d undecoded cells" % u, r["url"]))
+                                "%d undecoded cells" % u, src))
+                continue
+            if where is None and not args.allow_unknown:
+                # **A goal frame with no tank in it is a faulty capture**, and
+                # that is a finding rather than a nuisance: every real one has
+                # the tank somewhere, so its absence means the picture is of a
+                # moment the game never displayed -- `Challenge-I` 1598 `b` is
+                # one, and playing the level puts the tank at B11 facing right
+                # where the screenshot has bare terrain.  Refused for the same
+                # reason an undecoded cell is: the board is a ranking key, and
+                # a key built from a frame that is wrong somewhere is worse
+                # than no key.  (It used to bank, harmlessly only because
+                # `tank` is the one bank field nothing reads yet -- Goal.cs
+                # parses it into TankX and no ranking looks at it.)
+                stat["no tank in the frame -- refused"] += 1
+                refused.append((r["coll"], r["level"], g["tag"],
+                                "no tank in the frame", src))
                 continue
             stat["banked"] += 1
+            if pk:
+                stat["decoded against a .ltg pack"] += 1
             boards.append({
                 "tag": g["tag"],
                 "flags": sum(row.count("F") for row in grid),
+                # Which graphics the screenshot was of, when it was not the
+                # internal sheet.  Absent is the internal sheet.
+                **({"pack": pk} if pk else {}),
                 "unknown": u,
                 "tank": None if where is None
                         else {"x": where[0], "y": where[1], "dir": where[2]},
@@ -1228,7 +1704,7 @@ def cmd_decode(args):
         posturl = {}
     rc = 0
     for path in args.images:
-        g, unk, org, where = decode_board(path, cb, tank)
+        g, unk, org, where, pk = decode_board(path, cb, tank)
         print("=== %s  origin=%s  unknown tiles=%d  tank %s"
               % (path, org, sum(unk.values()),
                  "at (%d,%d) facing %s" % where if where else "not found"))
@@ -1280,6 +1756,10 @@ def main():
     f.add_argument("--limit", type=int, default=0)
     f.add_argument("--seed", type=int, default=7)
     f.add_argument("--goals", action="store_true")
+    f.add_argument("--refetch", action="store_true",
+                   help="re-download even if the file is already on disk -- "
+                        "for replacing an image an earlier run got as a "
+                        "downscale; see fetch_one")
 
     c = sub.add_parser("codebook", help="build the tile codebook from start boards")
     c.add_argument("--limit", type=int, default=0)
@@ -1304,8 +1784,12 @@ def main():
                    help="bank only these, e.g. --levels LaserTank:10")
     k.add_argument("--out", help="default build/harvest/goals.json")
     k.add_argument("--allow-unknown", action="store_true",
-                   help="bank a board with undecoded cells in it -- for "
-                        "looking at, never for solving")
+                   help="bank a board with undecoded cells, or with no tank "
+                        "in the frame -- for looking at, never for solving")
+    k.add_argument("--allow-stale", action="store_true",
+                   help="bank the levels codebook found re-authored since "
+                        "their post -- unreachable targets, so for looking "
+                        "at, never for solving")
 
     d = sub.add_parser("decode", help="a screenshot -> a 16x16 board")
     d.add_argument("images", nargs="+")

@@ -15,11 +15,36 @@ order is worth stating: **item 5 moves from 2nd to 5th and gains a cheap falsifi
 (item 15), which is a better outcome for it than staying at the front without one. Items 4, 7 and 10 keep
 their relative order and their reasoning; only their ordinals moved.
 
-**A complete harvest is running** (session 37, Michal's own job — do not touch it). `tools/harvest.py
-fetch` over the whole 6,218-post index rather than the 150-post sample item 6 measured on, so the
-goal-board bank goes from **141 levels to as many of the 6,218 as decode cleanly**. Three items inherit
-from it and none is blocked on it: `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply
-of **real recordings on long levels** — the off-distribution sample layer 4 is fit on and `--profile` /
+**The complete harvest ran** (session 37's fetch, session 38's diagnosis, session 39's repairs).
+`tools/harvest.py fetch` over the whole 6,218-post index rather than the 150-post sample item 6 measured
+on, so the goal-board bank goes from **141 levels to as many of those as decode cleanly**. Session 38's
+run gave 5,779 start boards and 6,708 goal frames; session 39 worked through everything that run had
+dropped and the harvester now reaches **6,023 start boards and ~7,484 goal frames**, with **1** level
+contributing nothing where 246 did. The diagnosis and the five fixes are in
+[closed item 6](history.md#session-39--the-logs-drops-and-the-two-that-were-the-instruments-fault); the
+corpus-scale numbers from the first run are the [session 38 section](history.md#session-38--the-corpus-scale-run-and-what-its-two-complaints-were)
+above it.
+
+**The chain is rerunnable and the rerun is Michal's job.** The 12,487 images are cached and `fetch` skips
+what is on disk, so the only network is the ~1,000 images the old `pick_images` never asked for; no
+`--refetch`. Roughly 1h40m in all:
+
+```bash
+python tools/harvest.py map                 # free; expect 1 retarget from bench/post-fixups.json
+python tools/harvest.py fetch --goals       # ~1,000 new images
+python tools/harvest.py codebook --goals    # ~40 min; watch for NOT A START ... [order-picked]
+python tools/harvest.py tiles               # names every board that is not clean
+python tools/harvest.py bank                # -> build/harvest/goals.json
+```
+
+**What to bring back from it**: any `NOT A START ... [order-picked]` line — that is the one guess in the
+chain, zero of them on the 15-level sample it was falsified against — plus `tiles`' unclean-board list and
+`bank`'s refusals. A board with an *occluded* cell is the one thing no derivation reaches: it needs a line
+in `bench/post-fixups.json`, stating the `PF` symbol, and only Michal can supply it.
+
+Three items inherit from it and
+none is blocked on it: `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply of **real
+recordings on long levels** — the off-distribution sample layer 4 is fit on and `--profile` /
 `basin.py`'s only input, which is 20 hand recordings today; the per-flag boards are a subgoal sequence for
 *Further out*'s chaining note; and item 16's falsifiers are all measured over those same 20 recordings, so
 a wider bank widens every one of them. **What it does not give is human *routes*** — a goal board names

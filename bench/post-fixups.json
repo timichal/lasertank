@@ -1,0 +1,50 @@
+{
+ "_README": "Post-level corrections keyed by the post's own URL -- tools/harvest.py. Hand input, which is why this is committed. Two kinds, and both are things no derivation can reach: a post that names the wrong level (`coll`/`level` retarget it, `image_level` says the filenames carry a different number than the title and the title is the one to believe), and a screenshot cell that carries no information for any eye or table to read. `frames` holds the latter, per goal frame, in the game's own A-P/1-16 coordinates: `cells` for the PF symbol under an occluding sprite, `tank` for a frame that lost the tank entirely. Keep `frames` minimal -- the tank's own position and facing are derivable from the pixels even where the PF is not (sprites.facings()), so a `tank` entry is only for a frame that shows no tank at all. Every entry is checked by playing the level and the note records the check, plus whatever the .lvl independently corroborates.",
+
+ "https://lasertanksolutions.blogspot.com/2016/11/826-siguiendo-el-camino.html": {
+  "coll": "LaserTank",
+  "level": 826,
+  "note": "Titled 'KaserTank - 826', a collection the corpus does not ship. The images are LaserTank_826.png and LaserTank_826b.png, LaserTank.lvl 826 is named 'siguiendo el camino' which is the post's own title exactly, and LaserTank 826 has no other post. Confirmed by Michal, session 39."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/03/sokoban-i-344-symmetric-24.html": {
+  "image_level": 343,
+  "note": "Title and level are right -- Sokoban-I.lvl 344 is 'Symmetric 24'. The two images are misnamed SokobanI_343_H3.png and SokobanI_343_I14.png, and they are per-flag frames that Sokoban-I 343's own post does not carry, so they are not duplicates of it. The post has no start screenshot. Confirmed by Michal, session 39: played it, the level is 344."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2023/11/challenge-i-1598-double-slider.html": {
+  "frames": {
+   "b": {
+    "tank": {"x": 1, "y": 10, "dir": "right"},
+    "note": "The frame decodes with 0 unknown cells and no tank anywhere in it -- the source image is wrong, not the decode: B11 shows the bare 'D' terrain the tank should be standing on. Michal played the level, session 39: at that board the tank is at B11 facing right."
+   }
+  }
+ },
+
+ "https://lasertanksolutions.blogspot.com/2016/12/lasertank-899-jaws.html": {
+  "frames": {
+   "b": {
+    "cells": {"I2": "<"},
+    "note": "I2 is the tank standing on an anti-tank, which occludes the cell completely: '<' (PF 10) and '#' (PF 4, a wreck) draw identical pixels and so does any background under them, so sprites.py drops the tile and no eye can read it either. Michal, session 39: the tank is looking up on an anti-tank that started at J2. The .lvl corroborates the facing -- J2 is '<' -- so the anti-tank was pushed one west and kept facing left. The tank itself needs no entry: the facing is derivable from the pixels."
+   }
+  }
+ },
+
+ "https://lasertanksolutions.blogspot.com/2016/12/lasertank-901-fission.html": {
+  "frames": {
+   "b": {
+    "cells": {"D15": "<"},
+    "note": "Same cell shape as LaserTank 899: the tank on an anti-tank, PF unreadable from the pixels. Michal, session 39: the tank stands on an anti-tank that started at E15. The .lvl corroborates -- E15 is '<' -- so it was pushed one west facing left. The pixels put the tank at D15 facing down, derivably, so only the PF underneath is hand input."
+   }
+  }
+ },
+
+ "https://lasertanksolutions.blogspot.com/2022/04/challenge-v-727-without-tassel.html": {
+  "frames": {
+   "b": {
+    "cells": {"A7": ">"},
+    "note": "A7 is a torn tunnel blit: the flat ColorList[1] green rectangle with its GDI pen outline and sprite 55 never drawn over it, which hides whatever stood on the cell -- 484 green pixels and 92 black, nothing else. Michal, session 39: anti-tank facing right on a green mirror, on both A7 and B7; B7 draws cleanly and decodes on its own. The PF the solver wants is the anti-tank, so '>'."
+   }
+  }
+ }
+}

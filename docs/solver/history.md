@@ -383,7 +383,7 @@ absent from it banks `moves`/`shots` as null.
 and a number that needs a network fetch to reproduce is not banked.
 
 **Rebuilding the whole thing from nothing**, all of it under gitignored `build/harvest/` (`index.jsonl`,
-`img/`, `fetched.json`, `codebook.json`, `residual.{png,json}`, `goals.json`):
+`img/`, `fetched.json`, `codebook.json`, `stale.json`, `residual.{png,json}`, `goals.json`):
 
 ```bash
 python tools/harvest.py index                    # 42 requests, 46 s
@@ -395,6 +395,220 @@ python tools/harvest.py bank                     # -> build/harvest/goals.json
 
 `tiles` is not in the fetch chain on purpose: it builds the derived table from `original/src/` alone, so
 the half of this item that used to be costed in human hours is the half that needs no network at all.
+
+#### Session 38 — the corpus-scale run, and what its two complaints were
+
+The item closed on a **150-post sample**. Session 37 ran `fetch` over the whole index, and this is the
+first time any of it was measured at corpus scale: **6,218 posts → 5,779 start boards and 6,708 goal
+boards** — 12,487 images — in 34 minutes. Then `codebook --goals` stopped the chain on two complaints, and
+neither was what it looked like. Both are worth the space because **both were the instrument reporting
+honestly about something outside itself** — one about the corpus, one about the source.
+
+| the run | 150-post sample (session 35) | whole index (session 37) |
+|---|---|---|
+| start boards | 141 | **5,779** |
+| goal boards | 173 | **6,708** |
+| codebook entries | 55 | **57** |
+| decoded exactly against earlier boards only | 141 of 141 | **5,742 of 5,769** |
+| last board to teach the codebook a new tile | — | **4,111 of 5,769** |
+| goal-only sprites the start boards never label | 116 | **597** (20,335 of 1,716,992 tiles, 1.18%) |
+| conflicts | 0 | **46 cells on 11 boards** |
+| `NOFRAME` | 0 | **2** |
+
+**The 46 conflicts are re-authored levels, and the sprite sheet is what says so.** A cell where the
+codebook and the `.lvl` disagree has exactly two causes and they point opposite ways: either the
+codebook's label is wrong, or the *screenshot* is of a level the `.lvl` no longer matches — the blog is
+nine years old and levels have been re-authored under it. `tools/sprites.py` decides which, because it
+derives the hash from the game's own graphics and owes nothing to either side, and it backs the
+**codebook** at all 46: **0 clashes over the whole 57-entry table**. So the pictures are right and the
+levels moved. `Challenge-V 372` is the clearest — the picture shows the same `C` at (12,11), (13,11) and
+(14,11) where the `.lvl` has a tunnel, a mirror and a mirror, and no amount of *play* turns three
+different terrains into three identical tiles.
+
+**What rules out play, though, is the tank and not the sheet**, and it is worth being exact about it: a
+mid-solution screenshot also has honest pixels and a wrong `.lvl` label, so the sheet blames the `.lvl`
+there too. The separator is session 37's own admission test — on these 11 boards the tank is on the
+`.lvl`'s own `T` cell facing up, so the picture is a genuine *start* position of a board the `.lvl` does
+not match. Run the same decode-vs-`.lvl` diff over all 5,779 start boards with the full codebook and it
+finds **14**, which is the whole population and it splits three ways:
+
+* **11 re-authored levels** — the conflict list, admitted as start positions;
+* **2 play states**, `LaserTank 521` and `596`, already rejected as *not a start position* (tank facing
+  right, tank off the start cell) and confirmed independently by the diff: anti-tanks slid along a row,
+  blocks gone, water filled;
+* **1 capture artifact**, `Challenge-I 944` at (15,15) — the black-silhouette tank session 35 named.
+
+**A stale board is now not allowed to teach.** This is the part that was luck rather than a check:
+`setdefault` makes the first board to show a tile own it for good, so a stale board arriving *early*
+would poison a label with no conflict to show for it — the honest boards would conflict, not the one that
+lied. That the 57-entry table came out clean is ordering, not a guarantee. `codebook` now excludes a
+disagreeing board from the labelling pass altogether, exactly as it excludes a play state, and prints
+`STALE` with the sheet's per-cell verdict instead of an unexplained `CONFLICT`. The exit code narrowed to
+match: a disagreement the sheet blames on the `.lvl` is a finding, one it blames on the codebook or
+cannot arbitrate is still a failure.
+
+**The consequence is on the goal boards, not the start one, and it is `bank`'s.** A goal board from a
+superseded revision is a target the current level **cannot reach**: the key bottoms out above zero and
+the search chases it to the time limit. That is strictly worse than the undecoded cell `bank` already
+refuses — a hole misprices one cell, this misprices the whole board — so `codebook` writes the levels to
+`build/harvest/stale.json` and `bank` refuses them, `--allow-stale` to look. A *missing* `stale.json`
+is a hard stop there rather than a note, for the same reason a missing codebook is: both come out of
+`codebook`, so a codebook without a stale list beside it is one from before the check existed.
+
+**Both `NOFRAME`s were Blogger serving a downscale, and neither post is unusable.** `origin` reported no
+384-pixel frame because there was none: both files were **512 px wide**, a resample of a real window with
+no 24-pixel grid left in it. Not authors resizing screenshots — the originals are there, and asking for
+them is the whole fix:
+
+| image | as the post links it | as `s16000` serves it |
+|---|---|---|
+| `SpecialI_491.png` (start) | **512x389** at `/s1600/` | **609x463** |
+| `SpecialI_343a.png` (goal) | **512x391** at `/s619/` | **619x473** |
+
+`fetch_one` tried the post's own URL **first** and only rewrote the size directory as a fallback — while
+its own docstring said the opposite, which is how the bug survived reading. Blogger answers a small-size
+path with a downscale even when the number is larger than the image (491's own `s1600` is bigger than
+609), so the post's URL is the *last* thing to ask. Rewrites first now, plus a width check from the IHDR
+so a rendition narrower than a LaserTank window is not accepted while a candidate is untried, plus
+`fetch --refetch` to replace what an earlier run got as a downscale. Both recover and both pass their
+gate: `decode --check` on `Special-I 491`'s start board is **0 mismatches vs the `.lvl`**, and
+`Special-I 343`'s goal frame decodes with **0 unknown tiles**, tank at (10,2) facing right. Its
+`.ghs` record of **44,975 moves / 1,086 shots** — the most extreme in the corpus, and the reason the
+post looked like a special case — had nothing to do with it.
+
+**Two findings the run turned up that are nobody's bug.** The codebook-vs-sheet comparison `tiles`
+runs gives **3 codebook entries the sheet cannot derive**, `>`/`<`/`^` — 5 cells on 5 boards, and all five are **496 of 576 pixels pure
+black**, in the shape of an anti-tank's own mask with the barrel notch in the right place. They are the
+artifact session 35 named on `Challenge-I 944`'s tank: a screenshot caught between the mask `SRCAND` blit
+and the sprite `SRCPAINT` blit. Harmless, because the `.lvl` labels them and the mask belongs to the
+sprite that was about to be drawn, so only the facing is lost. **Session 39 retired that verdict twice
+over**: the silhouette is derivable after all (`Cells.torn`), and the tank-over-anti-tank cells this
+paragraph waves through are information-free rather than merely unlabelled — see
+[session 39](#session-39--the-logs-drops-and-the-two-that-were-the-instruments-fault). And **265 levels contributed no start
+image at all**: 242 of them because their posts use Blogger's newer `/img/a/<blob>=s609` URL shape, which
+carries **no filename** — and `pick_images` keys start-vs-goal off the `<coll>_<n>[a-z]` filename, so it
+cannot tell them apart. 20 more are named but unmatched (including the `KaserTank - 826` title typo
+`map` already reports) and 3 are mixed. That is a **4% hole in the corpus with a known cause** and no fix
+attempted here; post order is the obvious candidate and it is a separate piece of work. **It was also an
+undercount**: those posts lose their *goal* frames to the same missing filename, so 246 levels contributed
+nothing at all. Session 39 took the post-order fix and measured it.
+
+**Rerunning the chain costs no network.** The 12,487 images are cached and `fetch` skips what is on disk,
+so only the two downscales needed `--refetch`:
+
+```bash
+python tools/harvest.py fetch --levels Special-I:343,491 --goals --refetch   # done
+python tools/harvest.py codebook --goals    # ~36 min: 5,779 boards at 0.37 s
+python tools/harvest.py tiles               # the derivation's gate
+python tools/harvest.py bank                # -> goals.json, minus the stale levels
+```
+
+#### Session 39 — the log's "drops", and the two that were the instrument's fault
+
+Session 38 handed over a chain that ran to completion and a log full of numbers that *looked* like
+losses. Working through them one at a time: **most cost nothing, two cost a great deal, and two of the
+"nobody's bug" verdicts above were wrong.** The pattern worth keeping is that every one of the five real
+findings came from treating a number as a measurement rather than as a threshold.
+
+| | session 38's run | after this session's fixes |
+|---|---|---|
+| levels with a start frame | 5,779 | **6,023** |
+| goal frames | 6,708 | **7,484** |
+| levels contributing *no image at all* | **246** | **1** |
+| goal boards with an undecodable cell | 5 | **0** (3 hand-stated, 2 derived) |
+| derived tiles, internal sheet at 24 px | 4,108 | **7,238** |
+
+**The 265 "no start image" was really 246 levels contributing nothing.** The same filename decides
+start-from-goal *and* which-flag, so a post whose URLs carry no filename loses its goal frames too — not
+just its start. `pick_images` now falls back to the post's own document order when *no* image is named,
+all-or-nothing per post (a post that names some of its pictures has made a claim about those, and mixing
+a claim with an order is how a wrong answer looks confident). It is the one guess in the file and it is
+arbitrated where the pixels are: `codebook` admits a start board only if the tank is on the `.lvl`'s own
+`T` cell facing up, so a post listed goal-first is rejected there and *named* — `fetch` records which
+rule picked the frame. Falsified on a 15-level sample before shipping: **13 decode to the `.lvl` exactly**
+— 0 unknown, 0 differing cells, tank on its own start cell — and no goal frame of any of them is itself a
+start position. The other 2 failed for the zoom reason below, not for order. Also `fetch_one`'s size
+rewrite never worked on that URL shape at all (the size is a `=s609` suffix, not a path segment), so
+every one of those levels fell through to the smallest rendition — the thing that docstring exists to say
+should be asked for last.
+
+**518 goal frames on 83 levels were never fetched, and the Blogger feed's order is why.** `fetch` read
+`by_level[(coll, n)][0]` and the feed is newest-first, so an 11-part post contributed **part 11's two
+frames and dropped the other 38**. `Challenge-I` 306 is that level. The final board survived — `bank`
+orders by flags still on the board rather than by the post's layout — so what was lost was never the
+target but the **per-flag subgoal sequence** that ordering exists to carry, which is *Further out*'s
+chaining note. Parts ascending now, first part wins a tag collision (17 of 535 collide, every one a
+reshoot of the same flag), and each frame keeps its own post's url so a refusal names the right one.
+
+**The board frame's grey run is a measurement, and reading it as "at least 384" decoded three boards into
+garbage.** It is 16 tiles of board plus 2 pixels of frame, so it *says what the sprite pitch is* — and
+386/514/642 are exactly `SetGameSize`'s three zooms (`LTANK2.C:1729`), which **`PROGRESS.md` has
+documented all along**. Three posts are the 32-pixel zoom, where GFXInit's shrink degenerates to the
+identity and the sheet's own cells are what is on screen; `find` had been matching *inside* their longer
+run and returning a plausible corner. Measured over every image in the corpus: **12,498 at 386, 5 at 514,
+none at 642.** `origin` returns the pitch now, and 642 is in the table anyway because recognising a zoom
+costs one derived table and beats decoding a fourth surprise.
+
+**A screenshot is not necessarily of the internal sheet either.** `LaserTank` 1619's post is
+*EyeSaver+Grid* — a `.ltg` pack this repo already ships under `data/graphics/`, with its format in
+`PROGRESS.md` and its reader in `GraphicsFile.cs` — and against `Game.BMP` all 256 of its tiles came back
+unknown, teal where dirt is olive. `sprites.py`'s own BMP reader was the obstacle: the packs are 24 bpp
+with a 1 bpp mask and it did 4/8 only, while `PROGRESS.md` says both readers handle 1/4/8/24. With those
+depths and an `ltg()` splitter (the container is literally two BMPs at `MaskOffset`, so splitting it is a
+byte copy), **1619 decodes with 0 mismatches vs the `.lvl`.** `decode_board` tries the shipped packs only
+when the internal table leaves unknowns, which is measured-safe rather than hopeful: across all eight
+`(pack, pitch)` tables **no hash carries two different `PF` values**, so a match is a match and the
+fallback cannot invent an agreement. The bank records which pack a picture was of.
+
+**The mid-blit capture is part of the compositing model, not an exception to it.** Two sessions wrote the
+black silhouette off as "no composite can produce it" — but it is the same composite with one GDI call
+missing, and `Cells.torn()` derives it like everything else: **+3,130 unambiguous tiles, 1,109 dropped as
+ambiguous, and zero collisions with a tile the fully-drawn pass already owns** (measured before it went
+in). It recovers a whole start board — `Challenge-I` 944's `NOT A START` was its tank at P16 torn, and it
+now decodes 0 unknown / 0 differing — and `Sokoban-I` 1930's goal cell, tank facing right, which Michal
+confirmed independently by playing it.
+
+**`PF` and the tank facing are separately ambiguous, and only one of them ever actually is.** Every
+facing has its own sprite and its own mask, so it survives whatever the cell is standing on: of the 1,398
+hashes `table()` drops as PF-ambiguous, the facing is unambiguous on **1,398 of 1,398**, 578 of them
+showing a real tank. Dropping the whole tile threw that away. `sprites.facings()` keeps it, so a cell
+nothing can label still says where the tank is and which way it points — which is what shrinks the hand
+input below to a single symbol per cell.
+
+**Session 38's "289 dropped as PF-ambiguous, every one unreachable" was wrong, and so was calling the
+three underivable codebook entries harmless.** The 289 are not unreachable, they are **information-free**:
+the tank drawn on an anti-tank occludes the cell so completely that `PF` 10 and `PF` 4 give identical
+pixels and so does *any* background under them. Two of them turn up in the corpus (`LaserTank` 899 at I2,
+901 at D15). A cell like that cannot be hand-labelled either — there is nothing in the picture to read —
+and it cannot go in a hash table, because the same pixels mean different things on different boards.
+
+**So it goes in `bench/post-fixups.json`, keyed per post and per frame, and a recording is not the
+answer.** The tempting fix was to replay a committed `.lpb` through the oracle's `--field` trace and read
+the true `PF` off the engine; it was built, it worked, and it agreed with Michal exactly (`A7 = '>'`,
+`I2 = '<'`). He rejected it and he was right: the recordings were scratch (`0727_temp.lpb`) and were
+deleted within the hour, so the derived artefact would have gone stale pointing at files that no longer
+existed. **A durable fact stated by a human beats a derivation from a throwaway input** — and the `.lvl`
+corroborates the stated values anyway (899's anti-tank started at J2 and 901's at E15, both `<`, both
+pushed one west). The same file carries the three blog-side level-naming errors and `Challenge-I` 1598's
+tank, whose frame decodes with 0 unknown cells and no tank anywhere: that source image is wrong, not the
+decode.
+
+**Two process notes.** `tiles` was silently skipping the middle of its own three gates for the whole
+corpus-scale run — the goal-residual check needs a `residual.json` that only `sheet` writes, and the run
+never called `sheet`; it says so now. And a percentage is not a finding: 0.02% of tiles unknown was **one
+image with no sprite grid in it plus four capture artifacts**, which the histogram could not say, so
+`tiles` names every board that is not clean, worst first, with the post to go and look at.
+
+**Rerunning still costs almost no network** — the fixes recover ~1,000 images that were never fetched and
+the other 12,487 are cached:
+
+```bash
+python tools/harvest.py map                 # free; expect 1 retarget from post-fixups.json
+python tools/harvest.py fetch --goals       # ~1,000 new images, no --refetch needed
+python tools/harvest.py codebook --goals    # ~40 min; watch for NOT A START ... [order-picked]
+python tools/harvest.py tiles               # both pitches reported; names every unclean board
+python tools/harvest.py bank                # -> goals.json
+```
 
 ### 8. Level 10, one traced run — and it answered a question the item did not ask.
 
