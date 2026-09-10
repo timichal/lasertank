@@ -53,6 +53,16 @@ columns report **-1** rather than a wrong count. Both sides of a pair are needed
 derivation the human obeys 83% of the time is worth nothing if it names 83% of everything on offer, so
 the number to look at is the ratio.
 
+**And the ratio is a property of the population, which is what closed item 17.** `rare` scores **3.15x**
+here — 5.1% offered, 16.0% named, the largest lift the read has measured — and as a tier it cost two
+ferry levels and one deep one. Over the ferry bench the same derivation names **0%** of successors on
+four levels of five, because these twenty recordings are `LaserTank.lvl` and the chain's failures are not.
+**A `--read-dump` ratio says the derivation predicts a human; it does not say the partition is non-empty
+where the search actually runs** — so the pair to look at next is the ratio here against the tier's own
+selectivity column in `--push-trace` on the bench, which is now free for `rare` and was the reading that
+turned item 17 from a build into a refusal. See
+[closed item 17](history.md#17-the-rarity-tier--built-and-refused-on-the-bench-it-set-itself).
+
 It costs no search and takes about a second. Example, and it is the whole diagnosis of `LaserTank.lvl` 10:
 
 ```
@@ -137,10 +147,25 @@ done
 - **Expect it monotone. A non-monotone reading is the finding**: a longer suffix that solves where a
   shorter one does not means the line passes through a board the ranking key hates, and
   `--push-trace-board` at that K says which.
-- **One level is a number; twenty is the quantity.** Level 6's horizon is 48 board changes and whether
-  that is the searcher's reach or that level's is
-  [item 18](next-actions.md#18-3rd--the-horizon-per-level-and-whether-it-is-a-searcher-constant), which
-  is this sweep bisected over each of the 20 hand recordings.
+- **One level is a number; twenty is the quantity, and `tools/horizon.py` is the twenty.** It runs this
+  sweep over all 20 recordings -- K = 0 on every level first, then a bisection only on the levels that
+  fail from the root -- and it answered closed item 18: the horizon is **2 to 50 board changes, a 25x
+  spread**, so it is a *level* property and not the searcher's reach, and level 6's (refined here from 48
+  to **50**) is the deepest of them.
+
+```bash
+python tools/horizon.py            # the sweep: 96 probes, resumable from its own reports
+python tools/horizon.py status     # the table, free, no solver
+```
+
+  **Two things about the harness are worth copying and one is worth not repeating.** `PAR` runs several
+  *levels* at once, one job each, so it can be spent beside a campaign that owns the rest of the machine;
+  and the per-probe reports under `build/horizon/reports/` *are* the resume state, so an interrupted
+  sweep loses only what was in flight. What not to repeat: it first ran four probes into **one**
+  `--report` file, and `StreamWriter(append: true)` is not atomic across processes on Windows -- rows
+  were lost, and **a lost row read as a failed probe**, which shortens a horizon rather than lengthening
+  it. A probe that leaves no new row now raises. See
+  [closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
 
 ## 4. Look at the board the beam settled on, not only at its score
 
@@ -177,6 +202,14 @@ is the quantity itself**, and it exists because `best=` is a *work distance*: a 
 for exposure makes `best=` worse by construction, and reading the layer by that column would report it
 doing harm while it did exactly what it says. Level 10's least-exposed frontier board goes 131 → 115 → 99
 over three depths while `best=` goes 62 → 53 → 72.
+
+`--push-rare` adds `rare N (Z%)` to the read's own line in `--push-trace`, and it is the same
+selectivity number for item 17's refused tier. **Read it against `--read-dump`'s ratio for the same
+derivation, not on its own**: 5.1% of successors over the twenty hand recordings against **0%** on four
+of five ferry levels probed is the whole of why the tier lost levels, and neither number alone shows it.
+The flag is off by default and the tier it promotes to is `TierRare`, so with it absent nothing moves;
+what it does move unconditionally is **`--push-line`'s tier column**, since `TierRare` at 0 shifted
+`TierAdvance` to 1 and a pose to 6.
 
 **This is the third time an instrument here has measured the wrong thing and nearly retired a working
 layer** — the other two are `ReadCount` before the `opens` pass, and `--push-line`'s depth index.

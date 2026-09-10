@@ -961,7 +961,7 @@ the wrong strategy*, which is where the ratio tail lives and the one population 
 provably cannot help.
 
 **What it does not close is the rule inside `--best-of-round`**, and that belongs to
-[item 4](next-actions.md#4-6th--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
+[item 4](next-actions.md#4-4th--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
 than to a fifth item: the shot test and the ratio test disagree on 58 of the 452 rows, and whether
 keeping those rounds open pays is a campaign question.
 
@@ -1004,7 +1004,7 @@ arm carries:
 - **K = 0 is node-identical to the same run without the flag.** Checked rather than assumed, because a
   seeded root that is not the ordinary root at K = 0 would make every other row unreadable — layer 4's
   equivalence test used the way session 25 wished it had been.
-- **What it leaves open is one question, and it is now [item 18](next-actions.md#18-3rd--the-horizon-per-level-and-whether-it-is-a-searcher-constant):**
+- **What it leaves open is one question, and it is now [item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach):**
   is 48 the *searcher's* reach or *this level's*? The item ran one level because that is the level in
   front of the project; the same bisection over the other 19 hand recordings decides which quantity was
   measured, and item 5's design depends on the answer either way.
@@ -1076,6 +1076,137 @@ ferry arm's own flags (`--push --push-read --push-reach --push-ferry-match --pus
   configuration is now `Solver.WantsFromOptions` and both callers go through it. **A profile is only the
   beam's view of a line if it asks for the beam's derivations**, and this is the fourth outing of *the
   instrument measured the wrong quantity*.
+
+### 17. The rarity tier — built, and refused on the bench it set itself.
+
+`--push-rare`, off by default: item 16's first derivation promoted to `TierRare`, in front of all three
+of the read's own. The item's whole case was that `rare` is **the most selective and the most accurate**
+of the four — 5.1% of the successors offered, 16.0% of what the human does, **3.15x** against 1.34-1.43x
+— which is exactly the condition `Push.cs:798` states for where a tier belongs. It was the only open item
+whose falsifier was already run, so what was left was a build and four benches. The build is ~40 lines
+and the benches are the answer:
+
+| bench, 4M nodes on `--no-ida --no-beam --push --push-read` | control | `--push-rare` | exclusive to the tier | lost |
+|---|---:|---:|---|---|
+| `bench/ferry-levels.txt`, `--read-rare 2` (default) | **18/50** | **16/50** | none | 1026, 1726 |
+| `bench/deep-levels.txt`, `--read-rare 2` | **25/50** | **24/50** | 616, 903, 1214 | 1026, 1575, 1726, 1803 |
+| `bench/ferry-levels.txt`, `--read-rare 1` | **18/50** | **18/50** | none | none |
+| `bench/deep-levels.txt`, `--read-rare 1` | **25/50** | **25/50** | 616 | 1803 |
+
+**The control reproduced 18/50 and 25/50 exactly**, which is what makes the rest of the table mean
+something: the gate was ordered control-first for this reason and it paid. At the default threshold the
+tier is **−2 on ferry with zero exclusive levels** — dominated outright — and **−1 on deep**. At `1` it
+is inert on ferry (the same eighteen levels, not merely the same count) and on deep it swaps one level
+for one. The item's own stop rule was *"if ferry/deep do not move this item ends there and says so"*, so
+step 4 — the driver ladder and a stride campaign — is **not earned** and was not run.
+
+**The 3.15x is not wrong, and that is the finding.** The derivation predicts the human's move; it does
+not order a beam. This is layer 4's result arriving a second time from the other side — the winner's
+state is in the expansion's output 97.6% of the time and *the sort loses it* — and item 17's prior said
+so in as many words (*"a tier is a different instrument from a ranking"*). What the table adds is the
+mechanism, and `--push-trace`'s new `rare` column shows it: the tier's selectivity on the *bench* is
+nothing like its selectivity on the twenty hand recordings. On `Beginner-I` 191 it names **2%** of
+successors; on 41, 326, 366 and 431 it names **0%** at the default threshold, because the census is of
+the authored board and a ferry level is authored with three or more of everything a ferry push touches. A
+derivation measured on twenty hand-picked `LaserTank.lvl` recordings was promoted over a population whose
+boards do not have rare elements on the route. **The 3.15x was a property of the recordings, not of the
+levels the chain fails** — and no amount of correctness in the promotion rule fixes a partition that is
+empty.
+
+**One number in the table looks like an opportunity and is the one rule this project has already paid
+for.** `ctl-deep ∪ rare-deep` is **28 against the control's 25**: three exclusive levels, i.e. the
+signature of a complementary arm. It is not one. SOLVER.md's first rule names this exact reading —
+*"a bench over-reports **complementarity** as readily as strength"* — and the precedent is `--push-eval
+none`, which measured +6 on the ferry union and +4 on the deep one, was on that basis the best arm of the
+fourth pass, and came back over 255 corpus levels as **the weakest of six with one exclusive level**.
+Three exclusive levels on fifty is below what that one scored. Proposing an arm on it would be spending
+item 2's machine time on the one measurement the rules say not to trust.
+
+**The code stays, off by default**, for the reason the heading of this file gives: a negative result that
+is deleted gets re-run. `--push-rare` and `--read-rare N` together reproduce the whole table, and
+`RarePush` calls the same `RareOfDelta` that `--read-dump` scores the human's move with — the tier and
+its measurement cannot drift apart, which is checked rather than asserted (`--read-dump` over
+`build/demos.txt` still prints 411/8,099 offered, 128/800 named, 3.15x).
+
+**What it costs, and it is the one price worth knowing.** `TierRare` at 0 shifts `TierAdvance`..`TierLost`
+up by one, so **the number `--push-line` prints in its tier column moved** — `advance` is now 1 and a pose
+is 6. Nothing sorts on the absolute value (`Cut`, `PushCut`, `Macro`, `Restart` and `Line` all compare
+tiers), and `--push-read off` still emits every board change at one tier with poses behind it, so no
+measured number moves. This is the second time a tier insertion has cost that column; the first was
+`TierFire` at 3 in session 31.
+
+### 18. The horizon per level — a level property, and not a searcher's reach.
+
+Closed item 15 measured one number on one level: `LaserTank.lvl` 6 finishes from **48** board changes out
+and not from 51, at 40M nodes and width 512. This ran the same measurement over all 20 hand recordings,
+`tools/horizon.py`, K = 0 first on every level and a bisection only on the levels that fail from the
+root. **96 probes, 43 of them wins, 45 of 45 output directories through the two-engine gate.** Every row
+is hint-assisted and stamped `hint=push-seed:K`, so none of it touches the solver's rate.
+
+    python tools/horizon.py            # the sweep, resumable from its own reports
+    python tools/horizon.py status     # the table, free, no solver
+
+| level | board changes | horizon | Kmin | horizon / changes |
+|---:|---:|---:|---:|---:|
+| 6 | 168 | **50** | 118 | 0.30 |
+| 1 | 50 | 38 | 12 | 0.76 |
+| 18 | 53 | 28 | 25 | 0.53 |
+| 28 | 105 | 27 | 78 | 0.26 |
+| 23 | 27 | 21 | 6 | 0.78 |
+| 5 | 22 | 16 | 6 | 0.73 |
+| 14 | 31 | 16 | 15 | 0.52 |
+| 10 | 53 | 13 | 40 | 0.25 |
+| 2 | 32 | 9 | 23 | 0.28 |
+| 17 | 33 | 4 | 29 | 0.12 |
+| 19 | 15 | 4 | 11 | 0.27 |
+| 9 | 27 | **2** | 25 | 0.07 |
+| 3, 4, 7, 8, 11, 13, 20, 24 | 10-52 | *whole recording* | 0 | 1.00 |
+
+**The answer is the item's second branch and it is not close.** The 12 horizons the search bounds run
+**2 to 50 — 25x**, where the item's own criterion for *searcher constant* was "inside 2x". Item 18's
+third candidate answer goes too: it is not a constant *fraction* of the line either, 0.07 to 0.78, an
+11x spread. And it is not a function of the recording's length, which is the cleanest single refutation
+because two levels supply it directly: **`LaserTank.lvl` 9 and 23 both have 27 board changes and their
+horizons are 2 and 21**, 10.5x apart; 10 and 18 both have 53 and give 13 and 28. So the constant is
+level 6's own, the lever for item 5 is not a fixed phase size, and item 14 — width per level — is the
+mechanism the spread points at.
+
+**The finding that reframes item 5, and it inverts what the number looked like.** Level 6's 50 is the
+**deepest** horizon measured anywhere on these levels, and level 8 solves its whole 52-change recording
+from the root. The search's reach on level 6 is therefore the *best* it achieves, not the worst; what
+defeats the level is that its line is **168 changes, 3.4x that reach**. Item 15's 48 read like a short
+leash and it is the opposite. What that kills is any decomposition sized from a global constant: the
+phases a level would need — its changes over its own horizon — run from **1.3 on level 23 to 13.5 on
+level 9**, so a fixed phase *count* is as wrong as a fixed phase *length*.
+
+**Item 15's number is refined rather than corrected: 48 → 50.** Item 15 bracketed the boundary with two
+probes, K = 120 (solves, 36.1M nodes) and K = 117 (fails at 40M), and called it one board change wide on
+the strength of the monotonicity. The bisection settles it at exactly one: **K = 118 solves on 36.75M and
+K = 117 fails on 40M**. The re-run reproduced item 15's K = 120 at **36,073,877 nodes** against its
+recorded 36.1M, which is the cross-check that the two sweeps are the same measurement.
+
+**And the sizing input item 14 wanted is not there, which is the useful negative.** The horizon is the
+quantity that would justify a per-level width, and it costs ~7 probes at 40M nodes to measure — 20,914
+levels of that is not a thing anyone runs, so item 14 needs a *derived* predictor. Joined against every
+column `--analyze-tsv` produces (n = 12, so read these as leads and not as fits): the two positives are
+`changes` +0.64 and `water` +0.62, and `changes` is already refuted above by the two same-length pairs;
+`poses`, `region`, `mob_max` and `mob_sum` are flat (+0.06 to +0.08), which is worth knowing because
+`poses × width × changes` is exactly the arithmetic item 14's calibration used. **The one lead with a
+mechanism is negative**: `effects` and `shots` — board changes on offer at the root — come in at
+**−0.41**, i.e. the more the root offers, the shorter the reach. That is a branching-factor reading and
+it agrees in sign with closed item 16's mobility column, where freer blocks are *harder*. Two independent
+derivations pointing the same way is the only thing on this list worth following.
+
+**The harness cost two defects and they are the same defect twice: in-memory bookkeeping believed over
+the banked state.** First, four probes were run into one `--report` file; `StreamWriter(append: true)` is
+not atomic across processes on Windows, two solvers wrote at the same offset, and **a lost row read as a
+failed probe** — the worst possible direction, because the horizon is the smallest K that *solves*, so a
+lost row shortens the answer. Probes now never share a file and a probe that leaves no new row raises
+instead of counting as a failure. Second, phase 2's work list was built from what the running process had
+classified rather than from the reports, and an interrupted invocation silently dropped **three levels
+that were already measured and failing** (17, 18, 19). Both were caught by the same habit — the table did
+not add up to 20 — and both are the file's own rule arriving from a new direction: *the report is the
+state, so ask the report*.
 
 ---
 
@@ -1706,6 +1837,56 @@ only from `AnalyzeAt`, `RouteHoles` is a field `CountOnRoute` assigns and only `
 `WorkDistance` that reads them, and `_seed` is null unless `--push-seed` is given. The equivalence test
 is `--push-seed FILE:0` against no flag: same nodes, same stop, same depth.
 
+**session 44 — two items closed beside the running pass, and the second one inverted the number the
+first list ordering was built around.** Items 17 and 18, in the list's order, both beside item 2's
+machine time. Item 18 is the one that mattered: **the search horizon is a level property, 2 to 50 board
+changes over the 12 recordings the arm cannot solve unseeded**, so item 5 cannot size a phase from a
+constant — and **level 6's 50 is the *deepest* reach measured anywhere**, which is the opposite of what
+item 15's 48 read like. What defeats level 6 is a line 3.4x its own reach, not a short leash. Item 15's
+number is refined 48 → 50 and its own probe reproduced to the node. `tools/horizon.py` is the harness,
+96 probes, 45 of 45 gated, and it cost two defects that were the same defect twice — in-memory
+bookkeeping believed over the banked reports, once through a shared `--report` file where a lost row read
+as a *failed* probe, once through a work list built from what the process had classified rather than from
+the reports. Full record in
+[closed item 18](#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
+
+**session 44, continued — item 17 built and refused, and the refusal names the confound in every
+`--read-dump` ratio.** The list's rule had item 17 second and its case was unusually strong: session 42 had already run
+the falsifier, `rare` scored **3.15x** — the largest lift the read has measured, and by `Push.cs:798`'s
+own rule the most selective *and* most accurate of four derivations — so what was left was ~40 lines and
+four benches. Built as `--push-rare` (`TierRare` at 0, the census once per level off `Level.PF`, the
+per-successor test being the same `RareOfDelta` `--read-dump` scores the human with), gated in the order
+the item prescribed, and refused. The table is in
+[closed item 17](#17-the-rarity-tier--built-and-refused-on-the-bench-it-set-itself); three things are
+worth carrying forward.
+
+* **A `--read-dump` ratio is measured on twenty `LaserTank.lvl` recordings and a tier runs on the levels
+  the chain fails, and those are not the same population.** `rare` names 5.1% of successors over the
+  recordings; over the ferry bench `--push-trace`'s new `rare` column reads **2%** on `Beginner-I` 191
+  and **0%** on 41, 326, 366 and 431. A ferry level is authored with three or more of everything a ferry
+  push touches, so the partition the tier promotes is *empty* exactly where the search spends its budget.
+  The promotion rule was correct and there was nothing to promote. **The pair to read from here is the
+  `--read-dump` ratio against the tier's own selectivity on the bench** — either alone is silent about
+  this, and the second half is now free for any tier that has a trace column.
+* **This is layer 4's result arriving from the other side.** The winner's state is in the expansion's
+  output 97.6% of the time and the sort loses it; item 17's own prior said *a tier is a different
+  instrument from a ranking* and the honest expectation was *a few levels, not a layer*. What it actually
+  cost was **two ferry levels and one deep one**, which is the same finding with the sign a stronger
+  claim would have hidden.
+* **The one number that looks like an opportunity is the one the first rule forbids.** `ctl-deep ∪
+  rare-deep` is **28 against 25** — three exclusive levels, the signature of a complementary arm. It is
+  not one: `--push-eval none` scored a *larger* union on these two lists (+6 ferry, +4 deep), was the
+  best arm of the rehearsed fourth pass on that basis, and came back over 255 corpus levels as the
+  weakest of six with one exclusive level. Proposing an arm here would spend item 2's machine time on the
+  reading that rule exists to refuse.
+
+**The control was run first and it is why any of the above is readable.** `ctl-ferry` reproduced
+**18/50** and `ctl-deep` **25/50** exactly, against the rebased layer-5 baselines, before the tier ran —
+so the −2 and −1 are attributable to the flag and to nothing else. Five benches at four jobs beside item
+2's sixteen, ~3.5 min each, node-governed; the running pass saw it only in wall clock. The code ships off
+by default. **Its one unconditional cost is that `--push-line`'s tier column renumbered** (`TierRare` at
+0 pushed `advance` to 1 and a pose to 6), the second time a tier insertion has done that.
+
 ---
 
 ## Where session 26's twelve pointers went
@@ -1716,7 +1897,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-7th--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-5th--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

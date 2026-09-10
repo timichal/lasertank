@@ -102,7 +102,7 @@ namespace LaserTank.Solver
         // successors.  The number to watch is _pxAdv against _pxSucc -- a tier
         // that promotes almost everything is a no-op that costs a Dijkstra, and
         // one that promotes almost nothing is a filter the beam cannot use.
-        private long _pxSucc, _pxAdv, _pxEnab, _pxBarrier, _pxNoBarrier;
+        private long _pxSucc, _pxAdv, _pxEnab, _pxBarrier, _pxNoBarrier, _pxRare;
 
         // --push-trace with --push-fire-tier: successors promoted to TierFire.
         // Counted here rather than in ReadCount because FireTier runs after it
@@ -297,6 +297,10 @@ namespace LaserTank.Solver
         {
             _pushWidth = _opt.PushBeamWidth;
             _pushPerBoard = _opt.PushPerBoard;
+            // Once per level, not once per expansion: the census is of the
+            // authored board, which is a static property of the level.  256
+            // comparisons, and a restart re-uses the same table.
+            if (_opt.PushRare) RareCensus(_rareMult);
             SolveResult r = PushBeam(root);
             int attempts = 0;
 
@@ -379,10 +383,11 @@ namespace LaserTank.Solver
                     if (_opt.PushRead)
                         Console.Error.WriteLine(
                             "        read: {0}/{1} successors advanced ({2}%), "
-                            + "of them enables-only {5}, "
+                            + "of them enables-only {5}, rare {6} ({7}%), "
                             + "expansions with a barrier {3}, without {4}",
                             _pxAdv, _pxSucc, _pxSucc > 0 ? 100 * _pxAdv / _pxSucc : 0,
-                            _pxBarrier, _pxNoBarrier, _pxEnab);
+                            _pxBarrier, _pxNoBarrier, _pxEnab, _pxRare,
+                            _pxSucc > 0 ? 100 * _pxRare / _pxSucc : 0);
                     // The selectivity of the fire tier, which is the number
                     // that decides whether it is a filter at all: promote
                     // almost everything and it is a no-op, almost nothing and
@@ -397,7 +402,7 @@ namespace LaserTank.Solver
                             _pxFireSeen > 0 ? 100 * _pxFire / _pxFireSeen : 0,
                             next.Count > 0 ? next[0].Swept : -1, LeastSwept(next));
                     _pxClosure = _pxCount = _pxTrunc = _pxSterile = 0;
-                    _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = 0;
+                    _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = _pxRare = 0;
                     _pxFire = _pxFireSeen = 0;
                 }
 
@@ -810,13 +815,30 @@ namespace LaserTank.Solver
         /// them, and `enables` names three of seven and hits nine of ten.  A
         /// derivation that is more selective *and* more accurate belongs in
         /// front of one that is neither.
-        private const int TierAdvance = 0;   // the read says this exists for a reason
-        private const int TierEnables = 1;   // ...or at least it makes something new possible
-        private const int TierOpens = 2;     // ...or it puts the tank somewhere new to stand
-        private const int TierFire = 3;      // ...or it takes cells away from the anti-tanks
-        private const int TierOther = 4;     // a board change nothing above has spoken for
-        private const int TierPose = 5;      // the truncation escape hatch
-        private const int TierLost = 6;      // ...and a board that cannot win
+        ///
+        /// TierRare is item 17's and it goes in front of all of them, on the
+        /// same rule that placed TierEnables and by the widest margin the read
+        /// has measured: over the twenty hand recordings' 800 board changes
+        /// `rare` names 5.1% of the successors offered and is what the human
+        /// did 16.0% of the time -- 3.15x, against 1.43x for `advance`, 1.40x
+        /// for `opens` and 1.34x for `enables`.  Most selective *and* most
+        /// accurate, which is the condition, and the cheapest of the four to
+        /// compute besides: no pose closure and no second enumeration, one
+        /// scan of the delta against a census taken once per level.
+        ///
+        /// Inserting a tier at 0 shifts every constant below it by one and
+        /// **that changes the number --push-line prints in its tier column** --
+        /// the same caveat session 31 recorded when TierFire was inserted at 3.
+        /// Nothing else reads a tier as a value: Cut(), PushCut and the three
+        /// other beams all sort on it.
+        private const int TierRare = 0;      // the author placed few of these, so it is there for a reason
+        private const int TierAdvance = 1;   // the read says this exists for a reason
+        private const int TierEnables = 2;   // ...or at least it makes something new possible
+        private const int TierOpens = 3;     // ...or it puts the tank somewhere new to stand
+        private const int TierFire = 4;      // ...or it takes cells away from the anti-tanks
+        private const int TierOther = 5;     // a board change nothing above has spoken for
+        private const int TierPose = 6;      // the truncation escape hatch
+        private const int TierLost = 7;      // ...and a board that cannot win
 
         // TierFire is item 5's, and it sits *below* all three of the read's
         // derivations rather than among them, for the reason TierEnables sits
@@ -854,6 +876,23 @@ namespace LaserTank.Solver
         // there, which is what keeps a conservative test from being able to
         // refuse a level.  Off unless --push-dead is.
 
+        /// Item 17's test, asked of one successor.
+        ///
+        /// `RareOfDelta` is the function --read-dump scores the *human's* move
+        /// with, called on the same pair of boards, so the tier and the 3.15x
+        /// that earned it cannot drift apart.  The census behind it is
+        /// `Level.PF` -- the board as authored, not the one being searched --
+        /// which is why it is taken once in PushSearch and not per expansion.
+        ///
+        /// One scan of 256 cells against ReadAdvances' own scan of the same
+        /// delta at the same point, so the cost is a second pass over a board
+        /// inside an expansion of ~4,500 ApplyKey calls.
+        private bool RarePush(byte[] before, byte[] after)
+        {
+            int r = RareOfDelta(_rareMult, before, after);
+            return r > 0 && r <= _opt.ReadRareMax;
+        }
+
         /// Tier this expansion's successors by the read.
         ///
         /// Three derivations, in the order they cost.  `on the barrier` and the
@@ -886,6 +925,7 @@ namespace LaserTank.Solver
             {
                 Node n = next[i];
                 if (n.Tier == TierPose || n.Tier == TierLost) continue;
+                if (_opt.PushRare && RarePush(before, n.S.PF)) { n.Tier = TierRare; continue; }
                 n.Tier = ReadAdvances(before, n.S.PF) ? TierAdvance : TierOther;
                 if (n.Tier == TierOther) untiered++;
             }
@@ -1147,6 +1187,7 @@ namespace LaserTank.Solver
                 _pxSucc++;
                 if (next[i].Tier < TierOther) _pxAdv++;
                 if (next[i].Tier == TierEnables) _pxEnab++;
+                if (next[i].Tier == TierRare) _pxRare++;
             }
         }
     }

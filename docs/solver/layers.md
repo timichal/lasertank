@@ -713,6 +713,17 @@ derivation that is more selective *and* more accurate belongs in front of one th
 tier of its own rather than a promotion because it names **79%** of the successors offered — folded into
 `TierAdvance` it would only dilute one that works.
 
+**That rule has since been applied once more and the tier it placed was refused, which qualifies it
+rather than overturning it.** `rare` is more selective (5.1% offered) and more accurate (16.0% named,
+**3.15x**) than all three of these, so by the rule it belongs at the front — and as `--push-rare` it cost
+the ferry bench two levels and the deep one one. The rule ranks derivations *within a population*, and
+the 3.15x was measured on twenty `LaserTank.lvl` recordings while the tier ran on the levels the chain
+fails, where the same derivation names **0%** of successors on four ferry levels of five. So the rule
+needs a precondition it did not have written down: **selectivity and accuracy are only comparable on the
+population the tier will run on**, and a partition that is empty there cannot be either. `--push-rare`
+ships off by default; the table is in
+[closed item 17](history.md#17-the-rarity-tier--built-and-refused-on-the-bench-it-set-itself).
+
 Two things had to be fixed before any of it could be seen, and both are the same lesson twice. The pass
 was written after `ReadTier`'s two early returns, so only one path reached it and **it benched as
 entirely inert through a whole round of measurements**. And at full price it cost ~4x an expansion and
@@ -1066,7 +1077,7 @@ Where the two that are left now stop, measured rather than guessed:
   re-derive** — a subgoal chain over board changes rather than one beam over the level. It was the one
   open item with no cheap falsifier; closed item 15 (`--push-seed K`, the search started from the K-th
   board change of the hand recording) built one and **ran it on this level**: at 40M nodes and width 512
-  the beam closes the last **48** of the 168 board changes and not the last 51, monotone below that, and
+  the beam closes the last **50** of the 168 board changes and not the last 51, monotone below that, and
   24 changes cost 3.8M nodes against 48's 36.1M. So a phase this item proposes has to be worth about 48
   board changes, the boundary is one change wide, and the human record says the *commit to one pair* half
   of the design is the bet `--push-ferry-stage` already lost.

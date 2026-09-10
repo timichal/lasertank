@@ -300,6 +300,12 @@ namespace LaserTank.Solver
                                            // successor that sweeps fewer cells
                                            // than its parent ranks above one
                                            // that only shortens the walk
+        public bool PushRare = false;      // item 16's first derivation as the
+                                           // read's *top* tier: a change that
+                                           // touches an element the author
+                                           // placed --read-rare N or fewer of.
+                                           // Needs --push-read; the promotion
+                                           // is inside ReadTier.  See TierRare
         public int PushDead = 0;           // weight on Heuristic.RouteDead; 0 is off
         public bool PushFerryStage = false;// one carry at a time; implies match
         public bool PushFerryMatch = false;// spend each block once: the ferry

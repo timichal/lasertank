@@ -256,8 +256,9 @@ namespace LaserTank.Solver
 "    --read-rare N        item 16's first derivation, default 2: an element\n" +
 "                         the authored board has N or fewer cells of is one\n" +
 "                         the level has *few* of, and a board change that\n" +
-"                         touches one is what the read counts.  Instrument\n" +
-"                         only -- the rare/in_rare pair of --read-dump.  The\n" +
+"                         touches one is what the read counts.  Read by the\n" +
+"                         rare/in_rare pair of --read-dump and, when\n" +
+"                         --push-rare is on, by the tier itself.  The\n" +
 "                         spend/in_spend pair beside it needs --read-enables\n" +
 "                         and reports -1 without it\n" +
 "\n" +
@@ -352,6 +353,20 @@ namespace LaserTank.Solver
 "                         everything, the barrier set there being empty by\n" +
 "                         construction.  Free on a board no anti-tank covers.\n" +
 "                         See Push.FireTier and --push-trace's fire: line\n" +
+"    --push-rare          item 16's first derivation as a tier, off by\n" +
+"                         default and needing --push-read: a board change\n" +
+"                         that touches an element the author placed\n" +
+"                         --read-rare N or fewer of goes in *front* of all\n" +
+"                         three of the read's own derivations.  Measured over\n" +
+"                         the twenty hand recordings it is named on 5.1% of\n" +
+"                         the successors offered and is what the human did\n" +
+"                         16.0% of the time -- 3.15x, against 1.34-1.43x for\n" +
+"                         the three that ship -- so it is the most selective\n" +
+"                         and the most accurate of the four, which is the\n" +
+"                         rule that places a tier.  Costs one scan of the\n" +
+"                         delta and a census taken once per level.  Off by\n" +
+"                         default because every rung below layer 8 was tuned\n" +
+"                         against the read as it stands.  See Push.TierRare\n" +
 "    --push-dead N        weight on the frozen-block term, 0 (default) is\n" +
 "                         off: water cells on the route with no *live* block\n" +
 "                         left to fill them, where live means the block can\n" +
@@ -587,6 +602,7 @@ namespace LaserTank.Solver
                         case "--push-stop": a.Opt.PushStop = int.Parse(V()); break;
                         case "--push-fire": a.Opt.PushFire = int.Parse(V()); break;
                         case "--push-fire-tier": a.Opt.PushFireTier = true; break;
+                        case "--push-rare": a.Opt.PushRare = true; break;
                         case "--push-dead": a.Opt.PushDead = int.Parse(V()); break;
                         case "--push-reach": a.Opt.PushReach = true; break;
                         case "--push-shield": a.Opt.PushShield = int.Parse(V()); break;
@@ -1571,6 +1587,7 @@ namespace LaserTank.Solver
             PushStop = s.PushStop,
             PushFire = s.PushFire,
             PushFireTier = s.PushFireTier,
+            PushRare = s.PushRare,
             PushDead = s.PushDead,
             PushReach = s.PushReach,
             PushShield = s.PushShield,
