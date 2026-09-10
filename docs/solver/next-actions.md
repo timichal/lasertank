@@ -1,17 +1,24 @@
 # Next actions — the open items in full
 
-Nine items are open. The order and the reasoning behind it are in
+Ten items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 16, 15, 13, 5, 14, 4, 7, 10**. Items 13-16 are new in session 37 and they come from one
+Order: **2, 16, 15, 13, 17, 5, 14, 4, 7, 10**. **Item 17 is new in session 42 and it is the only
+item on the list whose falsifier is already run** — item 16's shared measurement qualified one of its
+four derivations at 3.15x, so what is left of that one is a build and four benches rather than a
+question. It sits ahead of item 5 because the evidence is in hand and the decision is minutes; it sits
+behind 15 and 13 because those are still cheaper. Items 13-16 are new in session 37 and they come from one
 source — the harvest blog's ten-post *Lyf Series* on how a strong human plays, read against the layers in
 [`human-strategy.md`](human-strategy.md). **They are not a wish list: three of the four arrive with their
 falsifier already run or costed in minutes**, which is what moves them past item 5 under this list's own
-ordering rule (*cheapest falsifier first, whatever kind of work it is*). What that rule does to the old
-order is worth stating: **item 5 moves from 2nd to 5th and gains a cheap falsifier it did not have**
+ordering rule (*cheapest falsifier first, whatever kind of work it is*). **Item 16 has now spent its
+shared falsifier and both derivations survived it** — rarity at **3.15x** is the largest lift the read
+has ever measured, the spend tier demotes 2 of the human's 795 changes once the anti-tank kill is
+exempted, and a fifth derivation the run turned up was measured and refused (session 42). What that rule does to the old
+order is worth stating: **item 5 moved from 2nd to 6th and gained a cheap falsifier it did not have**
 (item 15), which is a better outcome for it than staying at the front without one. Items 4, 7 and 10 keep
 their relative order and their reasoning; only their ordinals moved.
 
@@ -44,7 +51,9 @@ from it and none is blocked on it.
 **Item 2 is running on this machine (started 2026-09-10) and everything below it can run beside it.**
 It is a machine commitment rather than a build, and its arms are node-governed, so extra load moves
 wall-clock readings and nothing else. Items 16, 15 and 13 are what to do while it runs: **minutes, a
-flag and eight short runs, and a free report column.** Item 5 is still the only open item that would
+flag and eight short runs, and a free report column.** Session 42 spent the first of those — item 16's
+shared falsifier is two seconds of replay, and it moved two derivations from *claimed* to *measured*
+without touching the running pass. Item 5 is still the only open item that would
 move a level in front of the project — `LaserTank.lvl` 6, which has no blogspot post at all and so was
 never in item 6's reach nor in the running harvest's.
 
@@ -208,7 +217,7 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 16 (2nd) — four derivations the read does not have
+## 16 (2nd) — four derivations the read does not have, and the first two are measured
 
 **Source:** [`human-strategy.md`](human-strategy.md), the blog's *Lyf Series* read against the layers.
 Four things a strong human says out loud that no derivation in layers 6-8 computes. They are one item
@@ -216,32 +225,87 @@ because **two of them share a falsifier and all four are `--read-dump` questions
 *a new layer should report a distribution before it reports a solved count*, and this is the cheapest
 place on the list to obey that rule.
 
-**The shared falsifier is two columns and one replay.** `--read-dump` already replays each winning
-recording, stops at every board change and asks whether the change the human made next was one the read
-named. Add two columns to that dump and it answers the first two derivations at once, in seconds:
+**The shared falsifier is run. Both derivations survived it, and the run turned up a fifth thing the
+read does not have** — see session 42 in the [session log](history.md#session-log). Two seconds of replay, no search:
 
 ```bash
 ls data/demos/LaserTank/*.lpb > build/demos.txt
 build/lasertank-solve.exe --levels data/levels/LaserTank.lvl \
-    --lpb-list build/demos.txt --read-dump build/read.tsv     # 800 board changes, no search
+    --lpb-list build/demos.txt --read-enables --read-dump build/read.tsv
 ```
 
-- **The author's intent** — *"Objects were put on the map by the author for 4 reasons: useful, beautiful,
-  misleading, special hobby… especially when some object is weird on the map. Ask yourself 'Why is it
-  there?'"* A lone mirror, a single `*`, one crystal on an otherwise plain board is load-bearing far more
-  often than chance. The derivation is a count of each element's multiplicity in the level and a tier for
-  a board change that **first touches** an element the level has few of. **The falsifier: do the human's
-  800 board changes preferentially touch rare elements?** If the rate is flat against the offered
-  successors, the derivation is folklore and the item ends here for free.
-- **Spending a resource for no reason** — the series' *reversibility* section is a precise list of what
-  play consumes: a brick shot, a piece of thin ice walked, an anti-tank killed or pushed the way it faces,
-  a rotary mirror that cannot be turned back. The search knows two of these facts today (`_alive`'s frozen
-  block, `RouteDead`'s holes-against-live-blocks) and prices *spending* nothing at all. The derivation is
-  a tier **below** filler for a change that destroys something while naming no barrier, no `opens` and no
-  `enables`. **The falsifier is the same run: how often is the human's own change destructive with no
-  derived reason?** If that is common the tier would demote the human's move and is wrong. Note the
-  direction of error that is safe — a tier can only reorder, never refuse, which is the rule Layer 8's
-  `TierLost` was built on.
+`--read-enables` is not optional here, and the columns say so rather than guessing: `spend` means
+"consumes something the read has no *other* reason for", `Opens` and `Enables` are two of those reasons,
+and both are only computed under the flag and inside the `--read-opens` cap — so without them the three
+spend columns report **-1**, a missing label rather than a wrong count. 800 board changes over the 20
+hand recordings, of which `spend` was asked on 795 (five boards offered more than the 64-effect cap):
+
+| derivation | of the successors offered | of what the human did | lift |
+|---|---|---|---|
+| `advance` — on the barrier, or a block nearer the water | 4,734 / 8,099 = 58.5% | 667 / 800 = 83.4% | 1.43x |
+| `opens` — somewhere new to stand | 4,551 / 8,099 = 56.2% | 631 / 800 = 78.9% | 1.40x |
+| `enables` — a board change that was not available before | 5,563 / 8,099 = 68.7% | 737 / 800 = 92.1% | 1.34x |
+| **`rare` — touches an element the author placed ≤2 of** | **411 / 8,099 = 5.1%** | **128 / 800 = 16.0%** | **3.15x** |
+| **`spend` — consumes something, for no derived reason** | **587 / 7,772 = 7.6%** | **15 / 795 = 1.9%** | **0.25x** |
+| the same, anti-tank kills exempted | 507 / 7,772 = 6.5% | **2 / 795 = 0.3%** | **0.04x** |
+| `clears` — takes a gun off a cell the route named | 970 / 8,099 = 12.0% | 84 / 800 = 10.5% | 0.88x |
+
+- **The author's intent — 3.15x, and it is the largest lift the read has ever shown.** *"Objects were put
+  on the map by the author for 4 reasons: useful, beautiful, misleading, special hobby… especially when
+  some object is weird on the map. Ask yourself 'Why is it there?'"* The derivation is `--read-rare N`
+  (default 2): count each element class on the board **as authored** — `Level.PF`, with the four-way
+  mirror / roto / gun / conveyor families collapsed, and dirt, the tank and the flag not counted because
+  every level has exactly one of the last two and a predicate that is always true derives nothing — then
+  ask whether a board change touches a class the level has N or fewer cells of. The human does, three
+  times more often than the successors on offer, and it holds in every verdict class that has a rare
+  element at all: **DEMOLITION 27.7% against 5.6% offered, FERRY 17.3% against 7.3%, SOKOBAN 14.5%
+  against 9.3%, GAUNTLET 7.9% against 2.3%**, and RIDE has none either way. It costs a 256-byte census
+  per level — no closure, no second enumeration. **The read's three existing derivations are all about
+  terrain and all sit between 1.3x and 1.5x; the first one about the *author* sits at 3.2x.**
+
+  Two things make that number believable rather than a coincidence, and both are why the threshold is a
+  flag. **The sweep:** 1 → 3.52x, 2 → 3.15x, 3 → 2.37x, 4 → 2.00x, 5 → 1.98x, **6 → 2.59x**, 8 → 2.50x,
+  12 → 2.04x. **The control:** at `--read-rare 256` every class is "rare", so the column becomes *touches
+  anything at all* — and it is **8,099 / 8,099 against 800 / 800, exactly 1.00x**. So the lift decays from
+  3.5x to a clean 1.0x limit and the signal is rarity itself rather than "the human touches objects and
+  the enumeration offers water". What the sweep is *not* is monotone: the bump at 6-8 is one class count
+  on a twenty-level sample — `LaserTank.lvl` 20 has exactly six guns — so the lift is real at every
+  threshold while its magnitude is a 20-recording number, which is what item 6's bank was banked to
+  widen. **The next step for this one is [item 17](#17-5th--the-rarity-tier-the-one-open-item-whose-falsifier-is-already-run)**,
+  which carries the build and the benches: the tier goes *above* the read's own three rather than below
+  them, because 5.1% of successors at 3.15x is both the most selective and the most accurate partition
+  the read has.
+- **Spending a resource — 0.25x, so the tier is right-signed, and 13 of the 15 exceptions are one thing.**
+  The derivation is the series' reversibility list read straight off the delta, and it is a **mask of what
+  was consumed** rather than a bool so the exceptions can be attributed without a second replay: `fill`
+  (a block that did not survive), `brick`, `ice` (thin ice walked, to water), `kill` (a gun shot in the
+  face, to the *solid* wreck `KillAtank` leaves), `face` (a gun pushed the way it looks — the one push
+  that cannot be undone, because putting it back means shooting the face) and `roto`. What the human
+  spends over the 800: **brick 124, face 72, fill 48, kill 35, roto 7, ice 1, nothing 513.** Of those,
+  the ones the read has no other reason for are **13 kills, 1 fill and 1 face** — and the 13 are
+  unjustified structurally rather than by accident. `KillAtank` leaves a solid wreck, so the cell stays
+  impassable and `opens` is 0; the gun was *covering* a free cell of the route rather than standing on
+  one, so it is a `Threats` entry and no derivation reads that list; and a dead gun makes no new board
+  change possible, so `enables` is 0. Meanwhile shooting the gun that covers your road is the whole
+  content of the move. **So the tier ships with the kill exempted:** 2 of 795 human changes demoted
+  against 507 of 7,772 successors still named, 0.04x, and the exemption costs the tier 14% of its reach.
+  Note the direction of error that made this safe to measure at all — a tier can only reorder, never
+  refuse, which is the rule Layer 8's `TierLost` was built on.
+- **`clears`, the fifth derivation the second one turned up by failing — measured, and refused.** If the
+  read has nothing for *fire*, add the free one: a change that leaves an anti-tank the route named as a
+  threat off the cell it named it on. It costs nothing — no closure, just the delta against a list the
+  read already built — and it is in the dump as `clears`/`in_clears`. It is **0.88x over all 800 changes,
+  1.12x over the 543 where the route names a gun at all, 1.31x over the 287 where a clearing shot is
+  actually on offer, and it explains 9 of the 15 unjustified spends.** The other 6 are the interesting
+  half: `LaserTank.lvl` 20 is *"Destroy most of the guns"* and the human kills three guns the route does
+  not yet name, because the route is re-derived every board change and a gun that will matter in twelve
+  moves is not a threat now. **So this is not a tier on this evidence, and the kill exemption above is
+  the fix rather than a fifth rung.** What it is is a number for the gap the GAUNTLET verdict has always
+  named in words — *"what is in the way is fire, not terrain"* — and closing it properly needs a threat
+  model that outlives one board change, which is item 5's shape. Kept in the dump as a measured negative.
+
+**The two that are still open, with their recipes unchanged:**
+
 - **FMO mobility as a quantity** — *"Some object is 'free' if it can be moved in a relatively large
   area… It is generally easy to win if you have enough FMOs (except they are too crowded like
   lasertank.lvl#0250)"*. `_alive[c]` is the boolean form of exactly this and `MazeFill` already computes
@@ -256,8 +320,12 @@ build/lasertank-solve.exe --levels data/levels/LaserTank.lvl \
   **Falsifier: `--ferry-weight`, which sweeps a weight offline against a recording without re-running the
   solver, plus level 6's ascent (11 today).**
 
-**Cost:** two dump columns and a replay decides the first two; a `--analyze-tsv` column and a join decides
-the third; an offline sweep decides the fourth. Nothing here is a rung until its own distribution says so.
+**Cost from here:** an `--analyze-tsv` column and a join decides the third; an offline sweep decides the
+fourth. **The first two are distributions now, so what is left of them is item 17** — the rarity tier —
+and the spend tier waits behind it, because it needs `Opens` and `Enables` per successor and in the
+search those are rationed by `--push-read-opens` / `--push-enables`, so "for no derived reason" is only
+knowable where the search paid to ask. Nothing here is a rung until its own distribution says so — and
+one of the five already said no.
 
 ---
 
@@ -342,7 +410,81 @@ mostly the right plan driven badly, not half a solution.
 
 ---
 
-## 5 (5th) — level 6's decomposition
+## 17 (5th) — the rarity tier: the one open item whose falsifier is already run
+
+**Source:** item 16's shared falsifier (session 42). This is not a question, it is the build the answer
+earned, and it is the only item on this list in that position. `rare` — a board change that touches an
+element the authored board has two or fewer cells of — is named on **5.1% of the successors offered and
+is what the human did 16.0% of the time, a 3.15x lift**, against 1.43x for `advance`, 1.40x for `opens`
+and 1.34x for `enables`, the three derivations that already ship inside layer 5's rung. It is **the most
+selective and the most accurate of the four**, which is exactly the condition `Push.cs` states for where
+a tier belongs:
+
+> *A derivation that is more selective **and** more accurate belongs in front of one that is neither.*
+> — `Push.cs:798`, the comment that placed `TierEnables`
+
+**So it goes in front of `TierAdvance`**, as the first tier above the read's own three, and it is the
+cheapest of all of them to compute: no pose closure, no second enumeration.
+
+**The build. Every piece of it exists in `Analyze.cs` already; what is new is the tier.**
+
+1. **The census, once per level.** `Solver.RareCensus` fills a 12-entry table from `Level.PF` — the
+   board *as authored*, the four-way families collapsed, dirt/tank/flag not counted. The push search has
+   `Level` for the same reason `--analyze` does, and the table is static for the level, so this is 256
+   comparisons per *level*, not per expansion. That is why the derivation reads the authored board and
+   not the live one: a search that tiered on the live board would re-census every expansion for no
+   measured gain, and the measured 3.15x is the authored version.
+2. **The per-successor test.** `Solver.RareOfDelta(mult, before, after)` — the same function
+   `--read-dump` scores the human's move with, so the tier and its measurement cannot drift apart. It is
+   one scan of the delta, which `ReadAdvances` already does for the barrier at the same point in
+   `ReadTier`.
+3. **The tier constant.** A new 0 with `TierAdvance`..`TierLost` shifted up by one, promoted in
+   `ReadTier` before `ReadAdvances` is asked. What the shift touches: nothing in the ordering (`Cut()`
+   sorts on the value) but **the number `--push-line` prints in its tier column** — the same caveat
+   session 31 recorded when `TierFire` was inserted at 3.
+4. **The flag: `--push-rare`, off by default.** Not optional: every rung below layer 8 was tuned against
+   the read as it stands, which is the `--read-antitank-wall` situation exactly. `--read-rare N` already
+   exists and is already honoured by `Clone`, so the threshold needs no new plumbing.
+
+**The gate, in the order that makes a failure cheap to attribute.** The baselines are the rebased
+layer-5 ones — **ferry 18/50, deep 25/50 at 4M nodes** on top of `--no-ida --no-beam --push
+--push-read` ([`layers.md`](layers.md)) — and the control has to reproduce them exactly or the run says
+nothing:
+
+```bash
+# LT_SOLVE only while item 2's pass holds build/lasertank-solve.exe open
+export LT_SOLVE=$PWD/build/item16/lasertank-solve.exe
+
+# 1. the control first: does it reproduce 18/50 and 25/50 with the flag absent?
+bash tools/bench.sh ctl-ferry  bench/ferry-levels.txt 4000000 --no-ida --no-beam --push --push-read
+bash tools/bench.sh ctl-deep   bench/deep-levels.txt  4000000 --no-ida --no-beam --push --push-read
+
+# 2. the tier
+bash tools/bench.sh rare-ferry bench/ferry-levels.txt 4000000 --no-ida --no-beam --push --push-read --push-rare
+bash tools/bench.sh rare-deep  bench/deep-levels.txt  4000000 --no-ida --no-beam --push --push-read --push-rare
+
+# 3. the threshold, on the bench rather than on the 20 recordings.  The dump's sweep is
+#    NOT monotone -- 1 -> 3.52x, 2 -> 3.15x, 4 -> 2.00x, 6 -> 2.59x -- and the bump at 6-8
+#    is one class count on twenty levels, so 1 and 2 are the two worth trying.
+bash tools/bench.sh rare1-ferry bench/ferry-levels.txt 4000000 --no-ida --no-beam --push --push-read --push-rare --read-rare 1
+
+# 4. only if 1-3 are up: the driver's ladder on LaserTank.lvl 1-10, then a stride campaign
+```
+
+**What to expect, and the honest prior.** The tier promotes a set the human's move is in 16% of the
+time, and it is the most selective partition the read has. But **layer 4 already measured that a better
+ordering is not where the wins are** — the winner's state is in the expansion's output 97.6% of the time
+and the sort loses it. A tier is a different instrument from a ranking, which is why the read's three
+are worth taking layer 5's rung from 9/50 to 15/50 at all, but the prior on any reordering is *a few
+levels, not a layer*. **A bench decides it in minutes, and if ferry/deep do not move this item ends
+there and says so** — which is the whole reason it is a bench and not a campaign.
+
+**Cost:** ~40 lines, ~15 of them not comment, then the four benches above. Everything the tier reads is
+written and measured; a campaign is only earned if the benches move.
+
+---
+
+## 5 (6th) — level 6's decomposition
 
 *Level 10's half of this item is done: it is `--push-fire-tier`, it is
 [Layer 9](layers.md#layer-9--exposure-as-a-tier---own-rung-the-population-pays-the-example-does-not), it
@@ -415,7 +557,7 @@ level 10's half of it and level 10 is still unsolved.
 
 ---
 
-## 14 (6th) — per-level width from the record, and the calibration that sizes it
+## 14 (7th) — per-level width from the record, and the calibration that sizes it
 
 **The record's shot count is this project's search depth.** Over the 20 hand recordings, board changes
 divided by `.ghs` shots is p25 0.96 / **p50 1.00** / p75 1.09, exact on six of twenty, and level 6 is
@@ -453,7 +595,7 @@ without parity's exceptions (ice, tunnels, tank movers, several flags).
 
 ---
 
-## 4 (7th) — the campaign that decides whether `--best-of-round` is a default
+## 4 (8th) — the campaign that decides whether `--best-of-round` is a default
 
 **The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
 115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
@@ -489,7 +631,7 @@ at the level). **Level 8's 308 has not.**
 
 ---
 
-## 7 (8th) — the solved-vs-budget curve
+## 7 (9th) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;

@@ -253,6 +253,13 @@ namespace LaserTank.Solver
 "                         --analyze: after this change, is there a board\n" +
 "                         change the tank could not make before?  Costs a\n" +
 "                         second enumeration on each --read-opens closure\n" +
+"    --read-rare N        item 16's first derivation, default 2: an element\n" +
+"                         the authored board has N or fewer cells of is one\n" +
+"                         the level has *few* of, and a board change that\n" +
+"                         touches one is what the read counts.  Instrument\n" +
+"                         only -- the rare/in_rare pair of --read-dump.  The\n" +
+"                         spend/in_spend pair beside it needs --read-enables\n" +
+"                         and reports -1 without it\n" +
 "\n" +
 "  layer 5 -- push macros (Push.cs).  OFF by default, same reason, and\n" +
 "  the same second pass.  The movement closure here is PF-*preserving*, so\n" +
@@ -617,6 +624,7 @@ namespace LaserTank.Solver
                         case "--read-antitank-wall":
                             a.Opt.ReadAntiTankWall = true; break;
                         case "--read-enables": a.Opt.ReadEnables = true; break;
+                        case "--read-rare": a.Opt.ReadRareMax = int.Parse(V()); break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
@@ -1403,6 +1411,7 @@ namespace LaserTank.Solver
             ReadOpensCap = s.ReadOpensCap,
             ReadAntiTankWall = s.ReadAntiTankWall,
             ReadEnables = s.ReadEnables,
+            ReadRareMax = s.ReadRareMax,
             PushRead = s.PushRead,
             PushReadOpens = s.PushReadOpens,
             PushEnables = s.PushEnables,

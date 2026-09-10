@@ -32,6 +32,18 @@ those advance, and a verdict naming the level's shape. `--analyze-tsv FILE` is o
 joining against a campaign report; `--read-dump FILE` (with `--lpb-list`) scores the read against what
 humans actually did next.
 
+**`--read-dump` is where a new derivation goes before it is a tier**, and its columns come in pairs: how
+many of the successors offered at this instant the derivation named, and whether it named the change the
+human actually made. `advance`, `opens`, `bt`, `enables`, `enables_adv`, then session 42's three —
+`rare`/`in_rare` (an element the authored board has `--read-rare N` or fewer cells of, default 2),
+`spend`/`in_spend` with `spend_nk` and the `spend_kind` mask beside them (what the change consumes:
+`fill` 1, `brick` 2, `ice` 4, `kill` 8, `face` 16, `roto` 32), and `clears`/`in_clears` (a gun taken off
+a cell the route named). **Pass `--read-enables`**: `spend` means "consumes something the read has no
+other reason for", two of those reasons are `Opens` and `Enables`, and without the flag the three spend
+columns report **-1** rather than a wrong count. Both sides of a pair are needed to read either — a
+derivation the human obeys 83% of the time is worth nothing if it names 83% of everything on offer, so
+the number to look at is the ratio.
+
 It costs no search and takes about a second. Example, and it is the whole diagnosis of `LaserTank.lvl` 10:
 
 ```

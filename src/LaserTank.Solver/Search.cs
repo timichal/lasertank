@@ -106,6 +106,13 @@ namespace LaserTank.Solver
                                            // only as a threat.  Off is what every
                                            // rung below layer 8 was tuned against;
                                            // see ReadDerive
+        public int ReadRareMax = 2;        // item 16's first derivation: how many
+                                           // cells of its own kind an element may
+                                           // have on the authored board and still
+                                           // count as one the level has few of.
+                                           // Instrument only -- nothing tiers on
+                                           // it until --read-dump says the human
+                                           // prefers rare elements at all
         public bool ReadEnables;           // layer 6's fourth derivation, instrument
                                            // only: after this change, is there a
                                            // board change the tank could not make

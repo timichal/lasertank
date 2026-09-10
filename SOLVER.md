@@ -180,6 +180,7 @@ These are the reason the numbers in these files can be trusted.
 | Layer 7 — the stop cell | *what must be blocked before the tank can stand next to the flag?* — own rung with `--push-shot-run`, adds 3 ferry / 5 deep, **solves level 2 in 65 s with no flags** |
 | Layer 8 — reading the board | six derivations (fire map, safe flood, frozen block, ferry assignment, ferry maze, shield). **Two rungs**, adding 3+1 ferry / 6+2 deep; **solves level 8** (57.5M nodes, width 512) |
 | Layer 9 — exposure as a tier | `--push-fire-tier`, the fire map promoted from an addend to a tier; **tenth rung**. Over the 138 unsolved short-record GAUNTLETs at 40M it is **85 against the control's 76, with 15 exclusive levels against 6** (union 91 of 138, 65.9%; 161 of 161 gated). Costs **9% wall clock**. **Does not solve `LaserTank.lvl` 10**, the level it was derived from. **Now validated over the corpus** (session 33): as the fourth-pass arm `l8fire` it is **66 of 255 (25.9%)**, the best solo arm ever measured on that population, and it **retires `l8work`** — see the row below |
+| The read's derivations, scored against the human | Over the 20 hand recordings' **800 board changes**, each derivation as *named / offered* against *named / what the human did*: `advance` 58.5% → 83.4% (1.43x), `opens` 56.2% → 78.9% (1.40x), `enables` 68.7% → 92.1% (1.34x), and session 42's two: **`rare` 5.1% → 16.0% (3.15x)** and **`spend` 7.6% → 1.9% (0.25x**, i.e. the human avoids it — 0.3% and 0.04x with the anti-tank kill exempted, which is the form it would ship in). `clears`, the fifth derivation the spend column turned up by failing, is **0.88x and does not ship** |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | The fourth pass, rehearsed | **87 of 255 (34.1%)** of the levels the chain fails, as the **union of seven arms at 40M nodes** on a 1-in-15 stride of the failure population; 372 of 372 gated. The pass is still a chain of arms rather than a configuration, but the arms changed: **the three that ship are now `l8fire` → `layer7` → `enables`, 84 (32.9%)**, against the 81 of the three it replaces. **`--push-fire-tier` does not add a fourth arm, it replaces the first** — `l8work` contributes **+0** to the seven-arm union and holds **1** exclusive level against `l8fire`'s 6. So the pass is better by 3 levels at the *same* three-arm cost (~54 h), not 72 h |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 now has a named candidate** (session 34): it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line. What was missing is a *gradient*, and the harvested goal board supplies one: the blog's line wins in 179 moves / 52 shots by **pushing six of the ten anti-tanks and destroying none**, minimum total push distance 30, and it names the cells they end on — so it separates the three root pushes `--analyze` offers and cannot rank. **Level 6 "Cascade" has no post**, so it gains nothing from this and item 5 stands |
@@ -237,7 +238,7 @@ attack on it.
 
 ## What is open
 
-Nine items, **in this order and not in numeric order**. Numbers are kept because these files refer to
+Ten items, **in this order and not in numeric order**. Numbers are kept because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
@@ -245,13 +246,14 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 | # | order | what it is | cost |
 |---|---|---|---|
 | **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, `... status` for the table | ~54 h |
-| **16** | 2nd | **four derivations the read does not have** — author intent, spending an irreversible resource, FMO mobility as a quantity, a per-carry constant in `MatchFerry`. Each is a distribution before it is a tier | two `--read-dump` columns and one replay decide two of them |
+| **16** | 2nd | **four derivations the read does not have** — author intent, spending an irreversible resource, FMO mobility as a quantity, a per-carry constant in `MatchFerry`. Each is a distribution before it is a tier. **The first two are measured (session 42) and both survived**: rarity is **3.15x**, the largest lift the read has ever shown, and the spend tier demotes 2 of the human's 795 changes once the anti-tank kill is exempted. A fifth derivation the run turned up — `clears` — was measured and **refused** | the two remaining: an `--analyze-tsv` column and a join, then an offline `--ferry-weight` sweep |
 | **15** | 3rd | **`--push-seed K`** — start the search from the K-th board change of a recording. **It is item 5's missing cheap falsifier** | a flag and eight short runs |
 | **13** | 4th | **the shot test** — a solution above the record's shot count is a measurably worse route (1.85x against 1.41x). A report column now; a `--best-of-round` rule with item 4 | free; the measurement is already run |
-| **5** | 5th | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
-| **14** | 6th | **per-level width from the record** — the driver ladders width globally. The free calibration is done and says the estimate sizes an order of magnitude, not a width | one run on the GAUNTLET tail |
-| **4** | 7th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
-| **7** | 8th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
+| **17** | 5th | **the rarity tier** — item 16's measured derivation as a rung, in front of `TierAdvance`. **The only open item whose falsifier is already run.** Ends at the bench if ferry/deep do not move | ~40 lines, then four benches |
+| **5** | 6th | **level 6's decomposition** — level 10's fire tier is done and is Layer 9 | a layer-sized build |
+| **14** | 7th | **per-level width from the record** — the driver ladders width globally. The free calibration is done and says the estimate sizes an order of magnitude, not a width | one run on the GAUNTLET tail |
+| **4** | 8th | the campaign that decides whether `--best-of-round` is a **default** | a stride campaign with the flag against one without |
+| **7** | 9th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
 
 **The rule they are ordered by is *cheapest falsifier first, whatever kind of work it is*.**
@@ -261,7 +263,9 @@ in front of the project did not move and one banked solution got worse. Item 6 i
 bought: three sessions, and what came out was a decoded goal board for `LaserTank.lvl` 10 and a ranking
 key that separates its root pushes, rather than a percentage.
 
-**Items 13-16 are new in session 37 and they all come from one source**, which is the second key paying
+**Item 17 is new in session 42**: item 16's shared falsifier qualified one of its four derivations at
+3.15x, and what is left of that one is a build and four benches rather than a question, which is what
+puts it ahead of item 5. **Items 13-16 are new in session 37 and they all come from one source**, which is the second key paying
 out again: the harvest blog's ten-post *Lyf Series* on how a strong human plays, read against the layers
 in [`docs/solver/human-strategy.md`](docs/solver/human-strategy.md). Reading it produced three
 measurements before it produced any proposal — the record's shot count **is** layer 5's search depth

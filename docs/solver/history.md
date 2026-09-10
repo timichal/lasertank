@@ -1001,6 +1001,16 @@ is in [`SOLVER.md`](../../SOLVER.md#status).
 
 ## The state of the tree and of `build/`
 
+**`build/lasertank-solve.exe` is one session behind the tree, on purpose.** Session 42 added
+`--read-rare` and five `--read-dump` columns to `src/LaserTank.Solver/Analyze.cs`, but item 2's pass has
+held the published binary open since 2026-09-10 and `dotnet publish -o build` cannot replace a running
+`.exe` — so the session's binary is **`build/item16/lasertank-solve.exe`**
+(`dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c Release -o build/item16`), and
+`build/lasertank-solve.exe` will not accept `--read-rare` until the pass finishes and `src/build.sh`
+runs. This is the `$LT_SOLVE` situation the three runner scripts exist for, arrived at from the other
+direction. Nothing in the shipped search moved: `--from 1 --to 12 --nodes 400000` is identical from both
+binaries, and `Enumerate`/`AnalyzeAt` are reached only from `--analyze` and `--read-dump`.
+
 **Sessions 34 and 35 added four files between them and touched no engine and no solver code.** Session 34:
 `tools/harvest.py` (the blogspot harvester: `index`/`map`/`fetch`/`codebook`/`sheet`/`label`/`decode`),
 `tools/png.py` (a stdlib PNG reader and writer, needed because this machine has neither PIL nor numpy)
@@ -1449,6 +1459,64 @@ Four things worth more than the numbers:
   had. All 21 through the two-engine gate. Nothing here is tuned — one weight, one price, neither swept
   — because the population is 141 levels rather than 3,709 and everything it produces is outside the
   rate.
+
+**session 42 — item 16's shared falsifier, and the derivation it turned up by failing.** Sessions 37-41
+were item 6's, and are logged under
+[closed item 6](#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key). This one is
+item 2's machine time being spent by the machine while the list moves on beside it: item 2 has been
+running since 2026-09-10, its arms are node-governed, so a two-second replay costs it wall clock and
+nothing else. Item 16's first two derivations were specified with one shared falsifier — two
+`--read-dump` columns and one replay — and it is run. Four things came out of it, in ascending order of
+how much they cost to learn:
+
+* **Both derivations survived, and the author-intent one is the largest lift the read has ever
+  measured.** `rare` — a board change that touches an element the *authored* board has two or fewer
+  cells of, families collapsed — is named on 5.1% of the successors on offer and is what the human did
+  16.0% of the time: **3.15x**, against 1.43x for `advance`, 1.40x for `opens` and 1.34x for `enables`,
+  the three derivations the read already ships. It costs a 256-byte census per level: no closure, no
+  second enumeration. **The read's three existing derivations are all about terrain and all sit between
+  1.3x and 1.5x; the first one about the author sits at 3.2x.**
+* **The spend tier is right-signed, and its exceptions were one thing rather than noise.** `spend` — a
+  change that consumes something while the read names no barrier, no `opens` and no `enables` — is
+  offered on 7.6% of successors and is what the human did **1.9%** of the time (15 of 795): **0.25x**,
+  so the tier demotes what the human avoids, which is the direction the item said it had to be. The 15
+  exceptions are where the session actually went. **13 of them are `kill`** — a gun shot in the face —
+  and the reason is structural rather than statistical: `KillAtank` leaves a *solid* wreck, so the cell
+  stays impassable and `opens` is 0; the gun was covering a free cell of the route rather than standing
+  on one, so it is a `Threats` entry and no derivation reads that list; and a dead gun makes no new
+  board change possible. Exempting the kill leaves **2 of 795** human changes demoted (0.04x) and still
+  names 507 of the 7,772 successors, so the exemption costs the tier 14% of its reach and buys back
+  almost all of its error. That number exists because the spend column was built as a **mask of what
+  was consumed** rather than as a bool — `fill / brick / ice / kill / face / roto` — which is the whole
+  reason the 15 could be attributed without a second replay.
+* **The fifth derivation was built, measured, and refused.** If the read has nothing for *fire*, add the
+  free one: `clears`, a change that leaves an anti-tank the route named as a threat off the cell it
+  named it on. It is **0.88x over all 800 changes, 1.12x over the 543 where the route names a gun at
+  all, 1.31x over the 287 where a clearing shot is on offer**, and it explains only 9 of the 15. The
+  other 6 say why: `LaserTank.lvl` 20 is *"Destroy most of the guns"*, and the human kills three guns
+  the route does not yet name — the route is re-derived every board change, so a gun that will matter
+  in twelve moves is not a threat now. **A threat model that outlives one board change is item 5's
+  shape, not a free column's.** Kept in the dump as a measured negative, because a negative result that
+  is deleted gets re-run.
+* **The threshold was swept, and the sweep is the caveat.** `--read-rare N`: 1 → 3.52x, 2 → 3.15x,
+  3 → 2.37x, 4 → 2.00x, 5 → 1.98x, **6 → 2.59x**, 8 → 2.50x, 12 → 2.04x. The overall shape is the decay
+  into the base rate that "few" losing its meaning should produce, but it is **not monotone**, and the
+  bump at 6-8 is one class count on a twenty-level sample — `LaserTank.lvl` 20 has exactly six guns.
+  So the lift is real at every threshold and its *magnitude* is a 20-recording number, which is
+  precisely what item 6's bank was banked to widen. The default is 2 and the flag exists so the sweep
+  can be re-run on a wider sample without a rebuild.
+
+**One discipline note, because it was nearly got wrong.** `spend` reads `Opens` and `Enables`, and both
+are only computed under `--read-enables` and inside the `--read-opens` cap. Without the flag the phrase
+"for no derived reason" silently collapses into "not on the barrier" and the column would have reported
+a *number* — so the three spend columns report **-1** when the derivation was not asked, and
+`Read.SpendAsked` is what decides. A missing label, never a wrong one, is the same rule `Effect.Opens`
+was given when its cap was introduced.
+
+**Nothing in the shipped search changed.** `Enumerate` and `AnalyzeAt` are reached only from `--analyze`
+and `--read-dump`; the tier path is `ReadDerive`/`Advances` and it was not touched. Checked rather than
+asserted: `--from 1 --to 12 --nodes 400000` is byte-identical before and after (1 solved, budget 9,
+beam-dead-end 2).
 
 ---
 

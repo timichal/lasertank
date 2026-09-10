@@ -85,6 +85,28 @@ namespace LaserTank.Solver
         /// other derivation here scores identically.  See Goal.cs.
         public int GoalAfter = -1, GoalDelta;
 
+        /// Item 16's first derivation: the smallest number of cells of its own
+        /// kind that the author gave any element this change touches, or 0 when
+        /// it touches nothing that is counted.  See Solver.RareOf -- the supply
+        /// is counted on the level *as authored* and the threshold that turns
+        /// this into a set is `--read-rare`.
+        public int Rare;
+
+        /// Cells of the route's `Threats` list this change leaves without an
+        /// anti-tank on them.  See Solver.ClearsOf -- not one of item 16's
+        /// four, but the one its second derivation turned up by failing.
+        public int Clears;
+
+        /// Item 16's second derivation, as a mask of Solver.Spend* bits: what
+        /// this change *consumes*.  A brick shot away, thin ice walked, an
+        /// anti-tank killed or pushed the way it faces, a block sunk, a roto
+        /// turned -- the reversibility list the Lyf series spells out, read off
+        /// the delta.  See Solver.SpendKind.
+        ///
+        /// On its own this is not a criticism of the change: the criticism is
+        /// `Spends != 0 && nothing derived`, which is what Read.Spend collects.
+        public int Spends;
+
         /// What changed, as a string, so two effects can be compared without
         /// comparing the states that produced them.  This is what lets the
         /// instrument ask "is the board change the human made next one of the
@@ -175,6 +197,20 @@ namespace LaserTank.Solver
         public List<Effect> Opens = new List<Effect>();  // leave the tank able to stand somewhere new
         public List<Effect> Enables = new List<Effect>();     // make a new board change possible
         public List<Effect> EnablesAdv = new List<Effect>();  // ...and one the read would name
+        public List<Effect> Clears = new List<Effect>();  // take a gun off a cell the route named
+        public List<Effect> Rare = new List<Effect>();    // touch an element the level has few of
+        public List<Effect> Spend = new List<Effect>();   // consume something for no derived reason
+
+        /// Whether the Spend list was asked at all.  It reads `Effect.Opens`
+        /// and `Effect.Enables`, and both of those are only computed under the
+        /// --read-opens cap and (for enables) --read-enables -- so without them
+        /// "no derived reason" would collapse into "no barrier" and the column
+        /// would be wrong rather than missing.  False means not asked.
+        public bool SpendAsked;
+
+        /// The --read-rare threshold this read was taken at, so a printed read
+        /// says what "few" meant rather than leaving it to the reader.
+        public int ReadRareMax;
         public string Verdict = "";
         public string Why = "";
 
@@ -407,6 +443,7 @@ namespace LaserTank.Solver
             }
 
             AfterPass(region, r, barrier);
+            RarePass(r, new HashSet<Effect>(r.OnBarrier));
         }
 
         /// The enumeration itself, split out because the fourth derivation runs
@@ -480,6 +517,287 @@ namespace LaserTank.Solver
             return Nearest(e.BlockTo, water) < Nearest(e.BlockFrom, water);
         }
 
+        // ---- item 16's two derivations, both read off the delta -------------
+        //
+        // Both are here as *columns first*: --read-dump reports what each one
+        // says about the human's board changes against what it says about the
+        // successors the read offered at the same instant, and neither becomes
+        // a tier until that distribution says it is not folklore.  The rule is
+        // layer 6's own -- a new derivation reports a distribution before it
+        // reports a solved count.
+
+        /// The element classes the author's-intent derivation counts, with the
+        /// four-way families collapsed: "a lone mirror" is a claim about
+        /// mirrors, not about mirrors that happen to face up-left.
+        ///
+        /// Dirt, the tank and the flag are not counted.  Dirt is the
+        /// background; of the other two every level has exactly one, so "the
+        /// level has few of it" is always true there and derives nothing.
+        private const int RareClassCount = 12;
+
+        /// The authored census of the level under the read, refilled per read
+        /// and left in place afterwards so --read-dump can price the human's
+        /// own delta against the same supply the effects were priced against.
+        private readonly int[] _rareMult = new int[RareClassCount];
+
+        private static int RareClass(int cell)
+        {
+            if (Obj.IsTunnel(cell)) return 11;   // by the mouth: a lone pair is two
+            switch (cell)
+            {
+                case Obj.Water: return 0;
+                case Obj.Solid: return 1;
+                case Obj.Block: return 2;
+                case Obj.Bricks: return 3;
+                case Obj.AntiTankUp:
+                case Obj.AntiTankRight:
+                case Obj.AntiTankDown:
+                case Obj.AntiTankLeft: return 4;
+                case Obj.MirrorUL:
+                case Obj.MirrorUR:
+                case Obj.MirrorDR:
+                case Obj.MirrorDL: return 5;
+                case Obj.ConveyorUp:
+                case Obj.ConveyorRight:
+                case Obj.ConveyorDown:
+                case Obj.ConveyorLeft: return 6;
+                case Obj.Crystal: return 7;
+                case Obj.RotoUL:
+                case Obj.RotoUR:
+                case Obj.RotoDR:
+                case Obj.RotoDL: return 8;
+                case Obj.Ice: return 9;
+                case Obj.ThinIce: return 10;
+                default: return -1;              // dirt, the tank, the flag
+            }
+        }
+
+        /// How many cells of each class the author placed.
+        ///
+        /// Counted on `Level.PF` -- the board *as authored* -- and not on the
+        /// board being read, for two reasons.  The claim is about what the
+        /// author put there ("why is it there?"), and a search that wanted to
+        /// tier on it knows the authored board as a static property of the
+        /// level while the board under it changes every expansion.
+        private void RareCensus(int[] mult)
+        {
+            Array.Clear(mult, 0, mult.Length);
+            byte[] pf = Level.PF;
+            for (int c = 0; c < 256; c++)
+            {
+                int k = RareClass(pf[c]);
+                if (k >= 0) mult[k]++;
+            }
+        }
+
+        /// The first derivation: how rare is the rarest thing this change
+        /// touches?
+        ///
+        /// *"Objects were put on the map by the author for 4 reasons: useful,
+        /// beautiful, misleading, special hobby... especially when some object
+        /// is weird on the map.  Ask yourself 'Why is it there?'"*  A lone
+        /// mirror, one crystal, the single block on an otherwise plain board is
+        /// load-bearing far more often than chance -- or so the claim goes.
+        ///
+        /// The identity of what is touched comes from the board being read and
+        /// the supply from the board as authored, which together make this
+        /// "you are touching one of the two mirrors this author placed".  A
+        /// class present at the cell but absent from the authored census -- the
+        /// water a melted thin-ice cell left behind, on a level that was
+        /// authored with none -- counts as one rather than as none.
+        ///
+        /// Both cells of a push count: a block pushed onto the level's only
+        /// water cell touches that water.  Returns 0 when the change touches
+        /// nothing counted at all.
+        private static int RareOf(int[] mult, int[] cells, byte[] was)
+        {
+            int best = 0;
+            for (int i = 0; i < cells.Length; i++) best = RareStep(mult, was[i], best);
+            return best;
+        }
+
+        /// The same question asked of a delta rather than of an effect, which
+        /// is what --read-dump needs for the human's own change: the change is
+        /// answered whether or not the enumeration named it, so the 2.4% of
+        /// board changes the read does not offer still get a rarity.
+        private static int RareOfDelta(int[] mult, byte[] before, byte[] after)
+        {
+            int best = 0;
+            for (int c = 0; c < 256; c++)
+                if (after[c] != before[c]) best = RareStep(mult, before[c], best);
+            return best;
+        }
+
+        private static int RareStep(int[] mult, byte was, int best)
+        {
+            int k = RareClass(was);
+            if (k < 0) return best;
+            int m = Math.Max(mult[k], 1);
+            return best == 0 || m < best ? m : best;
+        }
+
+        /// The second derivation: does this change *spend* something, and what?
+        ///
+        /// The series' reversibility section is a precise list of what play
+        /// consumes, and every entry on it is legible in the delta alone --
+        /// which is what these bits are, one per entry:
+        ///
+        ///   * `SpendFill`  -- a movable block that did not survive the change;
+        ///   * `SpendBrick` -- bricks shot away, to dirt (CheckLLoc case 6);
+        ///   * `SpendIce`   -- thin ice walked or slid over, to water (IceMoveT);
+        ///   * `SpendKill`  -- an anti-tank shot in the face, which leaves the
+        ///     *solid* wreck KillAtank puts there and is why this bit asks "no
+        ///     longer an anti-tank" rather than "now dirt";
+        ///   * `SpendFace`  -- an anti-tank pushed the way it faces, the one
+        ///     push that cannot be undone: putting it back means shooting the
+        ///     face, and the face is the side that kills it;
+        ///   * `SpendRoto`  -- a roto turned, three more shots to bring round.
+        ///
+        /// The search prices none of these today.  `_alive`'s frozen block and
+        /// RouteDead's holes-against-live-blocks are facts about what is
+        /// *left*, never about what was spent to get there.
+        ///
+        /// A mask rather than a bool because the question the tier will ask
+        /// next is which spend needs an exemption: on its own a spend is not a
+        /// criticism -- every fill is one -- and the criticism is a spend the
+        /// read has nothing else to say about, which is what RarePass collects.
+        /// Naming the kind is what lets those be counted per kind without a
+        /// second replay.
+        public const int SpendFill = 1, SpendBrick = 2, SpendIce = 4,
+                         SpendKill = 8, SpendFace = 16, SpendRoto = 32;
+
+        private static int SpendKind(int[] cells, byte[] was, byte[] now)
+        {
+            int mask = 0, blockFrom = -1, blockTo = -1, atFrom = -1, atTo = -1, faces = 0;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                byte a = was[i], b = now[i];
+                if (a == Obj.Bricks && b != Obj.Bricks) mask |= SpendBrick;
+                if (a == Obj.ThinIce && b != Obj.ThinIce) mask |= SpendIce;
+                bool aRoto = a >= Obj.RotoUL && a <= Obj.RotoDL;
+                if (aRoto && b >= Obj.RotoUL && b <= Obj.RotoDL && b != a) mask |= SpendRoto;
+
+                if (a == Obj.Block && b != Obj.Block) blockFrom = cells[i];
+                if (a != Obj.Block && b == Obj.Block) blockTo = cells[i];
+
+                bool aAnti = a >= Obj.AntiTankUp && a <= Obj.AntiTankLeft;
+                bool bAnti = b >= Obj.AntiTankUp && b <= Obj.AntiTankLeft;
+                if (aAnti && !bAnti) atFrom = cells[i];
+                if (!aAnti && bAnti) { atTo = cells[i]; faces = b - Obj.AntiTankUp + 1; }
+            }
+            if (blockFrom >= 0 && blockTo < 0) mask |= SpendFill;
+            if (atFrom >= 0 && atTo < 0) mask |= SpendKill;
+            else if (atFrom >= 0 && atTo >= 0 && Step(faces, out int fx, out int fy)
+                     && (atTo >> 4) - (atFrom >> 4) == fx
+                     && (atTo & 15) - (atFrom & 15) == fy)
+                mask |= SpendFace;
+            return mask;
+        }
+
+        /// The same off two boards, for --read-dump's own question about the
+        /// human's change: the change is answered whether or not the
+        /// enumeration named it.
+        private static int SpendKindOfDelta(byte[] before, byte[] after)
+        {
+            List<int> cells = new List<int>();
+            for (int c = 0; c < 256; c++) if (after[c] != before[c]) cells.Add(c);
+            byte[] was = new byte[cells.Count], now = new byte[cells.Count];
+            for (int i = 0; i < cells.Count; i++)
+            {
+                was[i] = before[cells[i]];
+                now[i] = after[cells[i]];
+            }
+            return SpendKind(cells.ToArray(), was, now);
+        }
+
+        /// The six bits as the letters --read-dump and the printed read use.
+        public static string SpendName(int mask)
+        {
+            if (mask == 0) return "-";
+            StringBuilder b = new StringBuilder();
+            if ((mask & SpendFill) != 0) b.Append("fill,");
+            if ((mask & SpendBrick) != 0) b.Append("brick,");
+            if ((mask & SpendIce) != 0) b.Append("ice,");
+            if ((mask & SpendKill) != 0) b.Append("kill,");
+            if ((mask & SpendFace) != 0) b.Append("face,");
+            if ((mask & SpendRoto) != 0) b.Append("roto,");
+            return b.ToString(0, b.Length - 1);
+        }
+
+        /// The derivation the second one turned up by failing: does this change
+        /// take an anti-tank the route named off the cell it named it on?
+        ///
+        /// This is not one of item 16's four.  It is what the shared falsifier
+        /// found underneath them: of the 15 board changes the human made that
+        /// spend something the read cannot justify, 13 are `kill` -- an
+        /// anti-tank shot in the face -- and they are unjustified for a
+        /// structural reason rather than by accident.  KillAtank leaves a
+        /// *solid* wreck (Engine.cs:867), so the cell stays impassable and
+        /// `opens` is 0; the gun was covering a free cell of the route rather
+        /// than standing on one, so it is a `Threats` entry and not a `Barrier`
+        /// entry and no derivation reads that list; and a dead gun makes no new
+        /// board change possible, so `enables` is 0 too.  Meanwhile shooting
+        /// the gun that covers your road is the entire content of the move.
+        ///
+        /// So the read has three derivations for terrain and none for *fire*,
+        /// which is exactly the gap the GAUNTLET verdict already names in
+        /// words: "what is in the way is fire, not terrain".
+        ///
+        /// Costs nothing -- no closure, no second enumeration, just the delta
+        /// against a list the read has already built.  What it does not model:
+        /// an anti-tank pushed off a threat cell may well cover the route from
+        /// wherever it lands, and this counts that as cleared.  A tier can only
+        /// reorder, so the direction of that error is a promotion the search
+        /// still has to justify by searching, never a refusal.
+        private static int ClearsOf(List<int> threats, int[] cells, byte[] was, byte[] now)
+        {
+            if (threats.Count == 0) return 0;
+            int n = 0;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                if (!(was[i] >= Obj.AntiTankUp && was[i] <= Obj.AntiTankLeft)) continue;
+                if (now[i] >= Obj.AntiTankUp && now[i] <= Obj.AntiTankLeft) continue;
+                if (threats.Contains(cells[i])) n++;
+            }
+            return n;
+        }
+
+        private static int ClearsOfDelta(List<int> threats, byte[] before, byte[] after)
+        {
+            if (threats.Count == 0) return 0;
+            int n = 0;
+            foreach (int c in threats)
+            {
+                if (!(before[c] >= Obj.AntiTankUp && before[c] <= Obj.AntiTankLeft)) continue;
+                if (after[c] >= Obj.AntiTankUp && after[c] <= Obj.AntiTankLeft) continue;
+                if (after[c] != before[c]) n++;
+            }
+            return n;
+        }
+
+        /// Both derivations over the enumeration, run after the third and
+        /// fourth because Spend reads them: "for no derived reason" means the
+        /// read has nothing else to say about the change, and if Opens and
+        /// Enables were not asked then that phrase collapses into "not on the
+        /// barrier" -- which is why an unasked Spend is a *missing* label
+        /// (Read.SpendAsked) rather than a wrong one.
+        private void RarePass(Read r, HashSet<Effect> onBarrier)
+        {
+            RareCensus(_rareMult);
+            r.ReadRareMax = _opt.ReadRareMax;
+            foreach (Effect e in r.Effects)
+            {
+                e.Rare = RareOf(_rareMult, e.Cells, e.Was);
+                if (e.Rare > 0 && e.Rare <= _opt.ReadRareMax) r.Rare.Add(e);
+                e.Clears = ClearsOf(r.Threats, e.Cells, e.Was, e.Now);
+                if (e.Clears > 0) r.Clears.Add(e);
+                e.Spends = SpendKind(e.Cells, e.Was, e.Now);
+                if (r.SpendAsked && e.Spends != 0 && e.Opens == 0 && e.Enables == 0
+                    && !onBarrier.Contains(e))
+                    r.Spend.Add(e);
+            }
+        }
+
         /// Which of the effects leave the tank able to stand somewhere it could
         /// not stand before.
         ///
@@ -513,6 +831,7 @@ namespace LaserTank.Solver
                 foreach (Effect e in r.Effects) had.Add(e.Delta);
             }
 
+            r.SpendAsked = _opt.ReadEnables && r.Effects.Count <= _opt.ReadOpensCap;
             if (r.Effects.Count <= _opt.ReadOpensCap)
             {
                 foreach (Effect e in r.Effects)
@@ -729,6 +1048,17 @@ namespace LaserTank.Solver
             foreach (Effect e in Head(r.OnBarrier, 4)) b.Append("        ").Append(Line(e));
             b.Append("     open somewhere new to stand: ").Append(r.Opens.Count).Append('\n');
             foreach (Effect e in Head(r.Opens, 4)) b.Append("        ").Append(Line(e));
+            b.Append("     take a gun off a cell the route named: ").Append(r.Clears.Count)
+             .Append('\n');
+            foreach (Effect e in Head(r.Clears, 4)) b.Append("        ").Append(Line(e));
+            b.Append("     touch something the author placed ").Append(r.ReadRareMax)
+             .Append(" or fewer of: ").Append(r.Rare.Count).Append('\n');
+            foreach (Effect e in Head(r.Rare, 4)) b.Append("        ").Append(Line(e));
+            b.Append("     spend something for no derived reason: ")
+             .Append(r.SpendAsked ? r.Spend.Count.ToString()
+                                  : "not asked (needs --read-enables)").Append('\n');
+            foreach (Effect e in Head(r.Spend, 4))
+                b.Append("        ").Append(SpendName(e.Spends)).Append("  ").Append(Line(e));
 
             if (r.RouteWater.Count > 0)
             {
@@ -983,11 +1313,22 @@ namespace LaserTank.Solver
                 HashSet<string> opens = new HashSet<string>();
                 HashSet<string> enab = new HashSet<string>();
                 HashSet<string> enabAdv = new HashSet<string>();
+                HashSet<string> spend = new HashSet<string>();
                 foreach (Effect e in r.OnBarrier) advance.Add(e.Sig);
                 foreach (Effect e in r.Toward) advance.Add(e.Sig);
                 foreach (Effect e in r.Opens) opens.Add(e.Sig);
                 foreach (Effect e in r.Enables) enab.Add(e.Sig);
                 foreach (Effect e in r.EnablesAdv) enabAdv.Add(e.Sig);
+                int spendNoKill = 0;
+                foreach (Effect e in r.Spend)
+                {
+                    spend.Add(e.Sig);
+                    if ((e.Spends & SpendKill) == 0) spendNoKill++;
+                }
+                int rareHere = RareOfDelta(_rareMult, prev, now);
+                int spendHere = SpendKindOfDelta(prev, now);
+                int clearsHere = ClearsOfDelta(r.Threats, prev, now);
+                bool inRare = rareHere > 0 && rareHere <= _opt.ReadRareMax;
                 bool inEffects = false;
                 foreach (Effect e in r.Effects) if (e.Sig == sig) { inEffects = true; break; }
                 int bt = advance.Count;
@@ -1002,6 +1343,11 @@ namespace LaserTank.Solver
                     opens.Count, opens.Contains(sig) ? 1 : 0, bt, inBt ? 1 : 0,
                     enab.Count, enab.Contains(sig) ? 1 : 0,
                     enabAdv.Count, enabAdv.Contains(sig) ? 1 : 0,
+                    r.Rare.Count, inRare ? 1 : 0,
+                    r.SpendAsked ? r.Spend.Count : -1,
+                    r.SpendAsked ? (spend.Contains(sig) ? 1 : 0) : -1,
+                    r.SpendAsked ? spendNoKill : -1,
+                    spendHere, r.Threats.Count, r.Clears.Count, clearsHere > 0 ? 1 : 0,
                 }) + "\n");
                 rows++;
 
@@ -1020,7 +1366,9 @@ namespace LaserTank.Solver
         public const string ReadDumpHeader =
             "# collection\tlevel\tevent\tverdict\teffects\tadvance\tin_effects\t"
             + "in_advance\tbarrier\twater\tposes\topens\tin_opens\tbt\tin_bt\t"
-            + "enables\tin_enables\tenables_adv\tin_enables_adv\n";
+            + "enables\tin_enables\tenables_adv\tin_enables_adv\t"
+            + "rare\tin_rare\tspend\tin_spend\tspend_nk\tspend_kind\t"
+            + "threats\tclears\tin_clears\n";
 
         /// One row per level, for the question a printed read cannot answer:
         /// which *shapes* does the solver fail on.  Joined against a campaign
