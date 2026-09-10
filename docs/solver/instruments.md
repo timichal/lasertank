@@ -23,7 +23,16 @@ python tools/basin.py build/prof.tsv --per-level --events   # in board changes
 The number to read is the **longest stretch that stays at or above the best heuristic value seen so far**
 — see [*Why the search fails on long levels*](layers.md#why-the-search-fails-on-long-levels--the-measurement-the-rest-of-the-layers-answer).
 `--ferry-weight` sweeps layer 5's ferry weight offline against a recording instead of by re-running the
-solver.
+solver, and `--carry-cost K` sweeps a *per-carry constant* the same way, against the `holes` column
+(`Heuristic.RouteHoles`, the carries the ferry term priced). Item 16's fourth derivation was refused on
+that sweep — see [closed item 16](history.md#16-four-derivations-the-read-did-not-have--all-four-measured).
+
+**`--profile` now asks for the derivations the push flags name** (`Solver.WantsFromOptions`, shared with
+`PushH`), so pass the flags the arm carries — `--push --push-ferry-match --push-ferry-maze` for the
+shipped one — or the `ferry` column is layer 5's *per-hole* estimate rather than `MatchFerry`. It read
+the defaults however the run was flagged until session 43, which is the measure-the-wrong-quantity
+mistake in its fourth outing; a `build/prof.tsv` written before that is the default-flag key and is
+still the right baseline for the pre-layer-5 numbers quoted in `layers.md`.
 
 ## 2. Ask what the board is
 
@@ -59,8 +68,14 @@ LaserTank 10  "The Valley of Death"  by Jim Kindley  (Easy)
 ```
 
 `--analyze-tsv`'s columns are `collection level diff verdict work route_obst poses region barrier water
-blocks threats effects shots indirect on_barrier toward opens flag_reachable`, joinable against any
-campaign report on `(collection, level)`. The whole corpus is one loop of ~3 minutes:
+blocks threats effects shots indirect on_barrier toward opens flag_reachable alive mob_max mob_sum`,
+joinable against any campaign report on `(collection, level)`. The last three are item 16's third
+derivation (`Heuristic.Mobility`): the blocks that can be moved at all, the largest area one of them can
+be moved in, and the total. They are free — the flood is `_alive`'s own one-push test iterated, and the
+whole 4,185-level stride sample still takes 63 s. **Read them as difficulty, and note the sign**: more
+mobility means *fewer* solves, and the discrimination is a cliff at four cells rather than a gradient
+(9.5% at ≤4 against 5.3% above, with the record's length held fixed). The whole corpus is one loop of
+~3 minutes:
 
 ```bash
 for c in Beginner-I Beginner-II Challenge-I Challenge-II Challenge-III Challenge-IV Challenge-V \
@@ -95,6 +110,37 @@ barrier, across which every key is flat — the flag to add is `--push-enables 8
   line that ends on the flag does not end at 0 — level 9's winning line ends at 70.
 - **`--budget-ms` matters here** and its default of 4 s will bite: without it the instrument stops after
   a quarter of a million nodes and reports the line lost at depth 2 when nothing of the sort happened.
+
+### 3b. Ask how far from the end the search *can* finish — `--push-seed`
+
+`--push-seed FILE.lpb:K` replays a recording as far as its K-th board change and searches from there,
+which is the human editor trick mechanised (*"build the pivotal situation and play from it"*). The
+smallest suffix the search cannot finish is **the horizon in board changes** — the quantity every layer
+since 5 attacks and none had measured directly.
+
+```bash
+for K in 0 24 48 72 96 120 144 160; do
+  build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 6       --push-seed data/demos/LaserTank/00006.lpb:$K       --push --push-read --push-reach --push-ferry-match --push-ferry-maze       --push-dead 20 --push-beam 512 --max-keys 5000       --nodes 40000000 --budget-ms 1800000 --jobs 1       --out build/seed6/$K --report build/reports/seed6.jsonl --quiet
+done
+```
+
+- **It is hint-assisted and the code says so, not a convention** — same three rules `--goal-board` has:
+  the default output moves to `<out>-hint`, every report row carries `hint=push-seed:K`, and a seeded
+  win is never in the solver's rate. The `.lpb` itself is an ordinary one: `EngineSnapshot.Keys` carries
+  the replayed prefix, so the file replays from the level start and goes through the two-engine gate
+  like any other (three of them have).
+- **`--max-keys` has to clear the prefix** — the depth cap is the whole keystream, prefix included, and
+  872 of level 6's keypresses are gone before the search starts. It refuses with that arithmetic rather
+  than overrunning. `--budget-ms` defaults to 4 s and will bite here exactly as it does on `--push-line`.
+- **K = 0 is the control**, and it is node-identical to the same run without the flag — checked, because
+  a seeded root that is not the ordinary root when K is 0 would make every other row unreadable.
+- **Expect it monotone. A non-monotone reading is the finding**: a longer suffix that solves where a
+  shorter one does not means the line passes through a board the ranking key hates, and
+  `--push-trace-board` at that K says which.
+- **One level is a number; twenty is the quantity.** Level 6's horizon is 48 board changes and whether
+  that is the searcher's reach or that level's is
+  [item 18](next-actions.md#18-3rd--the-horizon-per-level-and-whether-it-is-a-searcher-constant), which
+  is this sweep bisected over each of the 20 hand recordings.
 
 ## 4. Look at the board the beam settled on, not only at its score
 
@@ -198,7 +244,10 @@ gauntlet_tail.sh  the two-arm A/B over bench/gauntlet-tail.txt -- the 138 unsolv
                     multi-collection list has to go through second_pass.sh and a
                     synthesised report.  NODES/BUDGET_MS/JOBS/LT_SOLVE all honoured
 report_stats.py   read a campaign .jsonl: per-tier and per-collection rates, stop
-                    reasons.  --diff compares two layers
+                    reasons, and item 13's shot test -- the solution's shots against
+                    the record's, which is the *strategy* against the execution.
+                    Records that spend no shot are left out rather than counted as
+                    matched.  --diff compares two layers
 chain_union.py    union the chain's four per-pass reports into chain.jsonl -- the
                     shipped chain's per-level state, and what the fourth pass has
                     to be pointed at.  Was a sentence in SOLVER.md until session 25
@@ -212,7 +261,8 @@ fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regen
                     Weights.cs (rebuild after — the vector is compiled in).
                     The one tool here that is not stdlib-only: needs numpy
 basin.py          read a --profile dump: how far uphill a winning line goes, per level,
-                    in keypresses and in board changes
+                    in keypresses and in board changes.  --ferry-weight and
+                    --carry-cost sweep the third column's two weights offline
 harvest.py        closed item 6: the blogspot goal-board harvester.  **`complete` is
                     the one to run**: the whole chain into the committed
                     bench/goal-boards.json (overwriting it, and reporting the bank it

@@ -637,6 +637,20 @@ DEMOLITION → 457, SETUP → 391. The whole-corpus version of this table is in
   worst-performing non-trivial class.
 - **The number of fills is the difficulty**, the first quantity that predicts the rate monotonically:
   1 fill 9.9%, 2 fills 5.7%, 3-4 1.8%, 5-8 1.7%, 9+ **0.7%**.
+- **How freely the blocks move is the second one, and its sign is the surprise** (session 43, item 16's
+  third derivation; the columns are `alive`, `mob_max`, `mob_sum`). `mob_max` is the size of the area the
+  freest block can be pushed over — `_alive`'s one-push test iterated. Over the same sample: **frozen
+  16.0%, 1-4 cells 11.5%, 5-8 4.1%, 9+ 4.5%**. So the *more* mobile the blocks, the *fewer* levels fall
+  — the opposite of the human claim it came from (*"it is generally easy to win if you have enough
+  FMOs"*), and the reason is that a free block is a resource to a player and a branching factor to a
+  beam: layer 5 searches board changes, and a block with a sixty-cell area is sixty of them at every
+  depth. Two things make it more than a restatement of *big open board*. It **survives the strongest
+  known proxy**: with the record's own length, the water count and the block count held fixed it
+  separates 9.5% / 5.3% (**1.78x**) where `poses` — board openness — gives 1.17x. And its shape is a
+  **cliff at four cells, not a gradient**: above 8 the column is flat, so what predicts is *whether the
+  blocks are penned in*, not how far they can go. Crowding (`mob_sum / blocks`, the series' own caveat)
+  adds nothing beyond it, and `alive` alone is weaker than the area — which is what makes the flood
+  worth its scan.
 
 **Measured against the humans, which is what decides whether to search by it.** `--read-dump` replays
 each winning recording, stops at every board change, and asks whether the change the human made next
@@ -1050,9 +1064,12 @@ Where the two that are left now stop, measured rather than guessed:
   tie-break) was the attempt at forcing one carry at a time; it fills one hole and stalls. The shape that
   is missing is layer 2's, one level out: **commit to one (block, hole) pair, search only for that, then
   re-derive** — a subgoal chain over board changes rather than one beam over the level. It was the one
-  open item with no cheap falsifier; [next-actions](next-actions.md) item 15 (`--push-seed K`, the search
-  started from the K-th board change of the hand recording) is one, and the human record says the
-  *commit to one pair* half of the design is the bet `--push-ferry-stage` already lost.
+  open item with no cheap falsifier; closed item 15 (`--push-seed K`, the search started from the K-th
+  board change of the hand recording) built one and **ran it on this level**: at 40M nodes and width 512
+  the beam closes the last **48** of the 168 board changes and not the last 51, monotone below that, and
+  24 changes cost 3.8M nodes against 48's 36.1M. So a phase this item proposes has to be worth about 48
+  board changes, the boundary is one change wide, and the human record says the *commit to one pair* half
+  of the design is the bet `--push-ferry-stage` already lost.
 - **10 is a GAUNTLET, and that is the whole of it.** The traced run at width 1024 with the layer-8 flags,
   `--push-restarts 0`, `--jobs 1`:
 

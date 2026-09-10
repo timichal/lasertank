@@ -201,6 +201,12 @@ namespace LaserTank.Solver
         public List<Effect> Rare = new List<Effect>();    // touch an element the level has few of
         public List<Effect> Spend = new List<Effect>();   // consume something for no derived reason
 
+        /// Item 16's third derivation (Heuristic.Mobility): the blocks that can
+        /// be moved at all, the largest area one of them can be moved in, and
+        /// the total over all of them.  `Blocks.Count - Alive` is the frozen
+        /// ones; `MobSum / Blocks.Count` is the series' crowding.
+        public int Alive, MobMax, MobSum;
+
         /// Whether the Spend list was asked at all.  It reads `Effect.Opens`
         /// and `Effect.Enables`, and both of those are only computed under the
         /// --read-opens cap and (for enables) --read-enables -- so without them
@@ -324,6 +330,16 @@ namespace LaserTank.Solver
             // ---- half three: what can change it, by changing it -------------
             Enumerate(poses, board, region, r);
             Drain(poses);
+
+            // ---- and how free the blocks are, which is neither -------------
+            // Last, and from the root again, because it rebuilds _rayOk and
+            // _alive: everything above has already read what WorkDistance and
+            // the frontier published.
+            _e.Restore(root);
+            _h.Mobility(_e, out _, out int malive, out int mmax, out int msum);
+            r.Alive = malive;
+            r.MobMax = mmax;
+            r.MobSum = msum;
 
             GoalRead(r, board);
             Classify(r);
@@ -1074,6 +1090,14 @@ namespace LaserTank.Solver
                 foreach (Effect e in Head(r.Toward, 4)) b.Append("        ").Append(Line(e));
             }
 
+            if (r.Blocks.Count > 0)
+            {
+                b.Append("     blocks: ").Append(r.Alive).Append(" of ")
+                 .Append(r.Blocks.Count).Append(" can be moved at all; the freest has ")
+                 .Append(r.MobMax).Append(" cells to be moved in, ").Append(r.MobSum)
+                 .Append(" over all of them\n");
+            }
+
             if (r.Goal >= 0)
             {
                 b.Append("  goal      the scraped goal board: ").Append(r.GoalDiff)
@@ -1383,13 +1407,15 @@ namespace LaserTank.Solver
                 r.Poses, r.RegionCells, r.Barrier.Count, r.RouteWater.Count, r.Blocks.Count,
                 r.Threats.Count, r.Effects.Count, shots, indirect,
                 r.OnBarrier.Count, r.Toward.Count, r.Opens.Count, r.FlagReachable ? 1 : 0,
+                r.Alive, r.MobMax, r.MobSum,
             }) + "\n";
         }
 
         public const string TsvHeader =
             "# collection	level	diff	verdict	work	route_obst	poses	region	"
             + "barrier	water	blocks	threats	effects	shots	indirect	"
-            + "on_barrier\ttoward\topens\tflag_reachable\n";
+            + "on_barrier\ttoward\topens\tflag_reachable\t"
+            + "alive\tmob_max\tmob_sum\n";
 
         private static string Line(Effect e)
         {

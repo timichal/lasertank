@@ -465,6 +465,21 @@ namespace LaserTank.Solver
             _stageNodes = (long)(_opt.NodeBudget * share);
         }
 
+        /// --push-seed's root: a recording's prefix, replayed into a throwaway
+        /// engine and handed here (Line.cs Seed, Program.LoadSeed).  Null for
+        /// an ordinary run, which is every run in every number these files
+        /// quote -- a seeded win is hint-assisted and says so in its report row.
+        ///
+        /// It carries its own keystream: EngineSnapshot.Keys is the path to the
+        /// state, Restore copies it back into RecBuffer, and every successor
+        /// extends it -- so the .lpb a seeded run writes replays from the level
+        /// start like any other and goes through the same two-engine gate.  That
+        /// is the whole reason the prefix travels as a snapshot rather than as a
+        /// board.
+        private EngineSnapshot _seed;
+
+        public void SetSeed(EngineSnapshot seed) { _seed = seed; }
+
         /// Fresh engine at the level's start position, configured exactly as the
         /// replay driver configures it.
         private EngineSnapshot Root(int level)
@@ -473,6 +488,19 @@ namespace LaserTank.Solver
             if (!_e.LoadLevel(_lvlPath, level))
                 throw new ArgumentException("no level " + level + " in " + _lvlPath);
             _e.BeginSearch(_opt.MaxKeys);
+            if (_seed != null)
+            {
+                // BeginSearch has just sized RecBuffer to MaxKeys, and Restore
+                // copies the prefix into it: a cap below the prefix is not a
+                // short search, it is an out-of-range copy.  --max-keys 5000
+                // is in the recipe for this reason.
+                if (_seed.KeyLen >= _opt.MaxKeys)
+                    throw new ArgumentException(
+                        "--push-seed prefix is " + _seed.KeyLen + " keys and --max-keys is "
+                        + _opt.MaxKeys + ": raise --max-keys above the prefix");
+                _e.Restore(_seed);
+                return _e.Snapshot();
+            }
             // The tick's FindTank/PutLevel pass has not run yet; ApplyKey's
             // first Tick does it, exactly as the driver's first tick does.
             return _e.Snapshot();

@@ -172,15 +172,15 @@ namespace LaserTank.Solver
         /// before `Tier = _lastDead ? ...`.  See TierLost.
         private bool _lastDead;
 
-        /// The ranking key.
-        ///
-        /// WorkDistance, plus PushFerry times Heuristic.RouteFerry -- the term
-        /// that makes carrying a block towards water score better than not
-        /// carrying it, without which this layer ranks an entire ferry as a
-        /// plateau and searches it breadth-first.  Read straight after
-        /// WorkDistance, which is what publishes it; the same coupling
-        /// Subgoal.cs's Rank() has, for the same reason.
-        private int PushH()
+        /// Which of the heuristic's optional derivations this run pays for,
+        /// off the push flags.  Extracted from PushH verbatim -- same
+        /// assignments in the same order, still immediately before the
+        /// WorkDistance that reads them -- because --profile has to rank the
+        /// human's line by the *same* key the beam ranks its successors by, and
+        /// before this it silently read the defaults: layer 5's ferry column in
+        /// build/prof.tsv was the per-hole estimate whatever --push-ferry-match
+        /// said on the command line.
+        private void WantsFromOptions()
         {
             _h.WantStop = _opt.PushStop > 0;
             _h.WantReach = _opt.PushReach;
@@ -192,6 +192,19 @@ namespace LaserTank.Solver
             _h.WantMaze = _opt.PushFerryMaze;
             _h.WantStage = _opt.PushFerryStage;
             _h.WantMatch = _opt.PushFerryMatch || _opt.PushFerryStage;
+        }
+
+        /// The ranking key.
+        ///
+        /// WorkDistance, plus PushFerry times Heuristic.RouteFerry -- the term
+        /// that makes carrying a block towards water score better than not
+        /// carrying it, without which this layer ranks an entire ferry as a
+        /// plateau and searches it breadth-first.  Read straight after
+        /// WorkDistance, which is what publishes it; the same coupling
+        /// Subgoal.cs's Rank() has, for the same reason.
+        private int PushH()
+        {
+            WantsFromOptions();
             int work = _h.WorkDistance(_e);
             int ferry = _opt.PushFerry > 0 && _h.RouteFerry > 0
                       ? _opt.PushFerry * _h.RouteFerry : 0;

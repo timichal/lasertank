@@ -8,9 +8,9 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Items 1, 3, 6, 8, 9, 11 and 12 are
-done, and three of those closed *negative*** — which is the ordering rule paying off rather than
-failing.
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Items 1, 3, 6, 8, 9, 11, 12, 13, 15
+and 16 are done, and five of those closed *negative* or half-negative** — which is the ordering rule
+paying off rather than failing.
 
 ### 1. Layer 4's learned evaluation did not act. Two defects, both fixed.
 
@@ -939,6 +939,144 @@ formula.
 solutions in the population longer than 1,200 keys, at any budget. The full run carries the flag on
 *every* arm.
 
+### 13. The shot test — a report column, and the rule it leaves to item 4.
+
+**Closed in session 43, and the falsifier had already passed before the build**, which is why this was a
+column rather than a question. `report_stats.py` now prints the solution's shot count against the
+record's, over any report, and it reproduces [`human-strategy.md`](human-strategy.md)'s measurement 3 to
+the digit on `fix2-chain.jsonl` + `gt-fire.jsonl`:
+
+| shots against the record | n | median keys/record | p90 |
+|---|---:|---:|---:|
+| **above** the record | 67 | **1.85** | **3.20** |
+| **exactly** the record | 298 (65.9%) | 1.41 | 1.80 |
+| **below** the record | 87 | 1.46 | 2.10 |
+
+**One filter is load-bearing and it is in the docstring**: a record that spends *no* shot is left out
+rather than counted as matched, because firing none where the record fires none is not evidence about
+the strategy. Including those 127 rows moves the matched bucket 298 → 425 and its median 1.41x → 1.50x,
+i.e. it dilutes the statistic into the corpus average — the same shape as a tier that promotes
+everything. The column names a population nothing else here reported: *the levels the solver solves with
+the wrong strategy*, which is where the ratio tail lives and the one population `Replan.Improve`
+provably cannot help.
+
+**What it does not close is the rule inside `--best-of-round`**, and that belongs to
+[item 4](next-actions.md#4-6th--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
+than to a fifth item: the shot test and the ratio test disagree on 58 of the 452 rows, and whether
+keeping those rounds open pays is a campaign question.
+
+### 15. `--push-seed` — the editor trick as an instrument, and level 6's horizon.
+
+**Closed in session 43. It was built to be item 5's missing cheap falsifier and it is now item 5's
+target.** `--push-seed FILE.lpb:K` replays a recording as far as its K-th board change and searches from
+there; the recipe and the four things to know about reading it are in
+[instruments 3b](instruments.md#3b-ask-how-far-from-the-end-the-search-can-finish----push-seed).
+
+**Level 6 "Cascade", 168 board changes, at 40M nodes and width 512** — the flags the fourth pass's ferry
+arm carries:
+
+| K | board changes left | solved | nodes | wall |
+|---:|---:|---|---:|---:|
+| 144 | 24 | **yes** | 3.8M | 22 s |
+| **120** | **48** | **yes** | **36.1M** | 220 s |
+| 117 | 51 | no | 40M (budget) | 225 s |
+| 114 | 54 | no | 40M | 234 s |
+| 108 | 60 | no | 40M | 249 s |
+| 96 | 72 | no | 40M | 255 s |
+| 72, 48, 24, 0 | 96 … 168 | no | 40M each | ~230-265 s |
+
+- **The horizon is 48 board changes and the boundary is one change wide.** 48 left finishes on 90% of the
+  budget; 51 left does not finish on all of it. That is the first *direct* measurement of the quantity
+  every layer since 5 has attacked — `basin.py` measures how far uphill a line goes and `--push-line`
+  measures where a line is lost, and neither says how long a suffix the searcher can actually close.
+- **Monotone at every K, so there is no ranking hole to chase.** The item said a non-monotone reading
+  would itself be the finding (a longer suffix solving where a shorter one does not means the line
+  crosses a board the key hates); it did not happen on this level.
+- **The cost of a suffix is exponential in its length, and now it has a rate.** 24 changes cost 3.8M
+  nodes and 48 cost 36.1M — 9.5x for twice the suffix, i.e. roughly a doubling every 7 board changes, on
+  two points. That is the arithmetic behind *depth is the binding constraint*: the gap between 48 and
+  168 is not a budget anyone buys.
+- **A seeded win is hint-assisted and the code enforces it**, exactly as `--goal-board` does: the default
+  output moves to `<out>-hint`, every report row carries `hint=push-seed:K`, and the number is never in
+  the solver's rate. The `.lpb` is an ordinary file — `EngineSnapshot.Keys` carries the replayed prefix
+  through `Restore`, so it replays from the level start and **all three seeded wins went through the
+  two-engine gate**.
+- **K = 0 is node-identical to the same run without the flag.** Checked rather than assumed, because a
+  seeded root that is not the ordinary root at K = 0 would make every other row unreadable — layer 4's
+  equivalence test used the way session 25 wished it had been.
+- **What it leaves open is one question, and it is now [item 18](next-actions.md#18-3rd--the-horizon-per-level-and-whether-it-is-a-searcher-constant):**
+  is 48 the *searcher's* reach or *this level's*? The item ran one level because that is the level in
+  front of the project; the same bisection over the other 19 hand recordings decides which quantity was
+  measured, and item 5's design depends on the answer either way.
+
+### 16. Four derivations the read did not have — all four measured.
+
+**Closed across sessions 42 and 43, and the split is two shipped, one refused, one inverted, plus a
+fifth derivation the run turned up and refused.** It was one item because all four were `--read-dump` or
+`--analyze-tsv` questions before they were tiers, which is *a distribution before a solved count* obeyed
+at the cheapest place on the list. Session 42's two — rarity **3.15x**, spend **0.04x** with the
+anti-tank kill exempted, and `clears` at **0.88x**, refused — are in
+[session 42](#session-log); the other two are here.
+
+**Third: FMO mobility as a quantity — it predicts, and the sign is the opposite of the human claim.**
+The series says *"it is generally easy to win if you have enough FMOs (except they are too crowded)"*.
+`_alive[c]` was the one-push boolean; `Heuristic.Mobility` is its transitive closure — a flood over block
+*positions* using `BuildAlive`'s own test — reported as `--analyze-tsv`'s `alive` / `mob_max` / `mob_sum`
+and cheap enough that the 4,185-level stride sample still takes 63 s. Joined against `chain.jsonl`:
+
+| `mob_max`, the freest block's area | levels | solved | rate |
+|---|---:|---:|---:|
+| 0 (frozen) | 656 | 105 | **16.0%** |
+| 1-4 cells | 1,178 | 135 | 11.5% |
+| 5-8 | 269 | 11 | 4.1% |
+| 9+ | 1,573 | 70 | 4.5% |
+
+- **Freer blocks are *harder*, not easier**, and the reason is that the claim and the measurement are
+  about different players: a free object is a resource to a human and a **branching factor** to a beam.
+  Layer 5 searches board changes, so a block with a sixty-cell area is sixty successors at every depth.
+- **It is not board openness in disguise, and that is the measurement that decides it.** Holding the
+  record's own length, the water count and the block count fixed and splitting each stratum at its
+  median, `mob_max` separates **9.5% / 5.3% = 1.78x**, while `poses` — the openness column, which
+  predicts just as well unstratified — collapses to **1.17x**. The control those strata are built on is
+  the one quantity here nobody derived: `.ghs`'s own move+shot count, which alone runs 82.0% at ≤20 down
+  to 0.2% above 250.
+- **The shape is a cliff at four cells, not a gradient.** Above 8 the column is flat (4.1%, 4.5%), so
+  what predicts is *whether the blocks are penned in* rather than how far they can go. Crowding
+  (`mob_sum / blocks`, the series' own caveat) adds nothing beyond it (1.56x), and `alive` alone is
+  weaker than the area (1.69x against 2.09x under the same control) — which is what makes the flood
+  worth its scan over the boolean it extends.
+- **The flood is a lower bound and says so**: water consumes a block, a tunnel teleports it, and ice and
+  a belt move it on, so none of the four is expanded from. Expanding through them instead was measured
+  and thrown away — it reports **235 cells of 256** for one block on `LaserTank.lvl` 2, so the column
+  stops discriminating exactly where the belts *are* the level. Reconciled by hand on `LaserTank.lvl` 1:
+  five blocks, two movable, one cell each, and all five agree with the board and with `_rayOk`'s rule
+  that water is not passable — which is what freezes three of them.
+
+**Fourth: a per-carry constant in `MatchFerry` — refused.** The series prices a ferry in *units* of six
+moves; `MatchFerry` sums push distance, so two carries of five cells score the same as one of ten. The
+falsifier was an offline sweep: `Heuristic.RouteHoles` (the carries the term priced) is now a
+`--profile` column, and `basin.py --carry-cost K` adds K per carry to the ranking key without re-running
+the solver. Swept K = 0, 1, 2, 3, 4, 6, 8, 12, 20, 40 over the 20 hand recordings, profiled under the
+ferry arm's own flags (`--push --push-read --push-reach --push-ferry-match --push-ferry-maze
+--push-dead 20`, which is what the instrument bug below was hiding):
+
+- **No level's ascent moves at any K** — all 20 identical, p50 12 / p90 32 / max 34 board changes, level
+  6's 20 unchanged. **A per-carry constant is a constant inside a carry**, and the ascent that defeats
+  the beam lives inside a carry: the drop at a fill is *already* in the term, because filling a hole
+  removes its whole matched distance. That is *a penalty every board pays is not a penalty* in its
+  per-phase form, and the fourth time this project has paid for that rule.
+- **Three levels get measurably worse, and they say why.** The deepest rise grows with K on
+  `LaserTank.lvl` 13 (40 → 80 at K = 40), 20 (32 → 72) and 24 (6 → 29), because the hole count is **not
+  monotone along a human line** — the settled route re-crosses water and the count goes 1 → 2 or 2 → 3,
+  which a constant amplifies into a rise. The same signature `--push-shield`'s constant had at 40: no
+  ascent bought anywhere and a deeper rise somewhere.
+- **The sweep found an instrument bug on the way in, and that is the reusable part.** `--profile` built
+  its `ferry` column from whatever the heuristic's `Want*` flags happened to be — never set on that path,
+  so always the *per-hole* estimate, whatever `--push-ferry-match` said on the command line. `PushH`'s
+  configuration is now `Solver.WantsFromOptions` and both callers go through it. **A profile is only the
+  beam's view of a line if it asks for the beam's derivations**, and this is the fourth outing of *the
+  instrument measured the wrong quantity*.
+
 ---
 
 ## The corpus through the read
@@ -1001,15 +1139,27 @@ is in [`SOLVER.md`](../../SOLVER.md#status).
 
 ## The state of the tree and of `build/`
 
-**`build/lasertank-solve.exe` is one session behind the tree, on purpose.** Session 42 added
-`--read-rare` and five `--read-dump` columns to `src/LaserTank.Solver/Analyze.cs`, but item 2's pass has
-held the published binary open since 2026-09-10 and `dotnet publish -o build` cannot replace a running
-`.exe` — so the session's binary is **`build/item16/lasertank-solve.exe`**
+**`build/lasertank-solve.exe` is two sessions behind the tree, on purpose.** Item 2's pass has held the
+published binary open since 2026-09-10 and `dotnet publish -o build` cannot replace a running `.exe` —
+so sessions 42 and 43 both built to **`build/item16/lasertank-solve.exe`**
 (`dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c Release -o build/item16`), and
-`build/lasertank-solve.exe` will not accept `--read-rare` until the pass finishes and `src/build.sh`
-runs. This is the `$LT_SOLVE` situation the three runner scripts exist for, arrived at from the other
-direction. Nothing in the shipped search moved: `--from 1 --to 12 --nodes 400000` is identical from both
-binaries, and `Enumerate`/`AnalyzeAt` are reached only from `--analyze` and `--read-dump`.
+`build/lasertank-solve.exe` will not accept any of the flags below until the pass finishes and
+`src/build.sh` runs. This is the `$LT_SOLVE` situation the three runner scripts exist for, arrived at
+from the other direction.
+
+| added | session | in `build/lasertank-solve.exe`? |
+|---|---|---|
+| `--read-rare` and five `--read-dump` columns | 42 | no |
+| `--analyze-tsv`'s `alive` / `mob_max` / `mob_sum` (`Heuristic.Mobility`) | 43 | no |
+| `--profile`'s `holes` column, and `--profile` asking for the push flags | 43 | no |
+| `--push-seed FILE.lpb:K` | 43 | no |
+| `basin.py --carry-cost`, `report_stats.py`'s shot block | 43 | n/a — `tools/`, not the binary |
+
+**Nothing in the shipped search moved in either session, and it was checked rather than asserted.**
+`--from 1 --to 12 --nodes 400000` is identical from both binaries; `Enumerate`, `AnalyzeAt` and
+`Mobility` are reached only from `--analyze` / `--read-dump`, `RouteHoles` is written by `CountOnRoute`
+and read only by `--profile`, `WantsFromOptions` is `PushH`'s own assignment block moved verbatim, and
+`_seed` is null unless `--push-seed` is given (`--push-seed FILE:0` is node-identical to no flag).
 
 **Sessions 34 and 35 added four files between them and touched no engine and no solver code.** Session 34:
 `tools/harvest.py` (the blogspot harvester: `index`/`map`/`fetch`/`codebook`/`sheet`/`label`/`decode`),
@@ -1518,6 +1668,44 @@ and `--read-dump`; the tier path is `ReadDerive`/`Advances` and it was not touch
 asserted: `--from 1 --to 12 --nodes 400000` is byte-identical before and after (1 solved, budget 9,
 beam-dead-end 2).
 
+**session 43 — three items closed beside the running pass, and one of them came back with the sign
+reversed.** Item 2 has held the machine since 2026-09-10 and its arms are node-governed, so this session
+did what the list said to do beside it: items 16, 15 and 13, in that order. All three closed. The
+measurements are in [closed items 13, 15 and 16](#closed-items--the-measurements-including-the-negative-ones);
+what is worth carrying forward is which of them changed a belief.
+
+* **FMO mobility predicts the solve rate, and freer blocks are *harder*.** The human claim was *"it is
+  generally easy to win if you have enough FMOs"*; the corpus says the opposite — frozen blocks 16.0%,
+  1-4 cells 11.5%, 9+ cells 4.5%. The reading that makes both true is that the claim is about a player
+  and the measurement is about a beam: a free object is a resource to one and a **branching factor** to
+  the other. **The measurement that made it worth keeping was the control, not the column.** Raw, it
+  looks exactly like *big open board*, which `poses` already reports; stratified on the record's own
+  length plus water and block count, `mob_max` holds **1.78x** and `poses` collapses to **1.17x**. So
+  the column ships, and the rule it re-proves is the one from item 6: *reconcile against a quantity you
+  did not derive* — here `.ghs`'s own move+shot count, which nothing in the read computes.
+* **The per-carry constant is refused, and the refusal was already written down as a rule.** A constant
+  per carry cannot shorten an ascent that happens *inside* a carry, and the drop at a fill is already in
+  `MatchFerry`. Ten values of K, twenty recordings, not one ascent moved — while three levels' deepest
+  rise got worse, because the hole count is not monotone along a human line. *A penalty every board pays
+  is not a penalty*, in its per-phase form, for the fourth time.
+* **Level 6 now has a number instead of an ambition.** `--push-seed` searches from a recording's K-th
+  board change; the level finishes from **48** board changes out and not from **51**, monotone below
+  that, and 24 changes cost 3.8M nodes against 48's 36.1M. Item 5 was open for six sessions as *the one
+  item with no cheap falsifier*; it now has a target, a boundary one board change wide, and a growth
+  rate to size a phase against.
+* **The instrument bug, and it is the fourth of its family.** `--profile` built its `ferry` column from
+  whatever `Want*` flags happened to be set — never set on that path — so it reported the *per-hole*
+  estimate however the run was flagged, `--push-ferry-match` included. Found only because the carry
+  sweep needed `MatchFerry`'s own numbers. `PushH`'s configuration is now `WantsFromOptions` and both
+  callers share it. **A profile is only the beam's view of a line if it asks for the beam's
+  derivations.**
+
+**Nothing in the shipped search moved, and it was checked rather than asserted.** `Mobility` is reached
+only from `AnalyzeAt`, `RouteHoles` is a field `CountOnRoute` assigns and only `--profile` reads,
+`WantsFromOptions` is `PushH`'s own assignments moved verbatim and still immediately before the
+`WorkDistance` that reads them, and `_seed` is null unless `--push-seed` is given. The equivalence test
+is `--push-seed FILE:0` against no flag: same nodes, same stop, same depth.
+
 ---
 
 ## Where session 26's twelve pointers went
@@ -1528,7 +1716,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-8th--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-7th--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

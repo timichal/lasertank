@@ -389,6 +389,7 @@ namespace LaserTank.Solver
             RouteStop = 0;
             RouteFire = 0;
             RouteDead = 0;
+            RouteHoles = 0;
             if (fx < 0) return Unreachable;             // buried; see FlagDistance
             if (tx == fx && ty == fy) return 0;
             RouteObstacles = -1;                        // no route, until one settles
@@ -634,6 +635,7 @@ namespace LaserTank.Solver
                     RouteFerry += d >= 0 ? d : ToNearestBlock(e, c);
                 }
             }
+            RouteHoles = _holeLen;
             if (WantMatch) RouteFerry = MatchFerry(e);
             if (WantShield) RouteShield = firstSwept >= 0 ? ShieldPrice(e, firstSwept) : 0;
             // The holes with nothing left that can reach them.  Counted against
@@ -1022,6 +1024,110 @@ namespace LaserTank.Solver
         /// trusting FireSwept, because the caller is the push beam and that
         /// interleaves this with WorkDistance calls on other boards.
         public int FireCells(Engine e) { BuildFire(e); return FireSwept; }
+
+        /// Item 16's third derivation, the FMO as a *quantity*: not "can this
+        /// block be moved" but "how large is the area it can be moved in".
+        ///
+        /// The series' claim is that a level is easy when it has enough freely
+        /// moving objects and hard again when they are crowded, and `_alive[c]`
+        /// is only the one-push boolean of that.  This is its transitive
+        /// closure -- a flood over block *positions*, stepping from `c` to the
+        /// neighbour in direction `k` exactly when BuildAlive's own test passes:
+        /// `_rayOk[k][c]`, somewhere strictly behind `c` on that line the tank
+        /// can stand with nothing in between, and a cell ahead that a pushed
+        /// block enters.
+        ///
+        /// Two relaxations, both in the direction RouteFerry already documents.
+        /// The rays are swept once off the board as handed in, so a block
+        /// halfway along its own route is priced against the board it started
+        /// on, and nothing re-derives where the tank can stand after each push.
+        ///
+        /// `alive` is the boolean form's own count, so it and "blocks with a
+        /// non-zero area" have to be the same number: the cheapest check that
+        /// this is the same predicate one push further out.
+        public void Mobility(Engine e, out int blocks, out int alive,
+                             out int max, out int sum)
+        {
+            BuildAlive(e);                      // _rayOk and _alive, both fresh
+            byte[,] pf = e.Game.PF;
+            blocks = alive = max = sum = 0;
+            for (int c = 0; c < 256; c++)
+            {
+                if (pf[c >> 4, c & 15] != Obj.Block) continue;
+                blocks++;
+                if (_alive[c]) alive++;
+                int area = MobilityOf(e, c);
+                if (area > max) max = area;
+                sum += area;
+            }
+        }
+
+        /// The area for one block, in cells it can be moved to -- its own cell
+        /// excluded, so 0 is exactly `!_alive[c]`.
+        private int MobilityOf(Engine e, int from)
+        {
+            byte[,] pf = e.Game.PF;
+            System.Array.Clear(_mseen, 0, 256);
+            int head = 0, tail = 0;
+            _mq[tail++] = from;
+            _mseen[from] = true;
+            int n = 0;
+            while (head < tail)
+            {
+                int c = _mq[head++];
+                int cx = c >> 4, cy = c & 15;
+                for (int k = 0; k < 4; k++)
+                {
+                    Step(k, out int dx, out int dy);
+                    int nx = cx + dx, ny = cy + dy;
+                    if (nx < 0 || nx > 15 || ny < 0 || ny > 15) continue;
+                    int at = nx * 16 + ny;
+                    if (_mseen[at]) continue;
+                    byte cell = pf[nx, ny];
+                    if (!_rayOk[k][c] || !Enter(cell)) continue;
+                    _mseen[at] = true;
+                    n++;
+                    if (Rests(cell)) _mq[tail++] = at;
+                }
+            }
+            return n;
+        }
+
+        /// Does the flood carry on from this cell -- i.e. does a block pushed
+        /// here come to rest, still a block, still pushable from any side?
+        ///
+        /// Dirt does, and the flag does: MoveObj stacks the block over it in
+        /// PF2 (Engine.cs:718) and a later push restores it.  Nothing else
+        /// does.  Water consumes the block outright (`PF[x,y] != 3` is the
+        /// whole of a block's life there), a tunnel mouth teleports it, and ice
+        /// and a conveyor *move it on* -- the slide or the belt decides where it
+        /// actually ends up, and a flood over neighbours does not know that.
+        /// All four count as somewhere the block can go and none is expanded
+        /// from, so the area is a lower bound: false negatives, no false
+        /// positives, the same direction PoseClosure's cap errs in.
+        ///
+        /// The alternative was measured and thrown away: expanding through ice
+        /// and belts as well makes `LaserTank.lvl` 2 -- a level named after its
+        /// conveyors -- report 235 cells of 256 for one block, so the column
+        /// stops discriminating exactly on the levels the belts are the level.
+        private static bool Rests(byte cell) =>
+            cell == Obj.Dirt || cell == Obj.Flag;
+
+        private readonly bool[] _mseen = new bool[256];
+        private readonly int[] _mq = new int[256];
+
+        /// How many holes the ferry term priced on the last WorkDistance --
+        /// `_holeLen`, i.e. the water cells on the settled route, capped at
+        /// _holes.Length.  Read the same way RouteFerry is: valid straight
+        /// after the WorkDistance that published it.
+        ///
+        /// It is the *carries*, which is the quantity RouteFerry cannot see:
+        /// MatchFerry sums push distance, so two carries of five cells and one
+        /// carry of ten score the same, and the series prices a carry in units
+        /// of six moves rather than in cells.  Item 16's fourth derivation is
+        /// a per-carry constant, and this is the column that lets basin.py
+        /// sweep one offline instead of re-running the solver per weight.
+        public int RouteHoles;
 
         /// _alive[c]: the block on cell `c` can still be moved somewhere.
         private readonly bool[] _alive = new bool[256];

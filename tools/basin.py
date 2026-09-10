@@ -22,6 +22,14 @@ difference between "needs more nodes" and "needs a different move set".
 `--events` measures the same excursions in board-changing keypresses instead of
 all keypresses, i.e. at the granularity a push/macro-action layer would search.
 The gap between the two columns is the case for such a layer.
+
+The third column is the ranking key layer 5 actually uses -- `work` plus
+`--ferry-weight` times the ferry term -- and `--carry-cost K` adds K per carry
+still owed on top of it, a term the solver does not have.  Both are swept here,
+against one replay, rather than by re-running the search per weight.  The
+profile's ferry column is whatever the push flags asked for, so sweep against a
+profile written with the flags the arm carries (`--push-ferry-match
+--push-ferry-maze` for the shipped one).
 """
 import argparse
 import collections
@@ -63,6 +71,14 @@ def main():
                     help="weight on the ferry term in the third column "
                          "(= --push-ferry); sweep it here rather than by "
                          "re-running the solver")
+    ap.add_argument("--carry-cost", type=float, default=0.0,
+                    help="a constant per carry still owed -- item 16's fourth "
+                         "derivation.  MatchFerry sums push distance, so two "
+                         "carries of five cells score the same as one of ten; "
+                         "this adds K per unfilled hole on the route (the "
+                         "profile's `holes` column), so that filling one is a "
+                         "step down the ranking key rather than a plateau.  "
+                         "Swept here for the same reason --ferry-weight is")
     args = ap.parse_args()
 
     rows = collections.defaultdict(list)
@@ -73,9 +89,14 @@ def main():
         if len(f) < 8:
             continue
         ferry = max(0, int(f[7]))
+        # `holes` arrived with item 16; a profile written before it has nine
+        # fields and a carry cost that can only be zero.  Reading it as absent
+        # rather than erroring keeps the older build/*.tsv comparable.
+        holes = max(0, int(f[9])) if len(f) > 9 else 0
         rows[(f[0], int(f[1]))].append(
             (int(f[2]), int(f[5]), int(f[6]),
-             int(round(int(f[6]) + args.ferry_weight * ferry)), f[8] == "1"))
+             int(round(int(f[6]) + args.ferry_weight * ferry
+                       + args.carry_cost * holes)), f[8] == "1"))
 
     out = []
     for (coll, level), rs in sorted(rows.items()):

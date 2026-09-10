@@ -431,6 +431,17 @@ namespace LaserTank.Solver
 "                         whether the width trim kept it.  The question\n" +
 "                         --read-dump cannot answer: the line is offered at\n" +
 "                         every step, so which Cut is it that loses it\n" +
+"    --push-seed F.lpb:K  HINT-ASSISTED: replay that recording as far as its\n" +
+"                         K-th board change and search from there, the way a\n" +
+"                         player builds a position in the editor before\n" +
+"                         trying a trick.  The smallest K a run finishes\n" +
+"                         from is the search horizon in board changes.  The\n" +
+"                         .lpb carries the replayed prefix, so it replays\n" +
+"                         from the start and gates like any other -- but it\n" +
+"                         is NOT part of the solver's rate: the output moves\n" +
+"                         to <out>-hint and every report row says\n" +
+"                         hint=push-seed:K.  K=0 is the ordinary root, i.e.\n" +
+"                         the control the sweep is read against\n" +
 "    --push-share R       budget fraction it may run until, default 1.0\n" +
 "\n" +
 "  the scraped goal board (Goal.cs) -- HINT-ASSISTED, read this\n" +
@@ -492,6 +503,13 @@ namespace LaserTank.Solver
             public string RankDump, LpbList, ProfileOut;
             public bool DoAnalyze;
             public string AnalyzeTsv, ReadDumpOut, PolishPath, PushLine, GoalBoard;
+            public string PushSeed;
+
+            /// --push-seed, replayed: the state every worker's search starts
+            /// from, plus what it took to get there for the report and the
+            /// banner.  Null when the flag was not given; see LoadSeed.
+            public EngineSnapshot Seed;
+            public int SeedK, SeedKeys, SeedChanges;
 
             /// --goal-board, loaded.  Null when the flag was not given; see
             /// Goal.cs, and LoadGoals for what a run with it set may not do.
@@ -620,6 +638,7 @@ namespace LaserTank.Solver
                         case "--analyze-tsv": a.DoAnalyze = true; a.AnalyzeTsv = V(); break;
                         case "--read-dump": a.ReadDumpOut = V(); break;
                         case "--push-line": a.PushLine = V(); break;
+                        case "--push-seed": a.PushSeed = V(); break;
                         case "--read-opens": a.Opt.ReadOpensCap = int.Parse(V()); break;
                         case "--read-antitank-wall":
                             a.Opt.ReadAntiTankWall = true; break;
@@ -671,6 +690,7 @@ namespace LaserTank.Solver
             }
 
             if (LoadGoals(a) != 0) return 2;
+            if (LoadSeed(a) != 0) return 2;
 
             if (a.PolishPath != null) return PolishAll(a);
             if (a.ReadDumpOut != null) return ReadDumpAll(a);
@@ -769,6 +789,100 @@ namespace LaserTank.Solver
                 + a.Goals.Count + " goal boards, " + mine + " of them in "
                 + collection + ".  Solutions are NOT part of the solver's rate;"
                 + " every report row says hint=goal-board."));
+            return 0;
+        }
+
+        /// --push-seed FILE.lpb:K -- item 15, and the honesty condition is
+        /// LoadGoals' one, reused rather than re-argued: a win from a human
+        /// prefix is hint-assisted, so the default output moves to
+        /// <out>-hint and every report row carries hint=push-seed:K.
+        ///
+        /// The K-th board change, not the K-th keypress: that is layer 5's own
+        /// unit, the unit basin.py reports the ascent in, and the unit the
+        /// answer is wanted in -- *how many board changes from the end can this
+        /// search finish?*
+        ///
+        /// The path is split at its LAST colon, because a Windows path has one
+        /// of its own two characters in.  K=0 is legal and is the control: the
+        /// ordinary root, run through the same code path, so a sweep's first
+        /// row is comparable with the rest by construction.
+        private static int LoadSeed(Args a)
+        {
+            if (a.PushSeed == null) return 0;
+            int cut = a.PushSeed.LastIndexOf(':');
+            if (cut <= 0 || !int.TryParse(a.PushSeed.Substring(cut + 1), out int k) || k < 0)
+            {
+                Console.Error.WriteLine(
+                    "lasertank-solve: --push-seed wants FILE.lpb:K, K a board-change count");
+                return 2;
+            }
+            string path = a.PushSeed.Substring(0, cut);
+            if (!File.Exists(path))
+            {
+                Console.Error.WriteLine("lasertank-solve: no such recording " + path);
+                return 2;
+            }
+
+            TRECORDREC rec = LevelFile.ReadPlayback(path, out byte[] keys);
+            int level = a.From == a.To ? a.From : rec.Level;
+            // A throwaway Solver, because the replay leaves its engine dirty
+            // (quirk #12) and what travels to the workers is the snapshot.
+            //
+            // The replay's own keystream cap has to hold the whole recording or
+            // it overruns RecBuffer mid-prefix, which surfaces as an index
+            // error from inside the engine rather than as the flag's problem.
+            // The *search's* cap is checked below, against the prefix that
+            // actually came back.
+            SolveOptions seedOpt = Clone(a.Opt);
+            seedOpt.MaxKeys = Math.Max(seedOpt.MaxKeys, keys.Length + 1);
+            Solver t = new Solver(a.Levels, seedOpt);
+            bool ok;
+            try
+            {
+                ok = t.Seed(level, keys, k, out EngineSnapshot seed,
+                            out int used, out int changes, out bool won);
+                a.Seed = seed;
+                a.SeedK = k;
+                a.SeedKeys = used;
+                a.SeedChanges = changes;
+                if (!ok)
+                {
+                    Console.Error.WriteLine(
+                        "lasertank-solve: " + Path.GetFileName(path) + " level " + level
+                        + (won ? " wins at board change " + changes
+                               + ", which is before K=" + k
+                               : " has " + changes + " board changes in " + used
+                                 + " keypresses, fewer than K=" + k));
+                    return 2;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("lasertank-solve: --push-seed: " + ex.Message);
+                return 2;
+            }
+
+            if (a.Seed.KeyLen >= a.Opt.MaxKeys)
+            {
+                Console.Error.WriteLine(
+                    "lasertank-solve: --push-seed replays " + a.Seed.KeyLen
+                    + " keypresses and --max-keys is " + a.Opt.MaxKeys
+                    + ": raise --max-keys above the prefix (the search's depth cap is"
+                    + " the whole keystream, prefix included)");
+                return 2;
+            }
+            if (a.MaxKeysRecord)
+                Console.Error.WriteLine(
+                    "lasertank-solve: --push-seed with --max-keys-record: the cap is"
+                    + " computed from the record and may land under the prefix");
+
+            if (!a.OutGiven && !a.Out.EndsWith("-hint")) a.Out = a.Out + "-hint";
+            a.From = a.To = level;
+            Console.WriteLine(Ansi.Yellow(
+                "hint-assisted run: --push-seed " + Path.GetFileName(path) + " replayed "
+                + a.SeedKeys + " keypresses to board change " + k + " of level " + level
+                + ".  Solutions are NOT part of the solver's rate; every report row says"
+                + " hint=push-seed:" + k + "."));
             return 0;
         }
 
@@ -994,6 +1108,12 @@ namespace LaserTank.Solver
                 {
                     s.SetGoal(g);
                     o.Hint = "goal-board";
+                }
+                if (a.Seed != null)
+                {
+                    s.SetSeed(a.Seed);
+                    o.Hint = o.Hint == null ? "push-seed:" + a.SeedK
+                                            : o.Hint + "+push-seed:" + a.SeedK;
                 }
                 SolveResult r = s.Solve(job.Level);
                 o.Method = r.Method;
