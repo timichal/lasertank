@@ -1,5 +1,5 @@
 {
- "_README": "Post-level corrections keyed by the post's own URL -- tools/harvest.py. Hand input, which is why this is committed. Two kinds, and both are things no derivation can reach: a post that names the wrong level (`coll`/`level` retarget it, `image_level` says the filenames carry a different number than the title and the title is the one to believe), and a screenshot cell that carries no information for any eye or table to read. `frames` holds the latter, per goal frame, in the game's own A-P/1-16 coordinates: `cells` for the PF symbol under an occluding sprite, `tank` for a frame that lost the tank entirely. Keep `frames` minimal -- the tank's own position and facing are derivable from the pixels even where the PF is not (sprites.facings()), so a `tank` entry is only for a frame that shows no tank at all. Every entry is checked by playing the level and the note records the check, plus whatever the .lvl independently corroborates.",
+ "_README": "Post-level corrections keyed by the post's own URL -- tools/harvest.py. Hand input, which is why this is committed. Two kinds, and both are things no derivation can reach: a post that names the wrong level (`coll`/`level` retarget it, `image_level` says the filenames carry a different number than the title and the title is the one to believe), and a screenshot cell that carries no information for any eye or table to read. `frames` holds the latter, per goal frame, in the game's own A-P/1-16 coordinates: `cells` for the PF symbol under an occluding sprite, `tank` for a frame that lost the tank entirely. A third kind corrects nothing: `confirmed` is the word that a finding `complete` reports about this post is real and has been checked. The row stays -- the tool still cannot see what was checked, so it finds the same thing every run -- but it stops counting as one waiting on you. It is per post, so keep the note specific enough that a reader can tell whether it still covers what the row says. Keep `frames` minimal -- the tank's own position and facing are derivable from the pixels even where the PF is not (sprites.facings()), so a `tank` entry is only for a frame that shows no tank at all. Every entry is checked, and the note records the check and its kind -- playing the level, or decoding the picture against both candidate .lvls, which is the one that settles a misnamed filename -- plus whatever the .lvl independently corroborates.",
 
  "https://lasertanksolutions.blogspot.com/2016/11/826-siguiendo-el-camino.html": {
   "coll": "LaserTank",
@@ -10,6 +10,23 @@
  "https://lasertanksolutions.blogspot.com/2020/03/sokoban-i-344-symmetric-24.html": {
   "image_level": 343,
   "note": "Title and level are right -- Sokoban-I.lvl 344 is 'Symmetric 24'. The two images are misnamed SokobanI_343_H3.png and SokobanI_343_I14.png, and they are per-flag frames that Sokoban-I 343's own post does not carry, so they are not duplicates of it. The post has no start screenshot. Confirmed by Michal, session 39: played it, the level is 344."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2022/02/sokoban-i-1060-sisters-with-antitank.html": {
+  "frames": {
+   "b": {
+    "cells": {"O2": "^"},
+    "note": "Same cell shape as LaserTank 899 and 901: the tank stands on an anti-tank, which occludes the cell completely, so no table and no eye can read the PF under it. Michal, session 41: the anti-tank faces north and was moved to O2 by mirrors, and it is standing on the green tunnel that O2 already carries on the starting board. The .lvl corroborates the tunnel -- O2 is ColorList[1], the green one -- and the pixels put the tank at O2 facing right, derivably, so only the PF underneath is hand input: '^', the anti-tank."
+   }
+  }
+ },
+
+ "https://lasertanksolutions.blogspot.com/2016/09/521-norman-shield.html": {
+  "confirmed": "the post's start screenshot 521a.png really is a play state, not the start -- Michal, session 41. Nothing to fix: the post carries no start position, so the level is not learned from and gets no staleness check."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2016/10/596-help-from-enemy.html": {
+  "confirmed": "the post's start screenshot LaserTank_596.png really is a play state, not the start -- Michal, session 41. Nothing to fix, same as LaserTank 521."
  },
 
  "https://lasertanksolutions.blogspot.com/2023/11/challenge-i-1598-double-slider.html": {
@@ -46,5 +63,101 @@
     "note": "A7 is a torn tunnel blit: the flat ColorList[1] green rectangle with its GDI pen outline and sprite 55 never drawn over it, which hides whatever stood on the cell -- 484 green pixels and 92 black, nothing else. Michal, session 39: anti-tank facing right on a green mirror, on both A7 and B7; B7 draws cleanly and decodes on its own. The PF the solver wants is the anti-tank, so '>'."
    }
   }
+ },
+
+ "https://lasertanksolutions.blogspot.com/2023/11/challenge-i-1767-slip-n-slide-part-1.html": {
+  "image_level": 1776,
+  "note": "The four goal frames are named ChallengeI_1776_*; the start is ChallengeI_1767.png, so the post's own two spellings disagree with each other and 1776 is a transposition. Session 41, decoded against both: the frames are 11-13 cells from Challenge-I 1767's board and 218-219 from 1776's, and 1776 has its own post carrying its own frames."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2023/11/challenge-i-1767-slip-n-slide-part-2.html": {
+  "image_level": 1776,
+  "note": "Part 2 of the same level, same transposition: ChallengeI_1776_P13.png is 15 cells from Challenge-I 1767's board and 214 from 1776's."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2023/06/challenge-i-445-building.html": {
+  "image_level": 447,
+  "note": "The start is ChallengeI_445.png and the only goal frame is ChallengeI_447b.png. Session 41, decoded against both: 85 cells from Challenge-I 445's board and 195 from 447's, and Challenge-I 447 has its own post. Without this the post banks no goal board at all."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2018/01/sokoban-i-236-island-in-sun-part-1.html": {
+  "image_level": 234,
+  "note": "Four parts, four goal frames each, every one named SokobanI_234_* under a title and a start screenshot that read 236. Session 41, decoded against both: all 16 are 25 cells from Sokoban-I 236's board and 236-240 from 234's. Sokoban-I 234 has its own post."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2018/01/sokoban-i-236-island-in-sun-part-2.html": {
+  "image_level": 234,
+  "note": "Part 2 of Sokoban-I 236, same misnaming -- see part 1."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2018/01/sokoban-i-236-island-in-sun-part-3.html": {
+  "image_level": 234,
+  "note": "Part 3 of Sokoban-I 236, same misnaming -- see part 1."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2018/01/sokoban-i-236-island-in-sun-part-4.html": {
+  "image_level": 234,
+  "note": "Part 4 of Sokoban-I 236, same misnaming -- see part 1."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2018/01/sokoban-i-246-slokoblan-iii.html": {
+  "image_level": 244,
+  "note": "The start is SokobanI_246.png and the only goal frame is SokobanI_244b.png. Session 41, decoded against both: 17 cells from Sokoban-I 246's board and 141 from 244's. Without this the post banks no goal board."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/08/sokoban-i-409-wishmaker.html": {
+  "image_coll": "LaserTank",
+  "note": "The number is right and the prefix is not: SokobanI_409.png is the start and LaserTank_409b.png the goal. Session 41, decoded against both: 99 cells from Sokoban-I 409's board and 211 from LaserTank 409's, which has its own post and its own frames."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/08/sokoban-i-430-try-to-get-flag.html": {
+  "image_coll": "LaserTank",
+  "note": "Same shape as Sokoban-I 409: SokobanI_430.png is the start, LaserTank_430_B1.png and LaserTank_430_O1.png the two per-flag frames. Session 41, decoded against both: 25 cells from Sokoban-I 430's board and 160/164 from LaserTank 430's."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/08/sokoban-i-431-rings.html": {
+  "image_coll": "LaserTank",
+  "note": "Same shape as Sokoban-I 430, by the same author on the same day: LaserTank_431_H3.png and LaserTank_431_I3.png are 23 cells from Sokoban-I 431's board and 178 from LaserTank 431's."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2016/12/challenge-ii-1172-christmas-tree-island.html": {
+  "image_coll": "Challenge-I",
+  "note": "ChallengeII_1172.png is the start and the two goal frames are ChallengeI_1172_A1.png and ChallengeI_1172_N1.png -- one post, both prefixes. Session 41, decoded against both: 83 and 87 cells from Challenge-II 1172's board, 220 and 222 from Challenge-I 1172's."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2023/04/sokoban-i-1959-four-squares.html": {
+  "confirmed": "SokobanI_1957.png really is Sokoban-I 1957's start screenshot pasted into the Sokoban-I 1959 post: session 41, it decodes to 1957's board exactly, 0 cells out, and 191 out against 1959's. Dropping it is right, and 1957's own post already carries it. The 1959 post is left with no start screenshot, which is the finding above it."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2023/03/challenge-ii-258-more-slapstick.html": {
+  "confirmed": "ChallengeII_268.png decodes to Challenge-II 268's board exactly, 0 cells out, 60 out against 258's -- session 41. Another level's screenshot, not a typo; 268 has its own post."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2022/06/sokoban-ii-780-gem-2011004.html": {
+  "confirmed": "SokobanII_778.png decodes to Sokoban-II 778's board exactly, 0 cells out, 167 out against 780's -- session 41. 778 has its own post."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2022/03/sokoban-i-1080-four-bridges.html": {
+  "confirmed": "Both pictures are Sokoban-I 1081's: SokobanI_1081.png decodes to 1081's board exactly and SokobanI_1081b.png is 17 cells from it, against 207 and 209 for 1080 -- session 41. 1081 has its own post carrying both. The 1080 post is left with nothing, which is the finding above it."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2022/03/sokoban-i-1079-claustrophobia-2.html": {
+  "confirmed": "SokobanI_1078.png decodes to Sokoban-I 1078's board exactly, 0 cells out, 172 out against 1079's -- session 41. 1078 has its own post."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2021/12/sokoban-i-801-rahul-batras-sokoban-v.html": {
+  "confirmed": "BeginnerII_801b.png is Beginner-II 801's goal frame: 82 cells from Beginner-II 801's board against 135 from Sokoban-I 801's -- session 41. The margin is the narrowest of the nine and both readings are goal-frame-shaped, so this is the one to look at again if Beginner-II is ever harvested: the collection ships but no post covers 801."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/10/sokoban-i-501-water-disaster.html": {
+  "confirmed": "SokobanI_502.png decodes to Sokoban-I 502's board exactly, 0 cells out, 41 out against 501's -- session 41. 502 has its own post."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/09/sokoban-i-452-linkin-park4.html": {
+  "confirmed": "LaserTank_452.png decodes to LaserTank 452's board exactly, 0 cells out, 201 out against Sokoban-I 452's -- session 41, which is the same 201 conflicts it taught the codebook before pick_images checked the prefix. Another level's screenshot; LaserTank 452 has its own post."
+ },
+
+ "https://lasertanksolutions.blogspot.com/2020/08/sokoban-i-418-caterpillar.html": {
+  "confirmed": "SokobanI_413b.png is Sokoban-I 413's goal frame: 81 cells from 413's board against 223 from 418's -- session 41. 413 has its own post."
  }
 }

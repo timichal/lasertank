@@ -279,14 +279,36 @@ to `bank` for the same reason: none of them produces an *undecoded* cell, so the
 bank never fires. They decode to a clean, plausible, wrong board.
 
 * **The picture is not the position the filename claims.** 35 posts carry both `N.png` and `Na.png`, and
-  the bare one is the start; a handful name an image for another collection outright
-  (`LaserTank_452.png` in the Sokoban-I 452 post). `pick_images` decides both, and `codebook` no longer
-  takes any board on trust: it checks the tank is on the `.lvl`'s own `T` cell. This matters
+  the bare one is the start; 40 pictures over 21 posts name another level or another collection outright
+  (`LaserTank_452.png` in the Sokoban-I 452 post, `SokobanI_1081.png` in the Sokoban-I 1080 one).
+  `pick_images` decides the first and **drops the second, and `map` reports it** — deciding whether a
+  wrong number is a typo or a different level's screenshot means playing the level, so the answer is one
+  `image_level` line in `bench/post-fixups.json` and `complete` asks for it by name. `codebook` no longer
+  takes any board on trust either: it checks the tank is on the `.lvl`'s own `T` cell. This matters
   out of proportion to the count, because `codebook` labels from the `.lvl` — one mid-solution board
   teaches a block sunk in water as `~` and a destroyed anti-tank as `v`, `setdefault` freezes it, and
   every later board that shows the tile honestly then reports a conflict. `tiles` is the gate that
   catches it after the fact, by disagreeing with `sprites.py`; the start-position check is what stops it
   happening.
+* **Which graphics a screenshot is of is a property of the screenshot**, and four readers in the chain
+  assumed it independently. The zoom is in the board frame and the pack is in the tiles; `origin` and
+  `decode_board` have asked since session 39, and each of the other four had its own symptom, every one
+  of which looked like a finding about the blog rather than a bug in the instrument:
+  * `codebook`'s start gate asked every frame about the internal sheet at 24 px, so a picture of anything
+    else had no tank in it by construction. `LaserTank` 1126 (32 px) and 1619 (32 px *EyeSaver+Grid*) were
+    rejected as `no tank in the picture`; both decode to their `.lvl` with **0 unknown and 0 differing
+    cells** once the gate reads the picture's own pitch and pack (`frame_sheet`). The cost of a rejection
+    is never the labelling — it is the staleness check a rejected board skips.
+  * `sheet` treated *outside the codebook* as *nobody can read it*, and asked for **9 tile labels that
+    were all already answered**: 5 belong to the two EyeSaver+Grid goal frames, which `bank` reads with
+    `unknown: 0`, and 4 are the information-free occluded cells, which cannot be a hash-table entry on any
+    board and are stated per post in `bench/post-fixups.json`. It accounts for each residual tile before
+    drawing it now, and draws only what is left.
+  * both of `tiles`' gates compared hashes against the internal 24-px table. The codebook gate reported
+    **48 of 106 entries "not derived"** where the honest number, checked against the derivation each tile
+    is actually of (`derived_cell`), is **3** — the three long-known underivable cells.
+
+  A gate that asks the wrong question is worse than one that does not run: its answer looks like data.
 * **The blog's level pack is not always this corpus's.** A few start boards decode cleanly, tank on its
   own start cell, and still disagree with `data/levels/*.lvl` — water where the corpus has tunnels,
   two tile types swapped — *in every frame of the post*, which is what separates drift from a capture

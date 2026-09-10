@@ -15,59 +15,31 @@ order is worth stating: **item 5 moves from 2nd to 5th and gains a cheap falsifi
 (item 15), which is a better outcome for it than staying at the front without one. Items 4, 7 and 10 keep
 their relative order and their reasoning; only their ordinals moved.
 
-**The complete harvest ran** (session 37's fetch, session 38's diagnosis, session 39's repairs).
-`tools/harvest.py fetch` over the whole 6,218-post index rather than the 150-post sample item 6 measured
-on, so the goal-board bank goes from **141 levels to as many of those as decode cleanly**. Session 38's
-run gave 5,779 start boards and 6,708 goal frames; session 39 worked through everything that run had
-dropped and the harvester now reaches **6,023 start boards and ~7,484 goal frames**, with **1** level
-contributing nothing where 246 did. The diagnosis and the five fixes are in
-[closed item 6](history.md#session-39--the-logs-drops-and-the-two-that-were-the-instruments-fault); the
-corpus-scale numbers from the first run are the [session 38 section](history.md#session-38--the-corpus-scale-run-and-what-its-two-complaints-were)
-above it.
-
-**The chain has run** (session 40, `build/harvest-full.log`): 7,484 goal boards decoded with **4 unknown
-tiles in 1,915,904**, and `bank` wrote **5,975 levels / 7,462 boards** to `bench/goal-boards.json`. Three
-of the four unknowns were already answered by `bench/post-fixups.json`; **one cell is open** —
-`Sokoban-I` 1060 `b` at O2 — and it is the only thing standing between that run and a bank with no
-refusal in it but the 11 stale levels. The reading of it, and the six start boards the same run turned
-out to have been throwing away, are in
-[session 40](history.md#session-40--the-whole-chain-ran-clean-and-its-two-complaints-were-one-repair-and-one-instrument-bug).
-Rerunning costs almost no network — the 12,487 images are cached and `fetch` skips what is on disk; no
-`--refetch` — and it is now **one command**, ~65 min:
+**The goal-board bank is done, and it is an input now rather than an item.** `bench/goal-boards.json`
+carries **6,030 levels / 7,622 goal boards**, decoded from the blog's whole 6,218-post index with **0
+unknown tiles**, 0 codebook/derivation clashes and **nothing waiting on a human** — the 38 posts the
+decode does not finish on its own are all read and all intentional. It is committed, because re-deriving
+it needs nine years of blog. Item 6 built it (session 36) and sessions 37-41 took it to corpus scale; the
+measurements, the four instrument bugs the last pass found, and the reasoning behind every refusal are in
+[closed item 6](history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key) and
+[session 41](history.md#session-41--the-filenames-the-harvester-could-not-read-and-the-four-readers-that-assumed-the-graphics).
+Re-deriving it needs no network — every image is cached:
 
 ```bash
-python tools/harvest.py complete            # the whole chain -> bench/goal-boards.json
-python tools/harvest.py complete --report   # that table again, free
+python tools/harvest.py complete --offline   # -> bench/goal-boards.json, ~85 min
+python tools/harvest.py complete --report    # its table again, free
+python tools/harvest.py sheet                # the goal residual, ~41 min; tiles' 2nd gate reads it
 ```
 
-The phases are still separate commands (`index`, `map`, `fetch`, `codebook`, `tiles`, `bank`), which is
-what to reach for when one of them is what is being worked on. Running them one at a time costs ~2h40
-rather than ~65 min, because three of them decode all 7,484 goal boards at 37 minutes each and `complete`
-needs only the one that banks them.
-
-**What to bring back from it**: any `NOT A START ... [order-picked]` line — that is the one guess in the
-chain, zero of them on the 15-level sample it was falsified against — plus `tiles`' unclean-board list and
-`bank`'s refusals. A board with an *occluded* cell is the one thing no derivation reaches: it needs a line
-in `bench/post-fixups.json`, stating the `PF` symbol, and only Michal can supply it. Both lists now say
-which rows are already answered there, so a row with no note is a row to go and look at.
-
-Three items inherit from it and
-none is blocked on it: `--goal-board`'s hint-assisted bootstrap becomes a corpus-scale supply of **real
-recordings on long levels** — the off-distribution sample layer 4 is fit on and `--profile` /
-`basin.py`'s only input, which is 20 hand recordings today; the per-flag boards are a subgoal sequence for
-*Further out*'s chaining note; and item 16's falsifiers are all measured over those same 20 recordings, so
-a wider bank widens every one of them. **What it does not give is human *routes*** — a goal board names
-the destination, not the path, so "what did the human do next" stays a question only a recording answers.
-
-**Item 6 is closed** (session 36): the harvester, the derived tile table and `--goal-board` all shipped,
-and the full record with its measurements is
-[closed item 6](history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).
-It leaves two things behind that the items below now inherit. `--goal-board` is a **hint-assisted**
-instrument — 15 → 21 of the 141 levels the fetched bank covers, all gated, none of it in the headline
-rate — so what it produces is a supply of real recordings on off-distribution long levels, which is
-exactly the sample layer 4 is fit on and the one nothing else here can obtain. And the per-flag goal
-boards it banks are a subgoal sequence nothing reads yet, which is *Further out*'s subgoal-chaining note
-with its acceptance test already in a file.
+**What the bank gives the open items, and the one thing it does not.** `--goal-board` is a
+**hint-assisted** instrument — gated, and none of it in the headline rate — so what it produces is a
+supply of **real recordings on off-distribution long levels**: the sample layer 4 is fit on and
+`--profile` / `basin.py`'s only input, which is 20 hand recordings today. Item 16's falsifiers are all
+measured over those same 20, so a wider bank widens every one of them, and the per-flag boards are a
+subgoal sequence nothing reads yet — *Further out*'s subgoal-chaining note, with its acceptance test
+already in a file. **What it does not give is human *routes***: a goal board names the destination, not
+the path, so "what did the human do next" stays a question only a recording answers. Three items inherit
+from it and none is blocked on it.
 
 **Item 2 stays first, and it is a machine commitment rather than a build.** Its rehearsal is done and
 its 54-hour run is fully specified, so it is ready to launch whenever the machine is free — and because

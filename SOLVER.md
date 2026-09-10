@@ -273,45 +273,38 @@ half a solution.** Three of the four items land ahead of item 5 on the ordering 
 (15) is the cheap falsifier item 5 has been open without. Item 5 is still the only open item that would
 move a level.
 
-**The whole chain then ran end to end and is one command** — `python tools/harvest.py complete`, ~65 min,
-one funnel and one table of every post the decode did not finish on its own with `intentional:` or
-`CLARIFY:` against each. Session 40's run banked **5,975 levels / 7,462 goal boards** with **4 unknown
-tiles in 1,915,904**, three of them already answered in `bench/post-fixups.json`; **one cell is open**
-(`Sokoban-I` 1060 `b` at O2) and one is all that stands between that run and a bank whose only refusals
-are the 11 re-authored levels —
-[session 40](docs/solver/history.md#session-40--the-whole-chain-ran-clean-and-its-two-complaints-were-one-repair-and-one-instrument-bug).
+**The chain then ran end to end, clean, and the bank is done** — `python tools/harvest.py complete`,
+one funnel and one table of every post the decode did not finish on its own. `bench/goal-boards.json`
+carries **6,030 levels / 7,622 goal boards** decoded from the whole 6,218-post index with **no unknown
+cell on any banked board** (4 filled from a post fixup, 1 tank likewise, 2 boards read against a `.ltg`
+graphics pack), 0 codebook/derivation clashes and **nothing waiting on a human**: the 38 remaining
+rows are all read and all intentional — 5 occluded cells stated in `bench/post-fixups.json`, 9 posts
+whose filenames name another level, 11 levels re-authored since their post, 8 posts with no start
+screenshot, 5 start frames that are play states. Getting there took four sessions of *the instrument was
+wrong, not the blog*, and the last pass is the cleanest statement of it: **which graphics a screenshot is
+of is a property of the screenshot** — the zoom is in the board frame, the pack is in the tiles — and
+four readers assumed it independently. Two good start boards were called `NOT A START` and nine tile
+labels were requested that were all already answered, one of the four gates reporting 48 of 106 codebook
+entries "not derived" where the honest number is 3. Each symptom looked like a finding about the blog.
+The sessions in order:
+[38](docs/solver/history.md#session-38--the-corpus-scale-run-and-what-its-two-complaints-were) (the
+corpus-scale run: 46 "conflicting cells" that were re-authored levels, and two `NOFRAME`s that were
+Blogger serving a downscale),
+[39](docs/solver/history.md#session-39--the-logs-drops-and-the-two-that-were-the-instruments-fault) (the
+drops: the sprite pitch is *measured* off the frame, the shipped `.ltg` packs are decodable, the mid-blit
+capture derives like any other composite, and an information-free cell is stated by hand rather than
+inferred from a scratch recording),
+[40](docs/solver/history.md#session-40--the-whole-chain-ran-clean-and-its-two-complaints-were-one-repair-and-one-instrument-bug)
+(one repair, one instrument bug, and a gate that had never run), and
+[41](docs/solver/history.md#session-41--the-filenames-the-harvester-could-not-read-and-the-four-readers-that-assumed-the-graphics)
+(the filenames, the 21 posts naming another level, and the four readers above).
 
-**The complete blog harvest ran, and everything it reported as a loss had a cause worth the trip.**
-`tools/harvest.py fetch` over the whole 6,218-post index rather than item 6's 150-post sample:
-**5,779 start boards and 6,708 goal boards**, 34 minutes, and the goal-board bank goes from 141 levels
-to as many of those as decode cleanly. **Session 39 then worked through the drops that run had reported
-and the harvester now reaches 6,023 start boards and ~7,484 goal frames**, with 1 level contributing
-nothing where 246 did: the posts whose Blogger URLs carry no filename lose their goal frames to the same
-gap and are read by document order, a multi-part post's later parts are no longer discarded, the board
-frame's grey run is read as the *sprite pitch* it encodes rather than as a threshold (`SetGameSize`'s
-24/32/40, three posts at 32), the shipped `.ltg` packs are decodable so `LaserTank` 1619's EyeSaver+Grid
-frames come in, and the mid-blit capture turns out to derive like any other composite. Two of session
-38's own verdicts fell in the process — the black silhouette *is* derivable, and the cells it waved
-through as harmless are information-free rather than unlabelled, so they are stated by hand in
-`bench/post-fixups.json` and never inferred from a scratch recording — the full record is
-[session 39](docs/solver/history.md#session-39--the-logs-drops-and-the-two-that-were-the-instruments-fault).
-
-Back on the first run: `codebook` stopped it on **46 conflicting cells over 11
-boards** and **two `NOFRAME`** images, and neither turned out to be what it looked like — that record is
-[session 38](docs/solver/history.md#session-38--the-corpus-scale-run-and-what-its-two-complaints-were).
-**The conflicts are re-authored levels, not mislabelled tiles**: `tools/sprites.py` derives every one of
-those hashes from the game's own graphics and owes nothing to either side, and it backs the *codebook* at
-all 46 cells (**0 clashes across the whole 57-entry table**), so the screenshot is right and the `.lvl`
-has moved on since the post. That is a finding rather than a failure — but it is `bank`'s problem, because
-a goal board from a superseded revision is a target the current level **cannot reach**, and the search
-would chase it to the time limit. **Both `NOFRAME`s were Blogger serving a downscale**, not authors
-resizing screenshots: `fetch` asked the post's own URL first and got 512-wide resamples with no 24-pixel
-grid left in them; asked in the right order both come back at full size and decode clean. Nothing on the
-list is blocked on any of it and three items inherit from it — `--goal-board`'s hint-assisted bootstrap
-becomes a corpus-scale supply of real recordings on long levels, which is the off-distribution sample
-layer 4 is fit on and `--profile` / `basin.py`'s only input; the per-flag boards are a subgoal sequence
-for *Further out*'s chaining note; and item 16's falsifiers are all measured over the 20 hand recordings
-today. **What it does not supply is human routes** — a goal board names the destination, not the path.
+Nothing on the list is blocked on any of it and three items inherit from it — `--goal-board`'s
+hint-assisted bootstrap becomes a corpus-scale supply of real recordings on long levels, which is the
+off-distribution sample layer 4 is fit on and `--profile` / `basin.py`'s only input; the per-flag boards
+are a subgoal sequence for *Further out*'s chaining note; and item 16's falsifiers are all measured over
+the 20 hand recordings today. **What it does not supply is human routes** — a goal board names the
+destination, not the path.
 
 **Item 6 took three sessions and closed in session 36; the whole record is
 [closed item 6](docs/solver/history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).**

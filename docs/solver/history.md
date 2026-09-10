@@ -679,6 +679,162 @@ tile is their own turned tank cell, which `sprites.py` derives anyway, so the co
 against the `.lvl`, so a re-authored one among them would have handed `bank` a target the level cannot
 reach, which is the one failure mode `stale.json` exists to stop.
 
+#### Session 41 — the filenames the harvester could not read, and the four readers that assumed the graphics
+
+Michal read session 40's table and rejected two of its rows wholesale: the 58 levels "carrying no goal
+screenshot" and the 21 "carrying no start screenshot" are mostly wrong, **the screenshots are there, under
+names `pick_images` did not read**. He was right on both counts, and the reading was wrong in four
+separate ways. Fixing them costs no new guess about which picture is which and gains **+160 goal frames
+and +6 start frames** — 7,484 → 7,644 and 6,023 → 6,029 — with the levels that contribute *no goal frame
+at all* going 58 → 3 and *no start frame* 21 → 15.
+
+**A filename is not a picture, and keying on one threw pictures away.** Blogger serves each screenshot at
+several sizes and the identity of the picture is the blob in the URL, not the basename: the old shape
+varies a path segment (`.../<blob>/s1600/LaserTank_801.png`) and the new one a suffix (`<blob>=s609`).
+`posts_by_level` deduplicated on the basename, so a post where the author saved *both* screenshots under
+one name collapsed to one picture and the second was gone before anything could look at it. **37 posts do
+that** — 30 of the 58 "no goal screenshot" rows and 3 of the 21 "no start" ones — and `LaserTank` 801 is
+the shape of all of them: two blobs, one name, a start and a goal. `pictures()` keys on the blob and keeps
+the post's document order.
+
+**The frame tag is now whatever the filename has left.** Three patterns read the remainder before — bare,
+`[b-z]`, and `_<cell>` — and **113 basenames in the corpus matched none of them**, of which 73 are genuine
+frames of the level they name: `502_1.png`, `36b1.png`, `173b_4.png`, `SokobanI_620_A1_2.png`,
+`SpecialI_431_percent_25.png`, `SpecialI_431_end.png`, `LaserTank_1230bb.png`, `1978_Finish.PNG`, and the
+2016 era's own `476_P3.png` — a flag cell, dropped only because that spelling required a collection prefix
+which the prefixless era does not write. The tag is an ordering key and a piece of a fetched file's name,
+interpreted nowhere, so the rule is to keep the author's own word rather than to understand it: the two
+spellings the bank is already keyed on are pinned (`b`, `A15`), everything else is the remainder minus the
+characters a filename should not carry. The one guard that earns its place is that the remainder may not
+open with a digit — `LaserTank_45.png` in a level-4 post is level 45's picture, not level 4's frame `5`.
+
+**Pictures the filenames do not account for fill the roles the filenames left open**, in the post's own
+document order, which generalises session 39's fallback rather than replacing it. That fallback was
+all-or-nothing per post, on the reasoning that a post which names *some* of its pictures has made a claim
+about those and mixing a claim with an order is how a wrong answer looks confident. True, and it is still
+true — but it also refused to place pictures no claim covers at all. Three shapes need it and they are one
+rule: a post whose pictures carry no filename (242 levels, session 39's case); a post that mixes named and
+filename-less pictures (`SokobanI_942b.png` is the goal and the unnamed one is the start); and a post where
+two *different* pictures make the same claim, which is a claim that cannot be honoured for either, so both
+fall through and the first is the start. What it never does is overrule a filename. It stays the one guess
+in the file and it stays arbitrated where the pixels are — `codebook` admits a start board only if the tank
+is on the `.lvl`'s own `T` cell — and the arbitration promptly earned its keep: of the 6 starts it
+recovered, **4 decode to their `.lvl` with 0 differing cells** (`Challenge-V` 576, `Sokoban-I` 942, 943 and
+1051) and 2 are play states — `Challenge-II` 65 at 29 cells out, `Special-I` 151 turned the wrong way —
+which the gate rejects by name as `[order-picked]`.
+
+**And 40 pictures over 21 posts name another level or another collection outright.** `LaserTank_452.png`
+in the Sokoban-I 452 post, `SokobanI_1081.png` in the Sokoban-I 1080 one, `SokobanI_234_B7_C6.png` in the
+Sokoban-I 236 one. Reading the filename cannot tell a typo from a screenshot of a genuinely different
+level — that is `pick_images`' whole premise, that a filename is a *claim* — so they are dropped, and the
+change is that `map` now **reports** them: before, 21 posts silently lost a frame apiece. **Decoding each
+picture against both candidate `.lvl`s does settle it**, and it splits them almost evenly:
+
+| | posts | pictures | what the decode says |
+|---|---|---|---|
+| the number or prefix is a typo | 12 | 30 | 11–99 cells from the title's board, 141–240 from the filename's |
+| the picture really is another level's | 9 | 10 | **0** cells from the filename's own board, in 7 of the 9 |
+
+Both populations are committed to `bench/post-fixups.json`, the first as `image_level`/`image_coll` and
+the second as `confirmed`. The method is not a new instrument, it is `decode --check` run twice, and it
+reproduces both cases that were already decided by hand: `Sokoban-I` 344, which Michal played in session
+39 and retargeted to `image_level: 343`, comes back 49 cells from 344 against 240 from 343; and
+`LaserTank_452.png`, which `pick_images` has dropped as another level's screenshot ever since it
+started reading the prefix, comes back **0** cells from LaserTank 452 — the same 201 conflicts it once
+taught the codebook, now on the other side of the ledger. `image_level` and `image_coll` also had to start *widening* rather than replacing: the Sokoban-I
+236 post carries `SokobanI_236.png` spelled right next to four `SokobanI_234_*` frames, and a retarget
+that renamed the level out from under the start would have traded the goal frames for it.
+
+**`Sokoban-I` 1060 O2 is `^`, and session 40's two candidates were both right.** Michal: the tank is
+standing on a north-facing anti-tank, moved there by mirrors, which is itself standing on the green tunnel
+the `.lvl` already has at O2. So it is 899's and 901's cell shape exactly — the object is what `PF` holds
+and the tunnel is what it is standing on — and the last row waiting on a human is answered.
+
+**Two rows that were correct, and a way to say so.** `LaserTank` 521 and 596 are reported as start frames
+that are not start positions, and Michal confirms both: the posts really do lead with a play state.
+Nothing to fix, and until now nothing to record either, so every run asked again. `confirmed` in
+`post-fixups.json` is that word — it corrects nothing, it closes the question, and the row it annotates
+stays in the table with the note attached, because the tool still cannot see what was checked and will
+find the same thing next run.
+
+**Every row prints its post URL now**, not only the ones waiting on a human: the rows that are *not*
+questions are the ones a reader most often wants to open, to confirm for himself that a refusal really is
+the blog's shape, and a row without its URL made that a search.
+
+**Michal then opened all 40 rows of that run's table, and two of them were the tool's fault** — which is
+the URL change paying for itself on the first run it shipped. `LaserTank` 1126 and 1619 are reported as
+`no tank in the picture [order-picked]`, and the tank is plainly in both pictures: 1126's on N1, 1619's on
+F13, `Moves 0` and `Shots 0` on the panel beside them. **The start-position gate was the one reader in the
+chain still assuming what graphics a screenshot is of.** `origin` has measured the sprite pitch off the
+board frame since session 39 and `decode_board` has tried the shipped `.ltg` packs since the same session
+— that is how *both* of these posts' goal frames were banked, 1619's recorded as `EyeSaver+Grid` — but
+`codebook` built one table from `sprites.Cells()`, the internal sheet at the module's default 24 px, and
+asked all 6,022 frames about it. A picture of anything else has no tank in it by construction. 1126 is the
+32-px zoom; 1619 is 32-px *and* EyeSaver+Grid. `frame_sheet` now reads both off the picture — the pitch
+from the frame, the pack as whichever derivation the tiles are actually in, packs tried only once the
+internal sheet has left something unread, on `decode_board`'s own measured safety that no hash carries two
+different `PF` values across the eight `(pack, pitch)` tables. Both boards are then admitted with the tank
+on the `.lvl`'s own `T` cell facing up and **0 unknown, 0 differing cells**, and the gate does not get
+looser in the process: `LaserTank` 521, the play state in the same sample, is still rejected by name.
+
+**The seat comes from `sprites.facings()` rather than from the table**, which is the same fix as session
+39's for the same reason: the gate asks the pixels *which cell the tank is on* and never asks what is
+under it, so a tank standing on an anti-tank — PF-ambiguous, dropped from `table()` — should still seat.
+Measured before it went in, at every pitch and every pack: `facings()` is a **strict superset** of the
+table's own facings, 0 missing and 0 disagreeing across all twelve tables, and 578 tiles wider at 24 px
+internal. So it can only turn a `no tank` into a seat, never a seat into a wrong one.
+
+**The other 38 rows Michal confirms as the tool had them** — the five occluded cells, the nine posts whose
+filenames name another level, the eleven re-authored `.lvl`s, the eight posts with no start screenshot,
+and the five genuine play states. The table's job on those was to be readable enough to check, and 40 rows
+checked in one pass is the answer to whether it is.
+
+**It was not two readers making that assumption, it was four, and the other two asked for nine tile
+labels that were all already answered.** `sheet` — the residual pass, the one that says what still needs a
+human — reported **9 unlabelled sprites over 36 instances**, and every one of the nine was accounted for
+before it was asked about. They split perfectly in two:
+
+| | sprites | instances | what accounts for it |
+|---|---|---|---|
+| a `.ltg` pack at 32 px | 5 | 32 | `LaserTank` 726 `c` and 1619 `b`, both EyeSaver+Grid, both **banked with `unknown: 0`** |
+| stated in `bench/post-fixups.json` | 4 | 4 | `Challenge-V` 727 A7, `LaserTank` 899 I2, 901 D15, `Sokoban-I` 1060 O2 |
+
+The first five are `codebook`'s bug over again, one layer along: `load_codebook` merges the internal sheet
+at every pitch the frame gate accepts **and nothing else**, so a tile whose answer lives in a pack was
+outside the codebook and therefore "unlabelled" — 28 of the 36 instances are a single tile of 726's. The
+other four can never be in *any* hash table: the tank drawn on an anti-tank occludes the cell so
+completely that two different `PF` values give identical pixels, which is the whole reason they are stated
+per post rather than labelled. **A tile outside the codebook is not the same thing as a tile nobody can
+read**, and conflating them is what turned nine answered questions back into a request for work. `sheet`
+now accounts for each residual tile before drawing it, writes the accounting into the sidecar, and draws
+only what is left — which is nothing, so it writes no `residual.png` at all and says so.
+
+**And `tiles`' own two gates were checking against the wrong table, one of them loudly.** The goal-residual
+gate compared each residual hash against the internal 24-px table, so the five pack sprites came back `not
+derived` — a foregone answer to a question about a 32-px EyeSaver tile. The start-bootstrapped-codebook
+gate had it worse, and admitting 1126 and 1619 is what exposed it: those two boards now *teach*, so 45 of
+the codebook's 106 entries are 32-px or EyeSaver hashes, and the gate reported **48 of 106 "not derived"**
+in 48 lines of output that said nothing except that it was looking in the wrong place. Checked against the
+derivation each tile is actually of (`derived_cell`, a lookup across every `(pack, pitch)` table — safe
+for the measured reason that no hash carries two different `PF` values across them), the same run reads
+**96 of 106 agree, 7 tank cells reconciled, 0 clash, 3 not derived** — and those 3 are the three
+information-free cells that have been known underivable since session 38. The gate costs 17 s instead of
+3 s, which is what building the pack tables costs, and the report now carries an open residual sprite as a
+`note:` line rather than leaving it in the log.
+
+**The pattern is worth naming, because four readers had it independently.** *Which graphics a screenshot is
+of is a property of the screenshot* — the zoom is in the board frame and the pack is in the tiles — and
+every reader in the chain has to ask. `origin` and `decode_board` have asked since session 39; `codebook`,
+`sheet` and both `tiles` gates were still assuming, each in its own way, and every one of the four
+symptoms looked like a *finding about the blog* rather than a bug in the instrument. That is the same
+lesson session 40 wrote down about the residual gate that never ran, one level up: a gate that asks the
+wrong question is worse than one that does not run, because its answer looks like data.
+
+```bash
+python tools/harvest.py complete            # ~65 min, and it rewrites bench/goal-boards.json
+python tools/harvest.py complete --report --all
+```
+
 ### 8. Level 10, one traced run — and it answered a question the item did not ask.
 
 The item was *is level 10 budget-limited or ranking-limited?* The trace settled it and then found the
