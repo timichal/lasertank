@@ -300,6 +300,22 @@ namespace LaserTank.Solver
                                            // successor that sweeps fewer cells
                                            // than its parent ranks above one
                                            // that only shortens the walk
+        /// Item 5: search for one *phase* at a time and commit to the board it
+        /// found.  A phase ends at a milestone -- a successor whose board holds
+        /// strictly fewer consumable objects than the phase's own root -- and
+        /// the chain then re-enters the beam from that board with a fresh
+        /// closed set.  See Phase.cs; a level with no milestone runs as one
+        /// phase, i.e. exactly as it does with this off.
+        public bool PushPhases = false;
+
+        /// Nodes one phase may spend before the chain takes the best milestone
+        /// it holds, 0 to commit only where the search would otherwise give up.
+        ///
+        /// Off by default, and PhaseDone carries the two commit laws that were
+        /// measured and refused before this one -- including the one that cost
+        /// `LaserTank.lvl` 20, a level the plain beam solves.
+        public long PushPhaseNodes = 0;
+
         public bool PushRare = false;      // item 16's first derivation as the
                                            // read's *top* tier: a change that
                                            // touches an element the author
@@ -414,6 +430,8 @@ namespace LaserTank.Solver
         public string Method = "-";
         public string Stop = "-";          // why it gave up, when it did
         public int Restarts;               // layer 3: extra attempts spent
+        public int Phases;                 // item 5: phases committed to before
+                                           // this result, 0 without --push-phases
         public long Nodes;
         public double Ms;
         public int Depth;                  // keypresses in the winning path
@@ -568,7 +586,7 @@ namespace LaserTank.Solver
                 Stage(_opt.PushShare);
                 if (!OutOfBudget)
                 {
-                    SolveResult p = PushSearch(root);
+                    SolveResult p = _opt.PushPhases ? PushPhases(root) : PushSearch(root);
                     if (p.Solved) return Finish(p, "push");
                     r = p;
                 }

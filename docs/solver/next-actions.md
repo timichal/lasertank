@@ -1,25 +1,57 @@
 # Next actions — the open items in full
 
-Six items are open. The order and the reasoning behind it are in
+Five items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 5, 14, 4, 7, 10**. **Item 18 closed in session 44 and item 5 is what it hands to**: the
-horizon is **not** a searcher constant — 2 to 50 board changes over the 12 recordings the arm cannot
-solve unseeded, a **25x** spread — so the lever is per-level and not a fixed phase size, and level 6's
-50 turns out to be the *deepest* reach measured anywhere rather than a short one. Its line is 3.4x its
-own reach, which is the finding item 5 now builds against. **Items 16, 15 and 13 closed in session 43** and they are the
-clearest run this list's ordering rule has had: three items whose falsifiers cost minutes were spent
-beside item 2's machine time, and they came back **one column that ships with the sign inverted** (FMO
-mobility predicts the rate, and freer blocks are *harder*), **one derivation refused** (the per-carry
-constant changes no level's ascent), **one horizon measured** (level 6 finishes from 50 board changes out
-and not from 51) and **one free report column** (the shot test). Their measurements are in
+Order: **2, 14, 4, 7, 10**. **Item 5 closed in session 45 and it closed negative on its own example**,
+which is the second time running that the item at the front of the list has been refused by a falsifier
+it built for itself (item 17 was the first). The decomposition is real — `--push-phases`, a phase
+terminated by a **milestone** rather than sized by a constant, and `LaserTank.lvl` 6's 168-change line
+comes apart into **six phases of 18 to 34 board changes against a horizon of 50**, every one inside the
+reach already measured on that level. The chain then commits to the *right* board — its first fill is
+(9,14), the same cell the human fills first — and **phase 2 never lands at width 32, 128 or 512, and
+not from the human's own board either**. So the phases are short, the commitment is sound, and the search
+still cannot walk the middle of the line: what defeats level 6 is **not** the length of its line, which
+is the premise this item was written on.
+[Closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
+
+**Two things came out of it that are worth more than the item was, and the first one lands on item
+14.** `tools/phase_reach.py` solves level 6 from **K = 102, 66 board changes from the end, at width 32
+on 3.4M nodes**, where item 18 measured its horizon of **50** at width 512 on 40M — the narrow arm goes
+deeper on a twelfth of the budget, so **the horizon is width-dependent and 50 is not the searcher's
+best**. Narrow-and-deep for the fourth time, and **item 14's per-level lever has a second dimension it
+had not measured**. Item 18's number stands as measured; what it no longer supports is "50 is the
+reach". And phase 2's trace is `best=137` flat for 237
+depths, the *same signature* as level 10's GAUNTLET: a beam ranking distinct boards by a key that has
+stopped discriminating. **What is binding in the middle of a Sokoban is the ranking, not the depth.**
+That is layers 4 and 6's territory and it is not on this list as an item, because nothing has measured it
+on a population yet — the cheapest way in is item 14's own run, which now has a second reason to exist.
+
+**Items 17 and 18 closed in session 44.** Item 17 is the cleanest negative these files hold (below);
+item 18 is the measurement item 5 was built on, and it inverted what item 15's number looked like. The
+horizon — the board changes of suffix the search can close — runs **2 to 50 over the 12 recordings the
+arm cannot solve unseeded, a 25x spread**, so it is *not* the searcher's own reach; it is not a constant
+fraction of the line either (0.07 to 0.78); and it is not a function of the line's length, which two
+levels refute outright (`LaserTank.lvl` 9 and 23 both have 27 board changes and horizons of **2 and
+21**). **Level 6's 50 is the deepest horizon measured anywhere** — level 8 solves its whole 52-change
+recording from the root — so the reach on level 6 is the best the search achieves and what beats the
+level is a line **3.4x** that reach. A decomposition sized from a global constant was therefore refuted
+before it was built, and item 5 duly built one that is sized by nothing.
+[Closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
+
+**Items 16, 15 and 13 closed in session 43** and they are the clearest run this list's ordering rule has
+had: three items whose falsifiers cost minutes were spent beside item 2's machine time, and they came
+back **one column that ships with the sign inverted** (FMO mobility predicts the rate, and freer blocks
+are *harder*), **one derivation refused** (the per-carry constant changes no level's ascent), **one
+horizon measured** (level 6 finishes from 50 board changes out and not from 51) and **one free report
+column** (the shot test). Their measurements are in
 [closed items 13, 15 and 16](history.md#closed-items--the-measurements-including-the-negative-ones).
 **Item 17 then closed in session 44, on the bench it set itself**, and it is the cleanest negative this
 list has produced: the derivation with the largest lift the read has ever measured (**3.15x**) is
-**−2 on ferry with zero exclusive levels and −1 on deep** as a tier, because its 5.1%-of-successors
+**-2 on ferry with zero exclusive levels and -1 on deep** as a tier, because its 5.1%-of-successors
 selectivity was a property of the twenty hand recordings and not of the population the chain fails — on
 four of five ferry levels probed it names **0%**. The code ships off by default and the table is in
 [closed item 17](history.md#17-the-rarity-tier--built-and-refused-on-the-bench-it-set-itself).
@@ -28,11 +60,13 @@ blog's ten-post *Lyf Series* on how a strong human plays, read against the layer
 [`human-strategy.md`](human-strategy.md). **They were not a wish list, and the way they closed is the
 argument for reading prose against a codebase**: of the six derivations the reading proposed, two shipped
 as measured distributions, two were refused on their own falsifiers, one turned into a report column and
-one became item 17 — which has itself now closed as the sixth. What the ordering rule did to the old
-order is worth keeping: **item 5 moved from 2nd to 6th and gained a cheap falsifier it did not have**
-(item 15, now run), and it is 3rd again because the two items ahead of it closed; which is a better outcome for
-it than staying at the front without one. Items 4, 7 and 10 keep their relative order and their
-reasoning; only their ordinals moved.
+one became item 17 — which has itself now closed as the sixth. What the ordering rule did to item 5 is
+the part worth keeping: it **moved from 2nd to 6th and gained a cheap falsifier it did not have** (item
+15), rose back to the front as the items ahead of it closed, and then closed *negative* on that
+falsifier's descendant. It would have been built either way; what the demotion bought was that it was
+built after item 18 had refuted a global phase size, so what got built is sized by nothing and the
+negative is about the search rather than about a constant. Items 4, 7 and 10 keep their relative order
+and their reasoning; only their ordinals moved.
 
 **The goal-board bank is done, and it is an input now rather than an item.** `bench/goal-boards.json`
 carries **6,030 levels / 7,622 goal boards**, decoded from the blog's whole 6,218-post index with **0
@@ -67,12 +101,12 @@ it — a two-second replay, an offline sweep, a 63-second corpus pass, a flag an
 running pass saw none of it except in wall clock, and session 44 spent item 17's build and its five
 benches the same way — four jobs beside the pass's sixteen, ~3.5 min a bench, node-governed throughout.
 **Items 17 and 18 were both spent beside it in session 44** — a build and five benches, then 96 probes
-at four jobs against the pass's sixteen — and it saw neither except in wall clock. **What is left is
-item 5**, which is a build rather than machine time. Item 5 is still the only open item that would move a level in front of
-the project — `LaserTank.lvl` 6, which has no blogspot post at all and so was never in item 6's reach
-nor in the running harvest's, and which item 15 has now put a number on: the search finishes its last
-**50** board changes of 168 and not its last 51 -- and item 18 has since shown that 50 is the *deepest*
-reach measured on any of the 20 recordings, so the line is 3.4x the reach rather than the reach being
+at four jobs against the pass's sixteen — and it saw neither except in wall clock. **Session 45 spent
+item 5 the same way**: two instruments that cost no search worth speaking of, a build, and ~20 probes at
+one job against the pass's sixteen. **What is left after it is machine time and no build**, and
+`LaserTank.lvl` 6 is no longer an item — closed item 5 measured that its line comes apart into six short
+phases and that the search cannot walk two of them from *any* board, the human's included, so the line
+being 3.4x the reach turns out not to be
 short.
 
 ---
@@ -235,99 +269,7 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 5 (2nd) — level 6's decomposition
-
-*Level 10's half of this item is done: it is `--push-fire-tier`, it is
-[Layer 9](layers.md#layer-9--exposure-as-a-tier---own-rung-the-population-pays-the-example-does-not), it
-is worth +9 on the GAUNTLET tail, and it does not solve level 10. What is left of 10 is an open level with
-no named candidate — session 29 cleared budget, closure, width and depth, and Layer 9 cleared the
-derivation that diagnosis prescribed. **Do not spend another overnight run on it without a new
-hypothesis**, and the cheapest place to look for one is the `frontier sweeps` column the tier added: it
-says whether exposure stops falling, and if it does, where.*
-
-**Level 6 wants layer 2's decomposition one level out:** commit to one (block, hole) pair, search only for
-that, re-derive. It is the half furthest from falling on its own numbers — 142 pushes, six holes, and a
-beam that fills two of them and then finds every successor of every board worse. Nothing above it is
-blocked on it, and it **was** the one open item with no cheap falsifier — [item
-15](history.md#closed-items--the-measurements-including-the-negative-ones) was built to be one, item 18
-ran it over all 20 recordings, and between them this item now has a target *and* a shape.
-
-**The target.** At 40M nodes and width 512 the search finishes level 6 from its **50th-from-last** board
-change and not from its 51st (item 18's bisection; item 15's 48 was the same boundary read from a
-coarser bracket, and 118 solves on 36.75M where 117 fails on 40M). Every K below it fails monotonically.
-So a phase this item proposes has to be worth about **50** board changes of suffix, and the boundary is
-one change wide.
-
-**The shape, and it is the thing item 18 changed.** The horizon is **not** a searcher constant — over the
-12 recordings the arm cannot solve unseeded it runs **2 to 50, a 25x spread**, and it is not a constant
-fraction of the line either (0.07 to 0.78). **And level 6's 50 is the deepest horizon measured anywhere**;
-`LaserTank.lvl` 8 solves its whole 52-change recording from the root. So the search's reach on level 6 is
-the best it achieves on any of these levels, and what defeats the level is that its line is **168 changes,
-3.4x that reach**. That kills the version of this item that sizes a phase from a global constant: the
-phase count a decomposition needs runs from **1.3 on level 23 to 13.5 on level 9**, so a fixed phase
-length and a fixed phase count are wrong in the same way. Whatever this item builds has to derive its
-phase boundary from the level — and [item 14](#14-3rd--per-level-width-from-the-record-and-the-calibration-that-sizes-it)
-now carries the negative result that says nothing free predicts it yet.
-[Closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
-
-**Two things the human record says about this item's *design*, and they pull in opposite directions**
-([`human-strategy.md`](human-strategy.md)). The series defines a phase precisely — *"divide a level into
-phases, that is, your savings in one phase won't cause sacrifices in another"* — so **a phase is an
-independence property**, which is testable off the maze BFS this item is going to run anyway: two carries
-are in different phases when neither's block-reach region nor its tank route touches the other's. That
-is the definition to build against, and level 6's six holes being a *strip* is the reason to expect it to
-say *one* phase, which would be a real answer rather than a null one. But the same author pushes blocks
-**two by two, not one by one**, because a lone carry pays the whole go-and-return, and level 6's hand line
-moves four blocks in its first five board changes — so *commit to one (block, hole) pair* is exactly the
-bet `--push-ferry-stage` already lost. **A phase has to be allowed to be a group of carries**, and item 15
-is what says how big a group.
-
-**Size it before building it, because the obvious sizing argument cuts the other way.** `barrier == 0` is
-26.2% of the corpus but is solved at **25.2% against 7.0%** — an artifact of the bucket holding OPEN and a
-mass of 12-key GAUNTLETs, since the sampled GAUNTLETs split 127 solved at a median record of 12 against
-537 unsolved at a median of 138. **The population worth aiming at is those 537** (138 of them with a
-record ≤ 60), and the cheap test is a rung over that tail, not a campaign. The full verdict table is in
-[`history.md`](history.md#the-corpus-through-the-read).
-
-**That cheap test has been run once, for Layer 9, and it is the reason the sizing paragraph is worth
-keeping.** Two things it said that the sizing argument did not predict: **the tail is not as hard as its
-median record suggests** (the control arm alone solves 76 of 138 at 40M, against the 23.9% the best
-fourth-pass arm scores on the general failure population), and the fire tier is worth +9 solo and +15
-exclusive on top of it. Regenerate the population list and its report with:
-
-```bash
-python - <<'PYEOF'
-import json, io
-an = {}
-for line in io.open("build/reports/analyze-corpus.tsv", encoding="utf-8"):
-    if not line.startswith("#"):
-        f = line.rstrip("\n").split("\t"); an[(f[0], int(f[1]))] = f[3]
-rows = [json.loads(l) for l in io.open("build/reports/chain.jsonl", encoding="utf-8-sig")]
-keep = [r for r in rows
-        if an.get((r["collection"], r["level"])) == "GAUNTLET"
-        and not r["solved"] and 0 < r["ghs_moves"] + r["ghs_shots"] <= 60]
-with io.open("bench/gauntlet-tail.txt", "w", newline="\n") as f:
-    f.write("# item 5's population: chain.jsonl failures --analyze calls GAUNTLET\n"
-            "# with a .ghs record of <= 60 moves+shots.\n")
-    for r in sorted(keep, key=lambda r: (r["collection"], r["level"])):
-        f.write("%s\t%d\n" % (r["collection"], r["level"]))
-with io.open("build/reports/gauntlet-tail.jsonl", "w", newline="\n") as f:
-    for r in keep: f.write(json.dumps(r) + "\n")
-PYEOF
-LT_SOLVE=build/lasertank-solve.exe JOBS=16 bash tools/gauntlet_tail.sh
-```
-
-`analyze-corpus.tsv` regenerates in ~3 minutes by the loop in [`instruments.md`](instruments.md) if
-`build/` has been cleared.
-
-**The corpus question the tier opened was item 2's, not this one's, and session 33 answered it:**
-`$L8 --push-eval work --push-fire-tier` on the same 255-level stride is **66 of 255**, the best solo arm
-measured, and it retires `l8work` rather than joining it. Nothing in that changes this item — the tier is
-level 10's half of it and level 10 is still unsolved.
-
----
-
-## 14 (3rd) — per-level width from the record, and the calibration that sizes it
+## 14 (2nd) — per-level width from the record, and the calibration that sizes it
 
 **The record's shot count is this project's search depth.** Over the 20 hand recordings, board changes
 divided by `.ghs` shots is p25 0.96 / **p50 1.00** / p75 1.09, exact on six of twenty, and level 6 is
@@ -352,7 +294,8 @@ whose record says 12 board changes and one that says 168 are searched at the sam
 round. Scaling the **round-1** width per level by `budget / (poses × ghs_shots)`, clamped, with the ladder
 still doubling from there, is a policy change the estimate is accurate enough to make.
 
-**The decision run** is item 5's 138-level GAUNTLET tail at a fixed 40M — the population is already
+**The decision run** is [closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself)'s
+138-level GAUNTLET tail at a fixed 40M — the population is already
 committed and the control has already been run twice — global width against record-derived width, read as
 solved count and exclusive levels. **Raise-only, like `--max-keys-record`, so nothing that terminates
 today stops terminating.**
@@ -380,7 +323,7 @@ diagnostic without parity's exceptions (ice, tunnels, tank movers, several flags
 
 ---
 
-## 4 (4th) — the campaign that decides whether `--best-of-round` is a default
+## 4 (3rd) — the campaign that decides whether `--best-of-round` is a default
 
 **The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
 115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
@@ -427,7 +370,7 @@ at the level). **Level 8's 308 has not.**
 
 ---
 
-## 7 (5th) — the solved-vs-budget curve
+## 7 (4th) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;

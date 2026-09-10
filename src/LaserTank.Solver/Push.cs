@@ -406,6 +406,18 @@ namespace LaserTank.Solver
                     _pxFire = _pxFireSeen = 0;
                 }
 
+                // Item 5: this depth consumed something, so the phase is over
+                // and PushPhases commits to the board it found.  Placed after
+                // the trace so a --push-trace run still prints the depth that
+                // ended the phase, and before the frontier swap because that
+                // frontier is about to be thrown away by the commit anyway.
+                if (_opt.PushPhases && PhaseDone)
+                {
+                    r.Stop = "push-phase";
+                    Recycle(frontier, next);
+                    return r;
+                }
+
                 foreach (Node n in frontier) Give(n.S);
                 frontier.Clear();
                 (frontier, next) = (next, frontier);
@@ -522,6 +534,11 @@ namespace LaserTank.Solver
             if (truncated) KeepBestPoses(closure, seen, layer, next);
             if (_opt.PushRead) ReadTier(at, closure, next, first);
             if (_opt.PushFireTier) FireTier(at, next, first);
+            // Item 5, and last on purpose: a milestone is recorded with the
+            // Tier every derivation above has finished assigning, so the
+            // chain's choice between two milestones is the beam's own order
+            // rather than a second opinion about it.
+            if (_opt.PushPhases) PhaseMark(next, first);
             if (_opt.PushTrace)
             {
                 _pxClosure += closure.Count;
@@ -596,7 +613,13 @@ namespace LaserTank.Solver
         /// one.  --push-trace says a depth's best score; on a level whose
         /// ranking key has gone flat that is exactly the number that does not
         /// tell you what the beam is looking at.
-        private static void TraceBoard(Node n)
+        private static void TraceBoard(Node n) => TraceBoard(n.S, n.H / Eval.Scale);
+
+        /// Item 5 prints the board it is about to *commit* to, which is a
+        /// snapshot and not a Node -- and that board is the one thing about a
+        /// phase chain that has to be readable, because a chain that commits to
+        /// a dead board looks exactly like a chain whose next phase is hard.
+        private static void TraceBoard(EngineSnapshot s, int h)
         {
             const string Name = ".TF~#Bb^>v<mnopURDLCqwerIi";
             System.Text.StringBuilder b = new System.Text.StringBuilder();
@@ -605,11 +628,11 @@ namespace LaserTank.Solver
                 b.Append("        ");
                 for (int x = 0; x < 16; x++)
                 {
-                    byte c = n.S.PF[x * 16 + y];
+                    byte c = s.PF[x * 16 + y];
                     b.Append(c < Name.Length ? Name[c] : '?');
                 }
-                if (y == 0) b.Append("   tank ").Append(n.S.Tank.X).Append(',').Append(n.S.Tank.Y);
-                if (y == 1) b.Append("   h=").Append(n.H / Eval.Scale);
+                if (y == 0) b.Append("   tank ").Append(s.Tank.X).Append(',').Append(s.Tank.Y);
+                if (y == 1) b.Append("   h=").Append(h);
                 b.Append(Environment.NewLine);
             }
             Console.Error.Write(b.ToString());

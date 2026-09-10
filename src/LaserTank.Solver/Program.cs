@@ -391,6 +391,19 @@ namespace LaserTank.Solver
 "                         shuffling an anti-tank anywhere and a flood cannot:\n" +
 "                         the number moves only when somewhere new becomes\n" +
 "                         safe to stand\n" +
+"    --push-phases        ITEM 5: search one *phase* at a time and commit to\n" +
+"                         the board it found.  A phase ends at a milestone --\n" +
+"                         a successor whose board holds strictly fewer\n" +
+"                         consumable objects (water, blocks, bricks, mirrors,\n" +
+"                         anti-tanks, crystals) than the phase started with --\n" +
+"                         and the chain re-enters the beam from that board\n" +
+"                         with a fresh closed set.  LaserTank.lvl 6's hand line\n" +
+"                         is six such phases of 18-34 board changes against a\n" +
+"                         measured horizon of 50 (tools/phases.py).  A level\n" +
+"                         with no milestone runs as one phase, unchanged\n" +
+"    --push-phase-nodes N nodes one phase may spend before the chain commits\n" +
+"                         to the best milestone it holds.  0 (default) lets\n" +
+"                         the beam's own stop conditions end a phase\n" +
 "    --push-ferry-stage   price the ferry one carry at a time: holes left\n" +
 "                         first, the cheapest remaining carry as the tie-\n" +
 "                         break.  Implies --push-ferry-match.  The sum is\n" +
@@ -608,6 +621,8 @@ namespace LaserTank.Solver
                         case "--push-shield": a.Opt.PushShield = int.Parse(V()); break;
                         case "--push-ferry-maze": a.Opt.PushFerryMaze = true; break;
                         case "--push-ferry-match": a.Opt.PushFerryMatch = true; break;
+                        case "--push-phases": a.Opt.PushPhases = true; break;
+                        case "--push-phase-nodes": a.Opt.PushPhaseNodes = long.Parse(V()); break;
                         case "--push-ferry-stage": a.Opt.PushFerryStage = true; break;
                         case "--push-trace-board": a.Opt.PushTrace = true; a.Opt.PushTraceBoard = true; break;
                         case "--push-move-only": a.Opt.PushMoveOnlyK = int.Parse(V()); break;
@@ -1031,6 +1046,10 @@ namespace LaserTank.Solver
             public Job J;
             public bool Solved, Trimmed, Polished, Replanned;
             public int Keys, Moves, Shots, RawKeys, Depth, Restarts;
+            /// Item 5: phases --push-phases committed to.  Written only
+            /// when it is non-zero, so every report banked before the flag
+            /// existed stays byte-comparable with one written after it.
+            public int Phases;
             public string Method = "-", Stop = "-";
 
             /// Non-null when this level was solved with something the solver
@@ -1098,6 +1117,7 @@ namespace LaserTank.Solver
                     w.WriteString("stop", Stop);
                     w.WriteNumber("depth", Depth);
                     w.WriteNumber("restarts", Restarts);
+                    if (Phases > 0) w.WriteNumber("phases", Phases);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
                     if (Hint != null) w.WriteString("hint", Hint);
@@ -1135,6 +1155,7 @@ namespace LaserTank.Solver
                 o.Method = r.Method;
                 o.Stop = r.Stop;
                 o.Restarts = r.Restarts;
+                o.Phases = r.Phases;
                 o.Nodes = r.Nodes;
                 o.Ms = r.Ms;
                 o.Depth = r.Depth;
@@ -1593,6 +1614,8 @@ namespace LaserTank.Solver
             PushShield = s.PushShield,
             PushFerryMaze = s.PushFerryMaze,
             PushFerryMatch = s.PushFerryMatch,
+            PushPhases = s.PushPhases,
+            PushPhaseNodes = s.PushPhaseNodes,
             PushFerryStage = s.PushFerryStage,
             PushTraceBoard = s.PushTraceBoard,
             PushMoveOnlyK = s.PushMoveOnlyK,

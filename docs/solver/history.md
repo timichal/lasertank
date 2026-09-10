@@ -8,9 +8,11 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Items 1, 3, 6, 8, 9, 11, 12, 13, 15
-and 16 are done, and five of those closed *negative* or half-negative** — which is the ordering rule
-paying off rather than failing.
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Items 1, 3, 5, 6, 8, 9, 11, 12, 13,
+15, 16, 17 and 18 are done, and seven of those closed *negative* or half-negative** — which is the
+ordering rule paying off rather than failing. Two of the negatives (17, then 5) are items that reached
+the front of the list and were **refused by falsifiers they built for themselves**, which is the rule
+working at its most expensive and most useful.
 
 ### 1. Layer 4's learned evaluation did not act. Two defects, both fixed.
 
@@ -55,6 +57,166 @@ directory rather than from a report — worth one line because two sessions each
 statistics layer 5 rests on and really are what layer 4 is fit on — the point is that the solver already
 emits them that way, so the debt was paid at the source rather than owed.)*
 
+### 5. Level 6's decomposition — built, and refused by the falsifier it set itself.
+
+**The item asked for layer 2's decomposition one level out: commit to a phase, search only for that,
+re-derive.** It is built — `--push-phases`, `src/LaserTank.Solver/Phase.cs` — with the two instruments
+that size it and falsify it, and the answer is **no on `LaserTank.lvl` 6 and the reason is not the one
+the item was written against**. The line is short enough. The commitment is right. The search still
+cannot walk the middle of it, *from the human's own boards*.
+
+```bash
+python tools/phases.py                 # where a hand line's phases are, no search at all
+python tools/phase_reach.py 6          # can the beam walk one?  the falsifier
+python tools/phase_reach.py 6 status   # the table, free, from the report
+```
+
+**What a phase is, and it needed no constant.** Item 18 refuted a global phase *size* (horizons run 2 to
+50, a 25x spread) and item 14 carries the negative that nothing free predicts one — so a phase here is
+not sized, it is **terminated**. Every board change is one of two kinds and the distinction is a census:
+a push *moves* an object and the count of it is unchanged; a fill, a shot brick, a destroyed mirror or
+anti-tank *consumes* one and the count drops. A **milestone** is a successor whose board holds strictly
+fewer consumable objects than the phase's root — one integer, a strict comparison, the shape
+`--push-fire-tier`'s test has. `tools/phases.py` applies it to the 20 hand recordings for free, off
+`--push-line`'s replay:
+
+| level | changes | phases | segments | longest | horizon (item 18) | longest / horizon |
+|---:|---:|---:|---|---:|---:|---:|
+| **6** | **168** | **6** | **18, 26, 28, 30, 32, 34** | **34** | **50** | **0.68** |
+| 1 | 50 | 16 | 3,1,7,1,2,2,1,… | 10 | 38 | 0.26 |
+| 8 | 52 | 36 | mostly 1 | 9 | 52+ | 0.17 |
+| 28 | 105 | 82 | mostly 1 | 7 | 27 | 0.26 |
+| 23 | 27 | 6 | 1,3,2,1,5,5 | 10 | 21 | 0.48 |
+| 18 | 53 | 1 | 44 | 44 | 28 | 1.57 |
+
+**The sizing question came back positive and that is why this was built.** Level 6's 168-change line is
+**six phases, one per hole filled, no tail, the longest 0.68 of the horizon already measured on that
+level**. The rule cuts 17 of the 20 recordings and 12 of the 17 have every phase inside their own
+horizon. The three it is empty on are 2, 10 and 11 — and `LaserTank.lvl` 10 being one of them is not a
+defect but Layer 9's finding from a third side: a GAUNTLET consumes nothing on its way to the flag, so
+it has no milestone, exactly as its barrier set is empty by construction. **This item was always for the
+half of the corpus that is a ferry.**
+
+**A phase-chained win is a real recording, and that is checked rather than argued.** The commitment is
+a live `EngineSnapshot`, which carries its own key prefix (layer 0's second bug and the fix that made a
+breadth-first search's answers replayable), so a win in phase *n* reports the whole keystream from the
+level start. `LaserTank.lvl` 7 solved after a commit at 66 keys and went through
+`tools/verify_solutions.py` — **both engines agree on every tick**. Nothing here is hint-assisted: the
+boards committed to are ones the search found.
+
+**The chain commits to the right board.** At width 32 from the root, phase 1 commits at 715,840 nodes
+with `census 12 -> 10` — a block and a hole gone together, i.e. a fill — and `--push-trace` prints the
+board: the water at **(9,14)**, which is *exactly* the cell the hand line fills first at its change 18.
+Six blocks and six holes make level 6 a census of 12, so a solve is six phases to 0.
+
+**And then phase 2 never lands, at any width tried.** `tools/phase_reach.py` is the falsifier and it is a
+different question from item 18's: `horizon.py` seeds at K and asks for a **win**, so every board it
+measures is near the end of the line where a Sokoban has the fewest blocks and holes left; this seeds at
+K and asks only for the **next milestone**, which is the middle of the line and the only place a
+decomposition lives. Level 6, width 32, 8M nodes a phase:
+
+| phase | seed K | target | length | w=32 | w=128 | w=512 |
+|---:|---:|---:|---:|---|---|---|
+| 1 | 0 | 18 | 18 | **YES** 715,840 | YES 2,452,200 | no |
+| 2 | 18 | 44 | 26 | **no** | no | no |
+| 3 | 44 | 72 | 28 | **no** | no | no |
+| 4 | 72 | 102 | 30 | YES 5,982,193 | no | no |
+| 5 | 102 | 134 | 32 | YES 3,427,451 *(solved)* | no | no |
+| 6 | 134 | 168 | 34 | YES 4,360,647 *(solved)* | YES 6,251,230 *(solved)* | YES 6,251,488 *(solved)* |
+| | | | **reached** | **4 of 6** | 2 of 6 | 1 of 6 |
+
+**Four of six at the best width, and the two that fail are the middle.** Phase 2 is 26 board changes —
+*shorter* than phases 4, 5 and 6, which all land. So it is not length, and the table refutes the item's
+own premise directly: **the phases this level needs are not uniformly hard, and the hard ones are not
+the long ones.** Width is not the answer either: at a fixed 8M nodes a phase, **32 reaches 4, 128
+reaches 2 and 512 reaches 1** — narrow-and-deep for the fourth time in this project, and phases 2 and 3
+fail at all three.
+
+**The reading that closes the item: the commitment is not what fails.** Seed at K = 18, i.e. hand the
+chain the *human's own board* after the human's own first fill, and it still does not reach fill 2 (4M
+nodes, 37 depths, width 32). So the solver's committed board is not a worse board than the human's; the
+phase itself is out of reach. **A decomposition cannot rescue a level whose phases the search cannot
+walk**, and level 6 is that level. What defeats it is therefore not the length of its line, which is
+what this item was written to attack.
+
+**A finding that falls out of the same table and is worth more than the item was.** Phases 5 and 6
+*solved level 6* from their seeds, and **K = 102 is 66 board changes from the end** against item 18's
+measured horizon of **50** — reached at width 32 on **3.4M** nodes where item 18 measured its 50 at width
+512 on 40M. So the narrow arm goes **deeper on a twelfth of the budget**, and **the horizon is
+width-dependent**: 50 is level 6's reach at width 512, not the searcher's best. Item 18's number stands
+exactly as measured and its 25x spread is untouched — a horizon is only comparable at one budget and one
+width, which is what that file says in its own header. What it does not support is "50 is the reach",
+and item 14 inherits the consequence: **the per-level lever it is looking for has a second dimension it
+had not measured.**
+
+**Three commit laws, and the two that were refused are the design.** A phase has to end somewhere and
+that turned out to be the whole of the engineering:
+
+1. *Let the beam stop on its own.* **Inert** — on every level this item is for the beam stops on
+   *budget*, so the first phase spent the whole run and nothing was ever committed.
+2. *End the phase at the depth that produced a milestone.* Needs no constant, which is why it was tried,
+   and it **cost a level the plain beam solves**: `LaserTank.lvl` 20 went from a win at 2.75M nodes to
+   twelve committed phases and `push-dead-end` at 6M. `tools/phases.py` had already shown why from the
+   other side — a demolition level consumes something on nearly every change (level 3's census starts at
+   **77**; level 28's line is 82 milestones in 105 changes), so committing at the first milestone turns
+   the beam into a greedy one-step hill-climb with no backtracking. **Layer 1's structural finding
+   restated: a specialist that bets on every level loses in a portfolio.**
+3. *Commit where the search would otherwise give up* — which is what ships. PushSearch already returns
+   on a dead-end that has exhausted the restart ladder, so the chain only ever spends a commitment on a
+   frontier that was finished anyway and a descending beam is never interrupted.
+
+Under law 3 the flag is **inert where it does not apply**, which is the property that makes it safe,
+and the control is stronger than "same outcome": over `LaserTank.lvl` 3, 4, 7, 11 and 20 at 6M nodes the
+two arms are **node-identical and keystream-identical** — 20 back to its win at 2,751,227 nodes and 108
+keys, the same figures the flag off produces. It is also inert on level 6, whose beam neither wins nor
+dies but wanders to budget — `--push-phase-nodes N` is the opt-in for that shape and is off by default
+because it is a global constant of exactly the kind item 18 refuted.
+
+**The GAUNTLET-tail population this item defined outlives it, and Layer 9 and item 14 both read it.**
+`bench/gauntlet-tail.txt` is the 138 unsolved GAUNTLETs whose `.ghs` record is <= 60 moves+shots — the
+tail of the 537 the sizing argument named, at the only record length a 40M-node budget reaches. It is
+regenerated from the two banked reports, so it needs no search:
+
+```bash
+python - <<'PYEOF'
+import json, io
+an = {}
+for line in io.open("build/reports/analyze-corpus.tsv", encoding="utf-8"):
+    if not line.startswith("#"):
+        f = line.rstrip("\n").split("\t"); an[(f[0], int(f[1]))] = f[3]
+rows = [json.loads(l) for l in io.open("build/reports/chain.jsonl", encoding="utf-8-sig")]
+keep = [r for r in rows
+        if an.get((r["collection"], r["level"])) == "GAUNTLET"
+        and not r["solved"] and 0 < r["ghs_moves"] + r["ghs_shots"] <= 60]
+with io.open("bench/gauntlet-tail.txt", "w", newline="\n") as f:
+    f.write("# item 5's population: chain.jsonl failures --analyze calls GAUNTLET\n"
+            "# with a .ghs record of <= 60 moves+shots.\n")
+    for r in sorted(keep, key=lambda r: (r["collection"], r["level"])):
+        f.write("%s\t%d\n" % (r["collection"], r["level"]))
+with io.open("build/reports/gauntlet-tail.jsonl", "w", newline="\n") as f:
+    for r in keep: f.write(json.dumps(r) + "\n")
+PYEOF
+LT_SOLVE=build/lasertank-solve.exe JOBS=16 bash tools/gauntlet_tail.sh
+```
+
+`analyze-corpus.tsv` regenerates in ~3 minutes by the loop in [`instruments.md`](instruments.md) if
+`build/` has been cleared. **Two things that run said which the sizing argument did not predict**: the
+tail is not as hard as its median record suggests (the control arm alone solves 76 of 138 at 40M,
+against the 23.9% the best fourth-pass arm scores on the general failure population), and the fire tier
+is worth +9 solo and +15 exclusive on top of it —
+[Layer 9](layers.md#layer-9--exposure-as-a-tier---own-rung-the-population-pays-the-example-does-not).
+
+**What ships and what it is worth.** `--push-phases` and `--push-phase-nodes`, off by default; two
+instruments that cost no search worth speaking of; and a negative on the level the item existed for. It
+is **not** proposed as an arm — nothing here measured it on a population, and rule 1 forbids reading a
+one-level result as one. The residue is a redirection rather than a to-do: phase 2's trace is `best=137`
+flat for 237 depths at width 32, which is the *same signature* as level 10's GAUNTLET — a beam ranking
+distinct boards by a key that has stopped discriminating. **What is binding in the middle of a Sokoban is
+the ranking, not the depth**, and that is layers 4 and 6's territory, not a decomposition's.
+
+---
+
+---
 ### 6. The blogspot goal-board harvester, and the goal board as a ranking key.
 
 **Closed in session 36.** Three sessions: 34 ran the feasibility spike and shipped
@@ -1208,7 +1370,6 @@ that were already measured and failing** (17, 18, 19). Both were caught by the s
 not add up to 20 — and both are the file's own rule arriving from a new direction: *the report is the
 state, so ask the report*.
 
----
 
 ## The corpus through the read
 
@@ -1888,6 +2049,28 @@ by default. **Its one unconditional cost is that `--push-line`'s tier column ren
 0 pushed `advance` to 1 and a pose to 6), the second time a tier insertion has done that.
 
 ---
+
+**session 45 — item 5, built and refused; and the horizon turns out to be width-dependent.** Two
+instruments and a flag. `tools/phases.py` cuts a hand line at its **milestones** — a board change after
+which some consumable object is strictly rarer — for free off `--push-line`'s replay, and it sized the
+item positively: `LaserTank.lvl` 6's 168-change line is **six phases of 18 to 34**, every one inside the
+horizon of 50 measured there. `--push-phases` (`Phase.cs`) chains a push search per phase and commits to
+the **right** first board — the fill at (9,14), the cell the human fills first. Then
+`tools/phase_reach.py` refused it: **4 of 6 phases reachable at width 32, and the two that fail are the
+middle**, at every width tried, **and from the human's own board too**. So the phases are short, the
+commitment is sound, and what defeats level 6 is not the length of its line.
+
+Three things it leaves. **The horizon is width-dependent** — the chain solves level 6 from K = 102, 66
+changes from the end, at width 32 on 3.4M nodes, where item 18 measured 50 at width 512 on 40M; item
+14's per-level lever therefore has a second dimension. **The commit law was the whole engineering**:
+ending a phase at the first milestone needs no constant and *cost `LaserTank.lvl` 20*, a level the plain
+beam solves, because a demolition consumes something on nearly every change — layer 1's founding finding
+again — so what ships commits only where the search would give up, and is node-identical to the flag off
+on all five control levels. And **phase 2's trace is `best=137` flat for 237 depths**, level 10's
+GAUNTLET signature on a ferry level: what binds in a Sokoban's middle game is the ranking, not the depth.
+Two harness defects, both item 18's arriving again in a new file: a solver predating the flag left no
+commit line and that read as *"not reached"* (the worst direction), and a per-probe report keyed without
+the budget let a cheap re-probe report an old run's `solved`. Both now raise.
 
 ## Where session 26's twelve pointers went
 

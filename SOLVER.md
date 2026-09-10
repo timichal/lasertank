@@ -184,7 +184,7 @@ These are the reason the numbers in these files can be trusted.
 | The read's derivations, scored against the human | Over the 20 hand recordings' **800 board changes**, each derivation as *named / offered* against *named / what the human did*: `advance` 58.5% → 83.4% (1.43x), `opens` 56.2% → 78.9% (1.40x), `enables` 68.7% → 92.1% (1.34x), and session 42's two: **`rare` 5.1% → 16.0% (3.15x)** and **`spend` 7.6% → 1.9% (0.25x**, i.e. the human avoids it — 0.3% and 0.04x with the anti-tank kill exempted, which is the form it would ship in). `clears`, the fifth derivation the spend column turned up by failing, is **0.88x and does not ship** |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | The fourth pass, rehearsed | **87 of 255 (34.1%)** of the levels the chain fails, as the **union of seven arms at 40M nodes** on a 1-in-15 stride of the failure population; 372 of 372 gated. The pass is still a chain of arms rather than a configuration, but the arms changed: **the three that ship are now `l8fire` → `layer7` → `enables`, 84 (32.9%)**, against the 81 of the three it replaces. **`--push-fire-tier` does not add a fourth arm, it replaces the first** — `l8work` contributes **+0** to the seven-arm union and holds **1** exclusive level against `l8fire`'s 6. So the pass is better by 3 levels at the *same* three-arm cost (~54 h), not 72 h |
-| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 now has a named candidate** (session 34): it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line. What was missing is a *gradient*, and the harvested goal board supplies one: the blog's line wins in 179 moves / 52 shots by **pushing six of the ten anti-tanks and destroying none**, minimum total push distance 30, and it names the cells they end on — so it separates the three root pushes `--analyze` offers and cannot rank. **Level 6 "Cascade" has no post**, so it gains nothing from this and item 5 stands — but closed items 15 and 18 have now measured what it needs: at 40M nodes and width 512 the search closes the level's last **50** board changes of 168 and not its last 51, monotone below that, a suffix costs ~9.5x for twice its length -- and that 50 is the **deepest** horizon measured on any of the 20 recordings, so the reach here is the search's best and the line is 3.4x it |
+| `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 now has a named candidate** (session 34): it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line. What was missing is a *gradient*, and the harvested goal board supplies one: the blog's line wins in 179 moves / 52 shots by **pushing six of the ten anti-tanks and destroying none**, minimum total push distance 30, and it names the cells they end on — so it separates the three root pushes `--analyze` offers and cannot rank. **Level 6 "Cascade" has no post** and gains nothing from the bank, and **session 45 closed item 5 on it, negative**: its 168-change line comes apart into **six phases of 18 to 34 board changes**, every one inside the horizon of 50 already measured there, and `--push-phases` commits to the *right* first board — the fill at (9,14), the same cell the human fills first — and then **cannot reach phase 2 at width 32 or 128, nor from the human's own board**. Four of the six phases are reachable and the two that are not are the *middle*, though they are shorter than the three at the end. So the line's length is not what defeats the level; `tools/phase_reach.py`'s trace says `best=137` flat for 237 depths, which is level 10's GAUNTLET signature — **a ranking that has stopped discriminating, in the middle of a Sokoban** |
 
 **A missing `.lpb` under `data/solutions/` is not a missing solution.** Michal deletes a banked
 `.lpb` on purpose in order to re-run the solver by hand and watch the replay, and re-banks it
@@ -239,7 +239,7 @@ attack on it.
 
 ## What is open
 
-Six items, **in this order and not in numeric order**. Numbers are kept because these files refer to
+Five items, **in this order and not in numeric order**. Numbers are kept because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
@@ -247,26 +247,47 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 | # | order | what it is | cost |
 |---|---|---|---|
 | **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, `... status` for the table | ~54 h |
-| **5** | **2nd** | **level 6's decomposition** — level 10's fire tier is done and is Layer 9, and items 15 and 18 have given this one a target *and* a shape: the search closes level 6's last **50** board changes of 168 and not its last 51, and that 50 is the **deepest** reach measured on any of the 20 recordings, so what defeats the level is a line 3.4x its own reach. Phase length must be derived per level — a global constant is refuted | a layer-sized build |
-| **14** | 3rd | **per-level width from the record** — the driver ladders width globally, and item 18's 25x horizon spread is the argument that per-level is the right kind of lever. The free calibration says the estimate sizes an order of magnitude, not a width, and item 18 adds that **nothing free predicts the horizon** | one run on the GAUNTLET tail |
-| **4** | 4th | the campaign that decides whether `--best-of-round` is a **default**, and it inherits closed item 13's rule — keep a round open while `shots > ghs_shots` | a stride campaign with the flag against one without |
-| **7** | 5th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
+| **14** | **2nd** | **per-level width from the record** — the driver ladders width globally, and item 18's 25x horizon spread is the argument that per-level is the right kind of lever. The free calibration says the estimate sizes an order of magnitude, not a width, and item 18 adds that **nothing free predicts the horizon** | one run on the GAUNTLET tail |
+| **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default**, and it inherits closed item 13's rule — keep a round open while `shots > ghs_shots` | a stride campaign with the flag against one without |
+| **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
 
-**Items 17 and 18 closed in session 44, and between them they moved item 5 to the front of the list.**
-Item 17 is the cleanest negative these files hold (below); item 18 is the measurement item 5 has been
-waiting for, and it inverted what item 15's number looked like. The horizon — the board changes of
-suffix the search can close — runs **2 to 50 over the 12 recordings the arm cannot solve unseeded, a 25x
-spread**, so it is *not* the searcher's own reach; it is not a constant fraction of the line either (0.07
-to 0.78); and it is not a function of the line's length, which two levels refute outright (`LaserTank.lvl`
-9 and 23 both have 27 board changes and horizons of **2 and 21**). **Level 6's 50 is the deepest horizon
-measured anywhere** — level 8 solves its whole 52-change recording from the root — so the reach on level
-6 is the best the search achieves and what beats the level is a line **3.4x** that reach. A decomposition
-sized from a global constant is therefore refuted before it is built: the phases a level needs run from
-1.3 to 13.5. Item 15's 48 is refined to **50** (K=118 solves on 36.75M, K=117 fails on 40M), and the
-re-run reproduced item 15's own probe to the node. 96 probes, 43 wins, 45 of 45 gated, all hint-assisted.
-[Closed item 18](docs/solver/history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
+**Item 5 closed in session 45 and it closed negative on its own example**, which is the second running
+that the item at the front of this list has been refused by a falsifier it built for itself. What was
+built is real and ships off by default: `--push-phases`, a phase **terminated by a milestone** — a
+successor whose board holds strictly fewer consumable objects than the phase's root — rather than sized
+by a constant, which item 18 had refuted in advance. `tools/phases.py` sized it for free and came back
+positive: `LaserTank.lvl` 6's 168-change line is **six phases of 18, 26, 28, 30, 32 and 34 board
+changes**, one per hole filled, the longest **0.68** of the horizon already measured there. Then
+`tools/phase_reach.py` — seed at each milestone, ask whether the beam reaches the next — refused it:
+**4 of 6 phases are reachable and the two that are not are the middle**, though phase 2 is *shorter*
+than the three at the end that all land. It is not width — at a fixed 8M nodes a phase, width 32 reaches
+4, 128 reaches 2 and 512 reaches 1, and phases 2 and 3 fail at all three — and **it is not the
+commitment**: hand the chain the human's own board after the human's own first fill and it still
+does not reach fill 2. So level 6's phases are short, the chain commits correctly, and the search cannot
+walk the middle of the line — **what defeats the level is not the length of its line**, which is the
+premise the item was written on.
+[Closed item 5](docs/solver/history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
 
+**Two things it produced are worth more than the item was, and the first lands on item 14.** The same
+table solves level 6 from **K = 102, 66 board changes from the end, at width 32 on 3.4M nodes**, where
+item 18 measured its horizon of **50** at width 512 on 40M — deeper on a twelfth of the budget, so **the
+horizon is width-dependent and 50 is not the searcher's best**. Narrow-and-deep for the fourth time, and
+**item 14's per-level lever has a second dimension it had not measured**. And phase 2's trace is `best=137` flat for 237 depths, the *same signature* as level
+10's GAUNTLET: a beam ranking distinct boards by a key that has stopped discriminating. **What is
+binding in the middle of a Sokoban is the ranking, not the depth** — layers 4 and 6's territory, not a
+decomposition's, and not an item until something measures it on a population.
+
+**The commit law is the engineering, and the two that were refused are why the flag is safe.** Ending a
+phase at the depth that produced a milestone needs no constant, which is why it was tried, and it
+**cost `LaserTank.lvl` 20 — a level the plain beam solves** — because a demolition level consumes
+something on nearly every board change (level 3's census starts at 77) and committing at the first
+milestone turns the beam into a greedy one-step hill-climb. Layer 1's founding finding, restated. What
+ships instead commits only where the search would otherwise give up, and over levels 3, 4, 7, 11 and 20
+the flag on is **node-identical and keystream-identical** to the flag off.
+
+**Items 17 and 18 closed in session 44.**
+Item 17 is the cleanest negative these files hold (below); item 18 is the measurement item 5 has been
 **Items 16, 15 and 13 closed in session 43** and they are the clearest run the ordering rule has had:
 three falsifiers costing minutes each, spent beside item 2's machine time, coming back as **one column
 that ships with the sign inverted** (FMO mobility predicts the rate — freer blocks are *harder*, 1.78x
@@ -312,8 +333,10 @@ already use the record's exact shot count** while the median keystream is 1.47x,
 record's shot count is a measurably worse route. That last one reproduces the series' own first rule on
 our data, and it re-reads the whole `ratio` column: **1.5x is mostly the right plan driven badly, not
 half a solution.** All four of them landed ahead of item 5 on the ordering rule and all four have now
-closed, one of them (15) being the cheap falsifier item 5 had been open without. Item 5 is still the only
-open item that would move a level.
+closed, one of them (15) being the cheap falsifier item 5 had been open without — and item 5 has since
+closed too, on that falsifier's descendant. **No open item now names a level**: 6 and 10 are both open
+levels with the same diagnosis and no named candidate, which is a truer statement of where the project
+is than a list with a level-shaped item on it.
 
 **The chain then ran end to end, clean, and the bank is done** — `python tools/harvest.py complete`,
 one funnel and one table of every post the decode did not finish on its own. `bench/goal-boards.json`
@@ -359,7 +382,7 @@ two that do not), which is the acceptance test that was written before the build
 is **15 → 21 of the 141 levels the bank covers**, +9/−3, all 21 through the two-engine gate. Every one of
 those is **hint-assisted and outside the solver's rate**, which is enforced in code rather than by
 convention: the flag moves the output directory and stamps every report row. Level 6 "Cascade" has **no
-post at all** — checked against the whole 6,218-post index — so item 5 is unchanged by any of it.
+post at all** — checked against the whole 6,218-post index — so closed item 5 owed it nothing.
 
 **Session 35 deleted item 6's remaining half-session instead of spending it, and the way it did is
 worth more than the hours.** The goal-only sprites were costed as hand input on sound reasoning — a start

@@ -167,6 +167,43 @@ python tools/horizon.py status     # the table, free, no solver
   it. A probe that leaves no new row now raises. See
   [closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
 
+### 3c. Ask whether the search can walk *one phase* — `tools/phases.py`, `tools/phase_reach.py`
+
+3b measures the **suffix** the search can close, so every board it looks at is near the end of the line,
+where a Sokoban has the fewest blocks and holes left. These two ask about the **middle**, which is where
+a decomposition lives — and the pair is worth copying as a shape: one instrument that costs no search
+says whether the question is worth asking, and a second one answers it.
+
+```bash
+python tools/phases.py              # the free half: where a hand line's phases are
+python tools/phases.py --verbose    # ...and what each milestone consumed
+python tools/phase_reach.py 6       # the paid half: can the beam walk one?
+python tools/phase_reach.py 6 status
+```
+
+- **`phases.py` costs no search at all.** It reads `--push-line`'s replay at `--nodes 1` and cuts each
+  line at its **milestones** — a board change after which some *consumable* object (water, block,
+  bricks, mirror, rotary mirror, crystal, anti-tank) is strictly rarer. Underlays are deliberately not
+  counted: a block pushed onto a conveyor reads as `conveyor->block`, so counting belts would call every
+  ordinary push a milestone. The `max/hor` column against item 18's horizon is the whole point — below
+  1.0 says every phase of the human's own line is inside a reach already measured on that level.
+- **The trap it fell into is the one to copy the fix for.** The first version searched each row
+  unanchored, so `.+?` ran from the row's `tank(13,12)` pose across the next field and read the *pose*
+  as the changed cell — losing the first transition on every row. Level 6 still read correctly by luck
+  (its fills are second on their row) and **every DEMOLITION read as having no milestone at all**, which
+  is exactly the shape of error that looks like a finding. The pose prefix is now cut off before the
+  fields are split, and an unparsed field raises rather than being skipped.
+- **`phase_reach.py` is a real run of the real chain**, `--push-phases --push-trace` seeded at each
+  milestone, and the answer is read off the trace's own commit line rather than off a win. So a YES is
+  the searcher doing the thing the flag does. Rows are `hint=push-seed:K` like item 18's and keyed on
+  `(level, width, nodes)`, because a probe run at a throwaway budget is indistinguishable from a real one
+  once it is a row.
+- **Where the two overlap they must agree** — the last phase of a line *is* a suffix. Where they
+  disagree is the finding: level 6 solves from **K = 102 at width 32**, 66 changes from the end, against
+  item 18's horizon of **50** measured at width 512. **The horizon is width-dependent**, and 50 is not
+  the searcher's best. See
+  [closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
+
 ## 4. Look at the board the beam settled on, not only at its score
 
 `--push-trace-board` prints the best node's playfield each depth under `--push-trace`. `best=10` says the
@@ -246,7 +283,14 @@ src/LaserTank.Solver/
                  successors, not a heuristic term
   Analyze.cs     layer 6: the read.  ReadDerive / ReadAdvances / ReadOpens /
                  the enables pass, as an instrument and as a ranking tier
-  Line.cs        --push-line: replay a winning line against the real beam
+  Line.cs        --push-line: replay a winning line against the real beam;
+                 --push-seed's Seed(), which stops the replay at the K-th
+                 board change so a search can start from a position a player
+                 would have built in the editor
+  Phase.cs       closed item 5: --push-phases, a chain of push searches each
+                 starting from the milestone board the last one committed to.
+                 Consumables() is the census the milestone test is a strict
+                 comparison of.  Off by default and refused on its own example
   Profile.cs     --profile: every ranking key at every keypress of a recording
   Trim.cs        Shrink (delta debugging, past --trim-ratio) and Polish
   Replan.cs      post-solve: re-derive the route through the ladder of boards
@@ -296,6 +340,19 @@ fit_eval.py       read that dump.  Bare: the distribution.  --fit: fit and regen
 basin.py          read a --profile dump: how far uphill a winning line goes, per level,
                     in keypresses and in board changes.  --ferry-weight and
                     --carry-cost sweep the third column's two weights offline
+horizon.py        closed item 18: --push-seed K over all 20 hand recordings, K=0 first
+                    and a bisection only where that fails, resumable from its own
+                    per-probe reports.  `status` prints the table with no solver
+phases.py         closed item 5's free half: cut each hand line at its *milestones* --
+                    a board change after which some consumable object is strictly
+                    rarer -- and report the phase lengths against horizon.py's number.
+                    No search: it reads --push-line's replay at --nodes 1
+phase_reach.py    closed item 5's paid half, and the falsifier: seed at each milestone
+                    and ask whether the beam reaches the next one.  Where horizon.py
+                    asks for a *win* and so only ever measures the end of a line, this
+                    asks for the next milestone and so measures the middle.  Keyed on
+                    (level, width, nodes) -- a probe at a throwaway budget must not be
+                    mistaken for a real one
 harvest.py        closed item 6: the blogspot goal-board harvester.  **`complete` is
                     the one to run**: the whole chain into the committed
                     bench/goal-boards.json (overwriting it, and reporting the bank it
