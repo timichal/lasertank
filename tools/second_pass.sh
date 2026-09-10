@@ -88,9 +88,9 @@ mkdir -p "$(dirname "$report")"
 
 lists=$(mktemp -d)
 trap 'rm -rf "$lists"' EXIT
-python - "$first" "$lists" <<'PY'
+python - "$first" "$lists" "$report" <<'PY'
 import json, os, sys
-first, out = sys.argv[1], sys.argv[2]
+first, out, report = sys.argv[1], sys.argv[2], sys.argv[3]
 rows = {}
 for line in open(first, encoding="utf-8-sig"):
     line = line.strip()
@@ -107,8 +107,25 @@ for (coll, lv), r in rows.items():
 # unbiased -- the same argument as the campaign's STRIDE.  It is how the 400k
 # control in PROGRESS (Phase 4 layer 3) was measured.
 step = max(1, int(os.environ.get("SAMPLE", "1")))
+# RESUME=1 drops the levels *this run's own report* has already attempted, so
+# an interrupted multi-hour pass restarts where it stopped instead of at the
+# top.  Opt-in, because appending a second, bigger budget into one report is a
+# real use of this script (the chain above does it) and there "already
+# attempted" is not "already done".  Solved levels are skipped either way --
+# Plan() sees the .lpb -- so what this recovers is the *failures*, which is
+# where all of the time went.
+done = set()
+if os.environ.get("RESUME") and os.path.exists(report):
+    for line in open(report, encoding="utf-8-sig"):
+        line = line.strip()
+        if line:
+            r = json.loads(line)
+            done.add((r["collection"], r["level"]))
 for coll, lv in todo.items():
-    lv = sorted(lv)[::step]
+    lv = [x for x in sorted(lv)[::step] if (coll, x) not in done]
+    if not lv:
+        print(f"{coll}: 0 unsolved (done)")
+        continue
     with open(os.path.join(out, coll + ".txt"), "w") as f:
         f.write("\n".join(str(x) for x in lv))
     print(f"{coll}: {len(lv)} unsolved")

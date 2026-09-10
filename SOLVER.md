@@ -244,7 +244,7 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. Recipe updated, not started | ~54 h |
+| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, `... status` for the table | ~54 h |
 | **16** | 2nd | **four derivations the read does not have** — author intent, spending an irreversible resource, FMO mobility as a quantity, a per-carry constant in `MatchFerry`. Each is a distribution before it is a tier | two `--read-dump` columns and one replay decide two of them |
 | **15** | 3rd | **`--push-seed K`** — start the search from the K-th board change of a recording. **It is item 5's missing cheap falsifier** | a flag and eight short runs |
 | **13** | 4th | **the shot test** — a solution above the record's shot count is a measurably worse route (1.85x against 1.41x). A report column now; a `--best-of-round` rule with item 4 | free; the measurement is already run |
@@ -332,7 +332,7 @@ inverts:** `bench/` exists because nothing re-derives a human's answer, and the 
 should *ask* a human for an answer the repo can already derive. Checking that cost half an hour and the
 inputs were sitting in `original/src/`.
 
-**Item 2 wants the whole machine and nothing else on this list is waiting on it.** Its arms are
-node-governed, so extra load moves wall-clock readings and nothing else: launch the run and work items
-16, 15 and 13 beside it — minutes, a flag with eight short runs, and a free report column, in that
-order — then item 5 with the falsifier 15 gives it.
+**Item 2 wants the whole machine, it is running (started 2026-09-10), and nothing else on this list is
+waiting on it.** Its arms are node-governed, so extra load moves wall-clock readings and nothing else:
+work items 16, 15 and 13 beside it — minutes, a flag with eight short runs, and a free report column,
+in that order — then item 5 with the falsifier 15 gives it.

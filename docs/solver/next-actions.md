@@ -41,19 +41,22 @@ already in a file. **What it does not give is human *routes***: a goal board nam
 the path, so "what did the human do next" stays a question only a recording answers. Three items inherit
 from it and none is blocked on it.
 
-**Item 2 stays first, and it is a machine commitment rather than a build.** Its rehearsal is done and
-its 54-hour run is fully specified, so it is ready to launch whenever the machine is free — and because
-its arms are node-governed, everything below it can run beside it. Items 16, 15 and 13 are what to do
-while it runs: **minutes, a flag and eight short runs, and a free report column.** Item 5 is still the
-only open item that would move a level in front of the project — `LaserTank.lvl` 6, which has no blogspot
-post at all and so was never in item 6's reach nor in the running harvest's.
+**Item 2 is running on this machine (started 2026-09-10) and everything below it can run beside it.**
+It is a machine commitment rather than a build, and its arms are node-governed, so extra load moves
+wall-clock readings and nothing else. Items 16, 15 and 13 are what to do while it runs: **minutes, a
+flag and eight short runs, and a free report column.** Item 5 is still the only open item that would
+move a level in front of the project — `LaserTank.lvl` 6, which has no blogspot post at all and so was
+never in item 6's reach nor in the running harvest's.
 
 ---
 
 ## 2 (1st) — the fourth pass, and its fourth arm is rehearsed
 
-**Rehearsed, positive, and not started; it is a multi-day machine commitment.** The decision pass came
-out at 15 of 255 (5.9%) of the levels the shipped chain fails, so the open question was never *whether*
+**Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, the recipe under
+[*The full run*](#the-full-run) below; `bash tools/l5_pass.sh status` says where it is.
+
+**Rehearsed and positive; it is a multi-day machine commitment.** The decision pass came out at
+15 of 255 (5.9%) of the levels the shipped chain fails, so the open question was never *whether*
 layer 5 pays but *how much of the corpus is worth spending on it*. One push expansion is a whole
 closure, so this is the one pass budgeted in tens of millions of nodes rather than hundreds of
 thousands.
@@ -118,26 +121,32 @@ jobs, so buying more jobs does not recover it). That is **~18 h per arm**, so th
 **~54 h**.
 
 ```bash
-# three arms, in greedy order, each into its own report so the union can be recomputed.
-# Run them one at a time: each wants the whole machine, and 16 jobs is already past
-# the point where more parallelism buys anything.
-L8="--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8
-    --push-shot-run 16 --push-beam 128 --max-keys 5000"
-run () {   # run <arm> <flags...>
-  arm=$1; shift
-  NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
-      build/reports/chain.jsonl "l5/$arm" "build/reports/l5-$arm.jsonl" \
-      --no-ida --no-beam --push --push-read \
-      --max-keys 5000 --max-keys-record "$@"
-  python tools/verify_solutions.py "build/l5/$arm"
-}
-run l8fire  $L8 --push-eval work --push-fire-tier   # was l8work; see the table above
-run layer7  --push-stop 1 --push-shot-run 16 --push-beam 128
-run enables --push-enables 8
+bash tools/l5_pass.sh                   # all three arms in greedy order, ~54 h
+bash tools/l5_pass.sh status            # the table, from any other shell, any time
+tail -f build/reports/l5-run.log        # everything the run has printed
 
-python tools/arms_union.py l8fire=build/reports/l5-l8fire.jsonl \
-    layer7=build/reports/l5-layer7.jsonl enables=build/reports/l5-enables.jsonl
+nohup bash tools/l5_pass.sh > /dev/null 2>&1 &   # to survive a closed terminal
 ```
+
+**`tools/l5_pass.sh` is the recipe, not a wrapper around it.** It runs the three arms one at a time
+(each wants the whole machine), each into its own report so the union can be recomputed, gates each
+arm through `verify_solutions.py` as it finishes, and ends on `arms_union.py` over the three. The
+flags are the table above plus `--max-keys 5000 --max-keys-record`; `NODES BUDGET_MS JOBS TICK CHAIN
+PREFIX` are the knobs and they default to the rehearsal's values, because the numbers here are only
+comparable at those.
+
+Two things it adds that a hand-rolled loop does not, and both matter at 54 h:
+
+* **It is resumable.** `RESUME=1` goes to `second_pass.sh`, which now drops the levels an arm's own
+  report has already attempted. Ctrl-C, reboot, power cut — start it again with the same command and
+  each arm picks up where it stopped rather than at the top of the corpus. (Solved levels were always
+  skipped, `Plan()` sees the `.lpb`; what resume recovers is the **failures**, which is where all of
+  the time goes.)
+* **It says where it is.** A line every `TICK` seconds (default 300) to stdout and to
+  `build/reports/l5-run.log` — attempted/3,691, solved, wall, job time, ETA — and the full table at
+  every arm boundary. `status` prints that table from any other shell without touching the run, and
+  marks the live arm **stale** if its report has not grown in fifteen minutes, which is how a dead run
+  is told from a slow one.
 
 **`--max-keys 5000 --max-keys-record` on every arm is the one difference from the arms tabled above**,
 and it is not in the rehearsal's numbers: `layer7` and `enables` ran at the default 1,200 and could not
@@ -145,9 +154,9 @@ cross it. It is free and can only raise a cap. (What that cost: `Challenge-IV` 6
 1,876 keys by the two `--max-keys 5000` arms and is unreachable *in principle* by the other three, whose
 longest banked solutions are 623, 1,074 and 1,152 — two of them within 15% of a cap they cannot cross.)
 
-Run `l8fire` first — it is the largest single result (66 of 255 on the stride), so it lands earliest if
-the run is interrupted.
-`build/reports/chain.jsonl` is what all three are pointed at; if it is gone, `tools/chain_union.py`
+The script runs `l8fire` first — it is the largest single result (66 of 255 on the stride), so it
+lands earliest if the run is interrupted. `build/reports/chain.jsonl` is what all three arms are
+pointed at; if it is gone, `tools/chain_union.py`
 rebuilds it. **It now reads 494, not the 476 the rehearsal was measured against**, so the full run
 attacks 18 fewer levels than the rehearsal did and the extrapolation above is very slightly optimistic.
 
