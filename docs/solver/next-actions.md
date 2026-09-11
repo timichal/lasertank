@@ -294,16 +294,44 @@ whose record says 12 board changes and one that says 168 are searched at the sam
 round. Scaling the **round-1** width per level by `budget / (poses × ghs_shots)`, clamped, with the ladder
 still doubling from there, is a policy change the estimate is accurate enough to make.
 
-**The decision run** is [closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself)'s
-138-level GAUNTLET tail at a fixed 40M — the population is already
-committed and the control has already been run twice — global width against record-derived width, read as
-solved count and exclusive levels. **Raise-only, like `--max-keys-record`, so nothing that terminates
-today stops terminating.**
+**The flag is built and the decision run is one arm, not two.** `--push-width-record F`
+(`Push.cs` `RecordWidth`, `SolveOptions.PushWidthRecord`) sets the push beam's width to
+`remaining budget / (poses x .ghs shots x F)`, **raise-only like `--max-keys-record`** — `--push-beam` is
+the floor, a level with no record keeps it, and nothing that terminates today stops terminating. The
+root pose closure costs what one expansion of the layer costs (~4,500 `ApplyKey`), once per level and
+charged to the budget like any other; the width is capped at the 9,600 a restart's doubling stops at.
+A row whose width was raised carries it as `width` in the report, on the rule `phases` follows, so
+every report banked before the flag existed stays byte-comparable with one written after it.
+
+**Layer 4's equivalence test ran before the arm did, and it is what lets the control stand.** Over
+`LaserTank.lvl` 3, 4, 7, 11 and 20 at 4M, the new binary with the flag off is **node-identical and
+keystream-identical** to the one that wrote `build/reports/gt-fire.jsonl` — so that report, `l8fire`'s
+**85 of 138** over closed item 5's GAUNTLET tail at 40M, *is* the global-width control and does not have
+to be re-run. The decision run is the same arm plus the flag:
+
+```bash
+dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c Release -o build/wr   # item 2 holds build/
+LT_SOLVE=$PWD/build/wr/lasertank-solve.exe JOBS=4 bash tools/width_record.sh
+```
+
+`tools/width_record.sh` sweeps **F = 4.6, 14, 60** — the calibration's own p25 / p50 / p75, because no
+single F is *the* calibration when the factor spreads over two and a half orders of magnitude — verifies
+each arm, runs `arms_union.py` against the banked control, and prints the distribution of the widths it
+actually chose, without which the solved count is not interpretable. One arm is ~3.5 h of job time,
+~1 h wall at four jobs; `JOBS` defaults to 4 so a run of `tools/l5_pass.sh` keeps its sixteen, and the
+arms are node-governed so sharing the machine moves wall clock and no measured number. Read it as
+solved count **and** exclusive levels, per the fourth rule: an arm that ties the control with no
+exclusive level is the same searcher wearing a flag.
+
+**One thing the flag does not do, and the reason is in the item above it.** In the driver the estimate
+is a *floor under every round* rather than a new round-1 the ladder doubles from — the ladder takes back
+over at whichever round first exceeds it. That is the raise-only rule's cost, and it is the shape the
+decision run measures, because that run is a single fixed-budget arm and has no ladder.
 
 **Closed item 18 promoted this item and constrained it in the same breath.** The horizon is a *level*
 property — 2 to 50 board changes over 12 recordings, a 25x spread, and not a constant fraction of the
 line either — which is the measurement that says a per-level lever is the right kind of thing at all,
-and it is why this item is now 3rd. But the horizon is also the quantity a per-level width most wants to
+and it is why this item rose up this list. But the horizon is also the quantity a per-level width most wants to
 be sized from, and **nothing free predicts it**: joined against every `--analyze-tsv` column over the 12
 levels, `poses`, `region`, `mob_max` and `mob_sum` are flat (+0.06 to +0.08) — and `poses` is a *factor
 in this item's own arithmetic*. The two positives are `changes` (+0.64) and `water` (+0.62), and
@@ -314,6 +342,17 @@ input for 20,914 of them. **The one lead with a mechanism points the other way**
 mobility finding a second time (freer is harder). If this item's width policy is ever more than the
 `budget / (poses × ghs_shots)` clamp above, that is where to look. n = 12, so all of it is a lead.
 [Closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
+
+**And closed item 5 handed this item a second dimension it has not measured.** `tools/phase_reach.py`
+solves `LaserTank.lvl` 6 from K = 102, **66 board changes from the end, at width 32 on 3.4M nodes**,
+where item 18 measured that level's horizon of 50 at width 512 on 40M — the narrow arm goes deeper on a
+twelfth of the budget, so **the horizon is width-dependent and 50 is not the searcher's best**.
+Narrow-and-deep for the fourth time in this project. The flag as built cannot express it: raise-only
+means it never *narrows* a level below `--push-beam`, which is the constraint that keeps a run safe and
+also the one that forbids the half of the lever that level 6 says exists. If the sweep above comes back
+flat at every F, the reading is not that per-level width does nothing — it is that this item measured
+the direction level 6 says is the wrong one, and a `--push-beam 32` control on the same population is
+the cheaper next probe.
 
 **What not to re-derive:** *record shots = 0 as a licence to drop the space bar* was checked and is worth
 nothing (17 levels of 3,709), and **parity** — the series' part 3, a chessboard colouring that fixes the

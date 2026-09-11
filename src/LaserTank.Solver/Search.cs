@@ -385,6 +385,32 @@ namespace LaserTank.Solver
 
         public int PushRestarts = 6;       // extra attempts after a dead-end, each
                                            // doubling the width; 0 is off
+
+        /// Item 14: size the beam from the level's own record instead of from
+        /// a global ladder, as the calibration factor F in
+        /// `width = budget / (poses x record shots x F)`.
+        ///
+        /// Layer 8's framing arithmetic is `closure x width x board changes`
+        /// against the node budget.  The record supplies the board changes --
+        /// over the 20 hand recordings, changes / .ghs shots is p50 **1.00** --
+        /// and the root pose closure supplies the first factor, so the width
+        /// the budget affords is the third.  F is what the estimate is *wrong*
+        /// by: over `l8fire`'s 66 solved levels at a known width of 128,
+        /// `nodes / (poses x width x ghs_shots)` reads p10 1.9 / p25 4.6 /
+        /// **p50 14.2** / p75 59.9 / p90 446.  Two and a half orders of
+        /// magnitude, so this sizes an order of magnitude and not a width, and
+        /// F is a flag rather than a constant for exactly that reason.
+        ///
+        /// **Raise-only, like `--max-keys-record`**: the floor is whatever
+        /// PushBeamWidth already asked for, so a run carrying this can reach
+        /// every board the same run without it could, and a level with no
+        /// record keeps the global width.  0 is off.
+        public double PushWidthRecord = 0;
+
+        /// The level's `.ghs` shot count, standing in for its board changes.
+        /// Set per job by Program.SolveOne when PushWidthRecord is on, 0 when
+        /// the level has no record; nothing else reads it.
+        public int RecordShots = 0;
         public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs
         public bool PushTrace = false;     // per-depth diagnostics to stderr
         public double PushShare = 1.0;
@@ -430,6 +456,9 @@ namespace LaserTank.Solver
         public string Method = "-";
         public string Stop = "-";          // why it gave up, when it did
         public int Restarts;               // layer 3: extra attempts spent
+        public int Width;                  // item 14: the width the record
+                                           // sized, 0 unless --push-width-record
+                                           // raised it above the global
         public int Phases;                 // item 5: phases committed to before
                                            // this result, 0 without --push-phases
         public long Nodes;

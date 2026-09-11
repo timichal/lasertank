@@ -247,7 +247,7 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 | # | order | what it is | cost |
 |---|---|---|---|
 | **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, `... status` for the table | ~54 h |
-| **14** | **2nd** | **per-level width from the record** — the driver ladders width globally, and item 18's 25x horizon spread is the argument that per-level is the right kind of lever. The free calibration says the estimate sizes an order of magnitude, not a width, and item 18 adds that **nothing free predicts the horizon** | one run on the GAUNTLET tail |
+| **14** | **2nd** | **per-level width from the record** — the driver ladders width globally, and item 18's 25x horizon spread is the argument that per-level is the right kind of lever. The free calibration says the estimate sizes an order of magnitude, not a width, and item 18 adds that **nothing free predicts the horizon**. **`--push-width-record F` is built** (raise-only; node- and keystream-identical to the control with the flag off, over levels 3, 4, 7, 11 and 20), so the decision run is **one arm against a control that is already banked** — `bash tools/width_record.sh`, F = 4.6 / 14 / 60 against `gt-fire.jsonl`'s 85 of 138 | ~1 h wall per F at 4 jobs |
 | **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default**, and it inherits closed item 13's rule — keep a round open while `shots > ghs_shots` | a stride campaign with the flag against one without |
 | **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
@@ -402,6 +402,8 @@ waiting on it.** Its arms are node-governed, so extra load moves wall-clock read
 sessions 42 and 43 spent the whole of items 16, 15 and 13 beside it, and session 44 spent all of item 17
 (a build and five benches, four jobs against the pass's sixteen, ~3.5 min a bench) the same way; the pass
 saw none of it except in wall clock. Session 44 then spent item 18 the same way — 96
-`--push-seed` probes at four jobs, resumable from their own reports. **What is left is item 5**, which is
-a build rather than machine time, and it now has both the target item 15 gave it and the shape item 18
-did.
+`--push-seed` probes at four jobs, resumable from their own reports, and session 45 spent all of item 5
+beside it — two free sizing tools and a build. **Item 14 is being spent the same way**: the flag is
+built and its equivalence test ran at one job, and its decision run is one arm of ~3.5 h of job time
+against a control that is already banked, at four jobs. Nothing on this list now needs the machine
+to itself.

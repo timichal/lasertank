@@ -273,6 +273,20 @@ namespace LaserTank.Solver
 "                         narrow and deep, measured: ferry/deep bench at 4M\n" +
 "                         nodes is 17/20 at width 4, 19/21 at 8, 18/20 at 16,\n" +
 "                         15/19 at 48, 13/17 at 128, 8/12 at 300\n" +
+"    --push-width-record F\n" +
+"                         size --push-beam from the level's own record\n" +
+"                         instead of a global ladder: the width is\n" +
+"                         budget / (poses x .ghs shots x F).  The record's\n" +
+"                         shot count is this layer's depth (p50 1.00 over\n" +
+"                         the 20 hand recordings) and the root pose closure\n" +
+"                         is layer 8's closure factor, so F is all the\n" +
+"                         arithmetic is missing -- and over 66 solved levels\n" +
+"                         at a known width of 128 the true factor is p25\n" +
+"                         4.6, p50 14.2, p90 446, so F sizes an order of\n" +
+"                         magnitude and not a width.  Raise-only, like\n" +
+"                         --max-keys-record: --push-beam is the floor, and a\n" +
+"                         level with no record keeps it.  0, the default, is\n" +
+"                         off; the report row carries the width it chose\n" +
 "    --push-per-board N   poses of one playfield the trim may keep, default 1;\n" +
 "                         0 trims over states as every other beam here does.\n" +
 "                         A successor is (board change, the pose it was fired\n" +
@@ -606,6 +620,9 @@ namespace LaserTank.Solver
                         case "--closed": a.Opt.CloseOnGenerate = V() != "expand"; break;
                         case "--push": a.Opt.RunPush = true; break;
                         case "--push-beam": a.Opt.PushBeamWidth = int.Parse(V()); break;
+                        case "--push-width-record":
+                            a.Opt.PushWidthRecord = double.Parse(V(), CultureInfo.InvariantCulture);
+                            break;
                         case "--push-per-board": a.Opt.PushPerBoard = int.Parse(V()); break;
                         case "--push-depth": a.Opt.PushDepth = int.Parse(V()); break;
                         case "--push-closure": a.Opt.PushClosureNodes = int.Parse(V()); break;
@@ -1050,6 +1067,11 @@ namespace LaserTank.Solver
             /// when it is non-zero, so every report banked before the flag
             /// existed stays byte-comparable with one written after it.
             public int Phases;
+            /// Item 14: the width --push-width-record sized for this
+            /// level, written only when it raised one above --push-beam,
+            /// on the same rule Phases follows -- a report banked before
+            /// the flag existed stays byte-comparable with one after it.
+            public int Width;
             public string Method = "-", Stop = "-";
 
             /// Non-null when this level was solved with something the solver
@@ -1117,6 +1139,7 @@ namespace LaserTank.Solver
                     w.WriteString("stop", Stop);
                     w.WriteNumber("depth", Depth);
                     w.WriteNumber("restarts", Restarts);
+                    if (Width > 0) w.WriteNumber("width", Width);
                     if (Phases > 0) w.WriteNumber("phases", Phases);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
@@ -1135,6 +1158,12 @@ namespace LaserTank.Solver
             // sharing an options object would race.
             Outcome o = new Outcome { J = job };
             if (a.MaxKeysRecord) opt.MaxKeys = KeyCap(opt.MaxKeys, job);
+            // Item 14: the same shape as the cap above -- a per-level
+            // number the SolveOptions is the only channel for, and the
+            // clone is this job's own, so writing it here races nothing.
+            // RecMax (65500) means "no record", exactly as KeyCap reads it.
+            if (opt.PushWidthRecord > 0 && job.GhsMoves < 65500)
+                opt.RecordShots = job.GhsShots;
             try
             {
                 Solver s = new Solver(a.Levels, opt);
@@ -1155,6 +1184,7 @@ namespace LaserTank.Solver
                 o.Method = r.Method;
                 o.Stop = r.Stop;
                 o.Restarts = r.Restarts;
+            o.Width = r.Width;
                 o.Phases = r.Phases;
                 o.Nodes = r.Nodes;
                 o.Ms = r.Ms;
@@ -1599,6 +1629,7 @@ namespace LaserTank.Solver
             SgEval = s.SgEval,
             RunPush = s.RunPush,
             PushBeamWidth = s.PushBeamWidth,
+            PushWidthRecord = s.PushWidthRecord,
             PushPerBoard = s.PushPerBoard,
             PushDepth = s.PushDepth,
             PushClosureNodes = s.PushClosureNodes,

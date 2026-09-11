@@ -295,7 +295,7 @@ namespace LaserTank.Solver
         /// the share the portfolio gave the searcher.
         private SolveResult PushSearch(EngineSnapshot root)
         {
-            _pushWidth = _opt.PushBeamWidth;
+            _pushWidth = RecordWidth(root, out int sized);
             _pushPerBoard = _opt.PushPerBoard;
             // Once per level, not once per expansion: the census is of the
             // authored board, which is a static property of the level.  256
@@ -323,7 +323,68 @@ namespace LaserTank.Solver
             }
 
             r.Restarts = attempts;
+            r.Width = sized;
             return r;
+        }
+
+        /// Item 14: the width this level's own record affords, raise-only.
+        ///
+        /// The driver ladders width *globally* -- 8, 48, 128, 512, 2,048 -- so
+        /// a level whose record says 12 board changes and one that says 168 are
+        /// searched at the same width in the same round.  Layer 8's framing
+        /// arithmetic prices a beam at `closure x width x board changes`, and
+        /// both of the factors that are not the width can be had per level for
+        /// nothing: the record's shot count *is* this layer's depth (p50 1.00
+        /// over the 20 hand recordings, exact on level 6's 168), and the root
+        /// pose closure is the closure.  So the width the budget affords is
+        ///
+        ///     remaining budget / (poses x record shots x F)
+        ///
+        /// where F is what the estimate is wrong by -- see PushWidthRecord for
+        /// the calibration, which spreads over two and a half orders of
+        /// magnitude and is why F is a flag.
+        ///
+        /// **Raise-only**, so nothing that terminates today stops terminating:
+        /// the floor is whatever --push-beam asked for, and a level with no
+        /// record, or one whose estimate lands under that floor, runs exactly
+        /// as it does with the flag off.  In the driver that makes the estimate
+        /// a floor under every round rather than a new round-1 the ladder
+        /// doubles from -- the ladder takes back over at whichever round first
+        /// exceeds it.
+        ///
+        /// The closure costs what one expansion of this layer costs (~4,500
+        /// ApplyKey calls, and they are charged to the budget like any other),
+        /// once per level, against a pass measured at 40M.
+        ///
+        /// Under --push-phases this runs once per *phase* rather than once per
+        /// level, because Phase.cs re-enters PushSearch at each committed
+        /// milestone -- so a later phase, with less budget left and a different
+        /// board under it, is sized narrower.  That is the right answer for the
+        /// same reason the budget is the remaining one and not the level's, but
+        /// no run has measured the two flags together; both are off by default.
+        private int RecordWidth(EngineSnapshot root, out int sized)
+        {
+            sized = 0;
+            int floor = _opt.PushBeamWidth;
+            if (_opt.PushWidthRecord <= 0 || _opt.RecordShots <= 0) return floor;
+
+            byte[] board = new byte[256];
+            _e.Restore(root);
+            CopyBoard(board);
+            bool[] region = new bool[256];
+            List<EngineSnapshot> poses = PoseClosure(root, board, region, out _);
+            int n = poses.Count;
+            Drain(poses);
+            if (n <= 0) return floor;
+
+            long left = Math.Max(0, _stageNodes - _nodes);
+            double est = left / (n * (double)_opt.RecordShots * _opt.PushWidthRecord);
+            // The same cap a restart's doubling stops at: a layer-5 depth costs
+            // width x ~4,500 ApplyKey calls, so a wider one cannot finish a
+            // depth at any budget this project runs at.
+            int w = (int)Math.Min(9600, Math.Max(floor, est));
+            if (w > floor) sized = w;
+            return w;
         }
 
         // ---- the beam over board changes -----------------------------------
