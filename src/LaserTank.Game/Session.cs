@@ -229,13 +229,31 @@ namespace LaserTank.Game
         /// ID_DEADBOX_UNDO (LTANK.C:727): `SendMessage(WM_COMMAND, 110);
         /// GameOn(TRUE);`.  The only path in the original that brings a dead
         /// game back, and the reason the undo buffer exists at all.
+        ///
+        /// **The GameOn(TRUE) is not conditional on the undo**, and those are
+        /// two statements rather than one for a reason: command 110 answers a
+        /// grayed menu item, `UndoStep` returns early when the buffer is spent
+        /// (`UndoBuffer[UndoP].Tank.Dir == 0`), and the resume happens either
+        /// way.  So pressing Undo in the DeadBox with nothing left to undo
+        /// resurrects the tank *where it died*.  Gating the resume on the undo
+        /// read like the only sane reading of the button and made this driver
+        /// disagree with the other two the moment they could reach a `Z` after
+        /// a death at all -- flagship level 1719, script
+        /// `lllldllruzzzzuZZuduuff...zrdfu..zufurzzffflfc`, where four `z`
+        /// tokens drain the buffer first: the oracle and the CLI play on to 27
+        /// ticks and this stopped at 3.  Same lesson as `RestorePos` above,
+        /// from the opposite direction -- ask the C what the button does.
+        ///
+        /// -> whether the undo itself found anything.  The game resumes
+        /// regardless, so the caller has nothing to refuse.
         public bool UndoDead()
         {
-            if (!Undo()) return false;
-            E.GameOn(true);
+            if (E == null) return false;
+            bool undone = Undo();                 // SendMessage(WM_COMMAND, 110)
+            E.GameOn(true);                       // ...and then, unconditionally
             E.Deaths = 0;
             Now = State.Playing;
-            return true;
+            return undone;
         }
 
         /// The presentation state that a wholesale replacement of `Game`
@@ -394,10 +412,69 @@ namespace LaserTank.Game
         public void Key(int vk, bool echo)
         {
             if (E == null) return;
+            if (!AcceptsInput) return;            // the DeadBox has the keyboard
             if (vk < 32 || vk > 40) return;
             if (E.RB_TOS > (int)E.Game.RecP && echo) return;
             AddKBuff((byte)vk);
         }
+
+        /// **The DeadBox's modality, written down** -- and with it the fact
+        /// that the original never sits on a finished level at all.
+        ///
+        /// `WM_KEYDOWN` (LTANK.C:570) checks only `!EditorOn`: it never asks
+        /// whether the game is running, and in the original it does not have
+        /// to.  There are three ways the timer stops there and not one of them
+        /// leaves the board's window proc able to receive a keystroke:
+        ///
+        ///   * **Dying.**  `WM_Dead` calls `GameOn(FALSE)` and then opens the
+        ///     DeadBox (LTANK.C:717, :725), a *modal* `DialogBox`, so until a
+        ///     button is pressed every keystroke and every click belongs to the
+        ///     dialog.  (`WM_GameOver`'s WinBox, LTANK.C:695, is the same for
+        ///     the end of a collection.)
+        ///   * **Winning.**  The flag case (LTANK.C:646) calls `GameOn(FALSE)`
+        ///     and then, unless `PBOpen`, `WM_SaveRec`, `CheckHighScore` -- both
+        ///     of which can put a modal dialog up -- and `LoadNextLevel`.  So by
+        ///     the time the player can press anything, either a dialog owns the
+        ///     keyboard or the *next* level is loaded and `Game_On` is TRUE
+        ///     again.  **The wait-on-a-win is this port's own** (see OnWin: the
+        ///     keystream has to still be there for F6), which makes refusing
+        ///     input during it the only reading that cannot turn an idle
+        ///     keypress into a move in a level that is already over.
+        ///   * **The editor.**  Command 201 calls `GameOn(FALSE)`
+        ///     (LTANK.C:1086), which is the half of LTANK.C:571 the port had.
+        ///
+        /// A port whose board is a Godot node has no window proc for any of
+        /// that to fall out of, so the exclusivity has to become a condition,
+        /// and this is it.
+        ///
+        /// Same shape, and for the same reason, as `Engine.CanRestore`: a guard
+        /// the original gets from Windows still has to be written down
+        /// somewhere, named after the thing it stands for, so that every driver
+        /// can apply it and be diffed against the others.  `oracle/driver.c`'s
+        /// `script_box_up` and `LaserTank.Cli`'s `BoxUp` are the same one, which
+        /// is what keeps a `--script` run comparable across the three.
+        ///
+        /// **What it costs to leave out.**  A keypress after death lands in
+        /// `RecBuffer` with `RB_TOS > RecP`.  `UndoStep` hides most of that --
+        /// `RB_TOS = Game.RecP` is its third line, "clear all keys not
+        /// processed" -- so the DeadBox's own Undo (`UndoDead`) throws the key
+        /// away and the tank does *not* take the move.  The two paths that do
+        /// not go through `UndoStep` keep it: `EditorResume` (command 604's
+        /// `GameOn(TRUE)`, reached by opening and leaving the editor while
+        /// dead) resumes with the key still pending, and `Replay` (command 124)
+        /// keeps `RB_TOS`, so arrows pressed idly at a finished board replay as
+        /// part of the solution.  Neither is reachable in the original, and for
+        /// the two reasons above: the menu those commands live on is behind a
+        /// modal dialog after a death, and after a win the next level is
+        /// already up.
+        ///
+        /// The predicate is the one the tick loops already use -- the timer is
+        /// running and no death is pending -- because `GameOn(FALSE)` is the
+        /// first line of all three cases above, so "the timer stopped" is
+        /// precisely "the board is not the player's to drive".  The check is
+        /// `--check-deadbox`; see PlayMode.CheckDeadBox for why it cannot be a
+        /// trace diff.
+        public bool AcceptsInput => E != null && E.Game_On && E.Deaths == 0;
 
         /// AddKBuff, LTANK2.C:256 -- which lives in Engine since step 5,
         /// because MouseOperation calls it and MouseOperation is LTANK2.C code.
@@ -409,6 +486,23 @@ namespace LaserTank.Game
         {
             E.AddKBuff(zz);
             _recBufSize = E.RecBuffer.Length;
+        }
+
+        /// WM_LBUTTONDOWN / WM_RBUTTONDOWN's non-editor arm (LTANK.C:785),
+        /// which is a *move order*: `Engine.MouseClick` is the ring-buffer push
+        /// and the tick turns the entry into arrow keys through
+        /// MouseOperation.  Nothing is decided here -- the click is queued even
+        /// while the tank is mid-slide, exactly as a window message is -- and
+        /// the one condition is the one `Key` applies, for the one reason: a
+        /// board the player cannot drive gets no mouse messages either, and
+        /// MouseOperation writes into `RecBuffer` (hazard #15), so an ungated
+        /// click on a dead board queues a move exactly as an ungated keypress
+        /// does.  See AcceptsInput.
+        public void Click(int x, int y, int button)
+        {
+            if (E == null) return;
+            if (!AcceptsInput) return;            // the DeadBox has the mouse
+            E.MouseClick(x, y, button);
         }
 
         /// How many keys are pressed but not yet consumed.  The renderer shows

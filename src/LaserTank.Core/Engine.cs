@@ -173,6 +173,37 @@ namespace LaserTank.Core
             // the handler, so it belongs to the death rather than to whichever
             // driver notices one.
             if (!VHSOn) SoundPlay(S_Die);
+
+            // **A death takes the pending keys with it, and both of the
+            // handler's arms say so.**  This is the line the port was missing,
+            // and the reported level-39 symptom -- shot on I1, tank still steps
+            // to J1 -- is what its absence looks like.
+            //
+            // The arm that runs headless is written out: `if (VHSOn) { RB_TOS =
+            // Game.RecP; return(0); }` (LTANK.C:720).  The interactive arm
+            // reaches the same state by a longer road -- `DialogBox(..DeadBox)`
+            // is *modal*, so it blocks inside the handler, and every way out of
+            // it calls `UndoStep` (ID_DEADBOX_UNDO through command 110;
+            // ID_DEADBOX_RESTART and Cancel directly, "we have to undo the
+            // error first"), whose own third line is `RB_TOS = Game.RecP`.  So
+            // on every path the buffer is empty by the time the handler
+            // returns.
+            //
+            // **Why that is visible at all is quirk #8's other half.**  Being
+            // shot is `SendMessage` (CheckLLoc, LTANK2.C:1469), so all of the
+            // above happens *inside* MoveLaser, at tick step 2 -- before step
+            // 4's key test at LTANK.C:613, which has no `Game_On` in it and
+            // would otherwise consume a key and call AntiTank() on a board the
+            // player has already lost.  In the 2010 binary execution does not
+            // reach that test until the player has answered the dialog and the
+            // buffer is gone.  A port whose DeadBox is a HUD line has no modal
+            // block to inherit, so the clear has to be written down here.
+            //
+            // Drowning and black holes are `PostMessage`, so this runs from
+            // Pump() after the tick and the clear costs nothing -- that tick's
+            // key was consumed before the death was ever dispatched.  The
+            // ordering of the two paths is untouched; only the buffer moves.
+            RB_TOS = (int)Game.RecP;
             Deaths++;
         }
 

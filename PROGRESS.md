@@ -62,6 +62,14 @@ about the *rules*, and they are the ones a UI change must not move. `test_fuzz.p
 `git checkout src/LaserTank.Core/Engine.cs`; and never run it while a solver process is alive (see
 *Environment notes*).
 
+**`test_fuzz.py` must not run beside *any* other gate, not just beside a solver.** It injects a
+fault, **rebuilds `build/lasertank-core.exe`**, checks that the gate catches it, and restores — so
+for most of its runtime the shared core binary is deliberately wrong. Anything else reading that
+binary meanwhile gets a spurious red. Observed exactly once and it cost a diagnosis:
+`roundtrip_check` reported `FAILED -- 1 of 60` while `test_fuzz` was running alongside it, and the
+same seed re-run cleanly on its own. The other gates parallelise fine with each other; this one is
+exclusive. A red gate that will not reproduce serially was probably racing this.
+
 Ten more gates cover the presentation. They are listed apart because nothing about the rules depends
 on them, and `options_check.py`'s pixel arithmetic is the one gate *expected* to be edited when the
 look changes on purpose:
@@ -239,38 +247,99 @@ with no `Options` at all).
 Once nothing reads the key, `Ini`'s write path preserves it as a foreign key, which is exactly
 right: the 2010 binary still keeps it in the same file.
 
-### 6. The one real bug behind the level-39 report
+### ~~6. The level-39 report — and the oracle's one blind spot~~ — **done 2026-09-11**
 
 Reported: flagship level 39, tank on C1, hold Right — the tank reaches I1 **and dies, but then
 moves to J1**; Undo puts it back on I1, alive and playable.
 
-**Measured: the visible sequence is the original's, not ours.** Route `llllllluurrrrrrrrrr` (left to
-C16, up onto the C conveyor, which carries the tank to C1, then right) traces **identically** in the
-oracle and the core — 38 ticks, `DEAD`, 14 moves, `difftrace.py` exit 0. At t=32 an anti-tank fires
-up column I; at t=36 the shot is at `(8,1)`; at t=37 `MoveLaser` (tick step 2) kills the tank at
-`(8,0)` and *posts* `WM_Dead`, then step 4 consumes the pending key and moves the tank to `(9,0)`,
-and the death is pumped after the tick. That is **quirk #8** — `PostMessage(WM_Dead)`, deliberately
-changed in 4.0.6 — and the extra move is what it means. Undoing back onto I1 alive is the DeadBox's
-"Undo Last Move" (command 110 plus `GameOn(TRUE)`, `LTANK.C:727`), the only path in the game that
-resumes a death; being able to *continue* is **hazard #13**, because `UndoStep` restores `Game` and
-the laser is not in `Game`, so the shot that killed you is simply gone.
+**The report was right and the first round of analysis was wrong, because it asked the oracle a
+question the oracle cannot answer.** Route `llllllluurrrrrrrrrr` traced identically in the oracle and
+the core — `DEAD`, 37 ticks, 14 moves — and that agreement was taken for fidelity and written up as
+quirk #8 working as designed. It was not. Running the **actual 2010 binary** (`original/bin/
+lasertank.exe`, which is in the tree) settles it in one try: hold Right, the tank freezes on I1 while
+the shot travels, and it dies **on I1**. It never reaches J1. Two engines agreeing is not evidence
+when both inherit the same missing line.
 
-**The genuine deviation is smaller and is next to it.** `Session.Key` filters exactly as
-`WM_KEYDOWN` does (VK 32..40, auto-repeat dropped while a key is pending) but **does not check
-whether the game is running**, so a keypress after death still lands in `RecBuffer`. In the
-original it cannot: dying opens the DeadBox, a modal `DialogBox`, and while it is up every keystroke
-belongs to the dialog and never reaches `AddKBuff`. So in the port `UndoDead`'s `GameOn(TRUE)`
-resumes into a buffer with a key already in it and the tank takes a move the player never aimed —
-and because `WM_SaveRec` writes `RecBuffer[0..RecP)`, the recording keeps it.
+**The mechanism, and why it is invisible headless.** Being shot is
+`SendMessage(MainH, WM_Dead, 0, 0)` — `CheckLLoc`, `LTANK2.C:1469`, *synchronous*. So `WM_Dead` runs
+inside `MoveLaser`, at **tick step 2**, and the handler (`LTANK.C:717`) does `GameOn(FALSE)` and then
+opens `DialogBox(hInst, "DeadBox", ...)`, which is **modal and blocks right there, mid-tick**. The
+player sees the tank where it was last painted — I1 — with the dialog over it. Execution does not
+reach step 4's key test at `LTANK.C:613` until a button has been pressed, and **every** way out of
+that dialog calls `UndoStep`: `ID_DEADBOX_UNDO` through command 110, `ID_DEADBOX_RESTART` and Cancel
+directly (*"We have to undo the error first"*). `UndoStep`'s third line is `RB_TOS = Game.RecP`. So
+by the time `:613` is evaluated the buffer is empty, its test is false, and no key is consumed —
+**and `AntiTank()`, which lives inside that same block, does not get a turn either.**
 
-The fix is one condition, and it belongs where the dialog's exclusivity belongs: gate `Session.Key`
-on the game being on, the same way the driver already carries `Engine.CanRestore` as "the menu's own
-guard" (see *Rules learned the hard way*). The bound is one key, because echoes are dropped while
-`RB_TOS > RecP` and `RecP` stops advancing once the timer is off.
+The other arm says the same thing in one line and without a dialog: `if (VHSOn) { RB_TOS =
+Game.RecP; return(0); }` (`LTANK.C:720`). That is the original's *own* non-interactive death path,
+and it clears the buffer explicitly. Both arms end with the pending keys gone.
 
-**No gate can currently express this**, which is why it took a human: `--script`'s tokens press a
-key only when the buffer has drained, on purpose. Checking it needs either a token that presses
-regardless of pending, or a `PlayMode` case that presses while `Now == Dead`.
+`Engine.SendDead` modelled neither. It did `GameOn(false)`, the sound, `Deaths++`, and returned — so
+`Tick()` walked straight into its transliteration of `:613` with a key still pending, consumed it,
+moved the tank to J1 and gave the anti-tanks an extra turn. `oracle/driver.c`'s `LT_WndProc` had the
+identical hole, which is why the two agreed. **The fix is `RB_TOS = Game.RecP` in both**, with the
+reasoning written out at each site.
+
+```
+t=36 T=8,0,2,1,0  S=13,0 P=16 D=0 G=1      before:  t=37 T=9,0 S=14,0 D=1   (J1, 14 moves)
+t=37 T=8,0,2,0,0  S=13,0 P=16 D=1 G=0      after:   t=37 T=8,0 S=13,0 D=1   (I1, 13 moves)
+```
+
+**`:613` has no `Game_On` in it**, and that is the load-bearing detail — the test is
+`(Game.RecP < RB_TOS) && !(Firing || ConvMoving || SlideO.s || SlideT.s || PBHold)`. The original is
+not protected by a flag; it is protected by the fact that a modal dialog is already on the screen.
+That is the same species as `Engine.CanRestore` and `Session.AcceptsInput` below — **a guard the
+original gets from Windows still has to be written down somewhere** — and it is the third instance
+of that rule in this project.
+
+**The lesson, and it is the expensive one.** The oracle is the arbiter for the *rules*, and it earns
+that on 2,347 levels and 187 recordings. It is **not** the arbiter for anything that depends on a
+modal dialog, because `oracle/driver.c` says so in its own comment: *"Headless there is nobody to
+answer it."* Quirk #8's write-up and item 6's original analysis were both derived from the oracle
+alone and both inherited the error. `original/bin/lasertank.exe` is in the tree and takes thirty
+seconds to check. **When the question is what the player sees, run the 2010 binary.**
+
+**The second deviation, found on the way, and separately real.** `Session.Key` filtered exactly as
+`WM_KEYDOWN` does but never asked whether the game was running, and `BoardView`'s mouse arm was the
+same — worse, because `MouseOperation` writes *arrow keys* into `RecBuffer` (hazard #15). The
+original is protected by the same modality: while the DeadBox is up, keystrokes and clicks belong to
+the dialog. `Session.AcceptsInput` (`E.Game_On && E.Deaths == 0`) is that written down; `Session.Key`
+and the new `Session.Click` are both behind it. It is invisible on the `UndoDead` path, because
+`UndoStep` clears both queues anyway — the two paths that keep a phantom key are `EditorResume`
+(command 604, no `UndoStep` on it) and `Replay` (command 124, which keeps `RB_TOS` on purpose).
+
+All three script drivers apply the same rule — `oracle/driver.c`'s `script_box_up`, `LaserTank.Cli`'s
+`BoxUp`, `PlayMode.Feed`'s `!s.AcceptsInput` — or `roundtrip_check` diverges the first time a random
+script presses after a death. Aligning them made a `Z` reachable that late for the first time and
+exposed a third thing: `Session.UndoDead` was `if (!Undo()) return false;`, but `LTANK.C:727` is two
+statements and `GameOn(TRUE)` is **not** conditional on the undo, so Undo with an empty buffer
+resurrects the tank where it died. Level 1719, script
+`lllldllruzzzzuZZuduuff...zrdfu..zufurzzffflfc` — oracle and CLI 27 ticks, Godot 3.
+
+**The criterion is a differential inside the game**, `--check-deadbox`, because a trace diff between
+the three drivers cannot see the `AcceptsInput` half at all — they agree just as well with the rule
+left out of all three. It plays a route until the box is up, knocks (five *distinct* keys, which is
+not auto-repeat, plus two clicks), resumes through each of `UndoDead` / `EditorResume` / `Replay`,
+and requires the transcript to match the un-knocked run. Guard reverted, it fails 3/3.
+
+```bash
+"$GODOT" --headless --path src/LaserTank.Game -- --check-deadbox \
+         --levels D:/abs/data/levels/LaserTank.lvl --level 39
+```
+
+**The status line was sticky, too, and that was the third report.** `_error` is drawn every frame by
+the HUD's `_ =>` arm and nothing cleared it, so the first *"nothing to undo"* — which every player
+gets, by pressing U on turn one or by holding it one repeat past the bottom of the buffer — stayed on
+screen for the rest of the level, contradicting every undo that worked afterwards. It is cleared at
+the top of key handling now: a message survives until the next key. The board has no status line in
+the original, so this is the port's own UI and a decision rather than a transliteration.
+
+Green after: `replay_all` 187 (**112/112 move/shot counts still exact against the bundled `.ghs`** —
+the strongest single check that the death change is right, since those are the 2010 game's own
+recorded scores), `test_difftrace` 29, `sweep` 2,347/2,347, `undo_check` 600, `mouse_check` 500,
+`roundtrip_check` 60×6, `tick_check` 208, `sound_check`, `editor_check`, `list_check`, `test_fuzz` 25.
+**One thing the DeadBox still does not do here — see item 8.**
 
 ### 7. Hint on demand — command 301
 
@@ -290,6 +359,15 @@ tracked and shown, there is just no message box), the `RecordBox`/`HSBox` name p
 keys are read and written; there is nowhere to type), the Difficulty dialog (225), the DeadBox
 itself (a HUD line here — see item 6), and the `LoadTID` tunnel dialog *as* a dialog (the id is a
 mode here, cycled with `T`, because a modal prompt per painted cell is worse than a mode).
+
+**And the DeadBox has a rule of its own that nothing here implements yet.** Its dialog proc is four
+lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
+else EndDialog(Dialog, ID_DEADBOX_RESTART);` — **die on the first turn and every button is Restart**,
+Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as item 6:
+logic that lives in a dialog proc rather than in the game, and therefore a guard the port has to
+write down or lose. It is a *separate* change because Restart is command 105, which none of the
+three script drivers has a token for — implementing it faithfully means adding one to all three, so
+it does not ride along with `Session.AcceptsInput`.
 
 **Additive, nothing blocking:** the Search sub-dialog (`SearchBox`, `LTANK_D.C:394` — name or
 author substring, difficulty mask, skip-completed) and `TransListKey`'s type-ahead, neither of which
@@ -595,6 +673,16 @@ These are the ones that cost something. Each is a rule, not a story.
   audio must change no trace, so the gates staying green *is* the proof" — which would have shipped
   a game whose tank drove around in silence, because `SoundPlay(S_Move)` had been dropped and no
   trace carried sound. Make the thing being added *observable*, then diff it against the C.
+- **The oracle is the arbiter for the rules, and not for what the player sees.** It earns the first
+  on 2,347 levels and 187 recordings. But `oracle/driver.c`'s own `WM_Dead` comment says *"Headless
+  there is nobody to answer it"* — so anything whose behaviour comes from a **modal dialog** is
+  outside its competence, and two engines agreeing proves nothing there, because the second was
+  written from the first. That is exactly how the level-39 extra move survived a full write-up as
+  "quirk #8 working as designed": `CheckLLoc`'s death is `SendMessage`, the DeadBox blocks *inside*
+  the tick before the key test at `LTANK.C:613`, and every exit from it calls `UndoStep` — none of
+  which a headless stub reproduces. **`original/bin/lasertank.exe` is in the tree.** When the
+  question is what the player sees, run it; it took one try and thirty seconds to overturn the
+  analysis (item 6).
 - **When the oracle can answer, ask it before writing down what "correct" means.** "A recorded game
   round-trips, all three agree" silently assumed a recording replays to the position it was saved
   from, and the oracle disproved that in one command (hazard #13). A criterion written before the
@@ -603,8 +691,12 @@ These are the ones that cost something. Each is a rule, not a story.
   item is the only reason `RestorePosition`'s three guardless lines are safe (hazard #14). The rule:
   transliterate the function literally, and put the menu's own condition in the **driver**, named
   after the `EnableMenuItem` call it stands for — then every driver can apply it and be diffed
-  against the others. `Engine.CanRestore` is that. **Item 6 of *Next steps* is the same shape**: the
-  DeadBox's modality is a guard the port has not written down yet.
+  against the others. `Engine.CanRestore` is that, and `Session.AcceptsInput` is the second one: the
+  DeadBox's *modality*, which — with `LoadNextLevel` on the winning side — is the only reason a
+  keypress after death or a win is impossible in the 2010 binary (item 6, done). The sting is that
+  once every driver applies such a guard, no differential between them can check it any more, which
+  is what `--check-deadbox` is for: the same argument as *"an exit criterion that only says nothing
+  changed is not one"* three bullets up.
 - **An instrument must not write the player's state**, and that covers three files: the INI, the
   `.hs`, and anything under `out/recordings/`. `Session` writes a `.hs` only when it was given
   `Options` whose INI is writable; a `--shot`/`--play`/`--check-*`/`--tick-rate` run left to find
@@ -844,6 +936,8 @@ GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.M
 "$GODOT" --headless --path src/LaserTank.Game -- --editor --edit '<06l22' --save \
          --levels D:/abs/COPY.lvl --level 7
 "$GODOT" --headless --path src/LaserTank.Game -- --ini D:/tmp/x.ini --check-options
+"$GODOT" --headless --path src/LaserTank.Game -- --check-deadbox --level 39 \
+         --levels D:/abs/data/levels/LaserTank.lvl        # the DeadBox's modality
 "$GODOT" --headless --path src/LaserTank.Game -- --tick-rate 5         # the clock, timed
 ```
 
@@ -1031,9 +1125,15 @@ missed because they are named like paint calls.
 7. **`MoveObj` decrements `ScoreMove` and `UndoP`** in the tunnel path — the "Bartok Bug" workaround
    (`LTANK2.C:1310`).
 8. **`SendMessage(WM_Dead)` vs `PostMessage(WM_Dead)`** — immediate vs deferred death, deliberately
-   changed in 4.0.6. Ordering is observable, and the deferred arm is why **the tank can take one more
-   move after it has already died**: `MoveLaser` kills at tick step 2, the key is consumed at step 4,
-   and `WM_Dead` is pumped after the tick. See *Next steps* item 6 for a worked example.
+   changed in 4.0.6, and the ordering is observable. **It does *not* mean the tank takes an extra
+   move after dying** — that read of it was wrong for two years of this file and is corrected in
+   *Next steps* item 6. Both arms of the handler end with `RB_TOS = Game.RecP`: the VHS arm writes it
+   out (`LTANK.C:720`), and the interactive arm reaches it through the modal DeadBox, whose every
+   exit calls `UndoStep`. What the two arms actually differ on is **when** that happens relative to
+   the key test at `LTANK.C:613` — `SendMessage` from `CheckLLoc` (`LTANK2.C:1469`) lands at tick
+   step 2, *before* it, so the tick consumes nothing further and `AntiTank()` gets no turn;
+   `PostMessage` from water and black holes lands after the tick, by which point that tick's key is
+   already spent. `Engine.SendDead` and `oracle/driver.c`'s `LT_WndProc` carry the clear.
 9. `BuildBMField()` (`LTANK2.C:843`) leaves `i` uninitialized on one branch; currently unreachable
    because of the 2003 sanitization above it, but do not "fix" it silently.
 10. Logic runs on a **fixed 20 Hz tick decoupled from rendering**, interpolating visuals. Never drive
@@ -1121,8 +1221,10 @@ data/       game content = the regression corpus
               time, each already through the two-engine gate.  A missing .lpb
               means a level has not been re-run, not that it is unsolved
   graphics/   .ltg packs      meta/  changelogs & name indexes
-  language/   the ten translations as keyed UTF-8 JSON, converted once from
-              original/src/Setups/*/Language/Language.dat
+  language/   the ten translations as keyed UTF-8 JSON, named by ISO code
+              (en fr de nl pt es sv hr zh-Hans zh-Hant), converted once from
+              original/src/Setups/*/Language/Language.dat — whose directory
+              names are NOT those codes; convert_language.LANGUAGES pairs them
 oracle/     the C reference oracle — see oracle/README.md
   stub/       minimal <windows.h> that shadows the real one
   win32_stub.c  real memory/files/messages, no-op GDI
@@ -1185,7 +1287,7 @@ tools/      the fidelity and presentation gates; solver-only tools are in SOLVER
 | `roundtrip_check.py` | per undo-carrying script, six runs — the script through both engines and through Godot's command path, then the `.lpb` it records through both engines and through Godot's *playback* path |
 | `mouse_check.py` | `MouseOperation` through `--script`'s click tokens, trace-diffed against the oracle's own copy |
 | `editor_check.py` | 3,000 edit scripts against the oracle's own `ChangeGO`; the `.lvl` writer (an untouched level re-saves byte for byte across all 23 collections, the `GetWindowText` widths rebuilt in Python, the gap zero-filled, the saved board tied to the trace, and **the oracle — which *is* the 2010 loader — opening what was written**); and the game's own editor saving the same bytes as the driver |
-| `lang_check.py` | the tab policy; 2,293 source lines rebuilt out of the JSON and compared **as bytes in each file's own codepage**; the key set and both menu trees against the frozen header and `.inc`; `--lang-dump` and the game's `--check-lang` against a Python rebuild; a synthetic partial language for the fallback; 5 INI checks |
+| `lang_check.py` | the tab policy; 2,293 source lines rebuilt out of the JSON and compared **as bytes in each file's own codepage**; the key set and both menu trees against the frozen header and `.inc`; `code`/`name`/`sourceDir`/`sourceEncoding` against `convert_language.LANGUAGES` and `sourceName` against the `.dat`'s own banner line (the one string the round trip cannot reach — it sits on a `#` line the original's loader skips); `--lang-dump` and the game's `--check-lang` against a Python rebuild; a synthetic partial language for the fallback; 5 INI checks |
 | `convert_language.py` | the one-time import behind that. `--check` reports staleness without writing |
 | `bump_rate.py` | classify consumed keys; bumps = desync signature |
 | `dump_level.py` | print a `.lvl` level as ASCII with its hint |

@@ -162,6 +162,7 @@ namespace LaserTank.Game
                               || Array.IndexOf(args, "--play") >= 0
                               || ArgStr(args, "--replay") != null
                               || Array.IndexOf(args, "--check-options") >= 0
+                              || Array.IndexOf(args, "--check-deadbox") >= 0
                               || Arg(args, "--tick-rate", 0) > 0;
             // One rule, used twice: **an explicit --ini makes the options
             // live** -- writable, and allowed to choose the level -- while an
@@ -264,6 +265,18 @@ namespace LaserTank.Game
             else if (ArgStr(args, "--keys") is string ks)
             {
                 script = PlayMode.ParseKeys(ks);
+            }
+
+            // --check-deadbox: the DeadBox's modality as a criterion.  It needs
+            // a collection and a level, which is why it is here rather than up
+            // with the checks that need nothing; it writes no file and posts no
+            // score (PlayMode builds its own Session with no Options).
+            if (Array.IndexOf(args, "--check-deadbox") >= 0)
+            {
+                _driving = false;
+                GetTree().Quit(PlayMode.CheckDeadBox(
+                    levels, level, ArgStr(args, "--route") ?? "llllllluurrrrrrr"));
+                return;
             }
 
             // --play: the synthetic playthrough, headless and reproducible.
@@ -717,6 +730,20 @@ namespace LaserTank.Game
                 return;
             }
 
+            // **The status line is the last thing the player did, not a log.**
+            // `_error` is drawn every frame by the `_ =>` arm of the HUD's
+            // switch, and nothing used to clear it, so the first "nothing to
+            // undo" -- which every player gets, either by pressing U on the
+            // first turn or by *holding* it one repeat past the bottom of the
+            // buffer (RepeatsOnHold(U) is true, deliberately) -- stayed on
+            // screen for the rest of the level, contradicting every undo that
+            // worked afterwards.  Clearing it here means a message survives
+            // exactly until the next key, which is what a status line is for.
+            // The board has no such line in the original -- the DeadBox, the
+            // dialogs and the menu bar carried all of this -- so this is the
+            // port's own UI and a decision rather than a transliteration.
+            _error = null;
+
             // The game keys first, and untouched: Session.Key is the original's
             // WM_KEYDOWN filter (VK 32..40, auto-repeat dropped only while a
             // key is still pending) feeding AddKBuff.  Everything below it is
@@ -775,6 +802,10 @@ namespace LaserTank.Game
                     // A dead game takes the DeadBox's Undo, which is 110 plus
                     // GameOn(TRUE) -- the only way back from a death, and the
                     // only choice the original's dialog offers besides Restart.
+                    // Its GameOn(TRUE) is unconditional, so on a dead board the
+                    // message below reports the *undo* and not the resume: the
+                    // tank comes back either way, standing where it died.  See
+                    // Session.UndoDead.
                     bool undone = _s != null && (_s.Now == Session.State.Dead
                                                  ? _s.UndoDead() : _s.Undo());
                     if (!undone) _error = "nothing to undo";
@@ -882,16 +913,21 @@ namespace LaserTank.Game
                 return;
             }
 
-            // The play arm.  `Engine.MouseClick` is the ring-buffer push out of
-            // the window proc; nothing decides anything here, and the click is
-            // queued even while the tank is mid-slide, exactly as a window
-            // message is.
+            // The play arm.  `Session.Click` is the window proc's non-editor
+            // arm: the ring-buffer push, behind the one guard the keyboard is
+            // behind too.  **A dead or finished board belongs on the list
+            // above** -- the DeadBox is as modal as any of those four -- and it
+            // is the half of that list the port was missing.  The test cannot go
+            // *with* the others, though, because the editor is a mode rather
+            // than a dialog and command 201 calls GameOn(FALSE): a guard that
+            // stands for a modal box has to be applied only after the editor arm
+            // has had the click.  See Session.AcceptsInput.
             if (_s?.E == null) return;
             int cell = Cell;
             int x = (int)Math.Floor((mb.Position.X - Margin) / (float)cell);
             int y = (int)Math.Floor((mb.Position.Y - Margin) / (float)cell);
             if (x < 0 || x > 15 || y < 0 || y > 15) return;
-            _s.E.MouseClick(x, y, button);
+            _s.Click(x, y, button);
             GetViewport().SetInputAsHandled();
         }
 

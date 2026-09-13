@@ -100,6 +100,15 @@ LRESULT LT_WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
      * is kept so the shape matches the port's SendDead(). */
     case WM_Dead:     GameOn(FALSE);
                       if (!VHSOn) SoundPlay(S_Die);
+                      /* The buffer goes with the death, which is the one part
+                       * of this handler a headless stand-in has to write out.
+                       * The VHS arm does it literally (`RB_TOS = Game.RecP`,
+                       * :720) and the interactive arm gets there through the
+                       * modal DeadBox, whose every exit calls UndoStep.  Since
+                       * CheckLLoc's death is SendMessage, this lands at tick
+                       * step 2 and the key test at :613 -- which does not look
+                       * at Game_On -- must not find a key still pending. */
+                      RB_TOS = Game.RecP;
                       lt_dead++;                   return 0;
     case WM_GameOver: lt_gameover++;                return 0;
     case WM_NewHS:    lt_newhs++;                   return 0;
@@ -422,6 +431,30 @@ static int script_hex(char c)
     return -1;
 }
 
+/* The DeadBox's modality, as a predicate.
+ *
+ * LTANK.C's WM_KEYDOWN (:570) and WM_LBUTTONDOWN (:785) check only `!EditorOn`
+ * -- neither asks whether the game is running, and neither has to.  Dying calls
+ * GameOn(FALSE) and then opens the DeadBox (:717, :725), a modal `DialogBox`,
+ * so until a button is pressed the main window proc receives no keyboard or
+ * mouse messages at all; winning calls GameOn(FALSE) and then LoadNextLevel
+ * (:646), so the timer is back on before the player can press anything.  A
+ * script driver has neither a dialog nor a next level, so the exclusivity has
+ * to be written down -- the same shape as `can_restore` below, which is the
+ * grayed menu item written down.
+ *
+ * `!Game_On || lt_dead` is the tick loop's own condition, because GameOn(FALSE)
+ * is the first line of each of them.  A token that arrives while a box is up
+ * is *spent* and does nothing, exactly as the keystroke the dialog eats is; the
+ * command tokens are unaffected, since they stand for the DeadBox's own
+ * buttons and for menu items, which is how `Z` gets to resume a dead game at
+ * all.  LaserTank.Cli's Feed and PlayMode's Feed apply the same rule, which is
+ * what keeps a --script run comparable across the three drivers. */
+static int script_box_up(void)
+{
+    return !Game_On || lt_dead;
+}
+
 /* `mXY` / `nXY`: WM_LBUTTONDOWN / WM_RBUTTONDOWN's non-editor arm (LTANK.C:785,
  * :825), which is a ring-buffer push and nothing else.  Step 5 added them for
  * the same reason step 4 added z/Z/c/v: MouseOperation is reachable only from
@@ -438,6 +471,7 @@ static void script_click(int z)
     x = script_hex(script[script_at + 1]);
     y = script_hex(script[script_at + 2]);
     script_at += 3;
+    if (script_box_up()) return;               /* the dialog ate the click */
     if (x < 0 || y < 0) return;
     if ((x < 0) || (x > 15) || (y < 0) || (y > 15)) return;
     MBuffer[MB_TOS].X = x;
@@ -459,6 +493,7 @@ static void script_feed(void)
     if (c == 'n') { script_click(2); return; }
     vk = script_key(c);
     if (vk) {
+        if (script_box_up()) { script_at++; return; }   /* the dialog ate it */
         if ((DWORD)RB_TOS != Game.RecP) return;    /* still pending: wait */
         if (RB_TOS >= RecBufSize) {
             RecBufSize += 1024;

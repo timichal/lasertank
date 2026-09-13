@@ -384,6 +384,8 @@ namespace LaserTank.Cli
             };
             if (vk != 0)
             {
+                // The DeadBox has the keyboard: spend the token, press nothing.
+                if (BoxUp(e)) { at++; return; }
                 if (e.RB_TOS != (int)e.Game.RecP) return;        // still pending: wait
                 if (e.RB_TOS >= e.RecBuffer.Length)
                     throw new InvalidOperationException(
@@ -425,9 +427,29 @@ namespace LaserTank.Cli
             if (at + 2 >= script.Length) { at = script.Length; return; }
             int x = Hex(script[at + 1]), y = Hex(script[at + 2]);
             at += 3;
+            if (BoxUp(e)) return;                   // the dialog ate the click
             if (x < 0 || y < 0) return;
             e.MouseClick(x, y, z);
         }
+
+        /// **The DeadBox's modality, as a predicate** -- driver.c's
+        /// `script_box_up`, and Session.AcceptsInput on the Godot side.
+        /// LTANK.C's WM_KEYDOWN (:570) and WM_LBUTTONDOWN (:785) check only
+        /// `!EditorOn`; neither asks whether the game is running, and neither
+        /// has to.  Dying calls GameOn(FALSE) and opens the modal DeadBox
+        /// (:717, :725), which leaves the main window proc with no keyboard or
+        /// mouse messages to filter; winning calls GameOn(FALSE) and then
+        /// LoadNextLevel (:646), so the timer is back on before the player can
+        /// press anything.  A script driver has neither, so the exclusivity has
+        /// to be written down; same shape as `Engine.CanRestore` and driver.c's
+        /// `can_restore`, which are the grayed menu item written down.
+        ///
+        /// `!Game_On || Deaths != 0` is the script loop's own tick condition,
+        /// because GameOn(FALSE) is the first line of each of them.  Only the
+        /// *input* tokens are gated: the command tokens stand for the DeadBox's
+        /// own buttons and for menu items, which is how `Z` gets to resume a
+        /// dead game at all.
+        private static bool BoxUp(Engine e) => !e.Game_On || e.Deaths != 0;
 
         private static int Hex(char c) =>
             c >= '0' && c <= '9' ? c - '0'

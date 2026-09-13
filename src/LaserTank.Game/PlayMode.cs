@@ -158,6 +158,169 @@ namespace LaserTank.Game
             return rc;
         }
 
+        // ---- the DeadBox's modality, as a criterion -------------------------
+        /// `-- --check-deadbox --levels FILE.lvl --level N`
+        ///
+        /// **What this measures, and why the differential gates cannot.**  The
+        /// claim behind `Session.AcceptsInput` is that a keystroke or a click
+        /// arriving while the board is not the player's to drive changes nothing
+        /// at all, because in the original it never reaches the board's window
+        /// proc.  All three script drivers now apply that rule, which is what
+        /// keeps a `--script` run comparable across them -- and is exactly why
+        /// a trace diff between them cannot see this: they would agree just as
+        /// well with the rule left out of all three.  So the criterion has to
+        /// be a *differential inside the game*: run the same scenario twice,
+        /// once with a burst of input while the box is up and once without, and
+        /// require the two transcripts to be identical.
+        ///
+        /// Three resumes, because the port has three and they do not all hide
+        /// an ungated key:
+        ///
+        ///   * `UndoDead` -- the DeadBox's own "Undo Last Move" (command 110
+        ///     then GameOn(TRUE), LTANK.C:727).  This one is the **control**,
+        ///     and it is why the report needed measuring rather than believing:
+        ///     `UndoStep` clears both queues on its own (`RB_TOS = Game.RecP`,
+        ///     "clear all keys not processed", and `MB_TOS = MB_SP = 0`), so
+        ///     with the guard left out the resumed play is *identical* -- only
+        ///     the `knocked` line, which is the queue itself, moves.  The way
+        ///     out of the DeadBox that the report described is the one way that
+        ///     cannot show the bug.
+        ///   * `EditorResume` -- command 604's `if (CurLevel > 0) GameOn(TRUE)`
+        ///     (LTANK.C:1263), reached by opening and leaving the editor.  No
+        ///     UndoStep anywhere on that path, so the key survives it.
+        ///   * `Replay` -- command 124 (LTANK.C:1047), which rewinds `RecP` and
+        ///     **keeps `RB_TOS`** on purpose.  Keys pressed while a box was up
+        ///     are then part of the keystream that replays -- which is the win
+        ///     case as well as the death: idle arrows pressed at a finished
+        ///     board replay as part of the solution.
+        ///
+        /// Both of those are unreachable in the 2010 binary for one reason: the
+        /// box is modal, so the menu those commands live on cannot be opened
+        /// while it is up.  Reported as "level 39 moves one cell after it dies"
+        /// -- of which the visible move is quirk #8 and faithful, and this is
+        /// the part that was not.
+        public static int CheckDeadBox(string lvlPath, int level, string route)
+        {
+            int bad = 0;
+            foreach (string how in new[] { "undodead", "editorresume", "replay" })
+            {
+                string quiet = Scenario(lvlPath, level, route, how, false);
+                string noisy = Scenario(lvlPath, level, route, how, true);
+                bool ok = quiet == noisy;
+                if (!ok) bad++;
+                // A passing run is 40 identical ticks twice over, so it prints
+                // the two lines that carry the claim -- the state the box came
+                // up in, and the queue right after the knock -- plus a hash of
+                // the whole transcript.  A failing one prints both in full,
+                // because then the tick it parts company on is the finding.
+                GD.PrintRaw("deadbox " + how + (ok ? " OK" : " DIFFERS")
+                            + " " + Hash(quiet) + NL);
+                if (ok) Dump(how, Head(quiet));
+                else { Dump("quiet " + how, quiet); Dump("noisy " + how, noisy); }
+            }
+            GD.PrintRaw((bad == 0 ? "deadbox OK" : "deadbox FAILED " + bad + "/3") + NL);
+            return bad == 0 ? 0 : 1;
+        }
+
+        /// The transcript's line separator, as a char rather than an escape so
+        /// that Split and PrintRaw cannot disagree about it.
+        private const char NL = (char)10;
+
+        private static string Hash(string transcript)
+        {
+            byte[] h = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(transcript));
+            return Convert.ToHexString(h).ToLowerInvariant().Substring(0, 16);
+        }
+
+        /// The `box` and `knocked` lines, plus the first tick after the resume.
+        private static string Head(string transcript)
+        {
+            string[] lines = transcript.Split(NL);
+            int keep = Math.Min(4, lines.Length);
+            return string.Join(NL, lines, 0, keep);
+        }
+
+        private static void Dump(string tag, string transcript)
+        {
+            foreach (string line in transcript.Split(NL))
+                if (line.Length != 0) GD.PrintRaw("  " + tag + " " + line + NL);
+        }
+
+        /// One run: play `route` until a box is up, optionally knock on the
+        /// dialog, resume, and transcribe what the board does next.
+        ///
+        /// The knock is deliberately more than the one key the report was
+        /// about.  A *held* arrow can only get one byte in -- LTANK.C:574 drops
+        /// auto-repeat while `RB_TOS > RecP` -- but a player pressing distinct
+        /// keys is not auto-repeating, and neither is a player clicking, so on
+        /// an ungated box the bound is the player's patience.  Five keys and two
+        /// clicks is that, and small enough to read in the transcript.
+        private static string Scenario(string lvlPath, int level, string route,
+                                       string how, bool knock)
+        {
+            var s = new Session(lvlPath);          // no Options: posts no score
+            if (!s.Load(level)) return "load failed: " + s.Error;
+            var log = new System.Text.StringBuilder();
+
+            // The human, pressing on drain, until a box comes up.
+            byte[] keys = ParseKeys(route);
+            int at = 0;
+            while (s.Now == Session.State.Playing && s.Ticks < 400)
+            {
+                while (at < keys.Length && s.Pending < 1) s.Key(keys[at++], echo: false);
+                if (!s.Step()) break;
+                if (at >= keys.Length && s.Pending == 0 && s.E.Quiescent()
+                    && s.E.Game_On) break;
+            }
+            log.Append("box now=" + s.Now + " ticks=" + s.Ticks
+                       + " tank=" + s.E.Game.Tank.X + "," + s.E.Game.Tank.Y
+                       + " dir=" + s.E.Game.Tank.Dir
+                       + " recp=" + s.E.Game.RecP + " rbtos=" + s.E.RB_TOS
+                       + " moves=" + s.E.Game.ScoreMove + NL);
+
+            if (knock)
+            {
+                // Every one of these is refused, so the line below is itself the
+                // assertion: RB_TOS and the mouse ring must not have moved.
+                foreach (byte vk in new[] { Engine.VK_RIGHT, Engine.VK_RIGHT,
+                                            Engine.VK_UP, Engine.VK_SPACE,
+                                            Engine.VK_LEFT })
+                    s.Key(vk, echo: false);
+                s.Click(0, 0, 1);
+                s.Click(8, 8, 2);
+            }
+            log.Append("knocked pending=" + s.Pending + " rbtos=" + s.E.RB_TOS
+                       + " mb=" + s.E.MB_TOS + "," + s.E.MB_SP + NL);
+
+            switch (how)
+            {
+                case "undodead":
+                    log.Append("resume undodead=" + s.UndoDead() + NL);
+                    break;
+                case "editorresume":
+                    s.EditorResume();
+                    log.Append("resume editor" + NL);
+                    break;
+                case "replay":
+                    s.Replay();
+                    log.Append("resume replay" + NL);
+                    break;
+            }
+
+            // No further input at all: whatever the board does from here was
+            // either in the keystream or was never pressed.
+            for (int t = 0; t < 40 && s.Now == Session.State.Playing; t++)
+            {
+                if (!s.Step()) break;
+                log.Append("t" + t + " tank=" + s.E.Game.Tank.X + "," + s.E.Game.Tank.Y
+                           + " dir=" + s.E.Game.Tank.Dir + " recp=" + s.E.Game.RecP
+                           + " rbtos=" + s.E.RB_TOS + " moves=" + s.E.Game.ScoreMove
+                           + " shots=" + s.E.Game.ScoreShot + " now=" + s.Now + NL);
+            }
+            return log.ToString();
+        }
+
         /// One script token through the game's own driver.  Mirrors
         /// LaserTank.Cli.Program.Feed; see RunScript on why there are three.
         private static void Feed(Session s, string script, ref int at)
@@ -175,6 +338,13 @@ namespace LaserTank.Game
             };
             if (vk != 0)
             {
+                // The DeadBox has the keyboard, so the token is spent and
+                // presses nothing -- driver.c's `script_box_up` and the CLI's
+                // `BoxUp`, applied here so that the three drivers consume a
+                // script token for token.  Session.Key refuses the press as
+                // well; this is the *accounting*, and the refusal is
+                // Session.AcceptsInput's own.
+                if (!s.AcceptsInput) { at++; return; }
                 if (s.Pending != 0) return;         // still pending: wait
                 s.Key(vk, echo: false);
                 at++;
