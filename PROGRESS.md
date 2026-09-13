@@ -22,7 +22,8 @@ languages.
 It draws any level from `Game.BMF` with any of the four sprite sheets, runs a fixed 20 Hz tick,
 takes the keyboard through the original's own `WM_KEYDOWN` filter and its own accelerator keys,
 plays the original's sixteen WAVs off the sound ids the tick itself computes, undoes, saves and
-restores a position, picks levels and shows both high-score lists out of `.lvl`/`.hs`/`.ghs`, writes
+restores a position, picks a collection and a level inside it and shows both high-score lists out of
+`.lvl`/`.hs`/`.ghs`, writes
 a `.hs` the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all three
 speeds, takes the mouse both as a *move order* through the original's own `MouseOperation` and as
 the editor's brush, edits and saves a `.lvl` byte-faithfully, labels the board A1–P16 on all four
@@ -70,9 +71,9 @@ binary meanwhile gets a spurious red. Observed exactly once and it cost a diagno
 same seed re-run cleanly on its own. The other gates parallelise fine with each other; this one is
 exclusive. A red gate that will not reproduce serially was probably racing this.
 
-Ten more gates cover the presentation. They are listed apart because nothing about the rules depends
-on them, and `options_check.py`'s pixel arithmetic is the one gate *expected* to be edited when the
-look changes on purpose:
+Eleven more gates cover the presentation. They are listed apart because nothing about the rules
+depends on them, and `options_check.py`'s pixel arithmetic is the one gate *expected* to be edited
+when the look changes on purpose:
 
 ```bash
 python tools/atlas_check.py      # 2,347 levels' BMF inside the grid + 4 sheets, ~35 s
@@ -85,9 +86,10 @@ python tools/roundtrip_check.py  # record -> replay -> oracle, 60 cases x 6 runs
 python tools/mouse_check.py      # MouseOperation vs the oracle, 5,000 scripts, ~12 s
 python tools/editor_check.py     # the editor + the .lvl it writes, ~25 s
 python tools/lang_check.py       # 10 languages back to the 2007 bytes, ~25 s
+python tools/collections_check.py  # the 23 collections + command 108's switch, ~20 s
 ```
 
-All ten want Godot; `atlas_check`, `sound_check`'s WAV half, `editor_check`'s third half and
+All eleven want Godot; `atlas_check`, `sound_check`'s WAV half, `editor_check`'s third half and
 `lang_check`'s fourth degrade to a loud SKIP without it, `undo_check` and `mouse_check` need only
 the two engines, the rest need Godot outright. Every one that runs the project **rebuilds its C#
 first**, because `godot --path` does not — see *Environment notes*. None of them touches
@@ -129,52 +131,22 @@ complete and re-runnable.
 The port's own legend strip has no key in the original (the original has no such strip) and falls
 back to English by having only an English form. That is the model for any new UI string.
 
-### 2. A collection picker — command 108, "Open Data File"
-
-The port can only be pointed at a `.lvl` collection from the command line (`--levels`) or by what
-`[DATA] RLLFilename` remembered. In-game, `L` picks a *level* inside the current collection and
-there is no way to change collections at all, so 22 of the 23 shipped ones are unreachable without a
-restart.
-
-The original's is command **108**, accelerator plain `O` (`lt32l_us.inc:125`, menu label
-`"&Open Data File...\tO"`). Its body (`LTANK.C:924`) is the whole specification, and three of its
-five lines are the parts that are easy to forget:
-
-```c
-OFN.Flags = OFN_HIDEREADONLY | OFN_FILEMUSTEXIST;
-if (GetOpenFileName(&OFN)) {
-    AssignHSFile();                 // the .hs/.ghs must follow the collection
-    CurLevel = 0;
-    Backspace[BS_SP] = 0;           // clear the ten-level history
-    EnableMenuItem(MMenu, 118, MF_GRAYED);
-    LoadNextLevel(TRUE, FALSE);
-}
-else { GameOn(x); strcpy(FileName, temps); }   // restore the old name on cancel
-```
-
-`AssignHSFile` is the load-bearing one: the high-score files are named after the collection, and a
-picker that skipped it would post scores into the previous collection's `.hs`.
-
-`GetOpenFileName` is also what blocks the editor's Load Level (602) and Save As (606) — this port
-has no file-dialog equivalent yet, and that one gap accounts for three commands. A **list of the
-collections under `data/levels/` and `data/quirks/`** is probably the better answer here than a
-native file dialog: it is the same shape as `LevelList` (which is already one class in three
-modes), it is reviewable with `--panel`, and the content is in the repo. Note the case trap:
-`.lvl` and `.LVL` both occur, and the four uppercase packs are the four biggest — match on
-`suffix.lower()`.
-
-### 3. Hint on demand — command 301
+### 2. Hint on demand — command 301
 
 The hint is currently drawn under the board **always**, which spoils every level that has one. The
 original has a Hint dialog (`ButText7`, command 301) behind a button. Cheap, and it is the one
 piece of current UI that is actively wrong rather than merely plain.
 
-### 4. The rest of the original that is still missing
+### 3. The rest of the original that is still missing
 
 Everything here was named as left out at the time rather than forgotten.
 
-**Blocked on a file dialog:** Load Level in the editor (602), Save As (606) — plus 108 above. See
-item 2.
+**Blocked on a file dialog:** Load Level in the editor (602) and Save As (606). 108 was the third
+and is done — and the way it was done is the model for these two: a list of what is *in the repo*
+rather than a native file dialog. See *Finished*, the collection picker. 602 wants exactly the same
+list plus a level inside the chosen collection (which is `LevelList`, already built); 606 wants
+somewhere to type a name, so it is really blocked on the modal prompt below rather than on a file
+dialog.
 
 **Blocked on a modal prompt:** the "save changes?" prompt on leaving the editor (`Modified` is
 tracked and shown, there is just no message box), the `RecordBox`/`HSBox` name prompts (both INI
@@ -205,14 +177,14 @@ Both are read into `Options` as comments only.
 **Not coming:** the `.ln` files under `Setups/Language/` (a 4.0-era format superseded by the
 `.dat`s and not read by the 2007 build).
 
-### 5. A menu bar
+### 4. A menu bar
 
 Step 6 converted all 73 menu items of both trees with their command ids and accelerator labels, so
 `Language.MainMenu` / `Language.EditorMenu` is a ready-made model. The port is still key-driven and
 has no menu widget. This is the cheapest remaining piece of the original that is *fully specified
 data* rather than design work.
 
-### 6. The UI redesign this whole approach was a prelude to
+### 5. The UI redesign this whole approach was a prelude to
 
 The line was drawn out loud and holds: **the mechanics of the puzzles must be exactly the same —
 every level solvable in exactly the way it was — and the UI need not be.** The port was finished
@@ -223,13 +195,13 @@ the change is a choice rather than a regression). What must not move: `replay_al
 `test_difftrace.py`, `tick_check.py`'s 208/208. What is expected to be edited on purpose:
 `options_check.py`'s pixel arithmetic.
 
-### 7. More fuzzing, indefinitely
+### 6. More fuzzing, indefinitely
 
 `fuzz.py` can keep running on new seeds and on the **12 collections its first campaign never
 touched**. `undo_check.py`, `mouse_check.py` and `editor_check.py` are three more campaigns of the
 same kind against the same oracle. All four are worth leaving running.
 
-### 8. The solver
+### 7. The solver
 
 The larger unfinished half of the project and a goal in its own right: 11.3% of a 4,185-level sample
 against a goal of all 20,914. It runs on the other machine now, so treat that number as a
@@ -700,7 +672,8 @@ about focus: while an edit control has the caret the accelerators must not fire.
 moves in and out of the three text fields, and while one has focus every letter goes into it.
 
 Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101), `U` undo (110),
-`Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels (106), `V` own scores (113), `G`
+`Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels (106), `O` collections (108),
+`V` own scores (113), `G`
 global scores (906), `S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
 `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
 (123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented), `Z`
@@ -725,6 +698,18 @@ modes carrying the original's own format strings. One difference is kept because
 **command 106 stops the clock and 113/906 do not** (`x = Game_On; GameOn(FALSE); DialogBox(...)`,
 `LTANK.C:906`), so a tank in the open can die while you read your scores and cannot while you pick a
 level.
+
+**The collection picker is a fourth panel of the same shape and deliberately not a fourth mode.**
+`CollectionList` lists every `.lvl` under `data/levels/`, `data/quirks/` and `out/levels/` — 23 of
+them — with the count the player has solved beside the count the collection holds, and `Enter`
+runs command 108's body. It is a separate class because `LevelList`'s rows are the original's own
+`sprintf` formats and `list_check.py` diffs them against Python byte for byte; these rows have no
+original to be diffed against (the original's list was drawn by comdlg32), and putting them in that
+class would quietly weaken that gate. **108 stops the clock**, like 106 and for the same reason:
+`x = Game_On; GameOn(FALSE); ... else GameOn(x);`. Its two title strings are the loaded language's
+and were the first two keys in `data/language/` that nothing read — the menu item's own label
+(`Label(108)`, `&Open Data File...`) and `txt002`, `Level Files (*.LVL)`, which is the filter the
+original hands `GetOpenFileName`.
 
 **Playback needed no new rules** — `PBOpen`, `PlayBack`, `PBHold`, `Speed` and `SlowPB` have been
 read by `Engine.Tick` since Phase 2, so the panel is four buttons wired to five fields. One line of
@@ -753,7 +738,8 @@ things the C does that a reasonable reading gets wrong:
   arm). Defined, so it stays; the panel draws the slot as an empty frame so it is at least visible.
 
 **Reviewing UI without a window** is the same trick everywhere: `--shot FILE` draws one frame and
-exits, and `--menu` / `--panel levels|scores|global|playback` / `--editor` open the thing first.
+exits, and `--menu` / `--panel levels|scores|global|collections|playback` / `--editor` open the thing
+first.
 Every path after `--` must be **absolute** — see *Environment notes*.
 
 ```bash
@@ -1088,6 +1074,8 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                     Options.cs     LaserTank.ini;  Packs.cs  GFXInit's three modes
                     GraphicsMenu.cs  GraphBox (226);  LanguageMenu.cs  Ctrl+L (ours)
                     LevelList.cs   LoadBox/HSList/GHSList — one class, three modes
+                    CollectionList.cs  command 108's picker;  CollectionCheck.cs
+                                   its headless dump
                     HighScores.cs  AssignHSFile + CheckHighScore + the HS global
                     Recorder.cs    command 123 and PBWindow
                     Sfx.cs         lt_sfx.c — one player, monophonic
@@ -1120,6 +1108,7 @@ tools/      the fidelity and presentation gates; solver-only tools: docs/solver/
 | `mouse_check.py` | `MouseOperation` through `--script`'s click tokens, trace-diffed against the oracle's own copy |
 | `editor_check.py` | 3,000 edit scripts against the oracle's own `ChangeGO`; the `.lvl` writer (an untouched level re-saves byte for byte across all 23 collections, the `GetWindowText` widths rebuilt in Python, the gap zero-filled, the saved board tied to the trace, and **the oracle — which *is* the 2010 loader — opening what was written**); and the game's own editor saving the same bytes as the driver |
 | `lang_check.py` | the tab policy; 2,293 source lines rebuilt out of the JSON and compared **as bytes in each file's own codepage**; the key set and both menu trees against the frozen header and `.inc`; `code`/`name`/`sourceDir`/`sourceEncoding` against `convert_language.LANGUAGES` and `sourceName` against the `.dat`'s own banner line (the one string the round trip cannot reach — it sits on a `#` line the original's loader skips); `--lang-dump` and the game's `--check-lang` against a Python rebuild; a synthetic partial language for the fallback; 5 INI checks |
+| `collections_check.py` | the collection picker's 23 rows, rebuilt in Python from the same two directory trees against `--check-collections`; and the switch behind them — all 23 opened in order through one Session, with the `.hs` / `.ghs` / `.lpb` names checked to have followed each one (`AssignHSFile`), the level checked to be 1, an open playback checked to be closed by the change, and a `.lvl` that is not there checked to restore rather than throw |
 | `convert_language.py` | the one-time import behind that. `--check` reports staleness without writing |
 | `bump_rate.py` | classify consumed keys; bumps = desync signature |
 | `dump_level.py` | print a `.lvl` level as ASCII with its hint |
@@ -1491,6 +1480,86 @@ which is the gate this could have moved — plus `editor_check`, `mouse_check` a
 nothing would ever want `Animate()` switched off. That was wrong: a still board is easier to read
 than a shimmering one, which is a reason to keep the key rather than a reason to drop it. It stays,
 UI and all, and `Engine.Ani_On` stays the transliterated field it always was.
+
+### ~~A collection picker — command 108, "Open Data File"~~ — **done 2026-09-13**
+
+Before this the port could only be pointed at a `.lvl` from the command line (`--levels`) or by
+what `[DATA] RLLFilename` remembered: `L` picked a *level* inside the current collection and there
+was no way to change collections at all, so **22 of the 23 shipped ones were unreachable without a
+restart**. `O` now opens a list of them.
+
+**The original's is a native file dialog and this is not**, which is the one deliberate deviation
+here: `OFN.Flags = OFN_HIDEREADONLY | OFN_FILEMUSTEXIST` over `*.LVL`, filter label `txt002`. What
+is lost is opening a `.lvl` from anywhere on the disk, which `--levels` still does; what is gained
+is a list that needs no file dialog, is reviewable with `--shot`, and can say something a file
+dialog cannot — **how many of each collection's levels this player has solved**, counted out of the
+`.hs` beside it.
+
+Everything *after* the file comes back is `LTANK.C:924` transliterated, and the parts worth writing
+down are the ones that are easy to forget:
+
+- **`AssignHSFile()` is the load-bearing line.** The `.hs`, the `.ghs` and the default recording
+  name are all derived from the level file's name (`LTANK2.C:1055`). A picker that changed the
+  collection and not those three would post the new collection's scores into the old one's `.hs` —
+  and a `.hs` is *positional*, so it would overwrite a real score rather than append a wrong one,
+  with nothing on screen to say so. `Session.Files` is one object and reassigning it is the whole
+  of `AssignHSFile`; `collections_check.py` checks all three names followed, for all 23.
+- **`CurLevel = 0; LoadNextLevel(TRUE, FALSE)` is level 1**, not the level the last collection
+  happened to be on: `LoadNextLevel` reads at `CurLevel` and increments after.
+- **The two lines about command 118 have nothing to do yet and must not be forgotten.**
+  `Backspace[BS_SP] = 0; EnableMenuItem(MMenu, 118, MF_GRAYED);` clear the ten-level history,
+  which this port does not have. When 118 arrives, its stack has to be cleared here — a history of
+  level *numbers* means nothing once the collection they index has changed. The note is in
+  `Session.OpenDataFile` where it will be read.
+- **108 stops the clock** (`x = Game_On; GameOn(FALSE); ... else GameOn(x);`), like 106 and unlike
+  113/906/226.
+
+Two things the port adds because it has no dialog loop to fall back into. The original's
+`LoadNextLevel` answers an unreadable file with a message box and **re-posts command 108** to ask
+for another one; here a failed open restores the previous collection, its two score files and the
+level on screen, and says so on the status line. And `LoadNextLevel`'s opening `if (GameInProg)`
+prompt — *"you will lose game data, do you want to save the game?"* (`txt039`) — is not here, for
+the same reason the editor's "save changes?" is not: there is nowhere to answer it. A recording in
+progress is dropped, exactly as pressing `S` already drops one.
+
+**A second identity stopped being sufficient the moment a Session could hold two collections.**
+`Session.Load` keeps an open playback when the level number matches and closes it otherwise — the
+number *was* the level while a Session could only ever hold one collection. It is not any more:
+F7 then `O` would have left a recording of level 1 playing over a level 1 it has nothing to do
+with. A change of data file now ends a playback outright, which is the reason `Load` already gives
+for closing one ("the keystream in `RecBuffer` belongs to a level that is no longer on screen"),
+applied twice over. Same species as the `.hs` trap above: **a name that identified something only
+because nothing could change underneath it.**
+
+**One bug fell out of writing the gate, and it is the reason the gate exists.**
+`Session.Load` took `Engine.LoadLevel`'s `false` as "no such level" — which is right for a file
+that is *short* (`LevelFile.ReadLevel` returns null past the end, which is `LoadNextLevel`'s own eof
+test) and wrong for a file that is *absent*: `File.OpenRead` throws. Until 108 nothing could hand a
+Session an arbitrary name — the collection came from the command line or the INI and was checked
+before the Session was built — but a picker can offer a file that is deleted before Enter is
+pressed, and an exception out of a key handler takes the window down. The check found it by asking
+for a `.lvl` that is not there, and the symptom was not a red line: Godot never reached `Quit()`
+and the run hung. Both answers are one now, in the driver: `Error`, which the HUD already shows.
+
+`tools/collections_check.py` is the gate, and it has the two halves the shape of the change asks
+for. The **list** is derived from the filesystem and nothing else, so it gets the
+cross-implementation treatment the sprite sheets and the three list dialogs get — the game dumps
+every row, Python rebuilds them from the same directories, and the two must agree row by row and by
+`sha256`. The **switch** is behaviour, so it is driven: `--check-collections` opens all 23
+collections in order *through one Session*, which is both the AssignHSFile check and the strongest
+cheap claim available here — every shipped collection loads. Two more cases ride on that Session
+because nothing else in the tree reaches them: a playback open across a change of collection, and a
+`.lvl` that is not there.
+
+The case trap the earlier note warned about is real and is why nothing in `CollectionList` uses a
+`*.lvl` pattern: four collections ship uppercase (`Tutor.LVL`, `Game-Objects-in-LT.LVL`,
+`Rotary Mirrors-Challenge.LVL`, `Tutor-with-Playbacks.LVL`), and `Directory.GetFiles`' pattern is
+only case-insensitive on Windows. A second one showed up in the gate itself: `Rotary
+Mirrors-Challenge.LVL` has a **space** in it, and a `\S+` in the tool's regex quietly checked 22 of
+23 things and reported green on the other 22.
+
+`out/levels/` is in the scan alongside the two corpus trees. It is where `EditMode.Save` puts a
+level that came out of `data/`, and listing it is what closes that loop: edit, save, open, play.
 
 ---
 

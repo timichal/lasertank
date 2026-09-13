@@ -89,6 +89,7 @@ namespace LaserTank.Game
         private Pack _pack;
         private GraphicsMenu _menu;
         private LevelList _list;
+        private CollectionList _collections;
         private EditMode _edit;
         private Sfx _sfx;
         private string _error;
@@ -172,6 +173,14 @@ namespace LaserTank.Game
                 GetTree().Quit(Step6Check.CheckLangIni(cli));
                 return;
             }
+            // Command 108's, on the same terms as the four above: no INI, no
+            // pack, no live options, and it builds its own Session so nothing
+            // it opens can write a .hs.
+            if (Array.IndexOf(args, "--check-collections") >= 0)
+            {
+                GetTree().Quit(CollectionCheck.Run());
+                return;
+            }
 
             // The tick rate is a project setting, so a stale project.godot
             // would silently play the game at 60 Hz.  Fail loudly instead.
@@ -228,6 +237,7 @@ namespace LaserTank.Game
             _packs = Packs.Scan(_opt.GraphicsDir);
             _menu = new GraphicsMenu(this);
             _list = new LevelList(this);
+            _collections = new CollectionList(this);
             _edit = new EditMode(this);
             _mono = new SystemFont
             {
@@ -394,10 +404,11 @@ namespace LaserTank.Game
                 case "levels": OpenList(ListMode.Levels); break;
                 case "scores": OpenList(ListMode.MyScores); break;
                 case "global": OpenList(ListMode.GlobalScores); break;
+                case "collections": OpenCollections(); break;
                 case "playback": OpenPlayback(); break;
                 case null: break;
                 default:
-                    GD.PrintErr("--panel wants levels|scores|global|playback");
+                    GD.PrintErr("--panel wants levels|scores|global|collections|playback");
                     GetTree().Quit(2);
                     return;
             }
@@ -681,6 +692,9 @@ namespace LaserTank.Game
             // (226) and the two score lists (113, 906) do not, so the tank can
             // die while they are up -- see GraphicsMenu and LevelList.StopsClock.
             if (_list != null && _list.Open && _list.StopsClock) return;
+            // Command 108 stops it for the same reason and in the same words --
+            // see CollectionList.StopsClock.
+            if (_collections != null && _collections.Open && _collections.StopsClock) return;
             if (_s == null || !_s.Step()) return;
             // The tick's sounds, after Tick() *and* Pump(): a drowning death
             // posts WM_Dead, so S_Die belongs to the tick that caused it
@@ -728,6 +742,17 @@ namespace LaserTank.Game
             {
                 _list.Key(k.Keycode);
                 if (_list.Chosen > 0) _s?.Load(_list.Chosen);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            // The collection picker, which is GetOpenFileName: modal for keys
+            // like every dialog here, and the one thing on the far side of it
+            // is command 108's own body -- see Session.OpenDataFile.
+            if (_collections != null && _collections.Open)
+            {
+                _collections.Key(k.Keycode);
+                if (_collections.Chosen != null) OpenDataFile(_collections.Chosen);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -815,6 +840,7 @@ namespace LaserTank.Game
             {
                 // ---- levels -------------------------------------------------
                 case Key.L when !ctrl: OpenList(ListMode.Levels); break;   // 106
+                case Key.O: OpenCollections(); break;                 // 108
                 case Key.S: _s?.Load(_s.Level + 1); break;            // 107
                 case Key.P: _s?.Load(_s.Level - 1); break;            // 119
                 case Key.Bracketright: _s?.Load(_s.Level + 1); break; // ours
@@ -931,6 +957,7 @@ namespace LaserTank.Game
             if (_menu != null && _menu.Open) return;
             if (_langMenu != null && _langMenu.Open) return;
             if (_list != null && _list.Open) return;
+            if (_collections != null && _collections.Open) return;
             if (_s != null && _s.Pb.PanelUp) return;
 
             int button = mb.ButtonIndex switch
@@ -1083,6 +1110,27 @@ namespace LaserTank.Game
             _list.Show(mode, _s.LevelPath, _s.Level);
         }
 
+        /// Command 108's `GetOpenFileName` half -- the picker.  The other half,
+        /// what happens once a file comes back, is Session.OpenDataFile.
+        private void OpenCollections()
+        {
+            if (_s == null) return;
+            _collections.Show(Paths.Root, _s.LevelPath);
+        }
+
+        /// Command 108's `if (GetOpenFileName(&OFN))` branch.  The status line
+        /// says which collection is up and how big it is, because the board
+        /// alone does not: every collection opens at level 1 and level 1 of
+        /// three of them is the same tutorial screen.
+        private void OpenDataFile(string lvlPath)
+        {
+            if (_s == null) return;
+            if (_s.OpenDataFile(lvlPath))
+                _error = $"{Path.GetFileName(lvlPath)} -- {_s.LevelCount} levels";
+            else
+                _error = _s.Error ?? ("cannot open " + Path.GetFileName(lvlPath));
+        }
+
         /// Command 114 (F7), PlayBack Recording.  The original opens a file
         /// dialog; there is no file dialog here, so the two names BuildPB_Name
         /// would have offered are tried in order -- out/recordings/ first,
@@ -1125,6 +1173,7 @@ namespace LaserTank.Game
             if (_menu.Open) _menu.Draw(this, font, board);
             if (_langMenu.Open) _langMenu.Draw(this, font, board, Strings);
             if (_list.Open) _list.Draw(this, font, _mono, board);
+            if (_collections.Open) _collections.Draw(this, font, _mono, board);
             if (_s.Pb.PanelUp) DrawPlaybackPanel(font, board);
         }
 
@@ -1482,10 +1531,10 @@ namespace LaserTank.Game
                 : new[]
             {
                 "arrows move  space fires  U undo  R restart  ctrl+C/V pos",
-                "L levels  V scores  G global  S/P next/prev  ctrl+G gfx",
+                "L levels  O collections  V scores  G global  S/P next/prev",
                 "F5 rec  F6 save  F7 play  F4 replay  F8 auto-rec",
                 "Z size  I smooth  N sound  A anim  F9 editor  Esc quit",
-                "C grid (A1-P16)  ctrl+L language",
+                "C grid (A1-P16)  ctrl+L language  ctrl+G gfx",
             };
             for (int i = 0; i < legend.Length; i++)
                 DrawString(font, new Vector2(Margin, y + 56 + 16 * i), legend[i],

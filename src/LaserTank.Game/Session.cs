@@ -66,7 +66,12 @@ namespace LaserTank.Game
 
         public System.Collections.Generic.IReadOnlyList<int> Sounds => _sounds;
 
-        private readonly string _lvlPath;
+        /// Not readonly since command 108: `FileName` is a global in the
+        /// original and the Open Data File case assigns it in place, which is
+        /// what lets everything else in this class -- the HS global, the
+        /// recorder, the playback -- survive a change of collection.  See
+        /// OpenDataFile.
+        private string _lvlPath;
         private readonly Options _opt;
         private int _recBufSize;
         private int _levelCount;
@@ -74,7 +79,7 @@ namespace LaserTank.Game
         // ---- step 4: the game around the game -------------------------------
         /// The .hs / .ghs / recording names AssignHSFile derives from the .lvl
         /// (LTANK2.C:1055).
-        public ScoreFiles Files { get; }
+        public ScoreFiles Files { get; private set; }
 
         /// Recording state (command 123) and the playback being watched
         /// (command 114).  Both are the driver's, not the engine's -- but the
@@ -157,7 +162,32 @@ namespace LaserTank.Game
             // Session built without Options (PlayMode's synthetic player, every
             // headless gate) keeps Engine's default of true.
             if (_opt != null) e.Ani_On = _opt.AnimationOn;
-            if (!e.LoadLevel(_lvlPath, n))
+            // **A missing file throws where a short one returns false.**
+            // LevelFile.ReadLevel answers "past the end" with null -- which is
+            // LoadNextLevel's own eof test -- but File.OpenRead on a name that
+            // is not there raises, and until command 108 nothing could hand
+            // this an arbitrary name: the collection came from the command line
+            // or the INI and was checked before the Session was built.  A
+            // picker can offer a file that is deleted before Enter is pressed,
+            // and an exception out of a key handler takes the window down.  So
+            // the two answers are made one here, in the driver: `Error`, which
+            // is what the HUD already shows.  The original's equivalent is
+            // LoadNextLevel's `if (F1 == INVALID_HANDLE_VALUE)` arm (txt001,
+            // "The Level file can not be found"), which is also not fatal --
+            // it re-posts command 108 to ask for another file.
+            bool loaded;
+            try { loaded = e.LoadLevel(_lvlPath, n); }
+            catch (IOException ex)
+            {
+                Error = $"cannot read {_lvlPath}: {ex.Message}";
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Error = $"cannot read {_lvlPath}: {ex.Message}";
+                return false;
+            }
+            if (!loaded)
             {
                 Error = $"cannot load level {n} of {_lvlPath}";
                 return false;
@@ -197,6 +227,93 @@ namespace LaserTank.Game
             if (Pb.Open && Pb.Rec != null && Pb.Rec.Level == n) Pb.Install(E);
             else if (Pb.Open) Pb.Close(E);
             return true;
+        }
+
+        /// Command 108, "Open Data File" (LTANK.C:924).  Its whole body is five
+        /// lines and three of them are the parts that are easy to forget:
+        ///
+        ///     if (GetOpenFileName(&amp;OFN)) {
+        ///         AssignHSFile();
+        ///         CurLevel = 0;
+        ///         Backspace[BS_SP] = 0;                      // clear the history
+        ///         EnableMenuItem(MMenu, 118, MF_GRAYED);
+        ///         LoadNextLevel(TRUE, FALSE);
+        ///     }
+        ///
+        /// **AssignHSFile is the load-bearing one.**  The .hs, the .ghs and the
+        /// default recording name are all derived from the level file's name
+        /// (LTANK2.C:1055), so a picker that changed `FileName` and not those
+        /// three would post this collection's scores into the last one's .hs --
+        /// silently, and into a file that is positional, so level 40 of the new
+        /// collection would overwrite level 40 of the old.  Here it is one
+        /// object and reassigning it is the whole of AssignHSFile.
+        ///
+        /// `CurLevel = 0` then `LoadNextLevel(TRUE, FALSE)` is level **1**:
+        /// LoadNextLevel reads at `CurLevel` and increments after, so a new
+        /// collection always opens at its first level and never at the level
+        /// number the last one happened to be on.
+        ///
+        /// The two lines with nothing to do here are the ones about command 118
+        /// -- the ten-level Backspace history, which this port does not have
+        /// (see PROGRESS.md, "the rest of the original that is still missing").
+        /// **When 118 arrives, its stack must be cleared here**, because a
+        /// history of level numbers means nothing once the collection they
+        /// index has changed.  That is the whole reason those two lines are in
+        /// the original's case body, and it is exactly the kind of thing that
+        /// is invisible until someone plays two collections in one sitting.
+        ///
+        /// What is *not* transliterated is LoadNextLevel's opening prompt --
+        /// `if (GameInProg) MessageBox(txt039, ...)`, "you will lose game data,
+        /// do you want to save the game?"  It is the same modal prompt the
+        /// editor's "save changes?" is blocked on and it is blocked for the
+        /// same reason: there is nowhere to answer it.  A recording in progress
+        /// is therefore dropped by this, exactly as pressing S (command 107)
+        /// already drops one.
+        ///
+        /// -> false with `Error` set when the file will not load, and then
+        /// **nothing has moved**: the old collection, its score files and the
+        /// level on screen are all still there.  The original has no such
+        /// restore for 108 (it puts up WM_GameOver and leaves FileName
+        /// pointing at the unreadable file, which is why LoadNextLevel's own
+        /// failure path re-posts command 108 to ask for another one); command
+        /// 106's `CurLevel = LastLevel` is the same idea one level down, and is
+        /// the sane reading of a case this port can reach without a dialog loop
+        /// to fall back into.
+        public bool OpenDataFile(string lvlPath)
+        {
+            string oldPath = _lvlPath;
+            ScoreFiles oldFiles = Files;
+            int oldCount = _levelCount;
+
+            // **A playback does not survive a change of collection.**  Load()
+            // keeps one open when the level number matches, which was a
+            // sufficient identity while a Session could only ever hold one
+            // collection: the number was the level.  It is not sufficient any
+            // more -- watching a recording of level 1 and then opening another
+            // data file would leave that keystream playing over a level 1 that
+            // has nothing to do with it -- and the reason Load gives for
+            // closing one ("the keystream in RecBuffer belongs to a level that
+            // is no longer on screen") applies here twice over.  Closed before
+            // anything moves, so it is closed against the engine it was
+            // recorded against.
+            if (Pb.Open) Pb.Close(E);
+
+            _lvlPath = lvlPath;
+            Files = new ScoreFiles(lvlPath);            // AssignHSFile()
+            // The picker only offers files it has just seen, but a file can go
+            // away between the scan and the Enter, and a missing one must land
+            // in the restore below rather than throw out of a key handler.
+            try { _levelCount = LevelFile.CountLevels(lvlPath); }
+            catch (IOException) { _levelCount = 0; }
+
+            // CurLevel = 0; LoadNextLevel(TRUE, FALSE).  Load() builds a fresh
+            // Engine and leaves E untouched when it fails, so the board on
+            // screen survives a bad file along with everything restored here.
+            if (Load(1)) return true;
+            _lvlPath = oldPath;
+            Files = oldFiles;
+            _levelCount = oldCount;
+            return false;
         }
 
         // ---- the three commands no keystream can reach ----------------------
