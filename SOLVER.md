@@ -182,6 +182,7 @@ These are the reason the numbers in these files can be trusted.
 | Layer 9 — exposure as a tier | `--push-fire-tier`, the fire map promoted from an addend to a tier; **tenth rung**. Over the 138 unsolved short-record GAUNTLETs at 40M it is **85 against the control's 76, with 15 exclusive levels against 6** (union 91 of 138, 65.9%; 161 of 161 gated). Costs **9% wall clock**. **Does not solve `LaserTank.lvl` 10**, the level it was derived from. **Now validated over the corpus** (session 33): as the fourth-pass arm `l8fire` it is **66 of 255 (25.9%)**, the best solo arm ever measured on that population, and it **retires `l8work`** — see the row below |
 | Item 16's last two derivations (session 43) | **FMO mobility ships as a level column and the per-carry constant does not ship at all.** `Heuristic.Mobility` is `_alive`'s transitive closure — `--analyze-tsv`'s `alive` / `mob_max` / `mob_sum`, free at 63 s over the stride sample — and it predicts the solve rate **with the sign the series does not have**: frozen 16.0%, 1-4 cells 11.5%, 9+ **4.5%**, holding at **1.78x** with the record's own length, the water count and the block count fixed, where `poses` collapses to 1.17x. A free block is a player's resource and a beam's branching factor. The per-carry constant is **refused**: ten values of K over the 20 recordings move **no** level's ascent, and three levels' deepest rise gets worse |
 | The read's derivations, scored against the human | Over the 20 hand recordings' **800 board changes**, each derivation as *named / offered* against *named / what the human did*: `advance` 58.5% → 83.4% (1.43x), `opens` 56.2% → 78.9% (1.40x), `enables` 68.7% → 92.1% (1.34x), and session 42's two: **`rare` 5.1% → 16.0% (3.15x)** and **`spend` 7.6% → 1.9% (0.25x**, i.e. the human avoids it — 0.3% and 0.04x with the anti-tank kill exempted, which is the form it would ship in). `clears`, the fifth derivation the spend column turned up by failing, is **0.88x and does not ship** |
+| Beam width, per level (item 14, closed negative) | **The record does not size the beam.** `--push-width-record F` scales the push beam by `budget / (poses x .ghs shots x F)`, raise-only, and over the 138-level GAUNTLET tail at 40M it is **76 / 78 / 78 at F = 4.6 / 14 / 60 against the global width's 85**. The widths it chose ran to a median of 854, 2,667 and 6,820 against 128, so what was measured is *wider*, and wider loses — `Challenge-IV` 176 falls to the control in 781,566 nodes and costs the two widest arms 35.7M and 31.6M. Ships **off**. The free calibration behind it stands and is the reason not to try again: `nodes / (poses x width x ghs_shots)` over 66 solved levels is p10 1.9 / p50 **14.2** / p90 446, so the arithmetic sizes an order of magnitude and never a width |
 | Layer 5 over the corpus | **15 of 255 (5.9%)** of the levels the whole chain fails, at 27x the campaign budget — an argument for a fourth pass, not for changing the chain |
 | The fourth pass, rehearsed | **87 of 255 (34.1%)** of the levels the chain fails, as the **union of seven arms at 40M nodes** on a 1-in-15 stride of the failure population; 372 of 372 gated. The pass is still a chain of arms rather than a configuration, but the arms changed: **the three that ship are now `l8fire` → `layer7` → `enables`, 84 (32.9%)**, against the 81 of the three it replaces. **`--push-fire-tier` does not add a fourth arm, it replaces the first** — `l8work` contributes **+0** to the seven-arm union and holds **1** exclusive level against `l8fire`'s 6. So the pass is better by 3 levels at the *same* three-arm cost (~54 h), not 72 h |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/`. **Level 10 now has a named candidate** (session 34): it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line. What was missing is a *gradient*, and the harvested goal board supplies one: the blog's line wins in 179 moves / 52 shots by **pushing six of the ten anti-tanks and destroying none**, minimum total push distance 30, and it names the cells they end on — so it separates the three root pushes `--analyze` offers and cannot rank. **Level 6 "Cascade" has no post** and gains nothing from the bank, and **session 45 closed item 5 on it, negative**: its 168-change line comes apart into **six phases of 18 to 34 board changes**, every one inside the horizon of 50 already measured there, and `--push-phases` commits to the *right* first board — the fill at (9,14), the same cell the human fills first — and then **cannot reach phase 2 at width 32 or 128, nor from the human's own board**. Four of the six phases are reachable and the two that are not are the *middle*, though they are shorter than the three at the end. So the line's length is not what defeats the level; `tools/phase_reach.py`'s trace says `best=137` flat for 237 depths, which is level 10's GAUNTLET signature — **a ranking that has stopped discriminating, in the middle of a Sokoban** |
@@ -246,11 +247,22 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, `... status` for the table | ~54 h |
-| **14** | **2nd** | **per-level width from the record** — the driver ladders width globally, and item 18's 25x horizon spread is the argument that per-level is the right kind of lever. The free calibration says the estimate sizes an order of magnitude, not a width, and item 18 adds that **nothing free predicts the horizon**. **`--push-width-record F` is built** (raise-only; node- and keystream-identical to the control with the flag off, over levels 3, 4, 7, 11 and 20), so the decision run is **one arm against a control that is already banked** — `bash tools/width_record.sh`, F = 4.6 / 14 / 60 against `gt-fire.jsonl`'s 85 of 138 | ~1 h wall per F at 4 jobs |
+| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Started 2026-09-10, interrupted in session 46 with arm 1 four hours from the end**: `l8fire` at **3,092/3,691, 770 solved (24.9%)**, `layer7` and `enables` not started. Resumable from its own report — `bash tools/l5_pass.sh`, `... status` for the table | **4 h 44 m to finish arm 1**, then two arms not started. Arm 1 is running to ~25 h against the rehearsal's ~18 h, so read the ~54 h as ~75 h |
+| **19** | **2nd** | **the narrow beam** — item 14 swept the beam *wider* per level and lost every arm, and the raise-only rule is what stopped it testing the direction all the evidence points: level 6 goes **66 board changes deep at width 32 on 3.4M nodes** where width 512 needed 40M for 50, and the phase table reaches 4 / 2 / 1 phases at width 32 / 128 / 512. One arm at **`--push-beam 32`** over the same 138 levels, against the same banked control, with item 14's three arms folded into the union for free | ~1 h wall at 4 jobs |
 | **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default**, and it inherits closed item 13's rule — keep a round open while `shots > ghs_shots` | a stride campaign with the flag against one without |
 | **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
+
+**Item 14 closed in session 46, negative on a clean sweep.** Three arms at the calibration's own
+p25 / p50 / p75 over the 138-level GAUNTLET tail at 40M — **76 / 78 / 78 against a banked control's 85**,
+and the widths they chose ran to a median of **854, 2,667 and 6,820 against the global 128**. The flag is
+raise-only, so what the item measured is the beam getting *wider*, which is the direction its own
+evidence argued against; the arms hold 4 / 1 / 1 exclusive levels and the union reaches 97 (70.3%), but
+that is three extra 40M passes for 12 levels. `Challenge-IV` 176 is the whole result in one row: the
+control solves it in **781,566 nodes** and the two widest arms need **35.7M and 31.6M**. What replaces
+it is **item 19**, the same run with `--push-beam 32`; the flag, the arithmetic and the three banked
+reports all survive.
+[Closed item 14](docs/solver/history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
 
 **Item 5 closed in session 45 and it closed negative on its own example**, which is the second running
 that the item at the front of this list has been refused by a falsifier it built for itself. What was
@@ -269,11 +281,12 @@ walk the middle of the line — **what defeats the level is not the length of it
 premise the item was written on.
 [Closed item 5](docs/solver/history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
 
-**Two things it produced are worth more than the item was, and the first lands on item 14.** The same
+**Two things it produced are worth more than the item was, and the first is now item 19.** The same
 table solves level 6 from **K = 102, 66 board changes from the end, at width 32 on 3.4M nodes**, where
 item 18 measured its horizon of **50** at width 512 on 40M — deeper on a twelfth of the budget, so **the
 horizon is width-dependent and 50 is not the searcher's best**. Narrow-and-deep for the fourth time, and
-**item 14's per-level lever has a second dimension it had not measured**. And phase 2's trace is `best=137` flat for 237 depths, the *same signature* as level
+after item 14 spent three arms going the other way and losing all of them, **it is item 19 and second on
+the list**. And phase 2's trace is `best=137` flat for 237 depths, the *same signature* as level
 10's GAUNTLET: a beam ranking distinct boards by a key that has stopped discriminating. **What is
 binding in the middle of a Sokoban is the ranking, not the depth** — layers 4 and 6's territory, not a
 decomposition's, and not an item until something measures it on a population.
@@ -403,7 +416,9 @@ sessions 42 and 43 spent the whole of items 16, 15 and 13 beside it, and session
 (a build and five benches, four jobs against the pass's sixteen, ~3.5 min a bench) the same way; the pass
 saw none of it except in wall clock. Session 44 then spent item 18 the same way — 96
 `--push-seed` probes at four jobs, resumable from their own reports, and session 45 spent all of item 5
-beside it — two free sizing tools and a build. **Item 14 is being spent the same way**: the flag is
-built and its equivalence test ran at one job, and its decision run is one arm of ~3.5 h of job time
-against a control that is already banked, at four jobs. Nothing on this list now needs the machine
-to itself.
+beside it — two free sizing tools and a build. **Session 46 broke the pattern once and it is worth
+naming**: item 14's third arm was run with the pass *stopped*, so its wall clock is the only figure in
+these files measured on an idle machine, and four hours of arm 1 are outstanding that were not spent.
+No measured number moves — the arms are node-governed — and item 19 goes back to running beside it, one
+arm of ~3.5 h of job time at four jobs against a control that is already banked. Nothing on this list
+needs the machine to itself except item 2.

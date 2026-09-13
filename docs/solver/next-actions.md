@@ -6,7 +6,18 @@ Items keep their numbers because these files refer to them by number — the fin
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 14, 4, 7, 10**. **Item 5 closed in session 45 and it closed negative on its own example**,
+Order: **2, 19, 4, 7, 10**. **Item 14 closed in session 46 and it closed negative on a clean sweep**:
+three arms at the calibration's own p25 / p50 / p75 over the 138-level GAUNTLET tail at 40M, against a
+control that was already banked, and **every one of them lost to the global width** — 76 / 78 / 78
+against **85 of 138**. What it swept was the beam getting *wider*, because the flag is raise-only, and
+the item's own evidence had said narrow: median chosen width **854 to 6,820 against the global 128**.
+The three arms hold 4 / 1 / 1 exclusive levels, so the union climbs to 97 (70.3%), but that is three
+extra 40M passes for 12 levels and a worse trade than item 2's. **The successor is item 19** — the same
+run with `--push-beam 32`, the direction raise-only forbade — and it takes item 14's slot rather than
+its number, because the machinery and the arithmetic it built both survive the negative.
+[Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
+
+**Item 5 closed in session 45 and it closed negative on its own example**,
 which is the second time running that the item at the front of the list has been refused by a falsifier
 it built for itself (item 17 was the first). The decomposition is real — `--push-phases`, a phase
 terminated by a **milestone** rather than sized by a constant, and `LaserTank.lvl` 6's 168-change line
@@ -18,17 +29,19 @@ still cannot walk the middle of the line: what defeats level 6 is **not** the le
 is the premise this item was written on.
 [Closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
 
-**Two things came out of it that are worth more than the item was, and the first one lands on item
-14.** `tools/phase_reach.py` solves level 6 from **K = 102, 66 board changes from the end, at width 32
+**Two things came out of it that are worth more than the item was, and the first one is now item
+19.** `tools/phase_reach.py` solves level 6 from **K = 102, 66 board changes from the end, at width 32
 on 3.4M nodes**, where item 18 measured its horizon of **50** at width 512 on 40M — the narrow arm goes
 deeper on a twelfth of the budget, so **the horizon is width-dependent and 50 is not the searcher's
-best**. Narrow-and-deep for the fourth time, and **item 14's per-level lever has a second dimension it
-had not measured**. Item 18's number stands as measured; what it no longer supports is "50 is the
-reach". And phase 2's trace is `best=137` flat for 237
+best**. Narrow-and-deep for the fourth time. Item 18's number stands as measured; what it no longer
+supports is "50 is the reach". Item 14 then spent a three-arm sweep going the *other* way and lost every
+arm, which is what turned this from a footnote into the item in 2nd place.
+And phase 2's trace is `best=137` flat for 237
 depths, the *same signature* as level 10's GAUNTLET: a beam ranking distinct boards by a key that has
 stopped discriminating. **What is binding in the middle of a Sokoban is the ranking, not the depth.**
 That is layers 4 and 6's territory and it is not on this list as an item, because nothing has measured it
-on a population yet — the cheapest way in is item 14's own run, which now has a second reason to exist.
+on a population yet — and item 14's sweep did not touch it, because changing a beam's width does not
+change what its ranking key discriminates.
 
 **Items 17 and 18 closed in session 44.** Item 17 is the cleanest negative these files hold (below);
 item 18 is the measurement item 5 was built on, and it inverted what item 15's number looked like. The
@@ -94,7 +107,8 @@ already in a file. **What it does not give is human *routes***: a goal board nam
 the path, so "what did the human do next" stays a question only a recording answers. Three items inherit
 from it and none is blocked on it.
 
-**Item 2 is running on this machine (started 2026-09-10) and everything below it can run beside it.**
+**Item 2 is the machine commitment and everything below it can run beside it** (started 2026-09-10,
+interrupted in session 46 partway through arm 1, resumable — see the item).
 It is a machine commitment rather than a build, and its arms are node-governed, so extra load moves
 wall-clock readings and nothing else. Sessions 42 and 43 spent the whole of items 16, 15 and 13 beside
 it — a two-second replay, an offline sweep, a 63-second corpus pass, a flag and ten seeded runs — and the
@@ -103,7 +117,11 @@ benches the same way — four jobs beside the pass's sixteen, ~3.5 min a bench, 
 **Items 17 and 18 were both spent beside it in session 44** — a build and five benches, then 96 probes
 at four jobs against the pass's sixteen — and it saw neither except in wall clock. **Session 45 spent
 item 5 the same way**: two instruments that cost no search worth speaking of, a build, and ~20 probes at
-one job against the pass's sixteen. **What is left after it is machine time and no build**, and
+one job against the pass's sixteen. **Session 46 is the exception and it is worth naming**: item 14's
+third arm was run with the pass *stopped* rather than beside it, so its wall clock is the only one in
+these files measured on an idle machine. No measured number moves — the arms are node-governed — but
+the four hours of arm 1 that are outstanding are four hours that were not spent. **What is left after
+it is machine time and no build**, and
 `LaserTank.lvl` 6 is no longer an item — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
 being 3.4x the reach turns out not to be
@@ -113,8 +131,17 @@ short.
 
 ## 2 (1st) — the fourth pass, and its fourth arm is rehearsed
 
-**Running on this machine since 2026-09-10** — `bash tools/l5_pass.sh`, the recipe under
-[*The full run*](#the-full-run) below; `bash tools/l5_pass.sh status` says where it is.
+**Started on this machine 2026-09-10, and interrupted in session 46 with arm 1 four hours from the
+end** — `bash tools/l5_pass.sh`, the recipe under [*The full run*](#the-full-run) below;
+`bash tools/l5_pass.sh status` says where it is. As of the interrupt, `l8fire` is
+**3,092 of 3,691 attempted, 770 solved (24.9%)**, 20 h 29 m wall and 267 h 54 m of job time at 13.1x
+parallelism, ETA **4 h 44 m** to finish the arm; `layer7` and `enables` have not started. **That puts
+arm 1 at ~25 h against the ~18 h the rehearsal priced**, so the ~54 h below is optimistic by about half
+an arm each — call the whole pass ~75 h, and the remaining two arms ~50 h of it. The pass is
+resumable from its own report, so the same command picks up at level 3,093 rather than at the top —
+that is what `RESUME=1` is for and it is the default. **The 24.9% is the solo rate of the best arm on
+the whole population, not the pass's number**, which is `arms_union.py` over three arms at the end; the
+stride rehearsal put the same arm at 25.9% and the three-arm union at 32.9%, so this is tracking.
 
 **Rehearsed and positive; it is a multi-day machine commitment.** The decision pass came out at
 15 of 255 (5.9%) of the levels the shipped chain fails, so the open question was never *whether*
@@ -269,96 +296,66 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 14 (2nd) — per-level width from the record, and the calibration that sizes it
+## 19 (2nd) — the narrow beam, the direction item 14 did not measure
 
-**The record's shot count is this project's search depth.** Over the 20 hand recordings, board changes
-divided by `.ghs` shots is p25 0.96 / **p50 1.00** / p75 1.09, exact on six of twenty, and level 6 is
-**168 board changes against a record of 425 moves / 168 shots**
-([`human-strategy.md`](human-strategy.md), measurement 1). Layer 8's framing arithmetic —
-`closure × width × board changes` against the node budget — has until now needed a **hand recording** to
-supply its third factor, and there are 20 of those against 20,914 levels with a record. The record
-supplies it for the whole corpus, and `--analyze-tsv`'s `poses` column supplies the closure for free.
+**Item 14 ran its decision run and lost at every F**, and the way it lost is this item. The flag is
+raise-only, so what it swept was the beam getting *wider* — median chosen width 854 to 6,820 against the
+global 128 — and all three arms came back **below** the control: 76 / 78 / 78 against **85 of 138**.
+[Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
 
-**The free half is done, and it tempers the item rather than supporting it.** Over `l8fire`'s 66 solved
-levels at a known width of 128, `nodes / (poses × width × ghs_shots)` reads:
+**The opposite direction has four independent measurements behind it and has never been run on a
+population.**
 
-| the perfect-beam estimate against the nodes actually spent | p10 | p25 | **p50** | p75 | p90 |
-|---|---:|---:|---:|---:|---:|
-| factor | 1.9 | 4.6 | **14.2** | 59.9 | 446 |
+* `tools/phase_reach.py` solves `LaserTank.lvl` 6 from **K = 102, 66 board changes from the end, at
+  width 32 on 3.4M nodes**, where item 18 measured that level's horizon of **50** at width 512 on 40M.
+  A twelfth of the budget, a third deeper.
+* The same table, at a fixed 8M nodes a phase: **width 32 reaches 4 of 6 phases, 128 reaches 2, 512
+  reaches 1.** Monotone, and in the direction nobody widened toward.
+* Item 14's own losing arms say it from the other side — `Challenge-IV` 176 falls to the control in
+  **781,566 nodes** and costs the two widest arms **35.7M and 31.6M** for the same level.
+* Layer 8 solved level 8 at width 512 and that is the only place a wide beam has ever been the answer.
 
-Levels 8 and 9 gave 22x and 47x and looked like a constant; over 66 levels the spread is **two and a half
-orders of magnitude**. **So the arithmetic sizes an order of magnitude, not a width** — which kills the
-version of this item that solves for the width exactly and leaves the version that is still worth a run:
-the driver ladders width *globally* (8 → 48 → 128 → 512 → 2,048, and 19,200 for the raw beam), so a level
-whose record says 12 board changes and one that says 168 are searched at the same width in the same
-round. Scaling the **round-1** width per level by `budget / (poses × ghs_shots)`, clamped, with the ladder
-still doubling from there, is a policy change the estimate is accurate enough to make.
-
-**The flag is built and the decision run is one arm, not two.** `--push-width-record F`
-(`Push.cs` `RecordWidth`, `SolveOptions.PushWidthRecord`) sets the push beam's width to
-`remaining budget / (poses x .ghs shots x F)`, **raise-only like `--max-keys-record`** — `--push-beam` is
-the floor, a level with no record keeps it, and nothing that terminates today stops terminating. The
-root pose closure costs what one expansion of the layer costs (~4,500 `ApplyKey`), once per level and
-charged to the budget like any other; the width is capped at the 9,600 a restart's doubling stops at.
-A row whose width was raised carries it as `width` in the report, on the rule `phases` follows, so
-every report banked before the flag existed stays byte-comparable with one written after it.
-
-**Layer 4's equivalence test ran before the arm did, and it is what lets the control stand.** Over
-`LaserTank.lvl` 3, 4, 7, 11 and 20 at 4M, the new binary with the flag off is **node-identical and
-keystream-identical** to the one that wrote `build/reports/gt-fire.jsonl` — so that report, `l8fire`'s
-**85 of 138** over closed item 5's GAUNTLET tail at 40M, *is* the global-width control and does not have
-to be re-run. The decision run is the same arm plus the flag:
+**The falsifier is one arm against a control that is already banked**, the same shape item 14 used and
+the same 138 levels, so it is ~3.5 h of job time, ~1 h wall at four jobs:
 
 ```bash
-dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c Release -o build/wr   # item 2 holds build/
-LT_SOLVE=$PWD/build/wr/lasertank-solve.exe JOBS=4 bash tools/width_record.sh
+LT_SOLVE=$PWD/build/lasertank-solve.exe NODES=40000000 BUDGET_MS=1800000 JOBS=4   bash tools/second_pass.sh build/reports/gauntlet-tail.jsonl gtw/b32   build/reports/gtw-b32.jsonl --no-ida --no-beam --push --push-read   --max-keys 5000 --max-keys-record --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 32 --push-eval work --push-fire-tier
+python tools/verify_solutions.py build/gtw/b32
+python tools/arms_union.py fire=build/reports/gt-fire.jsonl b32=build/reports/gtw-b32.jsonl   f4p6=build/reports/gtw-f4p6.jsonl f14=build/reports/gtw-f14.jsonl f60=build/reports/gtw-f60.jsonl
 ```
 
-`tools/width_record.sh` sweeps **F = 4.6, 14, 60** — the calibration's own p25 / p50 / p75, because no
-single F is *the* calibration when the factor spreads over two and a half orders of magnitude — verifies
-each arm, runs `arms_union.py` against the banked control, and prints the distribution of the widths it
-actually chose, without which the solved count is not interpretable. One arm is ~3.5 h of job time,
-~1 h wall at four jobs; `JOBS` defaults to 4 so a run of `tools/l5_pass.sh` keeps its sixteen, and the
-arms are node-governed so sharing the machine moves wall clock and no measured number. Read it as
-solved count **and** exclusive levels, per the fourth rule: an arm that ties the control with no
-exclusive level is the same searcher wearing a flag.
+The union call takes item 14's three arms with it because they are banked and free to include, and the
+five-arm greedy order is the only thing that says whether width is a *portfolio* axis on this population
+or a single setting that wants tuning.
 
-**One thing the flag does not do, and the reason is in the item above it.** In the driver the estimate
-is a *floor under every round* rather than a new round-1 the ladder doubles from — the ladder takes back
-over at whichever round first exceeds it. That is the raise-only rule's cost, and it is the shape the
-decision run measures, because that run is a single fixed-budget arm and has no ladder.
+**Read it as solved count and exclusive levels, and then as which levels.** The prediction the four
+measurements above license is specific: a narrow beam should win the **deep** levels — the ones whose
+record is long — and lose the shallow ones it no longer holds enough breadth for, so an arm that ties
+85 while holding exclusives at the long-record end is a bigger result than one that beats it by two on
+no pattern. `ghs_shots` is in every row, so that split costs a join and no search.
 
-**Closed item 18 promoted this item and constrained it in the same breath.** The horizon is a *level*
-property — 2 to 50 board changes over 12 recordings, a 25x spread, and not a constant fraction of the
-line either — which is the measurement that says a per-level lever is the right kind of thing at all,
-and it is why this item rose up this list. But the horizon is also the quantity a per-level width most wants to
-be sized from, and **nothing free predicts it**: joined against every `--analyze-tsv` column over the 12
-levels, `poses`, `region`, `mob_max` and `mob_sum` are flat (+0.06 to +0.08) — and `poses` is a *factor
-in this item's own arithmetic*. The two positives are `changes` (+0.64) and `water` (+0.62), and
-`changes` is refuted directly: levels 9 and 23 have 27 board changes each and horizons of 2 and 21.
-Measuring the horizon instead of deriving it costs ~7 probes at 40M nodes per level, so it is not the
-input for 20,914 of them. **The one lead with a mechanism points the other way** — `effects`/`shots` at
-**−0.41**, i.e. the more board changes the root offers the shorter the reach, which is closed item 16's
-mobility finding a second time (freer is harder). If this item's width policy is ever more than the
-`budget / (poses × ghs_shots)` clamp above, that is where to look. n = 12, so all of it is a lead.
-[Closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
+**Three outcomes and what each one means.**
 
-**And closed item 5 handed this item a second dimension it has not measured.** `tools/phase_reach.py`
-solves `LaserTank.lvl` 6 from K = 102, **66 board changes from the end, at width 32 on 3.4M nodes**,
-where item 18 measured that level's horizon of 50 at width 512 on 40M — the narrow arm goes deeper on a
-twelfth of the budget, so **the horizon is width-dependent and 50 is not the searcher's best**.
-Narrow-and-deep for the fourth time in this project. The flag as built cannot express it: raise-only
-means it never *narrows* a level below `--push-beam`, which is the constraint that keeps a run safe and
-also the one that forbids the half of the lever that level 6 says exists. If the sweep above comes back
-flat at every F, the reading is not that per-level width does nothing — it is that this item measured
-the direction level 6 says is the wrong one, and a `--push-beam 32` control on the same population is
-the cheaper next probe.
+* **32 beats 128.** Then the global width is simply mistuned and the cheap follow-up is 64, not a
+  per-level anything.
+* **32 ties 128 with exclusives at the long end.** Then width *is* per-level and item 14's arithmetic
+  is the way to size it — with the raise-only rule dropped, which is a one-line change to
+  `Push.cs` `RecordWidth` and the only part of item 14 that would need rebuilding.
+* **32 loses flat.** Then level 6's width-32 result is a property of that level's phase structure and
+  not of the searcher, `--push-beam 128` is vindicated on a population for the first time, and the
+  narrow-and-deep reading — which this project has now recorded five times — stops being a lead.
 
-**What not to re-derive:** *record shots = 0 as a licence to drop the space bar* was checked and is worth
-nothing (17 levels of 3,709), and **parity** — the series' part 3, a chessboard colouring that fixes the
-move count's parity — is an *optimality* tool and prunes nothing in a satisficing search. The shot test in
-[item 13](history.md#closed-items--the-measurements-including-the-negative-ones) is the same
-diagnostic without parity's exceptions (ice, tunnels, tank movers, several flags).
+**What this item is not.** It is not per-level width; it is the *global* control that tells you whether
+a per-level version is worth building in the narrowing direction. Item 14 built the per-level machinery
+and the arithmetic already, and both survive its negative: the flag ships off by default, and
+`budget / (poses x ghs_shots x F)` is still the only free per-level estimate this project has.
+
+**What not to re-derive:** the calibration. `nodes / (poses x width x ghs_shots)` over 66 solved levels
+is **p10 1.9 / p25 4.6 / p50 14.2 / p75 59.9 / p90 446** — two and a half orders of magnitude, so the
+arithmetic sizes an order of magnitude and never a width, and any F is a policy choice rather than a
+fit. Also dead: *record shots = 0 as a licence to drop the space bar* (17 levels of 3,709), and
+**parity** — the series' part 3 — which is an *optimality* tool and prunes nothing in a satisficing
+search.
 
 ---
 
@@ -536,6 +533,11 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
   transfers for free.
 - **Record shots = 0 as a licence to drop the space bar:** only 17 of the 3,709 unsolved have a zero-shot
   record, and several of those are 0/0, i.e. no record at all.
+- **Raising the push beam per level from the record:** measured over 138 levels at three values of the
+  calibration's own spread and it **loses at every one** — 76 / 78 / 78 against the global width's 85.
+  The flag (`--push-width-record`) is built and ships off; what is still open is the *narrowing*
+  direction, which is [item 19](#19-2nd--the-narrow-beam-the-direction-item-14-did-not-measure) and a
+  different question. [Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
 - **The read's `opens` as level 10's hidden cost:** the default `--push-read-opens -1` is the cheap
   flood, and a run with `-1` and one with `0` are node-identical, so the read is not a node multiplier at
   defaults.
