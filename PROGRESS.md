@@ -122,10 +122,17 @@ Nothing is blocked. Roughly in the order they are worth doing.
 
 ### 1. i18n: actually use the translations  *(the UI has settled — this is now unblocked)*
 
-The strings **are** wired, but only sixteen of them: `ID_DEADBOX_DEAD`, `ID_GHIGHLIST_00`,
-`ID_GRAPHBOX_00`–`_05`, `ID_HIGHLIST_00`, `ID_LOADLEV_00`, `REC_Title` and `txt009`–`txt014`. That
-is 16 of the **155** keys in each file. The rest describe dialogs and a nine-button control panel
-this port does not have, which is why they read as unused.
+The strings **are** wired, but only fourteen of them: `ID_DEADBOX_DEAD`, `ID_GRAPHBOX_00`–`_05`,
+`ID_LOADLEV_00`, `REC_Title` and `txt009`–`txt014`. That is 14 of the **155** keys in each file. The
+rest describe dialogs and a nine-button control panel this port does not have, which is why they
+read as unused.
+
+**It was sixteen until step 8, and the two it lost are the audit working.** `ID_HIGHLIST_00` and
+`ID_GHIGHLIST_00` are the captions of the two score dialogs, and merging the three lists into one
+table left the port with no widget that is either of them — their columns are in `L`'s table under
+headers of the port's own. That is exactly the finding this item is for: a key is read by a widget
+or it goes. They are not deleted yet, because deleting one means editing all ten JSON files *and*
+`lang_check.py`'s expectation, which is this item's job and not step 8's.
 
 So the job is an audit, and step 7 is what it was waiting for: for each key, either a widget reads
 it or it goes. `ButText1`–`ButText9` are the original's button strip; the 96 `ID_*` slots are its
@@ -175,7 +182,9 @@ keys are read and written; there is nowhere to type), the Difficulty dialog (225
 itself (a status line here — see *Finished*, the level-39 report), and the `LoadTID` tunnel dialog
 *as* a dialog (the id is a mode here, cycled with `T`, because a modal prompt per painted cell is
 worse than a mode). **Step 7 built the shape all of these want** — `Ui.Dialog` plus a scrim, a
-measured panel, keycaps for the buttons — so what is left is a text field and a yes/no, not a look.
+measured panel, keycaps for the buttons — and **step 8 built the first one**: `Esc`'s quit prompt
+(`DrawQuitAsk`), which is the yes/no with its modality, its clock rule and its "every other key is
+the safe answer" already settled. So what is left for the rest is a text field, not a look.
 
 **And the DeadBox has a rule of its own that nothing here implements yet.** Its dialog proc is four
 lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
@@ -701,13 +710,19 @@ about focus: while an edit control has the caret the accelerators must not fire.
 moves in and out of the three text fields, and while one has focus every letter goes into it.
 
 Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101), `U` undo (110),
-`Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels (106), `O` collections (108),
-`V` own scores (113), `G`
-global scores (906), `S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
+`Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels **and both high-score lists**
+(106 + 113 + 906 — see the one table below), `O` collections (108),
+`S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
 `H` hint (301), `F1` the key list (907, and 903 in the editor),
 `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
 (123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented), `Z`
-board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit. `[` and `]` are ours.
+board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit — **which asks first**.
+`[` and `]` are ours.
+
+**`V` and `G` are unbound and free**, which is the one thing the merge was *for*: ACC1 has no spare
+letters, every future command needs one, and 113 and 906 were two keys spent on two renderings of
+the list `L` already opens. `Ctrl+V` (112) and `Ctrl+G` (226) are untouched — different
+accelerators, still bound, still in the table.
 
 **The list is also `PlayKeys` and `EditorKeys` in `BoardView.cs`**, which is what `F1` draws, so
 the overlay and this paragraph are two renderings of one table rather than two lists to keep in
@@ -732,26 +747,77 @@ arrows at all. The language picker is modelled on it deliberately: 226 *is* the 
 Options-menu entry, so copying its properties puts the new dialog where a player already expects
 this kind of choice.
 
-**The three list dialogs are one dialog three times.** `LoadBox` (106), `HSList` (113) and `GHSList`
-(906) each build one string per level with a `sprintf` whose padding and truncation are observable,
-prefix it with a difficulty digit that `DrawLevels` colours by, and hand it to an owner-drawn
-listbox; all three seek to `CurLevel - 1` and load on Enter. So `LevelList` is one class with three
-modes carrying the original's own format strings. One difference is kept because it is observable:
-**command 106 stops the clock and 113/906 do not** (`x = Game_On; GameOn(FALSE); DialogBox(...)`,
-`LTANK.C:906`), so a tank in the open can die while you read your scores and cannot while you pick a
-level.
+**The three list dialogs are one dialog three times — and one table since step 8.** `LoadBox`
+(106), `HSList` (113) and `GHSList` (906) each build one string per level with a `sprintf` whose
+padding and truncation are observable, prefix it with a difficulty digit that `DrawLevels` colours
+by, and hand it to an owner-drawn listbox; all three seek to `CurLevel - 1` and load on Enter. They
+differ in one thing only: **which columns of the same row they print**. LoadBox prints the name and
+the author, HSList the name and your score, GHSList the name, the posted best and your score again.
 
-**The collection picker is a fourth panel of the same shape and deliberately not a fourth mode.**
-`CollectionList` lists every `.lvl` under `data/levels/`, `data/quirks/` and `out/levels/` — 23 of
-them — with the count the player has solved beside the count the collection holds, and `Enter`
-runs command 108's body. It is a separate class because `LevelList`'s rows are the original's own
-`sprintf` formats and `list_check.py` diffs them against Python byte for byte; these rows have no
-original to be diffed against (the original's list was drawn by comdlg32), and putting them in that
-class would quietly weaken that gate. **108 stops the clock**, like 106 and for the same reason:
-`x = Game_On; GameOn(FALSE); ... else GameOn(x);`. Its two title strings are the loaded language's
-and were the first two keys in `data/language/` that nothing read — the menu item's own label
-(`Label(108)`, `&Open Data File...`) and `txt002`, `Level Files (*.LVL)`, which is the filter the
-original hands `GetOpenFileName`.
+So step 8 prints all of them at once, in one table — not three keys, and **not three tabs either**,
+which was the first attempt and was the same three lists with two of them hidden. One row per level:
+number, name, author, the posted best's moves / shots / initials, then yours, with a hairline
+between the groups and the original's own `**` and `>` marking the rows where you beat the posted
+best. `L` opens it and that is the whole of it.
+
+**`V` and `G` are unbound and free**, which is what the merge was *for*: ACC1 has no spare letters,
+every future command needs one, and 113 and 906 were two of them spent on two renderings of the
+list `L` already opened.
+
+Four things follow, and all four are written down in `LevelList`'s header beside the C they depart
+from:
+
+* **The table is the level file's, so it has a row per level**, blank score cells and all. The two
+  score dialogs stop where their *score* file stops (`while (BytesMoved == sizeof(THSREC))` reads a
+  score record and then a level record), so a 2,030-level collection with a 79-record `.hs` gave a
+  79-row list. A table that did that would hide level 80 onwards from the only list there is.
+* **`BuildRows` is now only the record.** What is drawn is `BuildTable`; what `list_check.py` diffs
+  against Python byte for byte is still `BuildRows`, the original's three `sprintf` formats. **The
+  field widths are shared** — the table's name cell is `%-30.30s`, its score cells `%5d` and `%4s`
+  — so the merge changed the arrangement of the columns and not one of them. The author is the one
+  cell with a width of the port's own choosing (20): the original prints it `%s` at the end of a row
+  with nothing after it, and here it has two score groups after it.
+* **The clock stops for the panel, and this is the first observable behaviour the port drops on
+  purpose.** 106 stops it (`x = Game_On; GameOn(FALSE); DialogBox(...)`, `LTANK.C:906`) and 113/906
+  do not, so a tank in the open could die while you read your scores and could not while you picked
+  a level. One panel cannot be both, and it is `L` — 106 — that opens this one. What is lost is
+  being killed by a laser you left in flight while reading a score list.
+* **The table has headers**, which the original's listboxes never had, placed at *the character
+  columns `BuildTable` lands its cells at*. Two lines: the column names, and above them `posted
+  best` and `yours` over the two groups of three. Six columns of bare numbers is what the global
+  list was, and nothing on screen said which three were whose.
+
+**Two layout facts that cost a debugging session each, in a table drawn by character column.** The
+column rules are placed in glyph units, so both of these showed up as a rule drifting through the
+text it divides. First, **the header lines must be set at the rows' own size** — one point smaller
+and `moves` sits a finger to the left of the moves it names; faint, not small, is what makes a
+header. Second, **`Font.GetStringSize("0")` is that glyph's width, not the advance the next glyph is
+placed at**: 0.15 px apart here, which over the 77 columns to the `>` is a character and a half.
+`Advance` measures a 32-character run and divides.
+
+**The panel sizes itself to the table and drops a column before it shrinks past legibility.** A
+table's columns are only worth having if they are all on screen, so the fit is searched: the full
+table at 12 px, then down to 10.5, then the table *without the author* — flavour rather than score
+— and only then is anything allowed to clip. At an 860 px window the whole table fits; at 560 the
+author goes.
+
+**`Esc` asks before it quits, and that prompt is the port's first modal question.** The original
+has no quit accelerator at all — its ways out are the window's close box and the File menu's Exit
+(103), both two deliberate acts with a title bar or a menu in between. `Esc` is this port's, added
+because a keyboard-driven game wants a keyboard way out, and it is also the key that closes every
+panel here: one press too many after closing a list and the session was gone, mid-level. So the key
+raises a prompt and a *different* key confirms — `Enter` or `Y` quits, every other key including
+`Esc` keeps playing, so a double-tap of one key cannot quit and a mistaken press always lands on
+the safe answer. It asks unconditionally, on a won board and an untouched one too: "only when there
+is something to lose" needs the game to know what a player would call a loss, and being wrong about
+that costs the session against one keystroke. The prompt freezes the board while it is up, for a
+plainer reason than any dialog above — a tank that dies while the player decides whether to leave
+was killed by the interface. `--panel quit` is how it is reviewed.
+
+**It is also the shape the port's remaining modal prompts want** — the editor's "save changes?",
+the `RecordBox`/`HSBox` name fields, the Difficulty dialog (225), the DeadBox as a dialog. Step 7
+built the look; this is the first one built, and what the rest need past it is a text field and a
+third button.
 
 **Playback needed no new rules** — `PBOpen`, `PlayBack`, `PBHold`, `Speed` and `SlowPB` have been
 read by `Engine.Tick` since Phase 2, so the panel is four buttons wired to five fields. One line of
@@ -784,7 +850,7 @@ wrong:
   arm). Defined, so it stays; the panel draws the slot as an empty frame so it is at least visible.
 
 **Reviewing UI without a window** is the same trick everywhere: `--shot FILE` draws one frame and
-exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint` / `--editor`
+exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint|quit` / `--editor`
 open the thing first. `--window WxH` sets the window to an arbitrary size and frees the preset,
 which is how the responsive layout is reviewed: there is no fixed board size to screenshot any
 more, so "what does it look like at that size" needed an instrument like every other panel.
@@ -1723,6 +1789,38 @@ is no longer the board's origin, so a tool wanting cell (x,y) wants `board_x + x
 **What was deliberately left for a second pass:** everything drawn is still keyboard-driven and
 none of the new chrome is clickable; the HTML5 export has not been tried; there is no motion
 anywhere. See *Next steps*, "The UI redesign, second pass".
+
+### ~~Step 8: one table, and a quit that asks~~ — **done 2026-09-13**
+
+Two changes out of playing the thing step 7 built, both in the same spirit: the UI is ours to
+decide, and every decision is written down beside the C it departs from.
+
+**The three lists became one table.** The original's three dialogs are three *column sets* of one
+row — LoadBox prints the name and author, HSList your score, GHSList the posted best and your score
+— so the panel prints all of them at once, one row per level. `L` opens it; there is nothing else
+to press. It was built as three tabs first and that was wrong for the reason the merge was worth
+doing at all: tabs are the same three lists with two of them hidden.
+
+**`V` and `G` are free**, which is the point. ACC1 has no spare letters and 113 and 906 were two of
+them spent on two renderings of the list `L` already opened.
+
+**What the table is made of.** The rows are `BuildTable`, the port's own; `BuildRows` stays as the
+original's three `sprintf` formats and is still what `list_check.py` diffs against Python byte for
+byte. The *widths* are shared, so what the merge changed is the arrangement of the columns and not
+one of them. Headers on two lines at the table's own character columns, a hairline between the two
+score groups, and the original's own `**` and `>` on the rows where you beat the posted best.
+
+**The panel stops the clock on every row, and that is the first observable behaviour this port drops
+on purpose.** 106 stops it and 113/906 do not; one panel cannot be both. The C is quoted beside the
+decision in `LevelList`'s header and in *The game's own UI* above — written down, not silently gone.
+
+**`Esc` asks before it quits.** `Enter`/`Y` quits, every other key including `Esc` keeps playing, and
+the board freezes while the question is up. Unconditional, because "only when there is something to
+lose" needs the game to know what a player calls a loss. It is also the first of the modal prompts
+the rest of the port is blocked on — see *Next steps*, item 3.
+
+`--panel quit` reviews the prompt; `--panel levels|scores|global` are three names for the one table
+now, kept so that no instrument named in this file started printing usage.
 
 ---
 

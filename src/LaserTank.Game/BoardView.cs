@@ -376,6 +376,26 @@ namespace LaserTank.Game
         /// can actually give.  See DrawHelp.
         private bool _help;
 
+        /// Esc, and the one thing in this UI that stands between the player and
+        /// something irreversible.
+        ///
+        /// **No command id: the original has no quit accelerator at all.**  Its
+        /// way out is the window's own close box and the File menu's Exit
+        /// (LTANK.C's 103), both of which are two deliberate acts with a menu or
+        /// a title bar in between; Esc is this port's, added because a
+        /// keyboard-driven game wants a keyboard way out, and Esc is also the
+        /// key that closes every panel here.  That is exactly what makes it
+        /// dangerous: one press too many after closing a list and the session is
+        /// gone, mid-level, with the moves since the last save unrecorded.  So
+        /// the key raises this and a second, *different* key confirms -- Enter
+        /// or Y, never Esc again, so a double-tap of the same key cannot quit.
+        ///
+        /// Unconditional rather than clever: it asks on a won board and an
+        /// untouched one too.  "Only when there is something to lose" needs the
+        /// game to know what a player would call a loss, and the cost of being
+        /// wrong about that is the whole session against one keystroke.
+        private bool _quitAsk;
+
         /// Command 301 (VK_H, :140) -- the Hint dialog.  **Off by default, and
         /// that is the point of it**: before step 7 the hint was drawn under the
         /// board on every frame, which spoils every level that has one.  Not
@@ -697,9 +717,14 @@ namespace LaserTank.Game
             // a window and a hand on the keyboard.
             switch (ArgStr(args, "--panel"))
             {
-                case "levels": OpenList(ListMode.Levels); break;
-                case "scores": OpenList(ListMode.MyScores); break;
-                case "global": OpenList(ListMode.GlobalScores); break;
+                // One panel since step 8, so these are three names for it.
+                // The two older ones are kept because the review instruments
+                // are named in PROGRESS.md and in this project's shell history,
+                // and a flag that used to open something should not start
+                // printing usage.
+                case "levels":
+                case "scores":
+                case "global": OpenList(); break;
                 case "collections": OpenCollections(); break;
                 case "playback": OpenPlayback(); break;
                 // Step 7's two.  `help` is command 907's overlay and `hint` is
@@ -707,10 +732,12 @@ namespace LaserTank.Game
                 // panel nothing can screenshot is a panel nothing reviews.
                 case "help": _help = true; break;
                 case "hint": _hint = true; break;
+                // Step 8's, on the same terms.
+                case "quit": _quitAsk = true; break;
                 case null: break;
                 default:
                     GD.PrintErr("--panel wants "
-                                + "levels|scores|global|collections|playback|help|hint");
+                                + "levels|scores|global|collections|playback|help|hint|quit");
                     GetTree().Quit(2);
                     return;
             }
@@ -1017,12 +1044,22 @@ namespace LaserTank.Game
         public override void _PhysicsProcess(double delta)
         {
             if (!_driving) return;
-            // Command 106 is the one dialog in this port that stops the clock,
-            // because it is the one the original stops it for: `x = Game_On;
-            // GameOn(FALSE); DialogBox(...)` (LTANK.C:906).  The graphics dialog
-            // (226) and the two score lists (113, 906) do not, so the tank can
-            // die while they are up -- see GraphicsMenu and LevelList.StopsClock.
+            // Command 106 stops the clock, because the original stops it for
+            // that one: `x = Game_On; GameOn(FALSE); DialogBox(...)`
+            // (LTANK.C:906).  The graphics dialog (226) does not, so the tank
+            // can die while it is up -- see GraphicsMenu.
+            //
+            // **The list panel stops it on every tab since step 8**, which is
+            // where it stopped matching the original exactly: 113 and 906 did
+            // not stop the clock, and the merged panel cannot honour both rules
+            // without starting and stopping the board as the tabs change.  The
+            // reasoning, and what it costs, is in LevelList's header.
             if (_list != null && _list.Open && _list.StopsClock) return;
+            // The quit prompt freezes it too, for a plainer reason than any of
+            // the above: it is a question about the session, and a tank that
+            // dies while the player decides whether to leave has been killed by
+            // the interface.
+            if (_quitAsk) return;
             // Command 108 stops it for the same reason and in the same words --
             // see CollectionList.StopsClock.
             if (_collections != null && _collections.Open && _collections.StopsClock) return;
@@ -1042,6 +1079,19 @@ namespace LaserTank.Game
             if (ev is InputEventMouseButton mb) { MouseButton(mb); return; }
             if (ev is InputEventMouseMotion mm) { MouseMotion(mm); return; }
             if (ev is not InputEventKey k || !k.Pressed) return;
+
+            // The quit prompt is tested before every other panel because it is
+            // the most modal thing here -- it can only be raised from play, but
+            // once it is up nothing else may take a key from it.  Enter or Y
+            // quits; every other key, Esc included, is No, so the answer a
+            // mistaken keypress lands on is always the safe one.
+            if (_quitAsk)
+            {
+                if (k.Keycode is Key.Enter or Key.KpEnter or Key.Y) GetTree().Quit();
+                _quitAsk = false;
+                GetViewport().SetInputAsHandled();
+                return;
+            }
 
             // The help overlay is modal for keys and nothing else -- the same
             // shape as the graphics dialog (226), which never calls
@@ -1189,7 +1239,16 @@ namespace LaserTank.Game
             switch (k.Keycode)
             {
                 // ---- levels -------------------------------------------------
-                case Key.L when !ctrl: OpenList(ListMode.Levels); break;   // 106
+                // **106, and 113 and 906 with it.**  The level picker and the
+                // two high-score lists were three keys onto three column sets
+                // of one row; step 8 prints all three at once, so `L` opens the
+                // table and there is nothing else to press -- see LevelList.
+                // `V` and `G` are unbound as a result and free for something,
+                // which is the *reason* the merge was worth doing rather than a
+                // side effect of it: ACC1 has no spare letters.  Ctrl+V (112,
+                // restore position) and Ctrl+G (226, graphics) are untouched --
+                // they are different accelerators, and both are still below.
+                case Key.L when !ctrl: OpenList(); break;              // 106
                 case Key.O: OpenCollections(); break;                 // 108
                 case Key.S: _s?.Load(_s.Level + 1); break;            // 107
                 case Key.P: _s?.Load(_s.Level - 1); break;            // 119
@@ -1221,10 +1280,6 @@ namespace LaserTank.Game
                 case Key.V when ctrl:                                 // 112
                     if (_s != null && !_s.RestorePos()) _error = "no saved position";
                     break;
-
-                // ---- scores -------------------------------------------------
-                case Key.V: OpenList(ListMode.MyScores); break;       // 113
-                case Key.G when !ctrl: OpenList(ListMode.GlobalScores); break;   // 906
 
                 // ---- recording and playback ---------------------------------
                 case Key.F5: ToggleRecording(); break;                // 123
@@ -1308,7 +1363,8 @@ namespace LaserTank.Game
                     if (_s?.E != null) { _edit.Enter(_s); Resize(); }
                     break;
 
-                case Key.Escape: GetTree().Quit(); break;
+                // Ours, and it asks first -- see _quitAsk.
+                case Key.Escape: _quitAsk = true; break;
                 default: return;
             }
             GetViewport().SetInputAsHandled();
@@ -1336,6 +1392,7 @@ namespace LaserTank.Game
         private void MouseButton(InputEventMouseButton mb)
         {
             if (!mb.Pressed) { _held = 0; return; }
+            if (_quitAsk) return;
             if (_menu != null && _menu.Open) return;
             if (_langMenu != null && _langMenu.Open) return;
             if (_list != null && _list.Open) return;
@@ -1497,10 +1554,10 @@ namespace LaserTank.Game
             }
         }
 
-        private void OpenList(ListMode mode)
+        private void OpenList()
         {
             if (_s == null) return;
-            _list.Show(mode, _s.LevelPath, _s.Level);
+            _list.Show(_s.LevelPath, _s.Level);
         }
 
         /// Command 108's `GetOpenFileName` half -- the picker.  The other half,
@@ -1597,6 +1654,10 @@ namespace LaserTank.Game
                 DrawHintOverlay(host);
             if (_s.Pb.PanelUp) DrawPlaybackPanel(host);
             if (_help) DrawHelp(host);
+            // Over everything, including the help overlay: it is a question,
+            // and a question that something else can cover is a question the
+            // player answers blind.
+            if (_quitAsk) DrawQuitAsk(host);
         }
 
         private Rect2 CellRect(int x, int y) =>
@@ -2092,7 +2153,10 @@ namespace LaserTank.Game
                 ("U", "undo"),
                 ("R", "restart"),
                 ("H", "hint"),
-                ("L", "levels"),
+                // Since step 8 this one panel is also both high-score lists,
+                // which is what the label has to say: V and G are gone and a
+                // player who used them looks here first.
+                ("L", "levels & scores"),
                 ("O", "collections"),
             };
             float pad = Ui.Px(14), rowH = Ui.Px(24);
@@ -2452,6 +2516,64 @@ namespace LaserTank.Game
             }
         }
 
+        /// Esc's second half: the smallest dialog in this port, and the only one
+        /// that asks rather than offers.
+        ///
+        /// It is deliberately not the shape of the list panels -- no rows, no
+        /// scrolling, one line of copy and two keycaps -- because the answer is
+        /// a reflex and anything that reads like a list invites reading.  The
+        /// two caps are the answer keys drawn as keys, which is the vocabulary
+        /// the help overlay established: Enter is the act and Esc is the way
+        /// back, everywhere in this interface.
+        ///
+        /// This is the shape the port's remaining modal prompts want -- the
+        /// editor's "save changes?", the RecordBox and HSBox name fields, the
+        /// Difficulty dialog -- and it is the first of them to be built.  What
+        /// they need past this is a text field and a third button.
+        private void DrawQuitAsk(Rect2 host)
+        {
+            Ui.Scrim(this, host);
+
+            float pad = Ui.Px(22);
+            string title = "Quit LaserTank?";
+            string body = _s != null && _s.Now == Session.State.Won
+                ? "this level is won -- the next one is S"
+                : "the level you are on will not be saved";
+
+            float w = Mathf.Min(Mathf.Max(Ui.Px(320),
+                                          Ui.Width(body, 12) + 2 * pad),
+                                host.Size.X - Ui.Px(40));
+            // Measured from the same advances the draw below uses, rather than
+            // a round number that is nearly right: this box is small enough
+            // that a dozen spare pixels at the bottom read as a mistake.
+            float capH = Ui.Px(11) + Ui.Px(9);
+            float h = pad + Ui.Px(12) + Ui.Px(14) + Ui.Px(26) + Ui.Px(22)
+                      + capH + pad;
+            var r = new Rect2(Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                              Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f),
+                              w, h);
+            Ui.Dialog(this, r, 14f);
+
+            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(12);
+            Ui.Caps(this, new Vector2(x, y), title, Ui.Text, 13);
+            y += Ui.Px(14);
+            Ui.Rule(this, x, y, r.Size.X - 2 * pad);
+            y += Ui.Px(26);
+            Ui.Write(this, new Vector2(x, y), body, 12, Ui.Dim, r.Size.X - 2 * pad);
+            y += Ui.Px(22);
+
+            // Enter first: it is the one the question is about.  Esc is drawn
+            // second and labelled with what it does rather than with "no",
+            // because "no" to a quit prompt is not a state a player pictures --
+            // staying is.
+            float kx = Ui.Keycap(this, x, y, "Enter", 11f) + Ui.Px(9);
+            Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), "quit", 11.5f, Ui.Text);
+            kx += Ui.Width("quit", 11.5f) + Ui.Px(20);
+            kx = Ui.Keycap(this, kx, y, "Esc", 11f) + Ui.Px(9);
+            Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), "keep playing", 11.5f,
+                     Ui.Dim);
+        }
+
         /// The bindings, as data -- so the overlay and the router cannot drift.
         /// The command ids in the comments are the original's; every key here
         /// except the four marked "ours" is out of ACC1 (lt32l_us.inc:120).
@@ -2464,21 +2586,21 @@ namespace LaserTank.Game
                 ("U", "undo the last move"),          // 110
                 ("R", "restart the level"),           // 105
                 ("H", "show or hide the hint"),       // 301
+                ("ctrl C", "save this position"),     // 111
+                ("ctrl V", "restore it"),             // 112
             }),
+            // The Scores group used to be a group: V and G had a row each, and
+            // step 8 merged both lists into L's panel and unbound the two keys.
+            // The one row left says so -- "levels and high scores" is what the
+            // panel is, and a player who knew the old keys has to be told where
+            // they went by the list that used to carry them.
             ("Levels", new[]
             {
-                ("L", "pick a level"),                // 106
+                ("L", "levels and high scores"),      // 106, 113, 906
                 ("O", "pick a collection"),           // 108
                 ("S", "next level"),                  // 107
                 ("P", "previous level"),              // 119
                 ("F2", "new game"),                   // 101
-            }),
-            ("Scores", new[]
-            {
-                ("V", "your own best times"),         // 113
-                ("G", "the posted best times"),       // 906
-                ("ctrl C", "save this position"),     // 111
-                ("ctrl V", "restore it"),             // 112
             }),
             ("Recording", new[]
             {
@@ -2502,7 +2624,7 @@ namespace LaserTank.Game
             {
                 ("F9", "the level editor"),           // 201
                 ("F1", "this list"),                  // 907
-                ("Esc", "quit"),                      // ours
+                ("Esc", "quit -- it asks first"),     // ours
             }),
         };
 
