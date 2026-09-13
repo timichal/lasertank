@@ -110,11 +110,16 @@ Both are read into `Options` as comments only.
 
 The first pass is built — see [*Finished*](history.md), step 7 — and it deliberately stopped at the
 chrome. The biggest thing it left was **mouse and touch**, and that is [*Finished*](history.md),
-step 9. What is still open:
+step 9. The second-biggest was that the chrome looked generated, and that is step 10. What is still
+open:
 
-* **Web.** Nothing in step 7 needs a platform branch (`SystemFont` falls through to Godot's own
-  face, and there is no stretch mode to fight), so an HTML5 export should draw correctly today. It
-  has not been tried. `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing.
+* **Web.** Nothing here needs a platform branch and there is no stretch mode to fight, so an HTML5
+  export should draw correctly today. It has not been tried. **Step 10 removed the one thing that
+  would have drawn wrong**: the chrome asked for `Segoe UI` / `Inter` / `SF Pro` by name and
+  `SystemFont` fell through to Godot's own *proportional* face in a browser, so the level list —
+  whose column rules are placed in glyph units off the original's `sprintf` padding — was
+  fixed-pitch everywhere except the one target this bullet is about. Both faces are shipped now.
+  `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing.
 * **Motion.** There is none, and three places want it now: the status line, which replaces its
   content with no transition; the win state, which is a colour change on a line of text; and, since
   step 9, the press itself — a target that highlights on hover but does not move under a click says
@@ -123,6 +128,17 @@ step 9. What is still open:
 * **The graphics packs' own chrome.** `Control.bmp` and `Opening.bmp` ship per language and per pack
   and nothing reads them. The top bar's app mark is drawn from the sheet, which is as far as step 7
   took the idea.
+
+  **This was offered as the answer to step 10 and turned down**, so the reasoning is worth having
+  here rather than re-derived. `Control.bmp` is the info column's own ancestor — a tiled brick wall
+  out of the game's sprite sheet, sunken Win3.1 wells for the readouts, a serif display face, hard
+  corners, no shadows — and it is a complete, genuinely unmistakable design language that no
+  template could accidentally produce. It would have been the *safest* possible fix for "this looks
+  generated". It was declined because it makes the chrome a costume: the port's whole argument is
+  that the rules are sacred and the interface is not, and a pastiche of the original's panel blurs
+  exactly that line, while also fighting the resizable layout step 7 built. If this bullet is ever
+  taken up, the thing to take is probably the *materials* — the sheet's own tiles as a texture — and
+  not the 1996 panel's layout.
 * **A drag on the board, and a two-finger gesture.** Step 9 gave the chrome the pointer and left the
   *board* exactly as the original has it: a click is a move order and `WM_MOUSEMOVE` outside the
   editor does nothing at all, so there is no swipe-to-move and no pinch-to-zoom. Both would be this

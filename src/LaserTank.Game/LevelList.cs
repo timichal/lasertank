@@ -537,10 +537,23 @@ namespace LaserTank.Game
             // it too.
             Rect2 close = Ui.CloseRect(panel, pad);
             Ui.CloseX(n, close, _view.Chrome.Add(Ui.Touch(close), "close", Close));
-            float cw = Ui.Px(280);
-            Ui.Write(n, new Vector2(close.Position.X - Ui.Px(10) - cw, y),
-                     $"{_lvlName}  ·  {_wide.Length} levels  ·  {_solved} solved",
-                     11, Ui.Faint, cw, HorizontalAlignment.Right);
+            // **Measured, not reserved.**  This was a flat `Ui.Px(280)` of
+            // reserved width, which was enough for the proportional UI sans step
+            // 7 set the chrome in and is not enough for the monospace step 10
+            // replaced it with -- the caption came out as `... 21 solve`, a
+            // clip that reads as a typo rather than as a truncation.  A caption
+            // that names a file has no width a layout can assume anyway, so it
+            // asks for what it needs and sheds a clause when the answer is more
+            // than the line between the title and the close button.
+            float capL = x + Ui.CapsWidth(_view.Strings[TitleKey], 12) + Ui.Px(20);
+            float capR = close.Position.X - Ui.Px(10);
+            string cap = $"{_lvlName}  ·  {_wide.Length} levels  ·  {_solved} solved";
+            if (Ui.Width(cap, 11) > capR - capL)
+                cap = $"{_wide.Length} levels  ·  {_solved} solved";
+            if (Ui.Width(cap, 11) > capR - capL)
+                cap = $"{_solved}/{_wide.Length}";
+            Ui.Write(n, new Vector2(capL, y), cap, 11, Ui.Faint, capR - capL,
+                     HorizontalAlignment.Right);
             y += Ui.Px(12);
             Ui.Rule(n, x, y, w);
             y += Ui.Px(16);
@@ -633,11 +646,32 @@ namespace LaserTank.Game
             Footer(n, panel, x, w);
         }
 
+        /// The footer legend, **shed a clause at a time rather than clipped**.
+        ///
+        /// Same cause as the caption above: in the monospace the full line is
+        /// wider than a 420 px panel's inside, and Godot's `DrawString` answers
+        /// an overrun by cutting mid-word -- which lost the `> beat the posted
+        /// best` that is the only thing on screen explaining the two markers in
+        /// the rows.  So the clauses are ranked instead.  The marker legend is
+        /// last to go because nothing else documents it; `any other key closes`
+        /// goes first because F1 documents it and because a click outside is
+        /// what a player tries anyway.
         private static void Footer(Node2D n, Rect2 panel, float x, float w)
-            => Ui.Write(n, new Vector2(x, panel.End.Y - Ui.Px(13)),
-                        "↑↓ or wheel picks · Enter or a second click loads · "
-                        + "any other key or a click outside closes "
-                        + "·  ** and > beat the posted best",
-                        11, Ui.Faint, w);
+        {
+            string[] forms =
+            {
+                "↑↓ or wheel picks · Enter or a second click loads · "
+                    + "any other key or a click outside closes "
+                    + "·  ** and > beat the posted best",
+                "↑↓ picks · Enter loads · any other key closes "
+                    + "·  ** and > beat the posted best",
+                "↑↓ picks · Enter loads ·  ** and > beat the posted best",
+                "** and > beat the posted best",
+            };
+            string s = forms[^1];
+            foreach (string f in forms)
+                if (Ui.Width(f, 11) <= w) { s = f; break; }
+            Ui.Write(n, new Vector2(x, panel.End.Y - Ui.Px(13)), s, 11, Ui.Faint, w);
+        }
     }
 }

@@ -1,4 +1,4 @@
-// Phase 5, steps 0 and 1: the board on screen, and the 20 Hz tick under it.
+﻿// Phase 5, steps 0 and 1: the board on screen, and the 20 Hz tick under it.
 //
 // This node draws and routes keys.  It reads Game.BMF / Game.BMF2 / Game.PF2,
 // the tank and the laser, exactly as UpDateSprite, UpDateTank, UpDateLaser and
@@ -2294,7 +2294,11 @@ namespace LaserTank.Game
         private void DrawTopBar()
         {
             Rect2 r = _l.Top;
-            DrawRect(r, Ui.Surface);
+            // **Not a filled bar.**  Step 7 drew this as a surface panel with a
+            // hairline under it, which is the header component every framework
+            // ships and reads as one.  The ground is simply the window's, and
+            // what separates the bar from the board is the rule -- a line the
+            // eye takes as an edge rather than a slab it takes as a widget.
             DrawRect(new Rect2(r.Position.X, r.End.Y - 1, r.Size.X, Mathf.Max(1, Ui.Px(1))),
                      Ui.Border);
 
@@ -2313,8 +2317,14 @@ namespace LaserTank.Game
                                       new Rect2(x, mid - m / 2f, m, m), mark);
                 x += m + Ui.Px(10);
             }
-            Ui.Caps(this, new Vector2(x, mid + Ui.Px(4)), "LaserTank", Ui.Text, 13);
-            x += Ui.CapsWidth("LaserTank", 13) + Ui.Px(14);
+            // The wordmark, and **the only other string in the port set in the
+            // display face** (the level name is the first -- see DrawLevelBlock).
+            // Amber rather than white: it is the first thing in the window and
+            // the dominant colour should be established there rather than
+            // discovered later beside a number.
+            DrawString(Ui.Mark, new Vector2(x, mid + Ui.Px(6)), "LASERTANK",
+                       HorizontalAlignment.Left, -1, Ui.Px(19), Ui.Accent);
+            x += Ui.Width("LASERTANK", 19, Ui.Mark) + Ui.Px(14);
 
             // The collection, which the level number alone does not say: every
             // one of the 23 opens at level 1 and three of those level 1s are the
@@ -2389,144 +2399,223 @@ namespace LaserTank.Game
 
         // ---- the info column ------------------------------------------------
 
-        /// The wide layout's right-hand column: three cards down the side of the
-        /// board.  This is what replaced the header line and the score line of
-        /// the old strip, and it is the reason the redesign was worth doing at
-        /// all -- the two numbers a player is actually watching (moves, shots)
-        /// were the smallest thing on screen and are now the largest.
+        /// The wide layout's right-hand column.
+        ///
+        /// **Step 7 built this as three cards and step 10 took the cards away.**
+        /// The cards were the single most template-shaped thing in the port:
+        /// three bordered surfaces at one radius, one border colour and one gap,
+        /// stacked, each opening with the same small letter-spaced caps label.
+        /// Three peer boxes rank nothing -- and ranking is the whole job of this
+        /// column, because a player glances at it for the two counters and reads
+        /// the rest once.
+        ///
+        /// What replaced them is a **rail**: one vertical hairline down the left
+        /// of the column that every group hangs off, with the level's own span of
+        /// it lit in the dominant colour.  The groups are separated by a rule and
+        /// by air, and they are ranked by type size -- the level name is set in
+        /// the display face at better than twice the body, the counters are the
+        /// only other large thing, and everything else is 11 px mono.  Nothing
+        /// here is boxed, which is also what buys the counters their size: a
+        /// number inside a bordered tile has to leave room for the tile.
+        ///
+        /// The rail is the asymmetry the old layout had none of.  Three centred
+        /// cards in a column are symmetric about their own axis and read as a
+        /// component stack; a rail has a side, so the column has a spine and a
+        /// reading edge, and the eye starts in the same place every time.
         private void DrawInfoColumn()
         {
             Rect2 s = _l.Side;
-            float gap = Ui.Px(12);
-            float y = s.Position.Y;
+            float railX = s.Position.X;
+            float x = railX + Ui.Px(16);
+            float w = s.End.X - x;
+            float y = s.Position.Y + Ui.Px(4);
 
-            y += DrawLevelCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
-            y += DrawScoreCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+            // The rail's full span first, in the quiet colour; the lit section is
+            // painted over it once the title block knows how tall it is.
+            Ui.Rail(this, railX, s.Position.Y, s.Size.Y, Ui.Border);
 
-            // The hint is the only card whose height is an author's to decide,
+            float titleTop = y;
+            y = DrawLevelBlock(x, y, w);
+            // **The lit span is the level, not the column.**  It marks where the
+            // thing this window is currently about begins and ends, which is the
+            // one piece of state worth spending the dominant colour on when the
+            // board itself is already carrying four saturated hues.
+            Ui.Rail(this, railX, titleTop, y - titleTop, Ui.Accent);
+
+            y += Ui.Px(18);
+            Ui.Rule(this, x, y, w);
+            y += Ui.Px(18);
+
+            y = DrawScoreBlock(x, y, w);
+
+            // The hint is the only block whose height is an author's to decide,
             // so it is measured rather than reserved -- and it is only here at
             // all once `H` has asked for it (command 301).
             if (_hint && !string.IsNullOrEmpty(_s.Rec.Hint))
-                y += DrawHintCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+            {
+                y += Ui.Px(18);
+                Ui.Rule(this, x, y, w);
+                y += Ui.Px(22);
+                y = DrawHintBlock(x, y, w);
+            }
 
-            // The five keys a player uses on every level, spelled out -- but
-            // only while the cards above have left room for them.  This is the
-            // part of the old legend wall that earns permanent space: the rest
-            // is F1's.  It goes last so a long level name or an open hint push
-            // it out rather than pushing the hint out.
-            float foot0 = s.End.Y - Ui.Px(34);
-            if (foot0 - y > Ui.Px(180))
-                DrawActionsCard(new Rect2(s.Position.X, y, s.Size.X, 0));
+            // **The column is read from both ends.**  What the level *is* flows
+            // down from the top and grows with the content; what a player can
+            // *do* is anchored to the bottom and never moves.  Step 7 flowed all
+            // four blocks from the top, which left a third of the column blank
+            // between the last card and the footer -- and blank space at the end
+            // of a stack is not composition, it is just what the stack ran out
+            // at.  Split, the same space becomes the gap between two groups that
+            // genuinely are different in kind, and the keys sit where a hand
+            // already is: beside the footer that opens the rest of them.
+            //
+            // It is still conditional, because the two ends can collide: a long
+            // name and an open hint can reach the bottom group, and when they do
+            // it is the keys that go.  The rest of them are on F1, which stays.
+            float fh = Ui.Px(34);
+            float actH = 5 * Ui.Px(25);
+            float actY = s.End.Y - fh - Ui.Px(10) - actH;
+            if (actY - Ui.Px(20) > y)
+            {
+                Ui.Rule(this, x, actY - Ui.Px(20), w);
+                DrawActionRows(x, actY, w);
+            }
 
             // The keys footer, pinned to the bottom of the column rather than
-            // flowing after the cards: it is a permanent affordance, and a
+            // flowing after the blocks: it is a permanent affordance, and a
             // permanent thing that moves is worse than one that is out of the
             // way.
-            float fh = Ui.Px(34);
-            var foot = new Rect2(s.Position.X, s.End.Y - fh, s.Size.X, fh);
+            var foot = new Rect2(x - Ui.Px(7), s.End.Y - fh, w + Ui.Px(7), fh);
             if (foot.Position.Y > y)
             {
                 bool hot = HitKey(foot, Key.F1);
-                if (hot) Ui.Hot(this, foot, 8f);
-                float fx = foot.Position.X + Ui.Px(10);
+                if (hot) Ui.Hot(this, foot, 2f);
+                float fx = x;
                 float fy = foot.Position.Y + Ui.Px(6);
-                fx = Ui.Keycap(this, fx, fy, "F1") + Ui.Px(9);
-                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)), "all keys", 11.5f,
+                fx = Ui.Keycap(this, fx, fy, "F1") + Ui.Px(10);
+                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)), "all keys", 11f,
                          hot ? Ui.Text : Ui.Faint, foot.End.X - fx);
             }
         }
 
+        /// The level name's point size.  Large enough that it is unambiguously
+        /// the first thing in the column and not merely the boldest -- step 7's
+        /// 17 px was one step up from the body and read as a card heading.
+        private const float TitlePt = 25f;
+
         /// Which level, out of how many, by whom, at what difficulty.  Returns
-        /// its own height so the column can stack.
-        private float DrawLevelCard(Rect2 at)
+        /// the y it finished at so the column can flow.
+        ///
+        /// **This is the one block in the interface set in the display face**,
+        /// and it is the reason there is one: a level name is written by a
+        /// person, it is different every level, and it is the answer to "what am
+        /// I looking at".  Everything else in this window is a measurement and is
+        /// set in the mono accordingly.  A display face used on more than this
+        /// would be a UI sans with extra steps -- see Ui.Display.
+        private float DrawLevelBlock(float x, float y, float w)
         {
             TLEVEL lv = _s.Rec;
-            float pad = Ui.Px(14);
-            float w = at.Size.X - 2 * pad;
             var info = new TLEVELINFO { SDiff = lv.SDiff };
-
-            // Measure first: the name is the author's and wraps to two lines
-            // often enough that a fixed card clips real level names.
             string name = string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName;
-            float nameH = Ui.WrappedHeight(name, 17, w, 2);
-            float h = pad + Ui.Px(13) + Ui.Px(8) + nameH + Ui.Px(6)
-                      + Ui.Px(15) + Ui.Px(10) + Ui.Px(20) + pad;
 
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            Ui.Card(this, r);
-            // The card says which level this is; `L` is how another gets
-            // picked.  Same pairing as the collection name in the top bar: the
-            // label of a thing is the button that changes it.
-            if (HitKey(r, Key.L)) Ui.Hot(this, r, 10f);
+            // Measured, not reserved: the name is the author's and wraps to two
+            // lines often enough that a fixed block clips real level names.
+            float nameH = Ui.WrappedHeight(name, TitlePt, w, 2, Ui.Title);
 
-            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(9);
-            Ui.Caps(this, new Vector2(x, y), $"Level {_s.Level} of {_s.LevelCount}",
-                    Ui.Faint);
-            y += Ui.Px(8) + Ui.Px(13);
+            float top = y;
 
-            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(13)), name, 17, Ui.Text, w, 2);
+            // The level number reads as a fraction, not as a sentence: in a
+            // column whose every other line is a reading, the counter should be
+            // one too.
+            Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
+                    "Level " + _s.Level + " / " + _s.LevelCount, Ui.Faint, 9.5f);
+            y += Ui.Px(9) + Ui.Px(13);
+
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(TitlePt) * 0.80f), name,
+                       TitlePt, Ui.Text, w, 2, Ui.Title);
             y += nameH + Ui.Px(6);
 
-            if (!string.IsNullOrEmpty(lv.Author))
-                Ui.Write(this, new Vector2(x, y + Ui.Px(11)), "by " + lv.Author, 12,
-                         Ui.Dim, w);
-            y += Ui.Px(15) + Ui.Px(10);
-
-            // The difficulty, as a chip in the original's own five ranks -- it
-            // colours its level number by them (`SetTextColor(DifCList[...])`,
-            // LTANK.C:532) and this is the same information given a shape.
-            // DiffName is " - Kids" and the like, hence the trim.
+            // Author and rank on one line, divided by a middot.  Two lines and a
+            // chip was three vertical decisions for a fact that fits on one --
+            // and the rank is a *word* here rather than a filled badge, because a
+            // pill beside a name is the component-library reflex this pass is
+            // trying to get out of.  The colour still carries the rank (the
+            // original colours its level number by exactly this table,
+            // `DifCList`, LTANK.C:532); the box around it was never carrying
+            // anything.  DiffName is " - Kids" and the like, hence the trim.
             string rank = info.DiffName.TrimStart(' ', '-').Trim();
+            if (rank == "") rank = "unrated";
             Color dc = Ui.Diff[Math.Clamp((int)lv.SDiff, 0, 5)];
-            Ui.Pill(this, x, y, rank == "" ? "unrated" : rank, dc,
-                    dc * new Color(1, 1, 1, 0.16f));
-            return h;
+            const string Sep = "  ·  ";
+            float ax = x;
+            if (!string.IsNullOrEmpty(lv.Author))
+            {
+                float maxBy = w - Ui.Width(rank, 11f) - Ui.Width(Sep, 11f);
+                Ui.Write(this, new Vector2(ax, y + Ui.Px(11)), lv.Author, 11f,
+                         Ui.Dim, maxBy);
+                ax += Mathf.Min(Ui.Width(lv.Author, 11f), maxBy);
+                Ui.Write(this, new Vector2(ax, y + Ui.Px(11)), Sep, 11f, Ui.Faint);
+                ax += Ui.Width(Sep, 11f);
+            }
+            Ui.Write(this, new Vector2(ax, y + Ui.Px(11)), rank, 11f, dc);
+            y += Ui.Px(15);
+
+            // The block says which level this is; `L` is how another gets picked.
+            // Same pairing as the collection name in the top bar: the label of a
+            // thing is the button that changes it.
+            var hit = new Rect2(x - Ui.Px(8), top - Ui.Px(4), w + Ui.Px(8),
+                                y - top + Ui.Px(6));
+            if (HitKey(hit, Key.L)) Ui.Hot(this, hit, 2f);
+            return y;
         }
 
-        /// Moves, shots, and the .ghs par beside them.  The par is the number a
-        /// player is chasing, so it sits with the counters rather than in a line
-        /// of its own the way it did in the strip.
-        private float DrawScoreCard(Rect2 at)
+        /// Moves, shots, and the `.ghs` par, as a readout: label hard left,
+        /// number hard right, the two of them tied by the space between.
+        ///
+        /// **The counters are still the largest thing in the column** -- that was
+        /// step 7's one genuinely good decision about this panel and it survives
+        /// the cards it arrived in.  What is gone is the two bordered tiles they
+        /// sat in, which is the stat tile of every analytics dashboard ever
+        /// shipped, and which cost the numbers most of their size to draw.
+        private float DrawScoreBlock(float x, float y, float w)
         {
             TGAMEREC g = _s.E.Game;
-            float pad = Ui.Px(14);
             bool hasPar = LevelFile.ReadHighScore(_s.Files.Ghs, _s.Level,
                                                   out ushort tm, out ushort ts);
-            float h = pad + Ui.Px(13) + Ui.Px(10) + Ui.Px(44) + pad;
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            Ui.Card(this, r);
+            Row("moves", g.ScoreMove, hasPar ? tm : (ushort)0, hasPar);
+            y += Ui.Px(36);
+            Row("shots", g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
+            y += Ui.Px(36);
 
-            float x = r.Position.X + pad;
-            float y = r.Position.Y + pad + Ui.Px(9);
-            Ui.Caps(this, new Vector2(x, y), hasPar ? "Score  ·  par " + tm + "/" + ts
-                                                    : "Score", Ui.Faint);
-            y += Ui.Px(10) + Ui.Px(4);
-
-            float tileW = (r.Size.X - 2 * pad - Ui.Px(10)) / 2f;
-            Tile(new Rect2(x, y, tileW, Ui.Px(44)), "moves", g.ScoreMove,
-                 hasPar ? tm : (ushort)0, hasPar);
-            Tile(new Rect2(x + tileW + Ui.Px(10), y, tileW, Ui.Px(44)), "shots",
-                 g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
-            return h;
-
-            void Tile(Rect2 t, string label, int value, ushort par, bool compare)
+            // The par is set small and dim on purpose: it is the *other*
+            // player's number, it never changes while this level is open, and
+            // the two above it are what the eye comes back to.  The gap before
+            // it is wider than the gap between them for the same reason -- it
+            // belongs to the pair without being one of them.
+            if (hasPar)
             {
-                Ui.Tile(this, t);
-                Ui.Caps(this, new Vector2(t.Position.X + Ui.Px(9),
-                                          t.Position.Y + Ui.Px(14)), label, Ui.Faint, 9);
+                y += Ui.Px(4);
+                Ui.Caps(this, new Vector2(x, y + Ui.Px(9)), "par", Ui.Faint, 9.5f);
+                Ui.Write(this, new Vector2(x, y + Ui.Px(9)), tm + " / " + ts, 11f,
+                         Ui.Dim, w, HorizontalAlignment.Right);
+                y += Ui.Px(13);
+            }
+            return y;
+
+            void Row(string label, int value, ushort par, bool compare)
+            {
+                Ui.Caps(this, new Vector2(x, y + Ui.Px(21)), label, Ui.Faint, 9.5f);
                 // Amber once the count is past the posted par: the player has
                 // spent the budget, which is the one thing these numbers are
                 // ever compared against.  Not red -- being over par is not a
                 // failure, it is just no longer a record.
                 Color c = compare && par > 0 && value > par ? Ui.Accent : Ui.Text;
-                DrawString(Ui.Bold, new Vector2(t.Position.X + Ui.Px(9),
-                                                t.End.Y - Ui.Px(10)),
-                           value.ToString(), HorizontalAlignment.Left,
-                           t.Size.X - Ui.Px(18), Ui.Px(22), c);
+                DrawString(Ui.Bold, new Vector2(x, y + Ui.Px(24)), value.ToString(),
+                           HorizontalAlignment.Right, w, Ui.Px(26), c);
             }
         }
 
-        /// The handful of keys that are pressed on every level, as keycaps.
+        /// The handful of keys that are pressed on every level.
         ///
         /// Which five is a judgement and worth writing down: undo and restart
         /// are the two a player reaches for without looking (and are the
@@ -2534,7 +2623,7 @@ namespace LaserTank.Game
         /// redesign *hid*, so it has to be visible as an affordance or it is
         /// simply gone; and the level pair is how you leave a level you have
         /// given up on.  Everything else is F1's.
-        private float DrawActionsCard(Rect2 at)
+        private void DrawActionRows(float x, float y, float w)
         {
             (string, string, Key)[] rows =
             {
@@ -2547,55 +2636,50 @@ namespace LaserTank.Game
                 ("L", "levels & scores", Key.L),
                 ("O", "collections", Key.O),
             };
-            float pad = Ui.Px(14), rowH = Ui.Px(24);
-            float h = pad + Ui.Px(13) + Ui.Px(10) + rows.Length * rowH + pad - Ui.Px(6);
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            Ui.Card(this, r);
-
-            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(9);
-            Ui.Caps(this, new Vector2(x, y), "Keys", Ui.Faint);
-            y += Ui.Px(10) + Ui.Px(4);
+            float rowH = Ui.Px(25);
             // **Step 9 made these five rows do what they name.**  They were
             // drawn as keycaps because a keycap is a picture of a key -- and a
             // picture of a key beside the word `undo` is exactly the thing a
-            // player tries to click.  Now it works, and the row is the target
-            // rather than the cap: clicking the word is clicking the key.
+            // player tries to click.  The row is the target rather than the cap:
+            // clicking the word is clicking the key.
             foreach ((string key, string label, Key code) in rows)
             {
-                var row = new Rect2(r.Position.X + Ui.Px(7), y - Ui.Px(2),
-                                    r.Size.X - 2 * Ui.Px(7), rowH - Ui.Px(2));
+                var row = new Rect2(x - Ui.Px(8), y - Ui.Px(3), w + Ui.Px(8),
+                                    rowH - Ui.Px(2));
                 bool hot = HitKey(row, code);
-                if (hot) Ui.Hot(this, row);
+                if (hot) Ui.Hot(this, row, 2f);
                 Ui.Keycap(this, x, y, key, 10.5f);
-                Ui.Write(this, new Vector2(x + Ui.Px(40), y + Ui.Px(14)), label, 11.5f,
-                         hot ? Ui.Text : Ui.Dim, r.End.X - x - Ui.Px(40) - pad);
+                Ui.Write(this, new Vector2(x + Ui.Px(38), y + Ui.Px(14)), label, 11f,
+                         hot ? Ui.Text : Ui.Dim, w - Ui.Px(38));
                 y += rowH;
             }
-            return h;
         }
 
-        /// Command 301's content, on demand.  The frame is the original's
+        /// Command 301's content, on demand.  The *frame* is the original's
         /// reason for existing: a hint is a spoiler, and a spoiler on screen by
         /// default is not a hint.
-        private float DrawHintCard(Rect2 at)
+        ///
+        /// It is the one block that still tints its ground, and it earns that by
+        /// being the only thing in the column that is not there most of the time
+        /// -- a block that appears has to say so.  A flat amber wash and no
+        /// border: the rail is already drawing this column's left edge.
+        private float DrawHintBlock(float x, float y, float w)
         {
             string hint = _s.Rec.Hint.Replace("\r\n", " ").Replace("\n", " ");
-            float pad = Ui.Px(14);
-            float w = at.Size.X - 2 * pad;
-            float th = Ui.WrappedHeight(hint, 12.5f, w, 8);
-            float h = pad + Ui.Px(13) + Ui.Px(8) + th + pad;
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            DrawStyleBox(Ui.Box(new Color(0.13f, 0.11f, 0.06f), Ui.AccentDim, 10f), r);
-            // The caption already says what closes it; clicking the card is the
+            float tw = w - Ui.Px(4);
+            float th = Ui.WrappedHeight(hint, 11.5f, tw, 8);
+            var r = new Rect2(x - Ui.Px(11), y - Ui.Px(12), w + Ui.Px(11),
+                              th + Ui.Px(24) + Ui.Px(16));
+            DrawRect(r, Ui.Accent with { A = 0.075f });
+            // The caption already says what closes it; clicking the block is the
             // same instruction for a player with no H to press.
-            if (HitKey(r, Key.H)) Ui.Hot(this, r, 10f);
-            Ui.Caps(this, new Vector2(r.Position.X + pad, r.Position.Y + pad + Ui.Px(9)),
-                    "Hint  ·  H hides", Ui.Accent);
-            Ui.Wrapped(this, new Vector2(r.Position.X + pad,
-                                         r.Position.Y + pad + Ui.Px(13) + Ui.Px(8)
-                                         + Ui.Px(11)),
-                       hint, 12.5f, new Color(0.87f, 0.82f, 0.70f), w, 8);
-            return h;
+            if (HitKey(r, Key.H)) Ui.Hot(this, r, 2f);
+            Ui.Caps(this, new Vector2(x, y + Ui.Px(8)), "Hint  ·  H hides",
+                    Ui.Accent, 9.5f);
+            y += Ui.Px(8) + Ui.Px(13);
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(10)), hint, 11.5f,
+                       new Color(0.92f, 0.86f, 0.74f), tw, 8);
+            return y + th;
         }
 
         /// The narrow layout's replacement for the column: one strip under the
@@ -2606,21 +2690,26 @@ namespace LaserTank.Game
         private void DrawInfoStrip()
         {
             Rect2 r = _l.Side;
-            Ui.Card(this, r);
+            // **The strip is the column turned on its side, and it follows the
+            // same rule**: no card, no tiles, a rule for the edge and the
+            // readout hard right.  Step 7 boxed this one too, which in a strip
+            // that already has the whole window's width for a border was a box
+            // drawn around the only thing on the row.
+            Ui.Rule(this, r.Position.X, r.Position.Y, r.Size.X);
             TLEVEL lv = _s.Rec;
             TGAMEREC g = _s.E.Game;
             float pad = Ui.Px(14);
             float x = r.Position.X + pad, y = r.Position.Y + pad;
 
-            // The level line opens the level table, as the column's card does.
+            // The level line opens the level table, as the column's title does.
             var name = new Rect2(x - Ui.Px(6), y - Ui.Px(2),
                                  r.Size.X * 0.55f + Ui.Px(12), Ui.Px(42));
-            if (HitKey(name, Key.L)) Ui.Hot(this, name);
+            if (HitKey(name, Key.L)) Ui.Hot(this, name, 2f);
             Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
-                    $"Level {_s.Level} of {_s.LevelCount}", Ui.Faint);
-            Ui.Write(this, new Vector2(x, y + Ui.Px(34)),
-                     string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName,
-                     15, Ui.Text, r.Size.X * 0.55f);
+                    "Level " + _s.Level + " / " + _s.LevelCount, Ui.Faint, 9.5f);
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(34)),
+                       string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName,
+                       17, Ui.Text, r.Size.X * 0.55f, 1, Ui.Title);
 
             // **The narrow layout's only way in, and the reason step 9 exists.**
             // There is no column here, so no actions card and no F1 footer --
@@ -2644,21 +2733,22 @@ namespace LaserTank.Game
                 cx += Ui.KeycapWidth(cap, 13f) + Ui.Px(9);
             }
 
-            float tw = Ui.Px(74);
-            float tx = r.End.X - pad - 2 * tw - Ui.Px(8);
-            Tile(new Rect2(tx, y, tw, r.Size.Y - 2 * pad), "moves", g.ScoreMove);
-            Tile(new Rect2(tx + tw + Ui.Px(8), y, tw, r.Size.Y - 2 * pad), "shots",
-                 g.ScoreShot);
+            // The two counters, stacked hard against the right edge in the same
+            // label-left / number-right readout the column uses.  No tiles: in
+            // a strip whose height is already the row, a bordered box around
+            // each number was two more edges saying what the edge of the strip
+            // had said.
+            float tw = Ui.Px(96);
+            float tx = r.End.X - pad - tw;
+            Readout(y + Ui.Px(4), "moves", g.ScoreMove);
+            Readout(y + Ui.Px(27), "shots", g.ScoreShot);
 
-            void Tile(Rect2 t, string label, int value)
+            void Readout(float ry, string label, int value)
             {
-                Ui.Tile(this, t);
-                Ui.Caps(this, new Vector2(t.Position.X + Ui.Px(9),
-                                          t.Position.Y + Ui.Px(14)), label, Ui.Faint, 9);
-                DrawString(Ui.Bold, new Vector2(t.Position.X + Ui.Px(9),
-                                                t.End.Y - Ui.Px(9)),
-                           value.ToString(), HorizontalAlignment.Left,
-                           t.Size.X - Ui.Px(18), Ui.Px(20), Ui.Text);
+                Ui.Caps(this, new Vector2(tx, ry + Ui.Px(14)), label, Ui.Faint, 9.5f);
+                DrawString(Ui.Bold, new Vector2(tx, ry + Ui.Px(16)),
+                           value.ToString(), HorizontalAlignment.Right, tw,
+                           Ui.Px(17), Ui.Text);
             }
         }
 

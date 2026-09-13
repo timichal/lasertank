@@ -128,7 +128,13 @@ Everything in `tools/` is stdlib-only. See `README.md` and `data/SOURCES.md` for
   `~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/`. The `godot` alias
   needs admin, so call the `.exe` by path — `..._console.exe` if you want stdout. `$LT_GODOT`
   overrides. A fresh checkout needs one
-  `"$GODOT" --headless --path src/LaserTank.Game --import` before `--path` will run the project, and
+  `"$GODOT" --headless --path src/LaserTank.Game --import` before `--path` will run the project —
+  **and so does every newly *added* asset**, which is the same command with a much worse symptom.
+  `--path` imports nothing, so a `.ttf`/`.png` dropped into the project has no `.import` beside it
+  and `ResourceLoader.Load` fails at *runtime* with `No loader found for resource: res://...
+  (expected type: unknown)`, which reads like a bad path or a corrupt file rather than like a
+  missing build step. Step 10's two fonts cost a cycle to this. Run `--import` after adding a file,
+  and commit the `.import` (and `.uid`) files it writes beside it. Separately,
   `Godot.NET.Sdk` restores from nuget.org on the first build (the install also ships it under
   `GodotSharp/Tools/nupkgs/` if the machine is offline).
 - **`godot --path` makes the *project* the working directory**, so every relative path handed to the

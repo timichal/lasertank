@@ -8,6 +8,46 @@ without a human at the screen, and the ten translations. The facts underneath th
 
 ---
 
+## The visual language
+
+One file, [`Ui.cs`](../../src/LaserTank.Game/Ui.cs), and **nothing in it is a transliteration** — the
+board, the laser, the sprites and the grid are pixel-faithful and everything around them is designed.
+It is one file because the port draws its whole interface in immediate mode, which has no theme, no
+stylesheet and no cascade: the only way a panel here can look like a panel there is for both to ask
+the same file. Six files draw this interface and not one of them names a colour, a radius or a face.
+
+Step 10 re-decided all three. What it replaced and why is in [*Finished*](history.md); what it *is*:
+
+* **Ember on warm black, one dominant hue.** Amber carries the wordmark, the rail, the section
+  labels, the keycap glyphs, the live numerals and every modal's top edge — it is the dominant
+  colour, not an accent, and a frame of this interface with no amber in it is a bug. The hot
+  vermilion is the sharp accent and is spent on recording and death only. Every neutral is warm.
+  **The hue was chosen by measurement**: the four packs' grounds are `#949410`, `#109494`, `#60C000`
+  and `#187B00`, all in the yellow-green-cyan arc, so amber is the complement of every one of them
+  and appears in no sheet as a field colour.
+* **One radius, 2 px, enforced at the primitive.** `Ui.Rad` compresses whatever a caller asks for,
+  so the radius cannot drift back one call site at a time. Drop shadows are for true modals and
+  nothing else.
+* **Two faces, shipped rather than named** — Archivo for the wordmark and the level name, IBM Plex
+  Mono for everything else, both OFL with their licences in the tree. See
+  [`fonts/README.md`](../../src/LaserTank.Game/fonts/README.md) for why the body of this interface
+  is a monospace: the content is fixed-pitch, and so is the one gate that reads it.
+* **Hierarchy by size and space, not by boxes.** The info column is laid out on a **rail** — one
+  vertical hairline down its left that every group hangs off, with the level's own span lit amber —
+  and is read from both ends: what the level *is* flows down from the top, what a player can *do* is
+  anchored to the bottom. The counters are the largest thing in it and have nothing drawn around
+  them.
+
+**Two layout rules this pass leaves behind.** A string gets **measured** width, never reserved width
+— two captions in `LevelList` had been given a flat `Ui.Px(280)` and a panel's inner width, which
+was enough for a proportional sans and not for a monospace, and both clipped mid-word. And when the
+measurement says no, the right answer is to **shed a whole clause or a whole column**, ranked in
+advance, rather than to let `DrawString` cut where it happens to run out: `LevelList.Fit` already
+dropped the author column before shrinking the type, and the header and footer legends now do the
+same thing with their clauses.
+
+---
+
 ## The game's own UI, as it stands
 
 Keys are **the original's accelerator tables**, read rather than invented — `ACC1` at
@@ -36,8 +76,8 @@ the overlay and this paragraph are two renderings of one table rather than two l
 step. A binding added to the router and not to the table is a binding no player will find.
 
 **Every label in that list is also a button** (step 9 — see [*Finished*](history.md)). The pills in the top bar
-turn off the state they name, the collection beside them opens 108, the cards in the column open the
-panels they summarise, the five keycaps in the `Keys` card do what they say, the rows of all four
+turn off the state they name, the collection beside them opens 108, the blocks in the column open the
+panels they summarise, the five key rows at the foot of it do what they say, the rows of all four
 list panels select and then commit on a second click, the F1 overlay's thirty-odd rows *press the
 key they draw*, and every panel has a close button and closes on a click outside. A click is routed
 through `BoardView.Press`, which is the accelerator table as a function — so a chrome click is the

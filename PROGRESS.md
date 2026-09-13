@@ -56,6 +56,18 @@ key overlay in place of the old wall of legend text, and a hint that is finally 
 instead of spoiling every level that has one. Nothing mechanical moved and every gate says so. See
 [*Finished*](docs/game/history.md).
 
+**And since step 10 it looks like something in particular.** Step 7's chrome was competent and
+generic — a cool slate ground, cards at one radius with one border and one gap, a stat-tile row for
+the two counters, and type asked for by the names `Segoe UI` / `Inter` / `SF Pro` — and a player
+said so, in the one register no instrument in this tree can measure. It is an ember-on-warm-black
+technical readout now: one dominant hue chosen by *measuring* the four packs' grounds rather than by
+assuming they contest the whole wheel (they occupy a third of it), hard corners enforced at the
+primitive so they cannot drift back, two OFL faces shipped rather than named — which also fixed the
+fixed-pitch level list on the one target that had no fixed-pitch face — and an info column laid out
+on a rail with no cards in it, read from both ends. **All nineteen gates are green, `options_check`
+included**, because nothing about the board moved. The full diagnosis, and the one wrong argument in
+`Ui.cs` that produced most of it, is in [*Finished*](docs/game/history.md).
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
@@ -151,7 +163,7 @@ waiting on and what the finished work beside it already answered, is in
 | **1** | **i18n: actually use the translations** | 14 of the 155 keys per file are wired; the rest describe dialogs and a button strip this port does not have. The job is an audit — a key is read by a widget or it goes — and step 7 is what it was waiting for. Deleting one means editing all ten JSON files *and* `lang_check.py`'s expectation |
 | **2** | **A menu bar** | still the cheapest fully-specified piece of the original left (73 items, both trees, already converted). But `F1` answered the discoverability half and step 9 answered the pointing half, so what is left is a route to the handful of commands nothing on screen names |
 | **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: two commands blocked on a file dialog, six on a modal prompt (step 8 built the first of those), the DeadBox's own first-turn guard, and a list of additive dialogs that change no row |
-| **4** | **The UI redesign, second pass** | the first pass stopped at the chrome. Open: web export, motion, the packs' own `Control.bmp`/`Opening.bmp`, and a drag or two-finger gesture on the *board* — which would be this port's own rather than the original's |
+| **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
 

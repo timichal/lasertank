@@ -528,3 +528,110 @@ hub.
 **Nothing mechanical moved**, so no gate could have noticed this and none was re-run. The check that
 applies to a documentation change is the one that was run: every relative link and every anchor in
 all 21 markdown files resolves.
+
+## ~~Step 10: the chrome stops looking generated~~ — **done 2026-09-13**
+
+Step 7 built an interface that worked, that every gate agreed with, and that a player looked at and
+said *this looks AI-made*. That is a report about the **product**, not about the code, and it is the
+first one in this project that no instrument could have raised: `chrome_check` was green, the twelve
+presentation gates were green, and none of them has an opinion about whether a window looks like
+every other window shipped in 2025.
+
+It does not, any more. The board, the laser, the sprites and the grid are untouched — the
+pixel-faithful half is not what was wrong — and **all nineteen gates are green**, including the four
+fidelity gates and `options_check`, whose board arithmetic did not move because none of this
+changed the board.
+
+### The diagnosis, and why it was one decision rather than a taste
+
+Read against [the catalogue of AI-design tells](https://github.com/funboy322/avoid-ai-design) the
+old chrome scored almost a full house, and the hits were not independent:
+
+| the tell | where it was |
+|---|---|
+| system fonts only, no display pairing | `Ui.Sans`/`Bold` asked for `Segoe UI` → `Inter` → `SF Pro` by name |
+| a uniform generous radius on everything | `Card` 10 px, `Tile` 8 px, `Dialog` 14 px, pills at `h/2`, all with a drop shadow |
+| uniform padding without hierarchy | three cards down the info column, one border, one gap, one caps label each |
+| a timid evenly-spread palette | eight cool greys, one amber spent on about 2% of the pixels |
+| the stat-tile row | `MOVES 0` / `SHOTS 0` as two bordered tiles — the KPI row of every analytics dashboard |
+| no asymmetry | a centred card stack, symmetric about its own axis |
+
+**One argument in `Ui.cs` produced most of that list, and it was wrong.** It ran: the four sprite
+sheets are saturated primaries and they disagree about their ground, so a chrome in any hue would
+fight whichever pack is loaded, so the chrome must be desaturated. The premise is true. The
+conclusion does not follow, and measuring said so in one command — the four grounds are `#949410`
+(internal), `#109494` (Eye Saver), `#60C000` (Comix) and `#187B00` (Warcraft II). **All four sit in
+the yellow-green-cyan arc.** Half the wheel, red through violet, was never contested by anything. So
+"desaturate" was never the only way to avoid the fight; it was the way that also removed every trace
+of a point of view, and a chrome with no point of view is what a template is.
+
+This is the same shape as [*"when the original has a table, read the table"*](../../PROGRESS.md) one
+level up: a defensible-sounding derivation, never checked against the artifact, standing in for a
+measurement that took thirty seconds.
+
+### What it is now
+
+**A technical readout, in ember on warm black.** The point of view is not decoration — it is what
+the content already is. The board is a 16×16 grid labelled A1–P16, the score is two counters against
+a posted par, and `LevelList` draws the original's own `%4d %-30.30s %5d %4s` and places its column
+rules in glyph units. Every number on this screen is a measurement, so the interface is set like an
+instrument.
+
+* **One dominant hue, used lavishly.** Amber carries the wordmark, the rail, the section labels, the
+  keycap glyphs, the live numerals and every modal's top edge. The hot vermilion is the *sharp*
+  accent and is spent on two states only, recording and death, so it means something when it turns
+  up. Every neutral is warm; there is no blue in the greys at all.
+* **Corners are hard.** One radius, 2 px, and it is enforced at the primitive: `Ui.Rad` compresses
+  whatever a caller asks for, so the six files that draw this interface changed with it and cannot
+  drift back. 2 rather than 0 because a square corner on a 1 px border at fractional scale aliases
+  into a visible nick.
+* **Two real faces, shipped rather than named.** Archivo (variable, `wght` + `wdth` on one file) for
+  exactly two strings — the wordmark and the level name — and IBM Plex Mono for everything else. See
+  [`fonts/README.md`](../../src/LaserTank.Game/fonts/README.md). Both OFL, both with their licence in
+  the tree. **This also fixed something the redesign's second pass wanted anyway**: `SystemFont`
+  name lists drew differently on Windows, on macOS and in a browser export, where they fall through
+  to Godot's own proportional face — so the one thing in this interface that *must* be fixed-pitch
+  was not, on the one target [*Next steps*](next-steps.md) item 4 is aiming at.
+* **The info column has no cards in it.** What separates its groups is a **rail** — one vertical
+  hairline down the left that every group hangs off, with the level's own span of it lit amber — plus
+  a rule and an amount of air. What ranks them is type size. A rail has a side, so the column has a
+  spine and a reading edge; three centred cards are symmetric about their own axis and rank nothing.
+* **The column is read from both ends.** What the level *is* flows down from the top and grows with
+  its content; what a player can *do* is anchored to the bottom and never moves. Step 7 flowed all
+  four cards from the top and left a third of the column blank underneath, which is not composition,
+  it is where the stack ran out. The keys still yield to a long name and an open hint, and the rest
+  of them are on `F1`, which stays.
+* **The counters kept their size and lost their tiles.** That the two numbers a player watches are
+  the largest thing in the column was step 7's one genuinely good decision about this panel, and it
+  survives the boxes it arrived in — label hard left, number hard right, nothing drawn around either.
+* **The top bar is not a filled bar** and the difficulty rank is not a filled badge. A slab with a
+  hairline under it is the header component every framework ships; a pill beside a name is the same
+  reflex one size down. Both are now a word and a rule.
+
+### What was declined, and why it is written down
+
+The obvious answer to *this looks generated* was sitting unread in the tree. **`original/src/Control.bmp`**
+is the panel this info column replaced: a tiled brick wall out of the game's own sprite sheet, sunken
+Win3.1 wells for the readouts, a serif display face, hard corners, zero shadows — a complete design
+language, per language and per pack, and one that no template could ever accidentally produce. It is
+still [*Next steps*](next-steps.md) item 4's third bullet and it is still unread.
+
+It was offered and turned down deliberately: **the chrome is of today and has an opinion, rather than
+wearing 1996 as a costume.** The port's whole argument is that the *rules* are sacred and the
+interface is not, and a pastiche of the original's chrome would have blurred exactly that line while
+also fighting the resizable layout step 7 built. Recorded here because the reasoning is the kind that
+gets re-litigated, and because the bitmaps are still there for anyone who wants the other answer.
+
+### Two clips the new face caused, and the rule they leave behind
+
+IBM Plex Mono advances about 20% wider than the proportional sans it replaced, and two strings in
+`LevelList` had been given **reserved** width rather than measured width. Both clipped, and both
+clipped in the way that reads as a bug rather than as a truncation: the header came out
+`… 21 solve`, and the footer lost `> beat the posted best` — the only thing on screen that explains
+the two markers in the rows.
+
+Neither was a font bug. **A layout that reserves a width has guessed, and a guess that survives is
+only one that was never tested against a different face.** Both now measure what they need and shed a
+*clause* when the answer is too wide — a ranked list of shorter forms, with the marker legend last to
+go because nothing else documents it. That is the same shape as `LevelList.Fit` dropping the author
+column before it shrinks the type, which step 8 already got right one level up.
