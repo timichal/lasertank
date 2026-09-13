@@ -1124,7 +1124,7 @@ the wrong strategy*, which is where the ratio tail lives and the one population 
 provably cannot help.
 
 **What it does not close is the rule inside `--best-of-round`**, and that belongs to
-[item 4](next-actions.md#4-3rd--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
+[item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
 than to a fifth item: the shot test and the ratio test disagree on 58 of the 452 rows, and whether
 keeping those rounds open pays is a campaign question.
 
@@ -1165,7 +1165,8 @@ item 5 had already solved `LaserTank.lvl` 6 from **K = 102 at width 32 on 3.4M n
 measured its horizon of 50 at width 512 on 40M, and its phase table reaches 4 phases at width 32, 2 at
 128 and 1 at 512 for the same nodes a phase. **Narrow-and-deep, for the fifth time.** The raise-only
 rule that keeps the flag safe is exactly what forbade this run from testing it, so what closed here is
-*this direction of* the per-level lever, not the lever. That is item 19.
+*this direction of* the per-level lever, not the lever. That was item 19, which closed on a tie in
+session 47 and took the other direction with it (below).
 
 One level tells the whole story on its own: **`Challenge-IV` 176 is solved by the control in 781,566
 nodes**, and the two widest arms still solve it — at **35.7M and 31.6M**, forty times the cost.
@@ -1182,7 +1183,8 @@ the control too, so **f60's 78 is a floor short by at most one level** and no ar
 
 **What it leaves behind.** The flag ships off by default and costs nothing when it is off. The free
 calibration stands as the reason not to try solving for a width exactly. And the three reports are a
-banked population for item 19 to be read against without re-running the control.
+banked population for item 19 to be read against without re-running the control — which is what it
+did.
 
 ### 15. `--push-seed` — the editor trick as an instrument, and level 6's horizon.
 
@@ -1427,6 +1429,69 @@ that were already measured and failing** (17, 18, 19). Both were caught by the s
 not add up to 20 — and both are the file's own rule arriving from a new direction: *the report is the
 state, so ask the report*.
 
+
+### 19. The narrow beam — run on a population at last, and it ties.
+
+**Closed in session 47, and it is the first of these items to close neither positive nor negative.**
+Item 14 swept the beam *wider* because `--push-width-record` is raise-only and lost every arm; this is
+the one arm in the other direction, `--push-beam 32`, over the same 138 short-record GAUNTLETs at 40M
+against the same banked `gt-fire` control. `tools/gtw_b32.sh` is the recipe — the arm, the gate, the
+five-arm union and the long-record split in one script, logging to `build/reports/gtw-b32-run.log`.
+
+    bash tools/gtw_b32.sh
+
+**It ran beside item 2's pass at `JOBS=4` against the pass's 16 on 20 cores, and the contention
+prediction held exactly**: 100 min wall, 4.8 h of job time, **84 of 84 solutions through the two-engine
+gate**, all 54 failures stopping on `budget` and the worst level taking **501 s against `BUDGET_MS`'s
+1,800 s**. No row is time-truncated, which is what closed item 14's sleeping-machine artefact had made
+worth checking rather than assuming.
+
+| arm | width | solo | rate | only it | greedy union |
+|---|---:|---:|---:|---:|---|
+| **fire** (control) | 128 | **85** | 61.6% | 1 | 85 |
+| **b32** | **32** | **84** | **60.9%** | **4** | +4 → 99 |
+| f4p6 | 6,820 median | 76 | 55.1% | 2 | +10 → 95 |
+| f60 | 854 median | 78 | 56.5% | 1 | +1 → 100 |
+| f14 | 2,667 median | 78 | 56.5% | 1 | +1 → **101 (73.2%)** |
+
+**Of the three outcomes the item wrote down in advance, the middle one landed — the tie.** 84 against
+85, where the three widening arms lost by 7 to 9, so `--push-beam 128` is **not** mistuned and the cheap
+follow-up at 64 that a win would have licensed is not licensed. Head to head the two widths solve **76 in
+common, 9 only to the control and 8 only to `b32`**, which is two searchers rather than one setting: the
+five-arm union is **101 of 138 (73.2%)** against item 14's four-arm 97, and `b32` is the only arm besides
+the control to hold more than two exclusive levels. **Width is a portfolio axis in both directions.**
+
+**The prediction the item was actually written on failed, and that is the load-bearing half.** Four
+independent measurements had licensed something specific — a narrow beam should hold the **deep** levels,
+the ones whose record is long, and drop the shallow ones. It does not. `b32`'s 8 exclusive levels split
+**4 long / 4 short** about the population's median `ghs_shots` of 13, at a median of 13.5 against the
+control's exclusives at 13.0. So whatever decides a level between width 32 and 128, **it is not the
+length of the record** — and `budget / (poses x ghs_shots x F)`, the free per-level estimate item 14
+built and the one thing that survived its negative, is therefore not the way to size width in the
+narrowing direction either. Dropping the raise-only rule in `Push.cs` `RecordWidth` has nothing pointing
+at it any more. That is the second time this population has refused a per-level width, now from both
+sides.
+
+**What is real is the cost, and it reproduces level 6's result on a population for the first time.**
+On the 76 levels both solve, `b32` is cheaper on **46** and its median is **1,032,239 nodes against the
+control's 1,614,910**. Four of its eight exclusive wins land in **1.8M to 3.4M nodes on levels the
+control burned the whole 40M and failed** — `LaserTank` 751 *Around The Maze* at 1,785,103, `Beginner-I`
+686 *NO IMPOSSIBLE IV* at 2,612,594, `Challenge-I` 1216 *Spin Cycle* at 2,681,446, `Challenge-III` 1221
+*subtropicale* at 3,399,185. That is the same shape as closed item 5's **K = 102 at width 32 on 3.4M
+nodes**: when narrow works it works at roughly a twelfth of the budget. Routes are a shade worse for it,
+`ratio` p50 **1.71 against 1.63**.
+
+**So the follow-up is a budget question, not a width question.** Two arms that tie at 40M and separate
+by 1.6x in nodes on the levels they share are two arms that do **not** tie at 4M or 10M, and that curve
+is [item 7](next-actions.md#7-3rd--the-solved-vs-budget-curve) rather than a new item. The five reports
+are banked, so any budget rung can be read against them without re-running a control.
+
+**What it leaves.** `--push-beam 32` is not a new default — 84 is not 85. It is a **second arm** on a
+population where the union says arms are worth more than settings, and it costs a twelfth of the budget
+on the levels it wins, which is the only reason to prefer it to `f4p6` as the union's second member
+despite `f4p6` contributing +10 to it. **Narrow-and-deep has now been measured six times and this is the
+first time it was measured on more than one level: it is a real axis and it is not a better global
+width.**
 
 ## The corpus through the read
 
@@ -2153,6 +2218,17 @@ stands as a control**. That is expected — the search never keeps a path throug
 it was checked rather than assumed, because a shared-engine change that silently moved the solver would
 have invalidated the whole `build/reports/` bank at once.
 
+**session 47 — item 19 run beside the restarted pass, and it closes on a tie.** One arm at
+`--push-beam 32` over item 14's 138 levels against the same banked control: **84 against 85**, 84/84
+gated, 100 min wall at `JOBS=4` while item 2's pass held 16 — and the wall-clock hazard that made the
+pairing worth checking (`BUDGET_MS` is wall, not nodes) never came close, worst level 501 s of 1,800 s.
+**The count is the least interesting part.** The item's own prediction — narrow holds the *deep* levels
+— failed on a 4/4 split of its exclusives about the population's median record length, which retires
+per-level width from the narrowing side as well; what it found instead is **cost**, 1.03M nodes median
+against 1.61M on the 76 levels both solve and four exclusive wins at 1.8M-3.4M on levels the control
+failed at 40M. Two arms that tie at 40M and differ 1.6x in nodes do not tie at 4M, so the follow-up is
+item 7's budget curve and not a width item. Five-arm union **101 of 138 (73.2%)**.
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -2161,7 +2237,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-4th--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-3rd--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

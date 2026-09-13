@@ -286,7 +286,8 @@ src/LaserTank.Solver/
                  chose into the report row.  It ships OFF and stays off -- the
                  three-arm sweep lost to the global width at every F (76/78/78
                  against 85 of 138), so the flag is kept to re-run the table
-                 and for the narrowing direction item 19 asks about, not as a
+                 (item 19 then tied at a global --push-beam 32, so the
+                 record does not size width in either direction), not as a
                  default
   Analyze.cs     layer 6: the read.  ReadDerive / ReadAdvances / ReadOpens /
                  the enables pass, as an instrument and as a ranking tier

@@ -240,17 +240,16 @@ attack on it.
 
 ## What is open
 
-Five items, **in this order and not in numeric order**. Numbers are kept because these files refer to
+Four items, **in this order and not in numeric order**. Numbers are kept because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Started 2026-09-10, interrupted in session 46 with arm 1 four hours from the end**: `l8fire` at **3,092/3,691, 770 solved (24.9%)**, `layer7` and `enables` not started. Resumable from its own report — `bash tools/l5_pass.sh`, `... status` for the table | **4 h 44 m to finish arm 1**, then two arms not started. Arm 1 is running to ~25 h against the rehearsal's ~18 h, so read the ~54 h as ~75 h |
-| **19** | **2nd** | **the narrow beam** — item 14 swept the beam *wider* per level and lost every arm, and the raise-only rule is what stopped it testing the direction all the evidence points: level 6 goes **66 board changes deep at width 32 on 3.4M nodes** where width 512 needed 40M for 50, and the phase table reaches 4 / 2 / 1 phases at width 32 / 128 / 512. One arm at **`--push-beam 32`** over the same 138 levels, against the same banked control, with item 14's three arms folded into the union for free | ~1 h wall at 4 jobs |
-| **4** | 3rd | the campaign that decides whether `--best-of-round` is a **default**, and it inherits closed item 13's rule — keep a round open while `shots > ghs_shots` | a stride campaign with the flag against one without |
-| **7** | 4th | the solved-vs-budget curve, three budgets over the 687 short-record failures | comparable to one arm per budget |
+| **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Started 2026-09-10, interrupted in session 46, restarted 2026-09-13 and live**: as of session 47 `l8fire` is at **3,260/3,691, 772 solved (23.7%)**, 22 h 31 m wall at 13.1x, `layer7` and `enables` not started. Resumable from its own report — `bash tools/l5_pass.sh`, `... status` for the table | **~3 h 26 m to finish arm 1**, then two arms not started. Arm 1 is running to ~25 h against the rehearsal's ~18 h, so read the ~54 h as ~75 h |
+| **4** | **2nd** | the campaign that decides whether `--best-of-round` is a **default**, and it inherits closed item 13's rule — keep a round open while `shots > ghs_shots` | a stride campaign with the flag against one without |
+| **7** | 3rd | the solved-vs-budget curve, three budgets over the 687 short-record failures. **Closed item 19 handed it a second question**: two push arms that tie at 40M differ **1.6x in nodes** on the levels they share, so where they separate is a rung of this curve and the five banked reports price it without a new control | comparable to one arm per budget |
 | 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
 
 **Item 14 closed in session 46, negative on a clean sweep.** Three arms at the calibration's own
@@ -259,10 +258,23 @@ and the widths they chose ran to a median of **854, 2,667 and 6,820 against the 
 raise-only, so what the item measured is the beam getting *wider*, which is the direction its own
 evidence argued against; the arms hold 4 / 1 / 1 exclusive levels and the union reaches 97 (70.3%), but
 that is three extra 40M passes for 12 levels. `Challenge-IV` 176 is the whole result in one row: the
-control solves it in **781,566 nodes** and the two widest arms need **35.7M and 31.6M**. What replaces
-it is **item 19**, the same run with `--push-beam 32`; the flag, the arithmetic and the three banked
-reports all survive.
+control solves it in **781,566 nodes** and the two widest arms need **35.7M and 31.6M**.
 [Closed item 14](docs/solver/history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
+
+**Item 19 closed in session 47 and it is the first item here to close neither positive nor negative.**
+It was item 14's successor — the same 138 levels, the same banked control, one arm in the direction
+raise-only had forbidden — and `--push-beam 32` **tied at 84 against 85**, 84/84 gated, 100 min wall at
+four jobs beside the running pass. **The tie is not the finding.** The item was written on four
+measurements that all said a narrow beam should hold the **deep** levels, and its 8 exclusive levels
+split **4 long / 4 short** about the population's median `ghs_shots` of 13 — so the record does not
+predict which width a level wants, in *either* direction, and per-level width is now closed from both
+sides. What is real is **cost**: 32 is cheaper on 46 of the 76 levels both solve, **1.03M nodes median
+against 1.61M**, and four of its exclusive wins land at **1.8M-3.4M on levels the control burned 40M and
+failed** — level 6's twelfth-of-the-budget result, seen off level 6 for the first time. Two arms that
+tie at 40M and differ 1.6x in nodes do not tie at 4M, so **the follow-up is item 7's budget curve, not a
+width item**, and the five banked reports price any rung of it without a new control. Five-arm union
+**101 of 138 (73.2%)**; `tools/gtw_b32.sh` is the whole recipe.
+[Closed item 19](docs/solver/history.md#19-the-narrow-beam--run-on-a-population-at-last-and-it-ties).
 
 **Item 5 closed in session 45 and it closed negative on its own example**, which is the second running
 that the item at the front of this list has been refused by a falsifier it built for itself. What was
@@ -281,12 +293,12 @@ walk the middle of the line — **what defeats the level is not the length of it
 premise the item was written on.
 [Closed item 5](docs/solver/history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
 
-**Two things it produced are worth more than the item was, and the first is now item 19.** The same
+**Two things it produced are worth more than the item was, and the first became item 19.** The same
 table solves level 6 from **K = 102, 66 board changes from the end, at width 32 on 3.4M nodes**, where
 item 18 measured its horizon of **50** at width 512 on 40M — deeper on a twelfth of the budget, so **the
-horizon is width-dependent and 50 is not the searcher's best**. Narrow-and-deep for the fourth time, and
-after item 14 spent three arms going the other way and losing all of them, **it is item 19 and second on
-the list**. And phase 2's trace is `best=137` flat for 237 depths, the *same signature* as level
+horizon is width-dependent and 50 is not the searcher's best**. Item 19 took that to a population and it
+**half survived**: width 32 does not solve more levels than 128, but the levels it does solve cost a
+twelfth to two-thirds of the nodes. And phase 2's trace is `best=137` flat for 237 depths, the *same signature* as level
 10's GAUNTLET: a beam ranking distinct boards by a key that has stopped discriminating. **What is
 binding in the middle of a Sokoban is the ranking, not the depth** — layers 4 and 6's territory, not a
 decomposition's, and not an item until something measures it on a population.
@@ -419,6 +431,10 @@ saw none of it except in wall clock. Session 44 then spent item 18 the same way 
 beside it — two free sizing tools and a build. **Session 46 broke the pattern once and it is worth
 naming**: item 14's third arm was run with the pass *stopped*, so its wall clock is the only figure in
 these files measured on an idle machine, and four hours of arm 1 are outstanding that were not spent.
-No measured number moves — the arms are node-governed — and item 19 goes back to running beside it, one
-arm of ~3.5 h of job time at four jobs against a control that is already banked. Nothing on this list
+No measured number moves — the arms are node-governed — and **session 47 put the pattern back**: item 19
+ran its whole arm beside the restarted pass, four jobs against its sixteen on twenty cores, and the one
+hazard that pairing actually carries was checked rather than assumed. `BUDGET_MS` is **wall clock, not
+nodes**, so contention can truncate a level and silently spoil an arm; it did not come close — every one
+of the 54 failures stopped on `budget` and the worst level took **501 s of 1,800 s**, in line with the
+542 s and 429 s the two item-14 arms that ran beside the pass had already recorded. Nothing on this list
 needs the machine to itself except item 2.
