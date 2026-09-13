@@ -100,6 +100,59 @@ def report(path, rows):
               f"p90 {ratios[int(0.9 * len(ratios))]:.1f}x   worst {ratios[-1]:.1f}x   "
               f"over 10x: {sum(1 for v in ratios if v > 10)}   "
               f"at or under the record: {sum(1 for v in ratios if v <= 1.0)}")
+    shots(ok)
+
+
+def shots(ok):
+    """The shot test: how many shots the solution spends against the record's.
+
+    Shots are a property of the *strategy* and moves of the execution -- the
+    blog series' first rule, and it reproduces on our own rows (item 13, and
+    human-strategy.md measurement 3): a win above the record's shot count has a
+    median keystream of 1.85x against 1.41x for one that matches it, so it is a
+    measurably worse route rather than the same route driven badly.  Two thirds
+    of what the solver solves already matches the record exactly, while the
+    median keystream is 1.5x -- which re-reads the whole ratio column: 1.5x is
+    mostly the right plan driven badly, not half a solution.
+
+    So this names a population nothing else here reports: *the levels the solver
+    solves with the wrong strategy*.  It is where the ratio tail lives, and it
+    is the one Replan.Improve provably cannot help -- polishing a keystream
+    cannot remove a shot the plan needed.
+
+    Records that spend no shot at all are left out rather than counted as
+    matched: firing none where the record fires none is not evidence about the
+    strategy, and including them moves the matched bucket 298 -> 425 and its
+    median 1.41x -> 1.50x, which is the diluted version of the same statistic.
+    """
+    have = [r for r in ok if (r.get("ghs_shots") or 0) > 0]
+    none = [r for r in ok if (r.get("ghs_shots") or 0) == 0
+            and (r.get("ghs_moves") or 0) > 0]
+    if not have:
+        return
+    print()
+    print(f"  shots against the record, over the {len(have)} solved rows whose "
+          "record spends one")
+    print("    (the strategy test: shots are the plan, moves are the driving)")
+    for name, want in (("above the record", lambda d: d > 0),
+                       ("exactly the record", lambda d: d == 0),
+                       ("below the record", lambda d: d < 0)):
+        v = [r for r in have if want(r["shots"] - r["ghs_shots"])]
+        if not v:
+            continue
+        rs = sorted(r["ratio"] for r in v if r["ratio"] > 0)
+        p90 = rs[int(0.9 * len(rs))] if rs else 0.0
+        print(f"    {name:<20} {len(v):5}  {pct(len(v), len(have)):>6}"
+              f"   median {median(rs):.2f}x   p90 {p90:.2f}x")
+    worst = sorted((r for r in have if r["shots"] - r["ghs_shots"] > 0),
+                   key=lambda r: r["shots"] - r["ghs_shots"], reverse=True)[:8]
+    if worst:
+        print("    most shots over the record: "
+              + ", ".join(f'{r["collection"]}:{r["level"]} +{r["shots"] - r["ghs_shots"]}'
+                          for r in worst))
+    if none:
+        print(f"    ({len(none)} more solved rows have a record that spends no shot; "
+              "left out)")
 
 
 def diff(a_path, a, b_path, b):

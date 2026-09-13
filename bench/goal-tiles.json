@@ -1,0 +1,4 @@
+{
+ "4776b082c1cedd55": ".",
+ "_README": "hash -> PF symbol for the sprites a start screenshot can never label -- the states only play produces.  Hand input, which is why this is committed and build/harvest/codebook.json is not.  Symbols are dump_level.py's; write the PF value, not what the sprite looks like (a block sunk in water is drawn as a sunken block and is '.', per Engine.cs:731).  Built by tools/harvest.py sheet + label."
+}

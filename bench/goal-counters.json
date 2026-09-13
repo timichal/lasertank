@@ -1,0 +1,4 @@
+{
+ "_README": "The Moves/Shots counters visible in the panel of a lasertanksolutions.blogspot.com screenshot, hand-read.  Everything else about a post is derived -- tools/sprites.py labels every tile from the game's own committed graphics -- but the panel is TextOut with the system font (LTANK.C:563), so no composite of Game.BMP can draw it and nothing in this repo says what it says.  Hand input, therefore committed, therefore never re-derived: see bench/README.md.  Keyed 'Collection:level'; tools/harvest.py bank folds it into the bank, and a level absent from here banks moves/shots as null.  These are the BLOGGER's counts, not the .ghs record -- LaserTank 10 is 179/52 here against the record's 124/55.",
+ "LaserTank:10": {"moves": 179, "shots": 52, "read": "session 34, from /2016/06/10-valley-of-death.html"}
+}

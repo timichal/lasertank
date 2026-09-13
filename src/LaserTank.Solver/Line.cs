@@ -144,6 +144,59 @@ namespace LaserTank.Solver
             return true;
         }
 
+        /// --push-seed (item 15): replay `keys` and stop at the K-th board
+        /// change, so a search can start from the position a player would have
+        /// built in the editor rather than from the level's start.
+        ///
+        /// *"Many have said the importance of using editor to remove objects to
+        /// the places you want.  Then you can start to try if some trick can
+        /// work"* -- the human method, mechanised.  What it measures is the
+        /// quantity every layer since 5 has attacked and none has measured
+        /// directly: the smallest K the beam finishes from is **the search's
+        /// horizon in board changes**.
+        ///
+        /// K counts board changes, not keypresses, because that is the unit
+        /// layer 5 searches in and the unit basin.py reports.  `used` comes back
+        /// as the keypresses that took, and `changes` as how many the recording
+        /// has -- so a K past the end of the line is reported as such rather
+        /// than silently seeding at the win.
+        ///
+        /// Same contract as TraceLine: this leaves the engine dirty, so build
+        /// the seed on a throwaway Solver and hand the snapshot to the one that
+        /// searches (quirk #12).
+        public bool Seed(int level, byte[] keys, int k, out EngineSnapshot seed,
+                         out int used, out int changes, out bool won)
+        {
+            EngineSnapshot root = Root(level);
+            _clock = System.Diagnostics.Stopwatch.StartNew();
+            _nodes = 0;
+            _stageNodes = long.MaxValue;
+            _stageMs = long.MaxValue;
+
+            _e.Restore(root);
+            byte[] board = Board();
+            seed = null;
+            used = changes = 0;
+            won = false;
+            if (k <= 0) { seed = _e.Snapshot(); return true; }
+
+            for (int i = 0; i < keys.Length; i++)
+            {
+                StepResult step = _e.ApplyKey(keys[i], _opt.TickCap);
+                used = i + 1;
+                if (step == StepResult.Win) { won = true; return false; }
+                if (step != StepResult.Ok) return false;
+
+                byte[] now = Board();
+                if (Same(board, now)) continue;
+                board = now;
+                if (++changes < k) continue;
+                seed = _e.Snapshot();
+                return true;
+            }
+            return false;
+        }
+
         /// `key` at the tank's current pose turned `was` into `now`.
         private string Describe(byte key, byte[] was, byte[] now)
         {

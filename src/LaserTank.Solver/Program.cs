@@ -46,7 +46,9 @@ namespace LaserTank.Solver
 "  searcher that ships runs side by side on its own thread and the node budget\n" +
 "  quadruples each round, until the level falls or you press a key to give up\n" +
 "  on it (q quits) -- or --max-round N rounds have gone by, which is how it is\n" +
-"  run unattended.  A solution is kept only once tools/verify_solutions.py\n" +
+"  run unattended.  The first win ends the round unless --best-of-round says\n" +
+"  otherwise, and a round that came back worse than the .lpb already on disk is\n" +
+"  refused by default (--no-beat-banked).  A solution is kept once\n" +
 "  has replayed it through both engines.  --from/--to/--out/--force/--author/\n" +
 "  --trim-ratio/--jobs apply; --nodes sets round 0's budget, not a cap.\n" +
 "  --lanes N works N levels at once and the lanes share the same --jobs\n" +
@@ -101,6 +103,34 @@ namespace LaserTank.Solver
 "    --jobs N             parallel workers, default = processor count\n" +
 "    --lanes N            interactive only: levels to work on at once,\n" +
 "                         default 1; every lane draws on the --jobs slots\n" +
+"    --best-of-round [R]  interactive only: a win does not end the round -- every\n" +
+"                         rung runs out the budget the round gave it and the\n" +
+"                         SHORTEST of however many win is banked.  The first\n" +
+"                         rung to finish is not the one with the best route:\n" +
+"                         LaserTank.lvl 9 falls to the raw beam at 94.3M nodes\n" +
+"                         at 294 keys / 5.0x and to push-ferry-work at 162.8M\n" +
+"                         at 127 / 2.2x, and cancelling on the first win throws\n" +
+"                         the second away before it exists.  Costs at most what\n" +
+"                         a round nobody wins already costs.  R is a record\n" +
+"                         ratio, default 2.0: a win already inside it ends the\n" +
+"                         round as before, so the cost is only paid where the\n" +
+"                         route looks bad.  A level with no .ghs record always\n" +
+"                         keeps the round open\n" +
+"    --no-beat-banked     interactive only: turn OFF the default, which is that\n" +
+"                         a round whose best route is LONGER than the .lpb\n" +
+"                         already banked is not accepted -- the candidate is\n" +
+"                         dropped and the budget quadruples instead, and the\n" +
+"                         round is held open from then on (a refusal proves a\n" +
+"                         shorter route exists, since it is on disk).  So a\n" +
+"                         re-solve converges on the best route ever banked for\n" +
+"                         the level rather than on whatever this run reached\n" +
+"                         first.  It can only bite under --force, because an\n" +
+"                         already-solved level is otherwise skipped.  Use\n" +
+"                         --max-round with it, or a level whose banked route\n" +
+"                         the ladder cannot reach escalates until a key is\n" +
+"                         pressed -- reporting \"not yet\" and keeping the\n" +
+"                         banked file, which is the honest answer but not a\n" +
+"                         terminating one\n" +
 "    --max-round N        interactive only: give up on a level after round N\n" +
 "                         instead of never.  Rounds are numbered from 0 and\n" +
 "                         round r gets 4^r x --nodes, so --max-round 3 is four\n" +
@@ -223,6 +253,14 @@ namespace LaserTank.Solver
 "                         --analyze: after this change, is there a board\n" +
 "                         change the tank could not make before?  Costs a\n" +
 "                         second enumeration on each --read-opens closure\n" +
+"    --read-rare N        item 16's first derivation, default 2: an element\n" +
+"                         the authored board has N or fewer cells of is one\n" +
+"                         the level has *few* of, and a board change that\n" +
+"                         touches one is what the read counts.  Read by the\n" +
+"                         rare/in_rare pair of --read-dump and, when\n" +
+"                         --push-rare is on, by the tier itself.  The\n" +
+"                         spend/in_spend pair beside it needs --read-enables\n" +
+"                         and reports -1 without it\n" +
 "\n" +
 "  layer 5 -- push macros (Push.cs).  OFF by default, same reason, and\n" +
 "  the same second pass.  The movement closure here is PF-*preserving*, so\n" +
@@ -235,6 +273,20 @@ namespace LaserTank.Solver
 "                         narrow and deep, measured: ferry/deep bench at 4M\n" +
 "                         nodes is 17/20 at width 4, 19/21 at 8, 18/20 at 16,\n" +
 "                         15/19 at 48, 13/17 at 128, 8/12 at 300\n" +
+"    --push-width-record F\n" +
+"                         size --push-beam from the level's own record\n" +
+"                         instead of a global ladder: the width is\n" +
+"                         budget / (poses x .ghs shots x F).  The record's\n" +
+"                         shot count is this layer's depth (p50 1.00 over\n" +
+"                         the 20 hand recordings) and the root pose closure\n" +
+"                         is layer 8's closure factor, so F is all the\n" +
+"                         arithmetic is missing -- and over 66 solved levels\n" +
+"                         at a known width of 128 the true factor is p25\n" +
+"                         4.6, p50 14.2, p90 446, so F sizes an order of\n" +
+"                         magnitude and not a width.  Raise-only, like\n" +
+"                         --max-keys-record: --push-beam is the floor, and a\n" +
+"                         level with no record keeps it.  0, the default, is\n" +
+"                         off; the report row carries the width it chose\n" +
 "    --push-per-board N   poses of one playfield the trim may keep, default 1;\n" +
 "                         0 trims over states as every other beam here does.\n" +
 "                         A successor is (board change, the pose it was fired\n" +
@@ -301,6 +353,34 @@ namespace LaserTank.Solver
 "                         another anti-tank dropped in a lane stops the scan,\n" +
 "                         so the route round the fire gets cheaper -- and\n" +
 "                         nothing else here can see that at all\n" +
+"    --push-fire-tier     the same fire map as a *tier* rather than a price,\n" +
+"                         off by default: a successor whose board leaves the\n" +
+"                         anti-tanks sweeping fewer enterable cells than its\n" +
+"                         parent's did ranks above one that only shortens the\n" +
+"                         walk.  --push-fire is an addend inside PushH, and on\n" +
+"                         a board ten anti-tanks cover every successor of\n" +
+"                         every held board pays it, so it raises the best\n" +
+"                         score and steers nothing; a tier is an ordering and\n" +
+"                         cannot refuse a state.  It sits below all three of\n" +
+"                         the read's derivations, so it reorders only what the\n" +
+"                         read was silent about -- which on a GAUNTLET is\n" +
+"                         everything, the barrier set there being empty by\n" +
+"                         construction.  Free on a board no anti-tank covers.\n" +
+"                         See Push.FireTier and --push-trace's fire: line\n" +
+"    --push-rare          item 16's first derivation as a tier, off by\n" +
+"                         default and needing --push-read: a board change\n" +
+"                         that touches an element the author placed\n" +
+"                         --read-rare N or fewer of goes in *front* of all\n" +
+"                         three of the read's own derivations.  Measured over\n" +
+"                         the twenty hand recordings it is named on 5.1% of\n" +
+"                         the successors offered and is what the human did\n" +
+"                         16.0% of the time -- 3.15x, against 1.34-1.43x for\n" +
+"                         the three that ship -- so it is the most selective\n" +
+"                         and the most accurate of the four, which is the\n" +
+"                         rule that places a tier.  Costs one scan of the\n" +
+"                         delta and a census taken once per level.  Off by\n" +
+"                         default because every rung below layer 8 was tuned\n" +
+"                         against the read as it stands.  See Push.TierRare\n" +
 "    --push-dead N        weight on the frozen-block term, 0 (default) is\n" +
 "                         off: water cells on the route with no *live* block\n" +
 "                         left to fill them, where live means the block can\n" +
@@ -325,6 +405,19 @@ namespace LaserTank.Solver
 "                         shuffling an anti-tank anywhere and a flood cannot:\n" +
 "                         the number moves only when somewhere new becomes\n" +
 "                         safe to stand\n" +
+"    --push-phases        ITEM 5: search one *phase* at a time and commit to\n" +
+"                         the board it found.  A phase ends at a milestone --\n" +
+"                         a successor whose board holds strictly fewer\n" +
+"                         consumable objects (water, blocks, bricks, mirrors,\n" +
+"                         anti-tanks, crystals) than the phase started with --\n" +
+"                         and the chain re-enters the beam from that board\n" +
+"                         with a fresh closed set.  LaserTank.lvl 6's hand line\n" +
+"                         is six such phases of 18-34 board changes against a\n" +
+"                         measured horizon of 50 (tools/phases.py).  A level\n" +
+"                         with no milestone runs as one phase, unchanged\n" +
+"    --push-phase-nodes N nodes one phase may spend before the chain commits\n" +
+"                         to the best milestone it holds.  0 (default) lets\n" +
+"                         the beam's own stop conditions end a phase\n" +
 "    --push-ferry-stage   price the ferry one carry at a time: holes left\n" +
 "                         first, the cheapest remaining carry as the tie-\n" +
 "                         break.  Implies --push-ferry-match.  The sum is\n" +
@@ -380,7 +473,42 @@ namespace LaserTank.Solver
 "                         whether the width trim kept it.  The question\n" +
 "                         --read-dump cannot answer: the line is offered at\n" +
 "                         every step, so which Cut is it that loses it\n" +
+"    --push-seed F.lpb:K  HINT-ASSISTED: replay that recording as far as its\n" +
+"                         K-th board change and search from there, the way a\n" +
+"                         player builds a position in the editor before\n" +
+"                         trying a trick.  The smallest K a run finishes\n" +
+"                         from is the search horizon in board changes.  The\n" +
+"                         .lpb carries the replayed prefix, so it replays\n" +
+"                         from the start and gates like any other -- but it\n" +
+"                         is NOT part of the solver's rate: the output moves\n" +
+"                         to <out>-hint and every report row says\n" +
+"                         hint=push-seed:K.  K=0 is the ordinary root, i.e.\n" +
+"                         the control the sweep is read against\n" +
 "    --push-share R       budget fraction it may run until, default 1.0\n" +
+"\n" +
+"  the scraped goal board (Goal.cs) -- HINT-ASSISTED, read this\n" +
+"    --goal-board FILE    rank the push beam by how far the board still is\n" +
+"                         from the one the blogspot solution finished on, as\n" +
+"                         banked by `tools/harvest.py bank`.  Silent on a\n" +
+"                         level the bank does not cover.  EVERY SOLUTION A RUN\n" +
+"                         WITH THIS PRODUCES IS HINT-ASSISTED AND MUST NEVER\n" +
+"                         ENTER THE SOLVER'S HEADLINE RATE, so the flag moves\n" +
+"                         the default output (solutions -> solutions-hint, and\n" +
+"                         data/solutions -> data/solutions-hint in the\n" +
+"                         interactive driver, which is the one that writes into\n" +
+"                         git), stamps hint=goal-board on every report row, and\n" +
+"                         says so on stdout.  An explicit --out is honoured.\n" +
+"                         What they are worth is docs/solver/history.md, closed\n" +
+"                         item 6: real recordings on off-distribution long\n" +
+"                         levels, which is the sample layer 4 is fit on\n" +
+"    --goal-weight N      weight on the term, default 1, 0 is off.  Untuned;\n" +
+"                         1 is what --push-ferry uses\n" +
+"    --goal-miss N        price of an object the goal board says must be\n" +
+"                         created or destroyed rather than moved -- a brick\n" +
+"                         shot away, a block sunk in water -- default 16.  A\n" +
+"                         cliff, not a gradient: --push-ferry is the term that\n" +
+"                         carries the block and this says which hole is on the\n" +
+"                         blogger's list\n" +
 "\n" +
 "  output\n" +
 "    --trim-ratio R       trim a solution longer than R x the .ghs total (10)\n" +
@@ -397,6 +525,13 @@ namespace LaserTank.Solver
             public int Lanes = 1;
             public int MaxRound = int.MaxValue;
             public bool MaxKeysRecord;
+            public bool BestOfRound;
+            // ON by default: a re-solve that comes back worse than the .lpb
+            // already banked has not finished the level.  It can only bite
+            // under --force, because without it an already-solved level is
+            // skipped before a searcher starts.
+            public bool BeatBanked = true;
+            public double BestRatio = 2.0;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
             public bool Polish = true;
@@ -409,7 +544,18 @@ namespace LaserTank.Solver
             public HashSet<int> Only;      // --levels-list, null when unused
             public string RankDump, LpbList, ProfileOut;
             public bool DoAnalyze;
-            public string AnalyzeTsv, ReadDumpOut, PolishPath, PushLine;
+            public string AnalyzeTsv, ReadDumpOut, PolishPath, PushLine, GoalBoard;
+            public string PushSeed;
+
+            /// --push-seed, replayed: the state every worker's search starts
+            /// from, plus what it took to get there for the report and the
+            /// banner.  Null when the flag was not given; see LoadSeed.
+            public EngineSnapshot Seed;
+            public int SeedK, SeedKeys, SeedChanges;
+
+            /// --goal-board, loaded.  Null when the flag was not given; see
+            /// Goal.cs, and LoadGoals for what a run with it set may not do.
+            public Dictionary<string, GoalBoard> Goals;
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
@@ -451,6 +597,19 @@ namespace LaserTank.Solver
                         case "--beam": a.Opt.BeamWidth = int.Parse(V()); break;
                         case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); break;
                         case "--max-keys-record": a.MaxKeysRecord = true; break;
+                        case "--best-of-round":
+                            a.BestOfRound = true;
+                            // The ratio is optional, so it is only consumed
+                            // when the next token parses as one -- otherwise a
+                            // bare --best-of-round would eat the flag after it.
+                            if (i + 1 < argv.Length
+                                && double.TryParse(argv[i + 1], NumberStyles.Float,
+                                                   CultureInfo.InvariantCulture,
+                                                   out double br))
+                            { a.BestRatio = br; i++; }
+                            break;
+                        case "--beat-banked": a.BeatBanked = true; break;
+                        case "--no-beat-banked": a.BeatBanked = false; break;
                         case "--ida-depth": a.Opt.IdaMaxDepth = int.Parse(V()); break;
                         case "--no-ida": a.Opt.RunIda = false; break;
                         case "--no-beam": a.Opt.RunBeam = false; break;
@@ -461,6 +620,9 @@ namespace LaserTank.Solver
                         case "--closed": a.Opt.CloseOnGenerate = V() != "expand"; break;
                         case "--push": a.Opt.RunPush = true; break;
                         case "--push-beam": a.Opt.PushBeamWidth = int.Parse(V()); break;
+                        case "--push-width-record":
+                            a.Opt.PushWidthRecord = double.Parse(V(), CultureInfo.InvariantCulture);
+                            break;
                         case "--push-per-board": a.Opt.PushPerBoard = int.Parse(V()); break;
                         case "--push-depth": a.Opt.PushDepth = int.Parse(V()); break;
                         case "--push-closure": a.Opt.PushClosureNodes = int.Parse(V()); break;
@@ -469,11 +631,15 @@ namespace LaserTank.Solver
                         case "--push-shot-run": a.Opt.PushShotRun = int.Parse(V()); break;
                         case "--push-stop": a.Opt.PushStop = int.Parse(V()); break;
                         case "--push-fire": a.Opt.PushFire = int.Parse(V()); break;
+                        case "--push-fire-tier": a.Opt.PushFireTier = true; break;
+                        case "--push-rare": a.Opt.PushRare = true; break;
                         case "--push-dead": a.Opt.PushDead = int.Parse(V()); break;
                         case "--push-reach": a.Opt.PushReach = true; break;
                         case "--push-shield": a.Opt.PushShield = int.Parse(V()); break;
                         case "--push-ferry-maze": a.Opt.PushFerryMaze = true; break;
                         case "--push-ferry-match": a.Opt.PushFerryMatch = true; break;
+                        case "--push-phases": a.Opt.PushPhases = true; break;
+                        case "--push-phase-nodes": a.Opt.PushPhaseNodes = long.Parse(V()); break;
                         case "--push-ferry-stage": a.Opt.PushFerryStage = true; break;
                         case "--push-trace-board": a.Opt.PushTrace = true; a.Opt.PushTraceBoard = true; break;
                         case "--push-move-only": a.Opt.PushMoveOnlyK = int.Parse(V()); break;
@@ -488,6 +654,9 @@ namespace LaserTank.Solver
                         case "--push-enables-poses": a.Opt.PushEnablesPoses = int.Parse(V()); break;
                         case "--push-trace": a.Opt.PushTrace = true; break;
                         case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
+                        case "--goal-board": a.GoalBoard = V(); break;
+                        case "--goal-weight": a.Opt.GoalWeight = int.Parse(V()); break;
+                        case "--goal-miss": a.Opt.GoalMiss = int.Parse(V()); break;
                         case "--subgoal": a.Opt.RunSubgoal = true; break;
                         case "--subgoal-first": a.Opt.SubgoalLast = false; break;
                         case "--subgoal-share": a.Opt.SubgoalShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
@@ -517,10 +686,12 @@ namespace LaserTank.Solver
                         case "--analyze-tsv": a.DoAnalyze = true; a.AnalyzeTsv = V(); break;
                         case "--read-dump": a.ReadDumpOut = V(); break;
                         case "--push-line": a.PushLine = V(); break;
+                        case "--push-seed": a.PushSeed = V(); break;
                         case "--read-opens": a.Opt.ReadOpensCap = int.Parse(V()); break;
                         case "--read-antitank-wall":
                             a.Opt.ReadAntiTankWall = true; break;
                         case "--read-enables": a.Opt.ReadEnables = true; break;
+                        case "--read-rare": a.Opt.ReadRareMax = int.Parse(V()); break;
                         case "--sg-no-grow": a.Opt.SgGrow = false; break;
                         case "--macro-beam": a.Opt.MacroBeamWidth = int.Parse(V()); break;
                         case "--macro-depth": a.Opt.MacroDepth = int.Parse(V()); break;
@@ -565,6 +736,9 @@ namespace LaserTank.Solver
                 Console.Error.WriteLine("lasertank-solve: need an existing --levels FILE.lvl");
                 return 2;
             }
+
+            if (LoadGoals(a) != 0) return 2;
+            if (LoadSeed(a) != 0) return 2;
 
             if (a.PolishPath != null) return PolishAll(a);
             if (a.ReadDumpOut != null) return ReadDumpAll(a);
@@ -620,6 +794,143 @@ namespace LaserTank.Solver
             bar.Clear();
             report?.Dispose();
             Summary.Print(collection, rows, (DateTime.UtcNow - t0).TotalSeconds, outDir);
+            return 0;
+        }
+
+        /// --goal-board: load the bank, and put the run's output somewhere an
+        /// honest run's output is not.
+        ///
+        /// **The honesty condition, and it is not a convention -- it is this
+        /// function.**  A level solved against a scraped goal board is
+        /// hint-assisted, and the one thing that must never happen is a
+        /// hint-assisted .lpb landing in the directory whose file count is the
+        /// solver's rate.  So the default output moves rather than the run
+        /// being refused: `solutions-hint` in batch, `data/solutions-hint` in
+        /// the interactive driver (Auto.cs).  An explicit --out is honoured --
+        /// the user has said where -- and the report row carries the stamp
+        /// either way, which is the half a directory name cannot do.
+        ///
+        /// Returns non-zero when the bank will not load.  A bank that half
+        /// parsed is worse than no bank: the levels it silently dropped would
+        /// solve as ordinary levels and be banked as hint-assisted anyway.
+        private static int LoadGoals(Args a)
+        {
+            if (a.GoalBoard == null) return 0;
+            try
+            {
+                a.Goals = GoalBank.Load(a.GoalBoard);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("lasertank-solve: --goal-board " + a.GoalBoard
+                                        + ": " + ex.Message);
+                return 2;
+            }
+
+            string collection = Path.GetFileNameWithoutExtension(a.Levels);
+            int mine = 0;
+            foreach (GoalBoard g in a.Goals.Values) if (g.Collection == collection) mine++;
+            if (!a.OutGiven) a.Out = a.Out + "-hint";
+
+            Console.WriteLine(Ansi.Yellow(
+                "hint-assisted run: --goal-board " + a.GoalBoard + " has "
+                + a.Goals.Count + " goal boards, " + mine + " of them in "
+                + collection + ".  Solutions are NOT part of the solver's rate;"
+                + " every report row says hint=goal-board."));
+            return 0;
+        }
+
+        /// --push-seed FILE.lpb:K -- item 15, and the honesty condition is
+        /// LoadGoals' one, reused rather than re-argued: a win from a human
+        /// prefix is hint-assisted, so the default output moves to
+        /// <out>-hint and every report row carries hint=push-seed:K.
+        ///
+        /// The K-th board change, not the K-th keypress: that is layer 5's own
+        /// unit, the unit basin.py reports the ascent in, and the unit the
+        /// answer is wanted in -- *how many board changes from the end can this
+        /// search finish?*
+        ///
+        /// The path is split at its LAST colon, because a Windows path has one
+        /// of its own two characters in.  K=0 is legal and is the control: the
+        /// ordinary root, run through the same code path, so a sweep's first
+        /// row is comparable with the rest by construction.
+        private static int LoadSeed(Args a)
+        {
+            if (a.PushSeed == null) return 0;
+            int cut = a.PushSeed.LastIndexOf(':');
+            if (cut <= 0 || !int.TryParse(a.PushSeed.Substring(cut + 1), out int k) || k < 0)
+            {
+                Console.Error.WriteLine(
+                    "lasertank-solve: --push-seed wants FILE.lpb:K, K a board-change count");
+                return 2;
+            }
+            string path = a.PushSeed.Substring(0, cut);
+            if (!File.Exists(path))
+            {
+                Console.Error.WriteLine("lasertank-solve: no such recording " + path);
+                return 2;
+            }
+
+            TRECORDREC rec = LevelFile.ReadPlayback(path, out byte[] keys);
+            int level = a.From == a.To ? a.From : rec.Level;
+            // A throwaway Solver, because the replay leaves its engine dirty
+            // (quirk #12) and what travels to the workers is the snapshot.
+            //
+            // The replay's own keystream cap has to hold the whole recording or
+            // it overruns RecBuffer mid-prefix, which surfaces as an index
+            // error from inside the engine rather than as the flag's problem.
+            // The *search's* cap is checked below, against the prefix that
+            // actually came back.
+            SolveOptions seedOpt = Clone(a.Opt);
+            seedOpt.MaxKeys = Math.Max(seedOpt.MaxKeys, keys.Length + 1);
+            Solver t = new Solver(a.Levels, seedOpt);
+            bool ok;
+            try
+            {
+                ok = t.Seed(level, keys, k, out EngineSnapshot seed,
+                            out int used, out int changes, out bool won);
+                a.Seed = seed;
+                a.SeedK = k;
+                a.SeedKeys = used;
+                a.SeedChanges = changes;
+                if (!ok)
+                {
+                    Console.Error.WriteLine(
+                        "lasertank-solve: " + Path.GetFileName(path) + " level " + level
+                        + (won ? " wins at board change " + changes
+                               + ", which is before K=" + k
+                               : " has " + changes + " board changes in " + used
+                                 + " keypresses, fewer than K=" + k));
+                    return 2;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("lasertank-solve: --push-seed: " + ex.Message);
+                return 2;
+            }
+
+            if (a.Seed.KeyLen >= a.Opt.MaxKeys)
+            {
+                Console.Error.WriteLine(
+                    "lasertank-solve: --push-seed replays " + a.Seed.KeyLen
+                    + " keypresses and --max-keys is " + a.Opt.MaxKeys
+                    + ": raise --max-keys above the prefix (the search's depth cap is"
+                    + " the whole keystream, prefix included)");
+                return 2;
+            }
+            if (a.MaxKeysRecord)
+                Console.Error.WriteLine(
+                    "lasertank-solve: --push-seed with --max-keys-record: the cap is"
+                    + " computed from the record and may land under the prefix");
+
+            if (!a.OutGiven && !a.Out.EndsWith("-hint")) a.Out = a.Out + "-hint";
+            a.From = a.To = level;
+            Console.WriteLine(Ansi.Yellow(
+                "hint-assisted run: --push-seed " + Path.GetFileName(path) + " replayed "
+                + a.SeedKeys + " keypresses to board change " + k + " of level " + level
+                + ".  Solutions are NOT part of the solver's rate; every report row says"
+                + " hint=push-seed:" + k + "."));
             return 0;
         }
 
@@ -752,7 +1063,22 @@ namespace LaserTank.Solver
             public Job J;
             public bool Solved, Trimmed, Polished, Replanned;
             public int Keys, Moves, Shots, RawKeys, Depth, Restarts;
+            /// Item 5: phases --push-phases committed to.  Written only
+            /// when it is non-zero, so every report banked before the flag
+            /// existed stays byte-comparable with one written after it.
+            public int Phases;
+            /// Item 14: the width --push-width-record sized for this
+            /// level, written only when it raised one above --push-beam,
+            /// on the same rule Phases follows -- a report banked before
+            /// the flag existed stays byte-comparable with one after it.
+            public int Width;
             public string Method = "-", Stop = "-";
+
+            /// Non-null when this level was solved with something the solver
+            /// did not derive.  "goal-board" is the only value so far; see
+            /// Goal.cs.  It is written into the report row so that a rate
+            /// computed over the report cannot count it by accident.
+            public string Hint;
             public long Nodes;
             public double Ms;
             public string Error;
@@ -813,8 +1139,11 @@ namespace LaserTank.Solver
                     w.WriteString("stop", Stop);
                     w.WriteNumber("depth", Depth);
                     w.WriteNumber("restarts", Restarts);
+                    if (Width > 0) w.WriteNumber("width", Width);
+                    if (Phases > 0) w.WriteNumber("phases", Phases);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
+                    if (Hint != null) w.WriteString("hint", Hint);
                     if (Error != null) w.WriteString("error", Error);
                     w.WriteEndObject();
                 }
@@ -829,13 +1158,34 @@ namespace LaserTank.Solver
             // sharing an options object would race.
             Outcome o = new Outcome { J = job };
             if (a.MaxKeysRecord) opt.MaxKeys = KeyCap(opt.MaxKeys, job);
+            // Item 14: the same shape as the cap above -- a per-level
+            // number the SolveOptions is the only channel for, and the
+            // clone is this job's own, so writing it here races nothing.
+            // RecMax (65500) means "no record", exactly as KeyCap reads it.
+            if (opt.PushWidthRecord > 0 && job.GhsMoves < 65500)
+                opt.RecordShots = job.GhsShots;
             try
             {
                 Solver s = new Solver(a.Levels, opt);
+                if (a.Goals != null && a.Goals.TryGetValue(
+                        GoalBank.Key(Path.GetFileNameWithoutExtension(a.Levels), job.Level),
+                        out GoalBoard g))
+                {
+                    s.SetGoal(g);
+                    o.Hint = "goal-board";
+                }
+                if (a.Seed != null)
+                {
+                    s.SetSeed(a.Seed);
+                    o.Hint = o.Hint == null ? "push-seed:" + a.SeedK
+                                            : o.Hint + "+push-seed:" + a.SeedK;
+                }
                 SolveResult r = s.Solve(job.Level);
                 o.Method = r.Method;
                 o.Stop = r.Stop;
                 o.Restarts = r.Restarts;
+            o.Width = r.Width;
+                o.Phases = r.Phases;
                 o.Nodes = r.Nodes;
                 o.Ms = r.Ms;
                 o.Depth = r.Depth;
@@ -1055,6 +1405,9 @@ namespace LaserTank.Solver
             {
                 int lv = levels[i];
                 Solver s = new Solver(a.Levels, Clone(a.Opt));
+                if (a.Goals != null
+                    && a.Goals.TryGetValue(GoalBank.Key(collection, lv), out GoalBoard g))
+                    s.SetGoal(g);
                 byte[] board = s.StartBoard(lv);
                 Read r = s.Analyze(lv);
                 text[i] = Solver.Format(r, collection, board);
@@ -1245,6 +1598,7 @@ namespace LaserTank.Solver
             ReadOpensCap = s.ReadOpensCap,
             ReadAntiTankWall = s.ReadAntiTankWall,
             ReadEnables = s.ReadEnables,
+            ReadRareMax = s.ReadRareMax,
             PushRead = s.PushRead,
             PushReadOpens = s.PushReadOpens,
             PushEnables = s.PushEnables,
@@ -1275,6 +1629,7 @@ namespace LaserTank.Solver
             SgEval = s.SgEval,
             RunPush = s.RunPush,
             PushBeamWidth = s.PushBeamWidth,
+            PushWidthRecord = s.PushWidthRecord,
             PushPerBoard = s.PushPerBoard,
             PushDepth = s.PushDepth,
             PushClosureNodes = s.PushClosureNodes,
@@ -1283,11 +1638,15 @@ namespace LaserTank.Solver
             PushShotRun = s.PushShotRun,
             PushStop = s.PushStop,
             PushFire = s.PushFire,
+            PushFireTier = s.PushFireTier,
+            PushRare = s.PushRare,
             PushDead = s.PushDead,
             PushReach = s.PushReach,
             PushShield = s.PushShield,
             PushFerryMaze = s.PushFerryMaze,
             PushFerryMatch = s.PushFerryMatch,
+            PushPhases = s.PushPhases,
+            PushPhaseNodes = s.PushPhaseNodes,
             PushFerryStage = s.PushFerryStage,
             PushTraceBoard = s.PushTraceBoard,
             PushMoveOnlyK = s.PushMoveOnlyK,
@@ -1296,6 +1655,8 @@ namespace LaserTank.Solver
             PushTrace = s.PushTrace,
             PushCloseOnExpand = s.PushCloseOnExpand,
             PushFerry = s.PushFerry,
+            GoalWeight = s.GoalWeight,
+            GoalMiss = s.GoalMiss,
             PushRestarts = s.PushRestarts,
             PushShare = s.PushShare,
             Eval = s.Eval,

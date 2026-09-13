@@ -55,7 +55,7 @@ namespace LaserTank.Solver
             bool won = false;
             StringWriter buf = new StringWriter();
 
-            buf.Write("# collection\tlevel\tkey\tx\ty\tflag\twork\tferry\tboard\n");
+            buf.Write("# collection\tlevel\tkey\tx\ty\tflag\twork\tferry\tboard\tholes\n");
             Row(buf, collection, level, 0, false);
             rows++;
 
@@ -79,17 +79,27 @@ namespace LaserTank.Solver
 
         private void Row(TextWriter w, string collection, int level, int key, bool changed)
         {
+            // The push flags decide which of the heuristic's optional
+            // derivations this run pays for, and this has to rank the human's
+            // line by the same key the beam ranks its successors by -- so ask
+            // for them rather than reading whatever the defaults are.  Before
+            // this, `ferry` was the per-hole estimate however the run was
+            // flagged, which is the measure-the-wrong-quantity mistake these
+            // files have paid for three times.
+            WantsFromOptions();
             // FlagDistance first: WorkDistance leaves its own fields on the
             // Heuristic and reading them is not what this wants, but the order
             // is the order the searchers use and keeping it costs nothing.
             int flag = _h.FlagDistance(_e);
             int work = _h.WorkDistance(_e);
-            // Published by the WorkDistance that just ran, so it is read here
-            // and nowhere else -- Heuristic.RouteFerry, layer 5's ferry term.
+            // Published by the WorkDistance that just ran, so both are read
+            // here and nowhere else -- Heuristic.RouteFerry, layer 5's ferry
+            // term, and RouteHoles, the carries that term priced.
             int ferry = _h.RouteFerry;
-            w.Write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\n",
+            int holes = _h.RouteHoles;
+            w.Write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n",
                     collection, level, key, _e.Game.Tank.X, _e.Game.Tank.Y,
-                    flag, work, ferry, changed ? 1 : 0);
+                    flag, work, ferry, changed ? 1 : 0, holes);
         }
 
         /// The playfield alone.  PF2 and the two bitmap fields are deliberately

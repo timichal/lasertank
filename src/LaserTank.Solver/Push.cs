@@ -16,7 +16,7 @@
 // step is "change the board once" -- from 3.2x beyond anything ever solved to
 // 2x the p90, which is the range width and restarts already reach.  That is the
 // whole argument for this layer, and it is an argument about *this level*; the
-// instrument now exists to check it on others (SOLVER.md, "Why the search
+// instrument now exists to check it on others (docs/solver/layers.md, "Why the search
 // fails on long levels").
 //
 // **What the action set is.**  From a state, everything the tank can do without
@@ -102,7 +102,13 @@ namespace LaserTank.Solver
         // successors.  The number to watch is _pxAdv against _pxSucc -- a tier
         // that promotes almost everything is a no-op that costs a Dijkstra, and
         // one that promotes almost nothing is a filter the beam cannot use.
-        private long _pxSucc, _pxAdv, _pxEnab, _pxBarrier, _pxNoBarrier;
+        private long _pxSucc, _pxAdv, _pxEnab, _pxBarrier, _pxNoBarrier, _pxRare;
+
+        // --push-trace with --push-fire-tier: successors promoted to TierFire.
+        // Counted here rather than in ReadCount because FireTier runs after it
+        // -- which is also why a TierFire node never inflates _pxAdv, and the
+        // read's line goes on measuring the read.
+        private long _pxFire, _pxFireSeen;
 
         /// `Game.PF` flattened, in the same layout `EngineSnapshot.PF` uses.
         private void CopyBoard(byte[] into) => Buffer.BlockCopy(_e.Game.PF, 0, into, 0, 256);
@@ -131,6 +137,34 @@ namespace LaserTank.Solver
             return fresh;
         }
 
+        /// The banked goal board for the level being solved, or null.
+        ///
+        /// Handed in by the harness rather than loaded here: the bank is one
+        /// file for a whole collection and a Solver is one level, so parsing it
+        /// per level would parse it per level.  Null on every level the bank
+        /// does not cover, which is what turns the term off -- see
+        /// SolveOptions.GoalWeight.
+        private GoalMetric _goal;
+
+        /// The banked record behind _goal, kept for what it says rather than
+        /// for what it measures: which flag's screenshot this is, and the
+        /// blogger's own move and shot counts.  --analyze prints them.
+        private GoalBoard _goalOf;
+
+        /// --goal-board.  See Goal.cs for what is banked and why a level solved
+        /// against it is hint-assisted.
+        public void SetGoal(GoalBoard g)
+        {
+            _goalOf = g;
+            _goal = g == null ? null : new GoalMetric(g.PF, _opt.GoalMiss);
+        }
+
+        public bool HasGoal => _goal != null;
+
+        /// Cells of the current board that still differ from the goal board.
+        /// The number to report; GoalMetric.Distance is the number to rank by.
+        public int GoalDiffering() => _goal == null ? -1 : _goal.Differing(_e);
+
         /// Whether the board PushH last scored has a hole on its route that
         /// no live block can fill.  Set by PushH and read by the Node it is
         /// scoring, which is the only caller and reads it immediately: an
@@ -138,15 +172,15 @@ namespace LaserTank.Solver
         /// before `Tier = _lastDead ? ...`.  See TierLost.
         private bool _lastDead;
 
-        /// The ranking key.
-        ///
-        /// WorkDistance, plus PushFerry times Heuristic.RouteFerry -- the term
-        /// that makes carrying a block towards water score better than not
-        /// carrying it, without which this layer ranks an entire ferry as a
-        /// plateau and searches it breadth-first.  Read straight after
-        /// WorkDistance, which is what publishes it; the same coupling
-        /// Subgoal.cs's Rank() has, for the same reason.
-        private int PushH()
+        /// Which of the heuristic's optional derivations this run pays for,
+        /// off the push flags.  Extracted from PushH verbatim -- same
+        /// assignments in the same order, still immediately before the
+        /// WorkDistance that reads them -- because --profile has to rank the
+        /// human's line by the *same* key the beam ranks its successors by, and
+        /// before this it silently read the defaults: layer 5's ferry column in
+        /// build/prof.tsv was the per-hole estimate whatever --push-ferry-match
+        /// said on the command line.
+        private void WantsFromOptions()
         {
             _h.WantStop = _opt.PushStop > 0;
             _h.WantReach = _opt.PushReach;
@@ -158,6 +192,19 @@ namespace LaserTank.Solver
             _h.WantMaze = _opt.PushFerryMaze;
             _h.WantStage = _opt.PushFerryStage;
             _h.WantMatch = _opt.PushFerryMatch || _opt.PushFerryStage;
+        }
+
+        /// The ranking key.
+        ///
+        /// WorkDistance, plus PushFerry times Heuristic.RouteFerry -- the term
+        /// that makes carrying a block towards water score better than not
+        /// carrying it, without which this layer ranks an entire ferry as a
+        /// plateau and searches it breadth-first.  Read straight after
+        /// WorkDistance, which is what publishes it; the same coupling
+        /// Subgoal.cs's Rank() has, for the same reason.
+        private int PushH()
+        {
+            WantsFromOptions();
             int work = _h.WorkDistance(_e);
             int ferry = _opt.PushFerry > 0 && _h.RouteFerry > 0
                       ? _opt.PushFerry * _h.RouteFerry : 0;
@@ -182,8 +229,28 @@ namespace LaserTank.Solver
             // tuned because the learned term was inert.  Under `work` it is
             // Rank() that carries the scale and the ratio cancels.
             int hand = _opt.PushEval == RankKey.Learned ? HandScale : Eval.Scale;
-            return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield);
+            // The scraped goal board, when the level has one.  The only term in
+            // here that is not derived from the level, and the reason a run
+            // with it set is hint-assisted and outside the headline rate: see
+            // Goal.cs.  Computed below the RankKey.None return rather than
+            // beside the other addends, because it is a board scan and an
+            // assignment and a key that is about to discard it should not pay
+            // for it.
+            int goal = _goal != null && _opt.GoalWeight > 0
+                     ? _opt.GoalWeight * _goal.Distance(_e) : 0;
+            return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield + goal);
         }
+
+        /// The fire map of the board the engine is standing on *right now*,
+        /// as a count, for the successor about to be emitted.
+        ///
+        /// Read straight after PushH in the same object initializer, which is
+        /// the same coupling `_lastDead` has and works for the same reason: an
+        /// object initializer assigns in source order.  The engine still holds
+        /// the successor at that point, so this costs one board scan and no
+        /// Restore -- and nothing at all when the tier is off, which is what
+        /// keeps every measurement taken before this flag reproducible.
+        private int SweptNow() => _opt.PushFireTier ? _h.FireCells(_e) : 0;
 
         // ---- restarts ------------------------------------------------------
 
@@ -228,8 +295,12 @@ namespace LaserTank.Solver
         /// the share the portfolio gave the searcher.
         private SolveResult PushSearch(EngineSnapshot root)
         {
-            _pushWidth = _opt.PushBeamWidth;
+            _pushWidth = RecordWidth(root, out int sized);
             _pushPerBoard = _opt.PushPerBoard;
+            // Once per level, not once per expansion: the census is of the
+            // authored board, which is a static property of the level.  256
+            // comparisons, and a restart re-uses the same table.
+            if (_opt.PushRare) RareCensus(_rareMult);
             SolveResult r = PushBeam(root);
             int attempts = 0;
 
@@ -252,7 +323,68 @@ namespace LaserTank.Solver
             }
 
             r.Restarts = attempts;
+            r.Width = sized;
             return r;
+        }
+
+        /// Item 14: the width this level's own record affords, raise-only.
+        ///
+        /// The driver ladders width *globally* -- 8, 48, 128, 512, 2,048 -- so
+        /// a level whose record says 12 board changes and one that says 168 are
+        /// searched at the same width in the same round.  Layer 8's framing
+        /// arithmetic prices a beam at `closure x width x board changes`, and
+        /// both of the factors that are not the width can be had per level for
+        /// nothing: the record's shot count *is* this layer's depth (p50 1.00
+        /// over the 20 hand recordings, exact on level 6's 168), and the root
+        /// pose closure is the closure.  So the width the budget affords is
+        ///
+        ///     remaining budget / (poses x record shots x F)
+        ///
+        /// where F is what the estimate is wrong by -- see PushWidthRecord for
+        /// the calibration, which spreads over two and a half orders of
+        /// magnitude and is why F is a flag.
+        ///
+        /// **Raise-only**, so nothing that terminates today stops terminating:
+        /// the floor is whatever --push-beam asked for, and a level with no
+        /// record, or one whose estimate lands under that floor, runs exactly
+        /// as it does with the flag off.  In the driver that makes the estimate
+        /// a floor under every round rather than a new round-1 the ladder
+        /// doubles from -- the ladder takes back over at whichever round first
+        /// exceeds it.
+        ///
+        /// The closure costs what one expansion of this layer costs (~4,500
+        /// ApplyKey calls, and they are charged to the budget like any other),
+        /// once per level, against a pass measured at 40M.
+        ///
+        /// Under --push-phases this runs once per *phase* rather than once per
+        /// level, because Phase.cs re-enters PushSearch at each committed
+        /// milestone -- so a later phase, with less budget left and a different
+        /// board under it, is sized narrower.  That is the right answer for the
+        /// same reason the budget is the remaining one and not the level's, but
+        /// no run has measured the two flags together; both are off by default.
+        private int RecordWidth(EngineSnapshot root, out int sized)
+        {
+            sized = 0;
+            int floor = _opt.PushBeamWidth;
+            if (_opt.PushWidthRecord <= 0 || _opt.RecordShots <= 0) return floor;
+
+            byte[] board = new byte[256];
+            _e.Restore(root);
+            CopyBoard(board);
+            bool[] region = new bool[256];
+            List<EngineSnapshot> poses = PoseClosure(root, board, region, out _);
+            int n = poses.Count;
+            Drain(poses);
+            if (n <= 0) return floor;
+
+            long left = Math.Max(0, _stageNodes - _nodes);
+            double est = left / (n * (double)_opt.RecordShots * _opt.PushWidthRecord);
+            // The same cap a restart's doubling stops at: a layer-5 depth costs
+            // width x ~4,500 ApplyKey calls, so a wider one cannot finish a
+            // depth at any budget this project runs at.
+            int w = (int)Math.Min(9600, Math.Max(floor, est));
+            if (w > floor) sized = w;
+            return w;
         }
 
         // ---- the beam over board changes -----------------------------------
@@ -304,7 +436,7 @@ namespace LaserTank.Solver
                         depth, next.Count, DistinctBoards(next),
                         // In work units: H is Eval.Scale fixed point since the
                         // divide came out of Eval.Score, and every reading of
-                        // this column in SOLVER.md is a work distance.
+                        // this column in docs/solver/ is a work distance.
                         next.Count > 0 ? next[0].H / Eval.Scale : -1,
                         _pxCount > 0 ? _pxClosure / _pxCount : 0, _pxTrunc, _nodes,
                         _pxSterile, _pxCount);
@@ -312,12 +444,39 @@ namespace LaserTank.Solver
                     if (_opt.PushRead)
                         Console.Error.WriteLine(
                             "        read: {0}/{1} successors advanced ({2}%), "
-                            + "of them enables-only {5}, "
+                            + "of them enables-only {5}, rare {6} ({7}%), "
                             + "expansions with a barrier {3}, without {4}",
                             _pxAdv, _pxSucc, _pxSucc > 0 ? 100 * _pxAdv / _pxSucc : 0,
-                            _pxBarrier, _pxNoBarrier, _pxEnab);
+                            _pxBarrier, _pxNoBarrier, _pxEnab, _pxRare,
+                            _pxSucc > 0 ? 100 * _pxRare / _pxSucc : 0);
+                    // The selectivity of the fire tier, which is the number
+                    // that decides whether it is a filter at all: promote
+                    // almost everything and it is a no-op, almost nothing and
+                    // the beam cannot use it.  _pxSucc is the read's
+                    // denominator and is only counted when the read is on, so
+                    // this prints its own.
+                    if (_opt.PushFireTier)
+                        Console.Error.WriteLine(
+                            "        fire: {0}/{1} successors sweep fewer cells ({2}%), "
+                            + "frontier sweeps {3} at best, {4} at least",
+                            _pxFire, _pxFireSeen,
+                            _pxFireSeen > 0 ? 100 * _pxFire / _pxFireSeen : 0,
+                            next.Count > 0 ? next[0].Swept : -1, LeastSwept(next));
                     _pxClosure = _pxCount = _pxTrunc = _pxSterile = 0;
-                    _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = 0;
+                    _pxSucc = _pxAdv = _pxEnab = _pxBarrier = _pxNoBarrier = _pxRare = 0;
+                    _pxFire = _pxFireSeen = 0;
+                }
+
+                // Item 5: this depth consumed something, so the phase is over
+                // and PushPhases commits to the board it found.  Placed after
+                // the trace so a --push-trace run still prints the depth that
+                // ended the phase, and before the frontier swap because that
+                // frontier is about to be thrown away by the commit anyway.
+                if (_opt.PushPhases && PhaseDone)
+                {
+                    r.Stop = "push-phase";
+                    Recycle(frontier, next);
+                    return r;
                 }
 
                 foreach (Node n in frontier) Give(n.S);
@@ -429,12 +588,18 @@ namespace LaserTank.Solver
                 next.Add(new Node
                 {
                     S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = after,
-                    Tier = _lastDead ? TierLost : 0,
+                    Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                 });
             }
 
             if (truncated) KeepBestPoses(closure, seen, layer, next);
             if (_opt.PushRead) ReadTier(at, closure, next, first);
+            if (_opt.PushFireTier) FireTier(at, next, first);
+            // Item 5, and last on purpose: a milestone is recorded with the
+            // Tier every derivation above has finished assigning, so the
+            // chain's choice between two milestones is the beam's own order
+            // rather than a second opinion about it.
+            if (_opt.PushPhases) PhaseMark(next, first);
             if (_opt.PushTrace)
             {
                 _pxClosure += closure.Count;
@@ -509,7 +674,13 @@ namespace LaserTank.Solver
         /// one.  --push-trace says a depth's best score; on a level whose
         /// ranking key has gone flat that is exactly the number that does not
         /// tell you what the beam is looking at.
-        private static void TraceBoard(Node n)
+        private static void TraceBoard(Node n) => TraceBoard(n.S, n.H / Eval.Scale);
+
+        /// Item 5 prints the board it is about to *commit* to, which is a
+        /// snapshot and not a Node -- and that board is the one thing about a
+        /// phase chain that has to be readable, because a chain that commits to
+        /// a dead board looks exactly like a chain whose next phase is hard.
+        private static void TraceBoard(EngineSnapshot s, int h)
         {
             const string Name = ".TF~#Bb^>v<mnopURDLCqwerIi";
             System.Text.StringBuilder b = new System.Text.StringBuilder();
@@ -518,11 +689,11 @@ namespace LaserTank.Solver
                 b.Append("        ");
                 for (int x = 0; x < 16; x++)
                 {
-                    byte c = n.S.PF[x * 16 + y];
+                    byte c = s.PF[x * 16 + y];
                     b.Append(c < Name.Length ? Name[c] : '?');
                 }
-                if (y == 0) b.Append("   tank ").Append(n.S.Tank.X).Append(',').Append(n.S.Tank.Y);
-                if (y == 1) b.Append("   h=").Append(n.H / Eval.Scale);
+                if (y == 0) b.Append("   tank ").Append(s.Tank.X).Append(',').Append(s.Tank.Y);
+                if (y == 1) b.Append("   h=").Append(h);
                 b.Append(Environment.NewLine);
             }
             Console.Error.Write(b.ToString());
@@ -571,7 +742,7 @@ namespace LaserTank.Solver
                     next.Add(new Node
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
-                        Tier = _lastDead ? TierLost : 0,
+                        Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                     });
 
                 if (k >= _opt.PushRun) return false;
@@ -620,7 +791,7 @@ namespace LaserTank.Solver
                     next.Add(new Node
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
-                        Tier = _lastDead ? TierLost : 0,
+                        Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                     });
 
                 if (k >= _opt.PushShotRun) return false;
@@ -728,12 +899,52 @@ namespace LaserTank.Solver
         /// them, and `enables` names three of seven and hits nine of ten.  A
         /// derivation that is more selective *and* more accurate belongs in
         /// front of one that is neither.
-        private const int TierAdvance = 0;   // the read says this exists for a reason
-        private const int TierEnables = 1;   // ...or at least it makes something new possible
-        private const int TierOpens = 2;     // ...or it puts the tank somewhere new to stand
-        private const int TierOther = 3;     // a board change the read is silent about
-        private const int TierPose = 4;      // the truncation escape hatch
-        private const int TierLost = 5;      // ...and a board that cannot win
+        ///
+        /// TierRare is item 17's and it goes in front of all of them, on the
+        /// same rule that placed TierEnables and by the widest margin the read
+        /// has measured: over the twenty hand recordings' 800 board changes
+        /// `rare` names 5.1% of the successors offered and is what the human
+        /// did 16.0% of the time -- 3.15x, against 1.43x for `advance`, 1.40x
+        /// for `opens` and 1.34x for `enables`.  Most selective *and* most
+        /// accurate, which is the condition, and the cheapest of the four to
+        /// compute besides: no pose closure and no second enumeration, one
+        /// scan of the delta against a census taken once per level.
+        ///
+        /// Inserting a tier at 0 shifts every constant below it by one and
+        /// **that changes the number --push-line prints in its tier column** --
+        /// the same caveat session 31 recorded when TierFire was inserted at 3.
+        /// Nothing else reads a tier as a value: Cut(), PushCut and the three
+        /// other beams all sort on it.
+        private const int TierRare = 0;      // the author placed few of these, so it is there for a reason
+        private const int TierAdvance = 1;   // the read says this exists for a reason
+        private const int TierEnables = 2;   // ...or at least it makes something new possible
+        private const int TierOpens = 3;     // ...or it puts the tank somewhere new to stand
+        private const int TierFire = 4;      // ...or it takes cells away from the anti-tanks
+        private const int TierOther = 5;     // a board change nothing above has spoken for
+        private const int TierPose = 6;      // the truncation escape hatch
+        private const int TierLost = 7;      // ...and a board that cannot win
+
+        // TierFire is item 5's, and it sits *below* all three of the read's
+        // derivations rather than among them, for the reason TierEnables sits
+        // where it does: it can then reorder nothing except the group the read
+        // was already silent about.  On the population it is for that group is
+        // everything -- a GAUNTLET's barrier set is empty by construction, so
+        // `on the barrier` names 0 of 63,454 expansions on `LaserTank.lvl` 10
+        // and the read's other two are conditional on the route it never
+        // settles -- and on a ferry level, where the read does speak, the tier
+        // is behind it and cannot dilute it.  See FireTier.
+
+        /// The tier a board change is emitted at, before any pass has spoken.
+        ///
+        /// TierAdvance normally, which is what every configuration measured
+        /// before the fire tier used, and what makes `--push-read off`
+        /// reproduce layer 5's ordering.  But with the read off there is no
+        /// pass to assign tiers at all, so there would be nothing above
+        /// TierAdvance for a fire tier to promote *into*; that one combination
+        /// emits at TierOther instead, which moves every board change by the
+        /// same constant and so leaves the ordering among them alone.
+        private int EmitTier => _opt.PushFireTier && !_opt.PushRead
+                              ? TierOther : TierAdvance;
 
         // TierLost is set at emission rather than by the read, because it is
         // the one thing here that is not an opinion about which successor is
@@ -748,6 +959,23 @@ namespace LaserTank.Solver
         // only an ordering: when everything on offer is lost they are all still
         // there, which is what keeps a conservative test from being able to
         // refuse a level.  Off unless --push-dead is.
+
+        /// Item 17's test, asked of one successor.
+        ///
+        /// `RareOfDelta` is the function --read-dump scores the *human's* move
+        /// with, called on the same pair of boards, so the tier and the 3.15x
+        /// that earned it cannot drift apart.  The census behind it is
+        /// `Level.PF` -- the board as authored, not the one being searched --
+        /// which is why it is taken once in PushSearch and not per expansion.
+        ///
+        /// One scan of 256 cells against ReadAdvances' own scan of the same
+        /// delta at the same point, so the cost is a second pass over a board
+        /// inside an expansion of ~4,500 ApplyKey calls.
+        private bool RarePush(byte[] before, byte[] after)
+        {
+            int r = RareOfDelta(_rareMult, before, after);
+            return r > 0 && r <= _opt.ReadRareMax;
+        }
 
         /// Tier this expansion's successors by the read.
         ///
@@ -781,6 +1009,7 @@ namespace LaserTank.Solver
             {
                 Node n = next[i];
                 if (n.Tier == TierPose || n.Tier == TierLost) continue;
+                if (_opt.PushRare && RarePush(before, n.S.PF)) { n.Tier = TierRare; continue; }
                 n.Tier = ReadAdvances(before, n.S.PF) ? TierAdvance : TierOther;
                 if (n.Tier == TierOther) untiered++;
             }
@@ -949,6 +1178,85 @@ namespace LaserTank.Solver
             return found;
         }
 
+        /// --push-trace only: the least exposed board the frontier holds.
+        ///
+        /// The column the fire tier has to be read by, and `best=` is not it:
+        /// that one is a work distance, so a tier that trades distance for
+        /// exposure makes it *worse* by construction and the instrument would
+        /// report the layer doing harm while it did exactly what it says.  This
+        /// file has paid for that mistake twice already.
+        private static int LeastSwept(List<Node> next)
+        {
+            int least = -1;
+            foreach (Node n in next)
+                if (least < 0 || n.Swept < least) least = n.Swept;
+            return least;
+        }
+
+        // ---- item 5: the fire map as a tier ---------------------------------
+
+        /// **Does this change take cells away from the anti-tanks?**
+        ///
+        /// Session 29 traced `LaserTank.lvl` 10 for 27 minutes and the finding
+        /// was one column: the read named a barrier on **0 of 63,454
+        /// expansions**, because a GAUNTLET has no terrain to clear and its
+        /// barrier set is empty *by construction*.  Layers 6, 7 and 8 are
+        /// therefore all inert on it, the beam is left ranking 1,024 distinct
+        /// playfields by work distance alone, and `best=` bottoms out at 22 by
+        /// depth 18 and then *regresses* to 28 and holds it for the last 28
+        /// depths.  Depth was not the constraint -- the run reached d=63, past
+        /// the 53 board changes of the hand line, with `trunc=0` throughout.
+        ///
+        /// On such a board the quantity that has to fall is not distance to the
+        /// flag, it is **exposure**.  `--push-fire` already prices exposure,
+        /// and this file's sixth rule says why that is not enough: it is an
+        /// addend inside PushH, and on a board covered by ten anti-tanks every
+        /// successor of every held board pays it, so it raises the best score
+        /// and steers nothing.  The rule's own prescription is a tier, which is
+        /// what this is -- layer 7's shape (`--push-stop` promotes on a
+        /// relation to a cell, not on a distance) applied to a map layer 8
+        /// already computes.
+        ///
+        /// The test is strict and it is a count, not a model: a successor whose
+        /// board leaves the anti-tanks sweeping *fewer* enterable cells than
+        /// the parent's did is promoted.  Level 10's own mechanic is exactly
+        /// that and `--analyze` prints it -- shooting the anti-tank at (1,13)
+        /// pushes it up into row 12, which the anti-tank at (15,12) already
+        /// covers, so row 13 comes free and the read calls it "+33 cells to
+        /// stand in".  A shot that merely rearranges the same coverage does not
+        /// qualify, and neither does one that trades a row for a row.
+        ///
+        /// Three things keep it cheap enough to ask of every successor, which
+        /// is the whole reason it is worth having beside `opens` -- `opens` is
+        /// the better question and costs a pose closure apiece, so it is
+        /// rationed by `--push-read-opens` and on level 10 promoted 2 of
+        /// 526,164:
+        ///
+        ///   * the count rides along with the successor (Node.Swept, filled in
+        ///     at emission from the fire map PushH has just built), so this
+        ///     pass adds one board scan per *expansion* and none per successor;
+        ///   * a board no anti-tank covers returns immediately, so the pass is
+        ///     free on the half of the corpus that is a ferry;
+        ///   * it is an ordering that cannot refuse a state, so when nothing
+        ///     reduces exposure the frontier is exactly what it was.
+        private void FireTier(EngineSnapshot at, List<Node> next, int first)
+        {
+            if (next.Count <= first) return;
+            _e.Restore(at);
+            int was = _h.FireCells(_e);
+            if (was == 0) return;        // no anti-tank covers this board
+
+            for (int i = first; i < next.Count; i++)
+            {
+                Node n = next[i];
+                if (n.Tier != TierOther) continue;
+                if (_opt.PushTrace) _pxFireSeen++;
+                if (n.Swept >= was) continue;
+                n.Tier = TierFire;
+                if (_opt.PushTrace) _pxFire++;
+            }
+        }
+
         /// --push-trace only: the tiering as it finally stands, counted after
         /// every derivation has run.  Counting it before the `opens` pass was
         /// the first version and it reported 0% where the truth was 40% -- an
@@ -963,6 +1271,7 @@ namespace LaserTank.Solver
                 _pxSucc++;
                 if (next[i].Tier < TierOther) _pxAdv++;
                 if (next[i].Tier == TierEnables) _pxEnab++;
+                if (next[i].Tier == TierRare) _pxRare++;
             }
         }
     }

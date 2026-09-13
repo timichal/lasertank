@@ -13,7 +13,7 @@
 //   Macro   (Macro.cs) searches Goto + Shoot instead of keypresses, so its
 //           depth is the number of shots.  It wins on shallow, branchy levels
 //           and loses on deep ones -- the measurement, and why, is in
-//           SOLVER.md's layer 1 section.  --macro-share splits the budget.
+//           docs/solver/layers.md's layer 1 section.  --macro-share splits the budget.
 //
 // All three drive Engine.ApplyKey, i.e. the real tick through the real
 // RecBuffer.  There is no separate "model of the game" anywhere in the solver
@@ -106,6 +106,13 @@ namespace LaserTank.Solver
                                            // only as a threat.  Off is what every
                                            // rung below layer 8 was tuned against;
                                            // see ReadDerive
+        public int ReadRareMax = 2;        // item 16's first derivation: how many
+                                           // cells of its own kind an element may
+                                           // have on the authored board and still
+                                           // count as one the level has few of.
+                                           // Instrument only -- nothing tiers on
+                                           // it until --read-dump says the human
+                                           // prefers rare elements at all
         public bool ReadEnables;           // layer 6's fourth derivation, instrument
                                            // only: after this change, is there a
                                            // board change the tank could not make
@@ -289,6 +296,32 @@ namespace LaserTank.Solver
         public int PushStop = 0;           // weight on Heuristic.RouteStop; 0 is off
         public int PushFire = 0;           // price of a swept cell in the route
                                            // Dijkstra; 0 is off
+        public bool PushFireTier = false;  // the same fire map as a *tier*: a
+                                           // successor that sweeps fewer cells
+                                           // than its parent ranks above one
+                                           // that only shortens the walk
+        /// Item 5: search for one *phase* at a time and commit to the board it
+        /// found.  A phase ends at a milestone -- a successor whose board holds
+        /// strictly fewer consumable objects than the phase's own root -- and
+        /// the chain then re-enters the beam from that board with a fresh
+        /// closed set.  See Phase.cs; a level with no milestone runs as one
+        /// phase, i.e. exactly as it does with this off.
+        public bool PushPhases = false;
+
+        /// Nodes one phase may spend before the chain takes the best milestone
+        /// it holds, 0 to commit only where the search would otherwise give up.
+        ///
+        /// Off by default, and PhaseDone carries the two commit laws that were
+        /// measured and refused before this one -- including the one that cost
+        /// `LaserTank.lvl` 20, a level the plain beam solves.
+        public long PushPhaseNodes = 0;
+
+        public bool PushRare = false;      // item 16's first derivation as the
+                                           // read's *top* tier: a change that
+                                           // touches an element the author
+                                           // placed --read-rare N or fewer of.
+                                           // Needs --push-read; the promotion
+                                           // is inside ReadTier.  See TierRare
         public int PushDead = 0;           // weight on Heuristic.RouteDead; 0 is off
         public bool PushFerryStage = false;// one carry at a time; implies match
         public bool PushFerryMatch = false;// spend each block once: the ferry
@@ -336,8 +369,48 @@ namespace LaserTank.Solver
         public int PushHandScale = 0;
 
         public int PushFerry = 1;          // weight on Heuristic.RouteFerry; 0 is off
+
+        // ---- the scraped goal board (Goal.cs) ------------------------------
+        //
+        // Off unless --goal-board named a bank AND the level being solved is in
+        // it, which is why there is no boolean here: the weight is the switch
+        // and the Solver's _goal is null on every level the bank does not
+        // cover.  Untuned -- 1 is RouteFerry's weight and nothing has been
+        // measured against any other value, because this is opt-in and every
+        // solution it produces is hint-assisted and outside the headline rate.
+        public int GoalWeight = 1;
+        public int GoalMiss = 16;          // price of an object that has to be
+                                           // created or destroyed rather than
+                                           // moved; see GoalMetric
+
         public int PushRestarts = 6;       // extra attempts after a dead-end, each
                                            // doubling the width; 0 is off
+
+        /// Item 14: size the beam from the level's own record instead of from
+        /// a global ladder, as the calibration factor F in
+        /// `width = budget / (poses x record shots x F)`.
+        ///
+        /// Layer 8's framing arithmetic is `closure x width x board changes`
+        /// against the node budget.  The record supplies the board changes --
+        /// over the 20 hand recordings, changes / .ghs shots is p50 **1.00** --
+        /// and the root pose closure supplies the first factor, so the width
+        /// the budget affords is the third.  F is what the estimate is *wrong*
+        /// by: over `l8fire`'s 66 solved levels at a known width of 128,
+        /// `nodes / (poses x width x ghs_shots)` reads p10 1.9 / p25 4.6 /
+        /// **p50 14.2** / p75 59.9 / p90 446.  Two and a half orders of
+        /// magnitude, so this sizes an order of magnitude and not a width, and
+        /// F is a flag rather than a constant for exactly that reason.
+        ///
+        /// **Raise-only, like `--max-keys-record`**: the floor is whatever
+        /// PushBeamWidth already asked for, so a run carrying this can reach
+        /// every board the same run without it could, and a level with no
+        /// record keeps the global width.  0 is off.
+        public double PushWidthRecord = 0;
+
+        /// The level's `.ghs` shot count, standing in for its board changes.
+        /// Set per job by Program.SolveOne when PushWidthRecord is on, 0 when
+        /// the level has no record; nothing else reads it.
+        public int RecordShots = 0;
         public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs
         public bool PushTrace = false;     // per-depth diagnostics to stderr
         public double PushShare = 1.0;
@@ -383,6 +456,11 @@ namespace LaserTank.Solver
         public string Method = "-";
         public string Stop = "-";          // why it gave up, when it did
         public int Restarts;               // layer 3: extra attempts spent
+        public int Width;                  // item 14: the width the record
+                                           // sized, 0 unless --push-width-record
+                                           // raised it above the global
+        public int Phases;                 // item 5: phases committed to before
+                                           // this result, 0 without --push-phases
         public long Nodes;
         public double Ms;
         public int Depth;                  // keypresses in the winning path
@@ -440,6 +518,21 @@ namespace LaserTank.Solver
             _stageNodes = (long)(_opt.NodeBudget * share);
         }
 
+        /// --push-seed's root: a recording's prefix, replayed into a throwaway
+        /// engine and handed here (Line.cs Seed, Program.LoadSeed).  Null for
+        /// an ordinary run, which is every run in every number these files
+        /// quote -- a seeded win is hint-assisted and says so in its report row.
+        ///
+        /// It carries its own keystream: EngineSnapshot.Keys is the path to the
+        /// state, Restore copies it back into RecBuffer, and every successor
+        /// extends it -- so the .lpb a seeded run writes replays from the level
+        /// start like any other and goes through the same two-engine gate.  That
+        /// is the whole reason the prefix travels as a snapshot rather than as a
+        /// board.
+        private EngineSnapshot _seed;
+
+        public void SetSeed(EngineSnapshot seed) { _seed = seed; }
+
         /// Fresh engine at the level's start position, configured exactly as the
         /// replay driver configures it.
         private EngineSnapshot Root(int level)
@@ -448,6 +541,19 @@ namespace LaserTank.Solver
             if (!_e.LoadLevel(_lvlPath, level))
                 throw new ArgumentException("no level " + level + " in " + _lvlPath);
             _e.BeginSearch(_opt.MaxKeys);
+            if (_seed != null)
+            {
+                // BeginSearch has just sized RecBuffer to MaxKeys, and Restore
+                // copies the prefix into it: a cap below the prefix is not a
+                // short search, it is an out-of-range copy.  --max-keys 5000
+                // is in the recipe for this reason.
+                if (_seed.KeyLen >= _opt.MaxKeys)
+                    throw new ArgumentException(
+                        "--push-seed prefix is " + _seed.KeyLen + " keys and --max-keys is "
+                        + _opt.MaxKeys + ": raise --max-keys above the prefix");
+                _e.Restore(_seed);
+                return _e.Snapshot();
+            }
             // The tick's FindTank/PutLevel pass has not run yet; ApplyKey's
             // first Tick does it, exactly as the driver's first tick does.
             return _e.Snapshot();
@@ -509,7 +615,7 @@ namespace LaserTank.Solver
                 Stage(_opt.PushShare);
                 if (!OutOfBudget)
                 {
-                    SolveResult p = PushSearch(root);
+                    SolveResult p = _opt.PushPhases ? PushPhases(root) : PushSearch(root);
                     if (p.Solved) return Finish(p, "push");
                     r = p;
                 }
@@ -584,6 +690,13 @@ namespace LaserTank.Solver
             /// Layer 0's beam and layer 1's macro beam leave it at 0 and are
             /// unaffected.
             public int Tier;
+
+            /// Heuristic.FireSwept for this successor's playfield -- how many
+            /// enterable cells an anti-tank sweeps on it.  Filled in at
+            /// emission by layer 5 when --push-fire-tier is on, so that the
+            /// tier can compare it against the parent's without a second scan;
+            /// left at 0 by every other layer and by every other flag.
+            public int Swept;
         }
 
         /// When a beam closes a state -- and it is a policy, not a bug, which
