@@ -25,9 +25,9 @@ plays the original's sixteen WAVs off the sound ids the tick itself computes, un
 restores a position, picks levels and shows both high-score lists out of `.lvl`/`.hs`/`.ghs`, writes
 a `.hs` the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all three
 speeds, takes the mouse both as a *move order* through the original's own `MouseOperation` and as
-the editor's brush, edits and saves a `.lvl` byte-faithfully, shows its UI in any of the original's
-ten translations, and remembers its settings in a `LaserTank.ini` with the original's own section
-and key names.
+the editor's brush, edits and saves a `.lvl` byte-faithfully, labels the board A1–P16 on all four
+sides the way `WM_PAINT` does, shows its UI in any of the original's ten translations, and remembers
+its settings in a `LaserTank.ini` with the original's own section and key names.
 
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
@@ -111,57 +111,7 @@ python tools/sweep.py                            # everything on engines.py read
 
 Nothing is blocked. Roughly in the order they are worth doing.
 
-### ~~1. i18n: ISO language codes~~ — **done 2026-09-08**
-
-`data/language/` is `en.json`, `fr.json`, `de.json`, `nl.json`, `pt.json`, `es.json`, `sv.json`,
-`hr.json`, `zh-Hans.json`, `zh-Hant.json`; the `code` field inside each, `Language.BaseCode`, the
-picker's rows and `[DATA] Language` all carry the same ISO code. What is left of the original's
-**installer-directory** names is the left column of one table, `LANGUAGES` in
-`tools/convert_language.py`, which is where `original/src/Setups/<dir>/` is frozen and therefore
-where the pairing has to live:
-
-| `Setups/` | ISO | display name | source codepage |
-|---|---|---|---|
-| `US` | `en` | English (the base language) | cp1252 |
-| `Fr` | `fr` | French | cp1252 |
-| `De` | `de` | German | cp1252 |
-| `Du` | `nl` | Dutch | cp1252 |
-| `Sp` | `es` | Spanish | cp1252 |
-| `Pt` | `pt` | Portuguese | cp1252 |
-| `Sw` | `sv` | Swedish | cp1252 |
-| `Hr` | `hr` | Croatian | cp1250 |
-| `Cs` | `zh-Hans` | **Simplified Chinese** — not Czech | gbk |
-| `Ct` | `zh-Hant` | **Traditional Chinese** — not Czech | big5 |
-
-`Cs`/`Ct` are Roy Chen's two files: 2,348 and 1,833 high bytes, identical in size and line count,
-which is exactly what made them look like a duplicated pair of Czech files until they were decoded.
-
-**No legacy alias.** An old `Language=US` in a hand-kept INI resolves to nothing and
-`Language.Load` degrades it to the base language — which is `en`, so the player who had English
-still gets English and the player who had Croatian re-picks it once. That was a decision, not an
-oversight: the alias table would be ten dead rows kept alive for one boot.
-
-**The display names are the port's now, and that is the other half of what changed.** They used to
-be the translators' own banner lines — `"English - ( Example )"`, `"Croatian - ( 100 %)"`,
-`"Español ( 85% complete !)"` — a version note, a completeness claim and a stray space, which also
-sorted Spanish under E. `LANGUAGES` assigns the name; the banner survives verbatim in each file as
-`sourceName`, percentage included (it is real information — four files are labelled 90% or less),
-and `lang_check.check_structure` now compares it against the `.dat`'s own banner, because it is the
-one string in the file the round trip cannot reach: it lives on a `#` line the original's own loader
-skips. Two more fields joined it, `sourceDir` and the existing `sourceEncoding`, and all four
-header fields plus `code` and `name` are now asserted against `LANGUAGES` rather than merely
-written by it.
-
-They are the **English** names rather than the endonyms because the picker draws in
-`ThemeDB.FallbackFont`, which has no CJK glyphs — `简体中文` would be two boxes. The endonyms are
-worth having the day this gets a font that can render them. The picker also draws the code and the
-name as two columns instead of one padded string, since `en` and `zh-Hans` do not line up under a
-proportional font.
-
-`lang_check.py` is green on all four halves: 2,293 lines rebuilt byte for byte across the ten
-files, ten languages identical in the CLI and in the game, 5 INI checks.
-
-### 2. i18n: actually use the translations  *(after the UI is polished — not before)*
+### 1. i18n: actually use the translations  *(after the UI is polished — not before)*
 
 The strings **are** wired, but only sixteen of them: `ID_DEADBOX_DEAD`, `ID_GHIGHLIST_00`,
 `ID_GRAPHBOX_00`–`_05`, `ID_HIGHLIST_00`, `ID_LOADLEV_00`, `REC_Title` and `txt009`–`txt014`. That
@@ -179,26 +129,7 @@ complete and re-runnable.
 The port's own legend strip has no key in the original (the original has no such strip) and falls
 back to English by having only an English form. That is the model for any new UI string.
 
-### 3. The coordinate grid (A1–P16)
-
-So a position can be *said*: "the tank is on A9". **The original never drew one** — the only
-`TextOut` calls in `LTANK2.C` are the score readout (`:1227`, `:1648`) and `ShowTunnelID`'s
-`(%1d)` overlay (`:1725`) — so this is an addition, not a port item, and there is nothing to
-transliterate. It is worth having anyway because **the level hints already use the notation** and
-are unreadable without it.
-
-The convention is not a choice; it is fixed by those hints and was measured against them:
-
-- **columns `A`–`P` = `x` 0–15, left to right.**
-- **rows `1`–`16` = `y` 0–15, top to bottom.**
-
-Evidence: `data/quirks/tutor/Tutor.LVL` level 80's hint names "tunnel L7", and `PF[11][6]` is
-tunnel id 0; `tutor-with-playbacks` level 93's hint names static mirrors at "K10" and "N10", and
-`PF[10][9]`/`PF[13][9]` are the two mirrors. Both readings only work with A→x=0 and row 1→y=0.
-
-Purely a `BoardView` draw pass — no engine involvement, no gate to move.
-
-### 4. A collection picker — command 108, "Open Data File"
+### 2. A collection picker — command 108, "Open Data File"
 
 The port can only be pointed at a `.lvl` collection from the command line (`--levels`) or by what
 `[DATA] RLLFilename` remembered. In-game, `L` picks a *level* inside the current collection and
@@ -232,138 +163,29 @@ modes), it is reviewable with `--panel`, and the content is in the repo. Note th
 `.lvl` and `.LVL` both occur, and the four uppercase packs are the four biggest — match on
 `suffix.lower()`.
 
-### 5. Drop the Animation option
-
-`[OPT] Animation` / command 104 / the `A` key. It gates one line — `if (Ani_On) AniCount++`
-(`LTANK.C:589`) — which stops `Animate()` cycling `BMF`, so water and conveyors stop shimmering and
-nothing else changes. It is not worth a key, and there is no reason to ever turn it off.
-
-**Remove the UI, not the field.** `Engine.Ani_On` is transliterated (`LTANK2.C:28`, default `TRUE`)
-and so is the line that reads it; deleting either would be de-transliterating for a cosmetic
-setting. Drop `Options.AnimationOn`, the `A` binding and the HUD readout, and leave `Ani_On = true`
-where it is — which is what every headless gate already runs with (`PlayMode` builds its Sessions
-with no `Options` at all).
-
-Once nothing reads the key, `Ini`'s write path preserves it as a foreign key, which is exactly
-right: the 2010 binary still keeps it in the same file.
-
-### ~~6. The level-39 report — and the oracle's one blind spot~~ — **done 2026-09-11**
-
-Reported: flagship level 39, tank on C1, hold Right — the tank reaches I1 **and dies, but then
-moves to J1**; Undo puts it back on I1, alive and playable.
-
-**The report was right and the first round of analysis was wrong, because it asked the oracle a
-question the oracle cannot answer.** Route `llllllluurrrrrrrrrr` traced identically in the oracle and
-the core — `DEAD`, 37 ticks, 14 moves — and that agreement was taken for fidelity and written up as
-quirk #8 working as designed. It was not. Running the **actual 2010 binary** (`original/bin/
-lasertank.exe`, which is in the tree) settles it in one try: hold Right, the tank freezes on I1 while
-the shot travels, and it dies **on I1**. It never reaches J1. Two engines agreeing is not evidence
-when both inherit the same missing line.
-
-**The mechanism, and why it is invisible headless.** Being shot is
-`SendMessage(MainH, WM_Dead, 0, 0)` — `CheckLLoc`, `LTANK2.C:1469`, *synchronous*. So `WM_Dead` runs
-inside `MoveLaser`, at **tick step 2**, and the handler (`LTANK.C:717`) does `GameOn(FALSE)` and then
-opens `DialogBox(hInst, "DeadBox", ...)`, which is **modal and blocks right there, mid-tick**. The
-player sees the tank where it was last painted — I1 — with the dialog over it. Execution does not
-reach step 4's key test at `LTANK.C:613` until a button has been pressed, and **every** way out of
-that dialog calls `UndoStep`: `ID_DEADBOX_UNDO` through command 110, `ID_DEADBOX_RESTART` and Cancel
-directly (*"We have to undo the error first"*). `UndoStep`'s third line is `RB_TOS = Game.RecP`. So
-by the time `:613` is evaluated the buffer is empty, its test is false, and no key is consumed —
-**and `AntiTank()`, which lives inside that same block, does not get a turn either.**
-
-The other arm says the same thing in one line and without a dialog: `if (VHSOn) { RB_TOS =
-Game.RecP; return(0); }` (`LTANK.C:720`). That is the original's *own* non-interactive death path,
-and it clears the buffer explicitly. Both arms end with the pending keys gone.
-
-`Engine.SendDead` modelled neither. It did `GameOn(false)`, the sound, `Deaths++`, and returned — so
-`Tick()` walked straight into its transliteration of `:613` with a key still pending, consumed it,
-moved the tank to J1 and gave the anti-tanks an extra turn. `oracle/driver.c`'s `LT_WndProc` had the
-identical hole, which is why the two agreed. **The fix is `RB_TOS = Game.RecP` in both**, with the
-reasoning written out at each site.
-
-```
-t=36 T=8,0,2,1,0  S=13,0 P=16 D=0 G=1      before:  t=37 T=9,0 S=14,0 D=1   (J1, 14 moves)
-t=37 T=8,0,2,0,0  S=13,0 P=16 D=1 G=0      after:   t=37 T=8,0 S=13,0 D=1   (I1, 13 moves)
-```
-
-**`:613` has no `Game_On` in it**, and that is the load-bearing detail — the test is
-`(Game.RecP < RB_TOS) && !(Firing || ConvMoving || SlideO.s || SlideT.s || PBHold)`. The original is
-not protected by a flag; it is protected by the fact that a modal dialog is already on the screen.
-That is the same species as `Engine.CanRestore` and `Session.AcceptsInput` below — **a guard the
-original gets from Windows still has to be written down somewhere** — and it is the third instance
-of that rule in this project.
-
-**The lesson, and it is the expensive one.** The oracle is the arbiter for the *rules*, and it earns
-that on 2,347 levels and 187 recordings. It is **not** the arbiter for anything that depends on a
-modal dialog, because `oracle/driver.c` says so in its own comment: *"Headless there is nobody to
-answer it."* Quirk #8's write-up and item 6's original analysis were both derived from the oracle
-alone and both inherited the error. `original/bin/lasertank.exe` is in the tree and takes thirty
-seconds to check. **When the question is what the player sees, run the 2010 binary.**
-
-**The second deviation, found on the way, and separately real.** `Session.Key` filtered exactly as
-`WM_KEYDOWN` does but never asked whether the game was running, and `BoardView`'s mouse arm was the
-same — worse, because `MouseOperation` writes *arrow keys* into `RecBuffer` (hazard #15). The
-original is protected by the same modality: while the DeadBox is up, keystrokes and clicks belong to
-the dialog. `Session.AcceptsInput` (`E.Game_On && E.Deaths == 0`) is that written down; `Session.Key`
-and the new `Session.Click` are both behind it. It is invisible on the `UndoDead` path, because
-`UndoStep` clears both queues anyway — the two paths that keep a phantom key are `EditorResume`
-(command 604, no `UndoStep` on it) and `Replay` (command 124, which keeps `RB_TOS` on purpose).
-
-All three script drivers apply the same rule — `oracle/driver.c`'s `script_box_up`, `LaserTank.Cli`'s
-`BoxUp`, `PlayMode.Feed`'s `!s.AcceptsInput` — or `roundtrip_check` diverges the first time a random
-script presses after a death. Aligning them made a `Z` reachable that late for the first time and
-exposed a third thing: `Session.UndoDead` was `if (!Undo()) return false;`, but `LTANK.C:727` is two
-statements and `GameOn(TRUE)` is **not** conditional on the undo, so Undo with an empty buffer
-resurrects the tank where it died. Level 1719, script
-`lllldllruzzzzuZZuduuff...zrdfu..zufurzzffflfc` — oracle and CLI 27 ticks, Godot 3.
-
-**The criterion is a differential inside the game**, `--check-deadbox`, because a trace diff between
-the three drivers cannot see the `AcceptsInput` half at all — they agree just as well with the rule
-left out of all three. It plays a route until the box is up, knocks (five *distinct* keys, which is
-not auto-repeat, plus two clicks), resumes through each of `UndoDead` / `EditorResume` / `Replay`,
-and requires the transcript to match the un-knocked run. Guard reverted, it fails 3/3.
-
-```bash
-"$GODOT" --headless --path src/LaserTank.Game -- --check-deadbox \
-         --levels D:/abs/data/levels/LaserTank.lvl --level 39
-```
-
-**The status line was sticky, too, and that was the third report.** `_error` is drawn every frame by
-the HUD's `_ =>` arm and nothing cleared it, so the first *"nothing to undo"* — which every player
-gets, by pressing U on turn one or by holding it one repeat past the bottom of the buffer — stayed on
-screen for the rest of the level, contradicting every undo that worked afterwards. It is cleared at
-the top of key handling now: a message survives until the next key. The board has no status line in
-the original, so this is the port's own UI and a decision rather than a transliteration.
-
-Green after: `replay_all` 187 (**112/112 move/shot counts still exact against the bundled `.ghs`** —
-the strongest single check that the death change is right, since those are the 2010 game's own
-recorded scores), `test_difftrace` 29, `sweep` 2,347/2,347, `undo_check` 600, `mouse_check` 500,
-`roundtrip_check` 60×6, `tick_check` 208, `sound_check`, `editor_check`, `list_check`, `test_fuzz` 25.
-**One thing the DeadBox still does not do here — see item 8.**
-
-### 7. Hint on demand — command 301
+### 3. Hint on demand — command 301
 
 The hint is currently drawn under the board **always**, which spoils every level that has one. The
 original has a Hint dialog (`ButText7`, command 301) behind a button. Cheap, and it is the one
 piece of current UI that is actively wrong rather than merely plain.
 
-### 8. The rest of the original that is still missing
+### 4. The rest of the original that is still missing
 
 Everything here was named as left out at the time rather than forgotten.
 
 **Blocked on a file dialog:** Load Level in the editor (602), Save As (606) — plus 108 above. See
-item 4.
+item 2.
 
 **Blocked on a modal prompt:** the "save changes?" prompt on leaving the editor (`Modified` is
 tracked and shown, there is just no message box), the `RecordBox`/`HSBox` name prompts (both INI
 keys are read and written; there is nowhere to type), the Difficulty dialog (225), the DeadBox
-itself (a HUD line here — see item 6), and the `LoadTID` tunnel dialog *as* a dialog (the id is a
+itself (a HUD line here — see *Finished*, the level-39 report), and the `LoadTID` tunnel dialog *as* a dialog (the id is a
 mode here, cycled with `T`, because a modal prompt per painted cell is worse than a mode).
 
 **And the DeadBox has a rule of its own that nothing here implements yet.** Its dialog proc is four
 lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
 else EndDialog(Dialog, ID_DEADBOX_RESTART);` — **die on the first turn and every button is Restart**,
-Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as item 6:
+Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as the level-39 report in *Finished*:
 logic that lives in a dialog proc rather than in the game, and therefore a guard the port has to
 write down or lose. It is a *separate* change because Restart is command 105, which none of the
 three script drivers has a token for — implementing it faithfully means adding one to all three, so
@@ -383,14 +205,14 @@ Both are read into `Options` as comments only.
 **Not coming:** the `.ln` files under `Setups/Language/` (a 4.0-era format superseded by the
 `.dat`s and not read by the 2007 build).
 
-### 9. A menu bar
+### 5. A menu bar
 
 Step 6 converted all 73 menu items of both trees with their command ids and accelerator labels, so
 `Language.MainMenu` / `Language.EditorMenu` is a ready-made model. The port is still key-driven and
 has no menu widget. This is the cheapest remaining piece of the original that is *fully specified
 data* rather than design work.
 
-### 10. The UI redesign this whole approach was a prelude to
+### 6. The UI redesign this whole approach was a prelude to
 
 The line was drawn out loud and holds: **the mechanics of the puzzles must be exactly the same —
 every level solvable in exactly the way it was — and the UI need not be.** The port was finished
@@ -401,13 +223,13 @@ the change is a choice rather than a regression). What must not move: `replay_al
 `test_difftrace.py`, `tick_check.py`'s 208/208. What is expected to be edited on purpose:
 `options_check.py`'s pixel arithmetic.
 
-### 11. More fuzzing, indefinitely
+### 7. More fuzzing, indefinitely
 
 `fuzz.py` can keep running on new seeds and on the **12 collections its first campaign never
 touched**. `undo_check.py`, `mouse_check.py` and `editor_check.py` are three more campaigns of the
 same kind against the same oracle. All four are worth leaving running.
 
-### 12. The solver
+### 8. The solver
 
 The larger unfinished half of the project and a goal in its own right: 11.3% of a 4,185-level sample
 against a goal of all 20,914. It runs on the other machine now, so treat that number as a
@@ -682,7 +504,14 @@ These are the ones that cost something. Each is a rule, not a story.
   the tick before the key test at `LTANK.C:613`, and every exit from it calls `UndoStep` — none of
   which a headless stub reproduces. **`original/bin/lasertank.exe` is in the tree.** When the
   question is what the player sees, run it; it took one try and thirty seconds to overturn the
-  analysis (item 6).
+  analysis (the level-39 report, *Finished*).
+- **Grep the whole source, and scope a negative claim to what was actually searched.** *"The
+  original never drew a coordinate grid — the only `TextOut` calls in `LTANK2.C` are the score
+  readout and `ShowTunnelID`"* was a true observation with a false conclusion stapled to it: the
+  grid is drawn in `LTANK.C:502`, because `LTANK.C` owns the *window* and `LTANK2.C` owns the
+  board. It stood in this file for a day and turned a port item into an "addition". The cheap
+  guard is the same one as for the 2010 binary: **before writing "the original does not", run it or
+  grep all five files.** A player spotted this one by looking at the screen.
 - **When the oracle can answer, ask it before writing down what "correct" means.** "A recorded game
   round-trips, all three agree" silently assumed a recording replays to the position it was saved
   from, and the oracle disproved that in one command (hazard #13). A criterion written before the
@@ -693,7 +522,8 @@ These are the ones that cost something. Each is a rule, not a story.
   after the `EnableMenuItem` call it stands for — then every driver can apply it and be diffed
   against the others. `Engine.CanRestore` is that, and `Session.AcceptsInput` is the second one: the
   DeadBox's *modality*, which — with `LoadNextLevel` on the winning side — is the only reason a
-  keypress after death or a win is impossible in the 2010 binary (item 6, done). The sting is that
+  keypress after death or a win is impossible in the 2010 binary (the level-39 report, *Finished*).
+  The sting is that
   once every driver applies such a guard, no differential between them can check it any more, which
   is what `--check-deadbox` is for: the same argument as *"an exit criterion that only says nothing
   changed is not one"* three bullets up.
@@ -871,10 +701,10 @@ moves in and out of the three text fields, and while one has focus every letter 
 
 Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101), `U` undo (110),
 `Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels (106), `V` own scores (113), `G`
-global scores (906), `S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104 —
-see *Next steps* item 5), `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save
-recording / playback / replay (123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L`
-language picker (invented), `Z` board size, `I` interpolation, `Esc` quit. `[` and `]` are ours.
+global scores (906), `S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
+`Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
+(123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented), `Z`
+board size, `I` interpolation, `C` the A1–P16 grid, `Esc` quit. `[` and `]` are ours.
 
 **Three dialog properties are reproduced because they are observable.** The graphics dialog (226)
 **applies immediately** (every `WM_COMMAND` branch ends in `SetUpGraphicsBox`, which is
@@ -959,7 +789,7 @@ string in each file's `code`, in `Language.BaseCode` (`en`) and in `[DATA] Langu
 directory names — `US`, `Du`, `Sp`, `Sw`, and the `Cs`/`Ct` that turned out to be Chinese rather
 than Czech — survive in exactly one place, the left column of `LANGUAGES` in
 `tools/convert_language.py`, because `original/` is frozen and that is where the two naming systems have
-to meet. The table is reproduced in *Next steps* item 1 with the codepages.
+to meet. The table is reproduced in *Finished*, under the ISO language codes, with the codepages.
 
 **The display name is the port's, the banner is kept as data.** `LANGUAGES` assigns `name` (the
 English name of the language, because `ThemeDB.FallbackFont` has no CJK glyphs); each file also
@@ -995,7 +825,7 @@ is checkable **against the artifact**.
   ten files carry the untranslated word `SEPARATOR` in those slots, and the gate asserts they do.
 
 **The codepages were measured, not guessed** — nothing in the distribution records them. The table
-is in *Next steps* item 1, along with the surprise: `zh-Hans`/`zh-Hant` (`Setups/Cs`, `Setups/Ct`)
+is in *Finished*, under the ISO language codes, along with the surprise: `zh-Hans`/`zh-Hant` (`Setups/Cs`, `Setups/Ct`)
 are Chinese, not Czech.
 
 **Two findings worth keeping in view.**
@@ -1085,7 +915,9 @@ container is — which is why external mode (`GraphM == 1`) and `.ltg` mode rend
 `0x40 | (id << 1) | waitbit`; see the `GetTunnelID` / `ISTunnel` macros.
 
 **Board coordinates in level hints** — columns `A`–`P` = x 0–15 left to right, rows `1`–`16` = y 0–15
-top to bottom. See *Next steps* item 3 for the evidence; the original never drew the grid.
+top to bottom. It is not a community convention: the original labels its own board with it
+(`LTANK.C:502`, `'@' + i` across and `itoa(i)` down) and this port draws the same four sides. See
+*Finished*, the coordinate grid.
 
 ---
 
@@ -1127,7 +959,7 @@ missed because they are named like paint calls.
 8. **`SendMessage(WM_Dead)` vs `PostMessage(WM_Dead)`** — immediate vs deferred death, deliberately
    changed in 4.0.6, and the ordering is observable. **It does *not* mean the tank takes an extra
    move after dying** — that read of it was wrong for two years of this file and is corrected in
-   *Next steps* item 6. Both arms of the handler end with `RB_TOS = Game.RecP`: the VHS arm writes it
+   *Finished*, the level-39 report. Both arms of the handler end with `RB_TOS = Game.RecP`: the VHS arm writes it
    out (`LTANK.C:720`), and the interactive arm reaches it through the modal DeadBox, whose every
    exit calls `UndoStep`. What the two arms actually differ on is **when** that happens relative to
    the key test at `LTANK.C:613` — `SendMessage` from `CheckLLoc` (`LTANK2.C:1469`) lands at tick
@@ -1441,6 +1273,224 @@ it.)
   *"made/verified using LaserTank.exe Ver 4.1. The use of earlier versions may cause different
   results."* This is also the only way to settle a report of the form "the original didn't do that" —
   the oracle answers what the *2007 source* does.
+
+---
+
+## Finished
+
+Done, and kept rather than deleted because the reasoning outlived the work — half of what follows
+is cited from elsewhere in this file. Newest last.
+
+### ~~i18n: ISO language codes~~ — **done 2026-09-08**
+
+`data/language/` is `en.json`, `fr.json`, `de.json`, `nl.json`, `pt.json`, `es.json`, `sv.json`,
+`hr.json`, `zh-Hans.json`, `zh-Hant.json`; the `code` field inside each, `Language.BaseCode`, the
+picker's rows and `[DATA] Language` all carry the same ISO code. What is left of the original's
+**installer-directory** names is the left column of one table, `LANGUAGES` in
+`tools/convert_language.py`, which is where `original/src/Setups/<dir>/` is frozen and therefore
+where the pairing has to live:
+
+| `Setups/` | ISO | display name | source codepage |
+|---|---|---|---|
+| `US` | `en` | English (the base language) | cp1252 |
+| `Fr` | `fr` | French | cp1252 |
+| `De` | `de` | German | cp1252 |
+| `Du` | `nl` | Dutch | cp1252 |
+| `Sp` | `es` | Spanish | cp1252 |
+| `Pt` | `pt` | Portuguese | cp1252 |
+| `Sw` | `sv` | Swedish | cp1252 |
+| `Hr` | `hr` | Croatian | cp1250 |
+| `Cs` | `zh-Hans` | **Simplified Chinese** — not Czech | gbk |
+| `Ct` | `zh-Hant` | **Traditional Chinese** — not Czech | big5 |
+
+`Cs`/`Ct` are Roy Chen's two files: 2,348 and 1,833 high bytes, identical in size and line count,
+which is exactly what made them look like a duplicated pair of Czech files until they were decoded.
+
+**No legacy alias.** An old `Language=US` in a hand-kept INI resolves to nothing and
+`Language.Load` degrades it to the base language — which is `en`, so the player who had English
+still gets English and the player who had Croatian re-picks it once. That was a decision, not an
+oversight: the alias table would be ten dead rows kept alive for one boot.
+
+**The display names are the port's now, and that is the other half of what changed.** They used to
+be the translators' own banner lines — `"English - ( Example )"`, `"Croatian - ( 100 %)"`,
+`"Español ( 85% complete !)"` — a version note, a completeness claim and a stray space, which also
+sorted Spanish under E. `LANGUAGES` assigns the name; the banner survives verbatim in each file as
+`sourceName`, percentage included (it is real information — four files are labelled 90% or less),
+and `lang_check.check_structure` now compares it against the `.dat`'s own banner, because it is the
+one string in the file the round trip cannot reach: it lives on a `#` line the original's own loader
+skips. Two more fields joined it, `sourceDir` and the existing `sourceEncoding`, and all four
+header fields plus `code` and `name` are now asserted against `LANGUAGES` rather than merely
+written by it.
+
+They are the **English** names rather than the endonyms because the picker draws in
+`ThemeDB.FallbackFont`, which has no CJK glyphs — `简体中文` would be two boxes. The endonyms are
+worth having the day this gets a font that can render them. The picker also draws the code and the
+name as two columns instead of one padded string, since `en` and `zh-Hans` do not line up under a
+proportional font.
+
+`lang_check.py` is green on all four halves: 2,293 lines rebuilt byte for byte across the ten
+files, ten languages identical in the CLI and in the game, 5 INI checks.
+
+### ~~The level-39 report — and the oracle's one blind spot~~ — **done 2026-09-11**
+
+Reported: flagship level 39, tank on C1, hold Right — the tank reaches I1 **and dies, but then
+moves to J1**; Undo puts it back on I1, alive and playable.
+
+**The report was right and the first round of analysis was wrong, because it asked the oracle a
+question the oracle cannot answer.** Route `llllllluurrrrrrrrrr` traced identically in the oracle and
+the core — `DEAD`, 37 ticks, 14 moves — and that agreement was taken for fidelity and written up as
+quirk #8 working as designed. It was not. Running the **actual 2010 binary** (`original/bin/
+lasertank.exe`, which is in the tree) settles it in one try: hold Right, the tank freezes on I1 while
+the shot travels, and it dies **on I1**. It never reaches J1. Two engines agreeing is not evidence
+when both inherit the same missing line.
+
+**The mechanism, and why it is invisible headless.** Being shot is
+`SendMessage(MainH, WM_Dead, 0, 0)` — `CheckLLoc`, `LTANK2.C:1469`, *synchronous*. So `WM_Dead` runs
+inside `MoveLaser`, at **tick step 2**, and the handler (`LTANK.C:717`) does `GameOn(FALSE)` and then
+opens `DialogBox(hInst, "DeadBox", ...)`, which is **modal and blocks right there, mid-tick**. The
+player sees the tank where it was last painted — I1 — with the dialog over it. Execution does not
+reach step 4's key test at `LTANK.C:613` until a button has been pressed, and **every** way out of
+that dialog calls `UndoStep`: `ID_DEADBOX_UNDO` through command 110, `ID_DEADBOX_RESTART` and Cancel
+directly (*"We have to undo the error first"*). `UndoStep`'s third line is `RB_TOS = Game.RecP`. So
+by the time `:613` is evaluated the buffer is empty, its test is false, and no key is consumed —
+**and `AntiTank()`, which lives inside that same block, does not get a turn either.**
+
+The other arm says the same thing in one line and without a dialog: `if (VHSOn) { RB_TOS =
+Game.RecP; return(0); }` (`LTANK.C:720`). That is the original's *own* non-interactive death path,
+and it clears the buffer explicitly. Both arms end with the pending keys gone.
+
+`Engine.SendDead` modelled neither. It did `GameOn(false)`, the sound, `Deaths++`, and returned — so
+`Tick()` walked straight into its transliteration of `:613` with a key still pending, consumed it,
+moved the tank to J1 and gave the anti-tanks an extra turn. `oracle/driver.c`'s `LT_WndProc` had the
+identical hole, which is why the two agreed. **The fix is `RB_TOS = Game.RecP` in both**, with the
+reasoning written out at each site.
+
+```
+t=36 T=8,0,2,1,0  S=13,0 P=16 D=0 G=1      before:  t=37 T=9,0 S=14,0 D=1   (J1, 14 moves)
+t=37 T=8,0,2,0,0  S=13,0 P=16 D=1 G=0      after:   t=37 T=8,0 S=13,0 D=1   (I1, 13 moves)
+```
+
+**`:613` has no `Game_On` in it**, and that is the load-bearing detail — the test is
+`(Game.RecP < RB_TOS) && !(Firing || ConvMoving || SlideO.s || SlideT.s || PBHold)`. The original is
+not protected by a flag; it is protected by the fact that a modal dialog is already on the screen.
+That is the same species as `Engine.CanRestore` and `Session.AcceptsInput` below — **a guard the
+original gets from Windows still has to be written down somewhere** — and it is the third instance
+of that rule in this project.
+
+**The lesson, and it is the expensive one.** The oracle is the arbiter for the *rules*, and it earns
+that on 2,347 levels and 187 recordings. It is **not** the arbiter for anything that depends on a
+modal dialog, because `oracle/driver.c` says so in its own comment: *"Headless there is nobody to
+answer it."* Quirk #8's write-up and this item's own first analysis were both derived from the
+oracle alone and both inherited the error. `original/bin/lasertank.exe` is in the tree and takes thirty
+seconds to check. **When the question is what the player sees, run the 2010 binary.**
+
+**The second deviation, found on the way, and separately real.** `Session.Key` filtered exactly as
+`WM_KEYDOWN` does but never asked whether the game was running, and `BoardView`'s mouse arm was the
+same — worse, because `MouseOperation` writes *arrow keys* into `RecBuffer` (hazard #15). The
+original is protected by the same modality: while the DeadBox is up, keystrokes and clicks belong to
+the dialog. `Session.AcceptsInput` (`E.Game_On && E.Deaths == 0`) is that written down; `Session.Key`
+and the new `Session.Click` are both behind it. It is invisible on the `UndoDead` path, because
+`UndoStep` clears both queues anyway — the two paths that keep a phantom key are `EditorResume`
+(command 604, no `UndoStep` on it) and `Replay` (command 124, which keeps `RB_TOS` on purpose).
+
+All three script drivers apply the same rule — `oracle/driver.c`'s `script_box_up`, `LaserTank.Cli`'s
+`BoxUp`, `PlayMode.Feed`'s `!s.AcceptsInput` — or `roundtrip_check` diverges the first time a random
+script presses after a death. Aligning them made a `Z` reachable that late for the first time and
+exposed a third thing: `Session.UndoDead` was `if (!Undo()) return false;`, but `LTANK.C:727` is two
+statements and `GameOn(TRUE)` is **not** conditional on the undo, so Undo with an empty buffer
+resurrects the tank where it died. Level 1719, script
+`lllldllruzzzzuZZuduuff...zrdfu..zufurzzffflfc` — oracle and CLI 27 ticks, Godot 3.
+
+**The criterion is a differential inside the game**, `--check-deadbox`, because a trace diff between
+the three drivers cannot see the `AcceptsInput` half at all — they agree just as well with the rule
+left out of all three. It plays a route until the box is up, knocks (five *distinct* keys, which is
+not auto-repeat, plus two clicks), resumes through each of `UndoDead` / `EditorResume` / `Replay`,
+and requires the transcript to match the un-knocked run. Guard reverted, it fails 3/3.
+
+```bash
+"$GODOT" --headless --path src/LaserTank.Game -- --check-deadbox \
+         --levels D:/abs/data/levels/LaserTank.lvl --level 39
+```
+
+**The status line was sticky, too, and that was the third report.** `_error` is drawn every frame by
+the HUD's `_ =>` arm and nothing cleared it, so the first *"nothing to undo"* — which every player
+gets, by pressing U on turn one or by holding it one repeat past the bottom of the buffer — stayed on
+screen for the rest of the level, contradicting every undo that worked afterwards. It is cleared at
+the top of key handling now: a message survives until the next key. The board has no status line in
+the original, so this is the port's own UI and a decision rather than a transliteration.
+
+Green after: `replay_all` 187 (**112/112 move/shot counts still exact against the bundled `.ghs`** —
+the strongest single check that the death change is right, since those are the 2010 game's own
+recorded scores), `test_difftrace` 29, `sweep` 2,347/2,347, `undo_check` 600, `mouse_check` 500,
+`roundtrip_check` 60×6, `tick_check` 208, `sound_check`, `editor_check`, `list_check`, `test_fuzz` 25.
+**One thing the DeadBox still does not do here — see *Next steps* item 4.**
+
+### ~~The coordinate grid (A1–P16)~~ — **done 2026-09-13**
+
+So a position can be *said*: "the tank is on A9". The level hints already use the notation and are
+unreadable without it — and, it turns out, so did the original.
+
+**This entry was written on a false premise and the premise is the more useful half.** It said *"the
+original never drew one — the only `TextOut` calls in `LTANK2.C` are the score readout (`:1227`,
+`:1648`) and `ShowTunnelID`'s `(%1d)` overlay (`:1725`)"*, and concluded there was nothing to
+transliterate. Both halves of that sentence are true and the conclusion is wrong: **the grid is
+drawn in `LTANK.C:502`**, in the `WM_PAINT` arm, under the comment `// Lable Game Grid`. The
+window's paint code lives in `LTANK.C`; `LTANK2.C` is the board. A grep scoped to one file of a
+five-file program is not a survey of the program. It was caught by a player looking at the 2010
+binary and saying *"it is not true that the original never drew one, I see the numbers and letters
+there"* — the same way the level-39 report was caught, and the second time this file has recorded
+that lesson.
+
+**So the convention is not inferred from hints at all; it is in the source.**
+`strcpy(temps,"@"); temps[0] = temps[0] + i` for `i` = 1..16 is A..P across the top, and `itoa(i)`
+is 1..16 down the side. Which is to say:
+
+- **columns `A`–`P` = `x` 0–15, left to right.**
+- **rows `1`–`16` = `y` 0–15, top to bottom.**
+
+The hints agree, which is what made the earlier reading right by luck: `data/quirks/tutor/Tutor.LVL`
+level 80's hint names "tunnel L7" and `PF[11][6]` is tunnel id 0; it also names five doors at
+"O7, L7, I7, F7, C7" and the labelled board puts one in each; `tutor-with-playbacks` level 93 names
+static mirrors at "K10" and "N10", and `PF[10][9]`/`PF[13][9]` are the two.
+
+**What `LTANK.C:502` actually does, and what `BoardView.DrawGrid` does with it:**
+
+- **All four sides.** Numbers down the left *and* the right, letters along the top *and* the bottom
+  — so a cell in the middle of the board is two short looks from a label rather than one long one.
+  Ported as it stands.
+- **The type size is read, not chosen.** The row labels sit at `y = (SpBm_Height - 15) / 2` into the
+  cell, and that `15` is the line height being centred — MS Sans Serif 8 pt. So 15 px here.
+- **The gutter is `XOffset`/`YOffset` = 17** (`LTANK.H:93`), and it exists *for these labels*: at
+  size 1 the board's right edge is 17 + 384 = 401 and `ContXPos` is 419, so the right gutter is 18 px
+  and its labels start 8 px in. **The port's `Margin` went 16 → 24**, which is the one deliberate
+  deviation: the original hand-kerns its two-digit row numbers into that 10 px — `strcpy(temps,"1 ")`
+  at `x-1`, then `itoa(i-10)` at `x+3`, two `TextOut` calls to fake "16" (`LTANK.C:514`) — and a
+  port that reproduced the hack instead of the intent would be transliterating a workaround for a
+  window it no longer has. Ours is one string in a gutter wide enough for it.
+- **Its column letters are drawn with `x = SpBm_Width / 2` as the left edge** under `TA_LEFT`, so
+  they sit half a glyph right of centre. Ours are centred. Written down rather than locked down.
+- **The tank's own column and row are lit.** The original does not do this; it is the one thing in
+  the pass that is purely the port's, and it is what makes a position readable without counting
+  across to K.
+- Nothing is drawn over the board, which also keeps the pass clear of `options_check.py` — that gate
+  measures the laser bar inside a cell to the pixel.
+
+**`C` toggles it**, on by default and not persisted — the same terms as `I`, and again the port's
+own: the original has no key, no menu item and no INI key for the grid, it is simply always on.
+Plain `C` is free in *both* accelerator tables (ACC1 binds `VK_C` only with Control, 111 Save
+Position; ACC2 the same, 601 Clear Field), and the editor keeps the key the way it keeps `Z`,
+because a level's hint is written in this notation and the editor is where one gets written.
+
+The margin change moved the window and the HUD strip (`HudH` 166 → 190, and the HUD now starts below
+the bottom row of labels). Green after: `options_check` — the three window sizes and the laser bar,
+which is the gate this could have moved — plus `editor_check`, `mouse_check` and `list_check`.
+
+### ~~Drop the Animation option~~ — **decided against, 2026-09-13**
+
+`[OPT] Animation` / command 104 / the `A` key was listed here for removal on the grounds that
+nothing would ever want `Animate()` switched off. That was wrong: a still board is easier to read
+than a shimmering one, which is a reason to keep the key rather than a reason to drop it. It stays,
+UI and all, and `Engine.Ani_On` stays the transliterated field it always was.
 
 ---
 

@@ -278,6 +278,13 @@ namespace LaserTank.Game
                 // it.  Everything else in ACC1 is not.
                 case Godot.Key.G when ctrl: return false;
                 case Godot.Key.Z: _view.SetSize(_view.Size % 3 + 1); return true;
+                // The coordinate grid, this port's own and useful in both
+                // modes -- a level's hint is written in A1-P16 and this is
+                // where one gets written.  Plain C is free here: ACC2's own
+                // VK_C is Ctrl+C (601, Clear Field), just above.
+                case Godot.Key.C:
+                    Status = "grid " + (_view.ToggleGrid() ? "on" : "off");
+                    return true;
                 case Godot.Key.Escape: Leave(); return true;
             }
             return true;              // the editor swallows the rest

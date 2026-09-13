@@ -56,7 +56,15 @@ namespace LaserTank.Game
         internal int Size => _size;
         internal static int CellOf(int size) => Zooms[Math.Clamp(size, 1, 3) - 1];
 
-        private const int Margin = 16;
+        /// The original's XOffset / YOffset (LTANK.H:93) are **17**, and that
+        /// gutter is not decoration: it is what the coordinate labels are drawn
+        /// in (LTANK.C:502).  At size 1 the board's right edge is 17 + 384 =
+        /// 401 and ContXPos is 419, so the right-hand gutter is 18 px and the
+        /// labels in it start 8 px in -- which is why the original hand-kerns
+        /// its two-digit row numbers into 10 px (see DrawGrid).  This port
+        /// takes 24 rather than 17 because it does not hand-kern: "16" at the
+        /// original's own 15 px type is ~16 px wide and is simply drawn.
+        private const int Margin = 24;
         /// EditMode does the same window arithmetic for its palette.
         internal const int MarginPx = Margin;
         // Room for DrawHud's eight lines: the header, the scores, the state
@@ -67,7 +75,7 @@ namespace LaserTank.Game
         // Keep this in step with DrawHud or the hint falls off the window;
         // options_check.py checks the strip is the same height at all three
         // sizes, not that it is any particular height.
-        private const int HudH = 166;
+        private const int HudH = 190;
 
         private Session _s;
         private Atlas _atlas;
@@ -101,6 +109,29 @@ namespace LaserTank.Game
         /// default because a 60 Hz display shows the step as a stutter; `I`
         /// turns it off, which is the honest A/B against the 2010 binary.
         private bool _interpolate = true;
+
+        /// The coordinate grid, A1-P16.  **The original draws it**, in
+        /// WM_PAINT and on all four sides (LTANK.C:502, "Lable Game Grid"), so
+        /// this is a port item and DrawGrid is a transliteration of that loop.
+        ///
+        /// It is worth saying how that was nearly missed, because the mistake
+        /// is reusable: a grep for TextOut over **LTANK2.C** finds only the
+        /// score readout (:1227, :1648) and ShowTunnelID's `(%1d)` overlay
+        /// (:1725), and the conclusion "the original never drew one" was
+        /// written down on the strength of it.  The paint code for the *window*
+        /// lives in LTANK.C.  Grep the whole source.
+        ///
+        /// The convention is the original's own, and it is the one the level
+        /// hints use: `temps[0] = '@' + i` for i = 1..16 is A..P across,
+        /// `itoa(i)` is 1..16 down.  So columns `A`-`P` = x 0-15 left to right
+        /// and rows `1`-`16` = y 0-15 top to bottom -- which is also what
+        /// Tutor.LVL level 80's "tunnel L7" (`PF[11][6]`, tunnel id 0) and
+        /// level 93's mirrors at "K10"/"N10" (`PF[10][9]`, `PF[13][9]`) read as.
+        ///
+        /// **The original has no key for this** -- it is always on, there is no
+        /// menu item and no INI key.  `C` is this port's, on the same terms as
+        /// `I`: on by default, not persisted.
+        private bool _grid = true;
 
         public override void _Ready()
         {
@@ -839,6 +870,11 @@ namespace LaserTank.Game
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
+                // Ours, and no command id: the original has no grid to toggle.
+                // Plain `C` is free in both accelerator tables -- ACC1 binds
+                // VK_C only with CONTROL (111, Save Position) and so does ACC2
+                // (601, Clear Field) -- so this takes no key the original used.
+                case Key.C: _error = "grid " + (ToggleGrid() ? "on" : "off"); break;
                 // Command 102, "Sound" (LTANK.C:875).  The checkmark is the INI
                 // here; ToggleOpt writes it immediately.
                 case Key.N:
@@ -1080,6 +1116,7 @@ namespace LaserTank.Game
                     DrawCell(x, y);
             DrawTank();
             DrawLaser();
+            if (_grid) DrawGrid(font);
             DrawHud(font);
             // The dialogs, over the board and under nothing: the original's are
             // modal windows on top of the game, which keeps playing behind them.
@@ -1093,6 +1130,68 @@ namespace LaserTank.Game
 
         private Rect2 CellRect(int x, int y) =>
             new Rect2(Margin + x * Cell, Margin + y * Cell, Cell, Cell);
+
+        /// "Lable Game Grid" (LTANK.C:502), transliterated: sixteen letters
+        /// along the top edge **and the bottom**, sixteen numbers down the left
+        /// **and the right**.  All four sides is the original's own layout and
+        /// is the point of it -- a cell in the middle of the board is two short
+        /// looks from a label instead of one long one.
+        ///
+        /// **The type size is read from the original rather than chosen.**  Its
+        /// row labels sit at `y = (SpBm_Height - 15) / 2` into the cell, and
+        /// that 15 is the line height it is centring: MS Sans Serif 8 pt.  So
+        /// 15 px here, and the 24 px margin is sized to hold it.
+        ///
+        /// Two things the original does that this does not, both consequences
+        /// of the 18 px gutter it had and this does not:
+        ///
+        /// * its two-digit row numbers are **hand-kerned** -- `strcpy(temps,
+        ///   "1 ")` at x-1, then `itoa(i - 10)` at x+3, two TextOut calls to
+        ///   squeeze "16" into 10 px (LTANK.C:514).  Ours is one string.
+        /// * its column letters take `x = SpBm_Width / 2` as the *left edge*
+        ///   under TA_LEFT, so they sit half a glyph right of the column's
+        ///   centre.  Ours are centred.
+        ///
+        /// Nothing is drawn over the board, which also keeps this pass clear of
+        /// tools/options_check.py: that gate measures the laser bar inside a
+        /// cell to the pixel.  The tank's own column and row are lit -- the
+        /// original does not do that either, and it is the one thing here that
+        /// is purely this port's.
+        private void DrawGrid(Font font)
+        {
+            TTANKREC t = _s.E.Game.Tank;
+            float top = Margin - 6;                        // baseline, above the board
+            float bottom = Margin + 16 * Cell + GridPt;    // baseline, below it
+            float right = Margin + 16 * Cell + 6;
+            for (int i = 0; i < 16; i++)
+            {
+                // `temps[0] = '@' + i` for i = 1..16 -- A..P (LTANK.C:521).
+                string col = ((char)('A' + i)).ToString();
+                Color cc = i == t.X ? GridLit : GridDim;
+                DrawString(font, new Vector2(Margin + i * Cell, top), col,
+                           HorizontalAlignment.Center, Cell, GridPt, cc);
+                DrawString(font, new Vector2(Margin + i * Cell, bottom), col,
+                           HorizontalAlignment.Center, Cell, GridPt, cc);
+
+                // `itoa(i)` for i = 1..16, centred on the row.
+                string row = (i + 1).ToString();
+                Color rc = i == t.Y ? GridLit : GridDim;
+                float y = Margin + i * Cell + (Cell + GridPt) / 2f - 2;
+                DrawString(font, new Vector2(0, y), row,
+                           HorizontalAlignment.Right, Margin - 6, GridPt, rc);
+                DrawString(font, new Vector2(right, y), row,
+                           HorizontalAlignment.Left, Margin - 6, GridPt, rc);
+            }
+        }
+
+        /// LTANK.C:504's own `15`: the line height its row labels are centred
+        /// against, and therefore the size of the face it was drawing with.
+        private const int GridPt = 15;
+        private static readonly Color GridDim = new Color(0.45f, 0.48f, 0.55f);
+        private static readonly Color GridLit = Colors.Khaki;
+
+        /// The editor keeps this key too, the way it keeps `Z`.
+        internal bool ToggleGrid() => _grid = !_grid;
 
         /// UpDateSprite (LTANK2.C:490), transliterated: a tunnel is a solid
         /// colour with sprite 55 masked on top; a transparent sprite gets the
@@ -1304,7 +1403,9 @@ namespace LaserTank.Game
         /// spilling past the board.
         private void DrawHud(Font font)
         {
-            float y = Margin + 16 * Cell + 20;
+            // Below the board *and* below the bottom row of grid labels, which
+            // share the board's own gutter.
+            float y = Margin + 16 * Cell + Margin + 14;
             float w = 16 * Cell;
             TLEVEL lv = _s.Rec;
             TGAMEREC g = _s.E.Game;
@@ -1376,7 +1477,7 @@ namespace LaserTank.Game
                     "EDITOR -- the palette beside the board has the rest",
                     "F9 leaves and resumes play on the board you drew",
                     "ctrl+S saves; a level out of data/ goes to out/levels/",
-                    "ctrl+G gfx  Z size  Esc leaves",
+                    "ctrl+G gfx  Z size  C grid  Esc leaves",
                 }
                 : new[]
             {
@@ -1384,7 +1485,7 @@ namespace LaserTank.Game
                 "L levels  V scores  G global  S/P next/prev  ctrl+G gfx",
                 "F5 rec  F6 save  F7 play  F4 replay  F8 auto-rec",
                 "Z size  I smooth  N sound  A anim  F9 editor  Esc quit",
-                "ctrl+L language",
+                "C grid (A1-P16)  ctrl+L language",
             };
             for (int i = 0; i < legend.Length; i++)
                 DrawString(font, new Vector2(Margin, y + 56 + 16 * i), legend[i],
