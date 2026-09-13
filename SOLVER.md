@@ -1,8 +1,8 @@
 # LaserTank solver — Phase 4
 
-**Purpose:** the solver's entry point. The engine port, the fidelity gates, the file formats and the
-quirk hazards are in [`PROGRESS.md`](PROGRESS.md); read that first if the question is about the
-*game*.
+**Purpose:** the solver's entry point. The engine port and the fidelity gates are in
+[`PROGRESS.md`](PROGRESS.md), with the file formats, the quirk hazards and the rest under
+[`docs/game/`](docs/game/); read those first if the question is about the *game*.
 
 **The goal is to solve every solvable level in the corpus — 20,914 of them, all with a non-zero
 `.ghs` entry and therefore all known-solvable.** No public automated LaserTank solver does this.
