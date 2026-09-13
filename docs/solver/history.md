@@ -9,10 +9,11 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 ## Closed items — the measurements, including the negative ones
 
 Numbered as [`next-actions.md`](next-actions.md) refers to them. **Items 1, 3, 5, 6, 8, 9, 11, 12, 13,
-15, 16, 17 and 18 are done, and seven of those closed *negative* or half-negative** — which is the
+14, 15, 16, 17 and 18 are done, and eight of those closed *negative* or half-negative** — which is the
 ordering rule paying off rather than failing. Two of the negatives (17, then 5) are items that reached
 the front of the list and were **refused by falsifiers they built for themselves**, which is the rule
-working at its most expensive and most useful.
+working at its most expensive and most useful; item 14 is the third kind, an item whose decision run
+came back clean and negative, and which **handed the list a better-aimed successor on its way out**.
 
 ### 1. Layer 4's learned evaluation did not act. Two defects, both fixed.
 
@@ -1123,9 +1124,65 @@ the wrong strategy*, which is where the ratio tail lives and the one population 
 provably cannot help.
 
 **What it does not close is the rule inside `--best-of-round`**, and that belongs to
-[item 4](next-actions.md#4-4th--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
+[item 4](next-actions.md#4-3rd--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
 than to a fifth item: the shot test and the ratio test disagree on 58 of the 452 rows, and whether
 keeping those rounds open pays is a campaign question.
+
+### 14. Per-level width from the record — built, swept, and beaten by the global width.
+
+Layer 8's framing arithmetic is `closure x width x board changes` against the node budget, and the
+record supplies the third factor for the whole corpus where a hand recording supplies it for twenty
+levels. `--push-width-record F` (`Push.cs` `RecordWidth`) sets the push beam to
+`remaining budget / (poses x .ghs shots x F)` — **raise-only**, floored at `--push-beam`, capped at
+9,600, and reported as `width` on the row. The decision run swept F over the calibration's own
+p25 / p50 / p75, because the free half had already measured that the factor spreads over two and a half
+orders of magnitude (p10 1.9 / p25 4.6 / p50 14.2 / p75 59.9 / p90 446 over `l8fire`'s 66 solved levels
+at a known width of 128) and no single F is therefore *the* calibration.
+
+    LT_SOLVE=$PWD/build/wr/lasertank-solve.exe JOBS=4 bash tools/width_record.sh
+
+138 unsolved short-record GAUNTLETs at 40M nodes, against `build/reports/gt-fire.jsonl` — the same
+population, the same arm, the flag off — as a banked control. **232 of 232 solutions through the
+two-engine gate, zero divergences.**
+
+| arm | solo | rate | only it | width raised | p10 | p50 | p90 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **fire** (control, global 128) | **85** | **61.6%** | **8** | — | — | — | — |
+| f4p6 | 76 | 55.1% | 4 | 136/138 | 566 | **6,820** | 9,600 |
+| f14 | 78 | 56.5% | 1 | 129/138 | 381 | **2,667** | 9,600 |
+| f60 | 78 | 56.5% | 1 | 108/138 | 203 | **854** | 8,333 |
+
+**No F beats the global width and the loss is not marginal** — **-9, -7, -7** — which is the answer to
+the item as written. The greedy union does climb, 85 -> 95 -> 96 -> **97 (70.3%)**, so each arm holds
+exclusive levels and by the fourth rule they are portfolio members rather than the same searcher
+wearing a flag; but that union costs **three extra 40M passes to buy 12 levels**, which is a worse
+trade than the same nodes spent on item 2's arms. The pairwise read is the same story from both ends:
+against the control, f4p6 **misses 19 and finds 10**.
+
+**The direction is the finding, and it is the opposite of the one the project keeps measuring.** The
+estimate ladders *up* — median chosen width 854 to 6,820 against the global 128 — and it loses. Closed
+item 5 had already solved `LaserTank.lvl` 6 from **K = 102 at width 32 on 3.4M nodes** where item 18
+measured its horizon of 50 at width 512 on 40M, and its phase table reaches 4 phases at width 32, 2 at
+128 and 1 at 512 for the same nodes a phase. **Narrow-and-deep, for the fifth time.** The raise-only
+rule that keeps the flag safe is exactly what forbade this run from testing it, so what closed here is
+*this direction of* the per-level lever, not the lever. That is item 19.
+
+One level tells the whole story on its own: **`Challenge-IV` 176 is solved by the control in 781,566
+nodes**, and the two widest arms still solve it — at **35.7M and 31.6M**, forty times the cost.
+
+**Two artefacts in the reports, and neither changes the reading.** First, **the flag is not
+node-identical when it declines to raise**, which `width_record.sh`'s own comment claims: 18 of f60's 30
+unraised rows differ from the control in nodes, median **+1,488**, the root pose closure charged to the
+budget as the item said it would be. Keys and solved status are identical on every unraised row in
+every arm, so the control reading stands and the comment is a shade too strong. Second, **four rows of
+the f60 arm are time- rather than node-truncated**: `Challenge-IV` 176, 201, 586 and 1141 all record
+`ms ~ 197,600,000` — 55 hours — because the machine slept mid-run and `BUDGET_MS=1800000` tripped, so
+they got 4.3M to 36M nodes instead of 40M. All four are unsolved in that arm and three are unsolved in
+the control too, so **f60's 78 is a floor short by at most one level** and no arm ordering moves.
+
+**What it leaves behind.** The flag ships off by default and costs nothing when it is off. The free
+calibration stands as the reason not to try solving for a width exactly. And the three reports are a
+banked population for item 19 to be read against without re-running the control.
 
 ### 15. `--push-seed` — the editor trick as an instrument, and level 6's horizon.
 
@@ -1431,27 +1488,31 @@ is in [`SOLVER.md`](../../SOLVER.md#status).
 
 ## The state of the tree and of `build/`
 
-**`build/lasertank-solve.exe` is two sessions behind the tree, on purpose.** Item 2's pass has held the
-published binary open since 2026-09-10 and `dotnet publish -o build` cannot replace a running `.exe` —
-so sessions 42 and 43 both built to **`build/item16/lasertank-solve.exe`**
-(`dotnet publish src/LaserTank.Solver/LaserTank.Solver.csproj -c Release -o build/item16`), and
-`build/lasertank-solve.exe` will not accept any of the flags below until the pass finishes and
-`src/build.sh` runs. This is the `$LT_SOLVE` situation the three runner scripts exist for, arrived at
-from the other direction.
+**`build/lasertank-solve.exe` is current again as of session 46**, and the four sessions it spent behind
+the tree are why the side-build habit exists. Item 2's pass held the published binary open from
+2026-09-10 — `dotnet publish -o build` cannot replace a running `.exe` — so sessions 42-45 built to
+`build/item16/` and `build/wr/` instead and drove them through `$LT_SOLVE`, which is what the three
+runner scripts take that variable for. With the pass stopped in session 46 the tree republished cleanly
+and **every flag added since session 42 is now in the default binary**: `--read-rare` and the five
+`--read-dump` columns, `--analyze-tsv`'s `alive` / `mob_max` / `mob_sum`, `--profile`'s `holes` column,
+`--push-seed FILE.lpb:K`, `--push-phases` and `--push-width-record`.
 
-| added | session | in `build/lasertank-solve.exe`? |
-|---|---|---|
-| `--read-rare` and five `--read-dump` columns | 42 | no |
-| `--analyze-tsv`'s `alive` / `mob_max` / `mob_sum` (`Heuristic.Mobility`) | 43 | no |
-| `--profile`'s `holes` column, and `--profile` asking for the push flags | 43 | no |
-| `--push-seed FILE.lpb:K` | 43 | no |
-| `basin.py --carry-cost`, `report_stats.py`'s shot block | 43 | n/a — `tools/`, not the binary |
+**That rebuild was the first one that could have moved a measured number, and it was checked.** Every
+earlier side build touched solver code only; `a4eac84` (session 46, the game's undo fix) changed
+**`LaserTank.Core`**, which the solver shares with the engine — a death now clears the pending key
+buffer (`RB_TOS = Game.RecP`, `Engine.cs`), the line the port was missing. Over `LaserTank.lvl` 3, 4, 7,
+11 and 20 at 4M on the `l8fire` arm the rebuilt binary is **node-identical and keystream-identical** to
+the pre-fix `build/wr/`, so **every report in `build/reports/` still stands as a control against it**.
+The reason is structural — the search keeps no path through the death handler — but a shared-engine
+change is the one thing that could invalidate the whole bank at once, so it gets the five-level gate
+every time `LaserTank.Core` moves, not an argument.
 
-**Nothing in the shipped search moved in either session, and it was checked rather than asserted.**
-`--from 1 --to 12 --nodes 400000` is identical from both binaries; `Enumerate`, `AnalyzeAt` and
-`Mobility` are reached only from `--analyze` / `--read-dump`, `RouteHoles` is written by `CountOnRoute`
-and read only by `--profile`, `WantsFromOptions` is `PushH`'s own assignment block moved verbatim, and
-`_seed` is null unless `--push-seed` is given (`--push-seed FILE:0` is node-identical to no flag).
+**Nothing in the shipped search moved in sessions 42 or 43 either, and that was checked rather than
+asserted.** `--from 1 --to 12 --nodes 400000` was identical from both binaries; `Enumerate`, `AnalyzeAt`
+and `Mobility` are reached only from `--analyze` / `--read-dump`, `RouteHoles` is written by
+`CountOnRoute` and read only by `--profile`, `WantsFromOptions` is `PushH`'s own assignment block moved
+verbatim, and `_seed` is null unless `--push-seed` is given (`--push-seed FILE:0` is node-identical to no
+flag).
 
 **Sessions 34 and 35 added four files between them and touched no engine and no solver code.** Session 34:
 `tools/harvest.py` (the blogspot harvester: `index`/`map`/`fetch`/`codebook`/`sheet`/`label`/`decode`),
@@ -2072,6 +2133,26 @@ Two harness defects, both item 18's arriving again in a new file: a solver preda
 commit line and that read as *"not reached"* (the worst direction), and a per-probe report keyed without
 the budget let a cheap re-probe report an old run's `solved`. Both now raise.
 
+**session 46 — item 14 swept and refused, and the engine port's death fix cleared the solver's
+equivalence gate.** The three-arm sweep finished on an idle machine (the pass was stopped for it, the
+only wall clock in these files measured that way) and came back **76 / 78 / 78 against the banked
+control's 85 of 138**, at the calibration's own p25 / p50 / p75. Raise-only meant the sweep went *wider*
+— median chosen width **854 to 6,820** against the global 128 — so what closed is that direction of the
+lever and not the lever; **item 19** is the same run at `--push-beam 32`, which is the direction level 6
+and item 5's phase table have both pointed at. 232 of 232 solutions gated. Two artefacts worth keeping:
+the flag is **not** node-identical when it declines to raise (the root closure is charged to the budget,
+median +1,488 nodes; keys identical everywhere), and four `Challenge-IV` rows of the f60 arm are
+time-truncated at `ms ~ 197.6M` because the machine slept and `BUDGET_MS` tripped — a floor short by at
+most one level, and the first time a *sleeping machine* has shown up as a measurement artefact here.
+
+The solver was also rebuilt for the first time since 2026-09-09, which mattered because `a4eac84` put a
+real change into `LaserTank.Core`: a death now clears the pending key buffer (`RB_TOS = Game.RecP`), the
+line the port was missing. Over `LaserTank.lvl` 3, 4, 7, 11 and 20 at 4M on the `l8fire` arm the rebuilt
+binary is **node-identical and keystream-identical** to the pre-fix one, so **every banked report still
+stands as a control**. That is expected — the search never keeps a path through the death handler — but
+it was checked rather than assumed, because a shared-engine change that silently moved the solver would
+have invalidated the whole `build/reports/` bank at once.
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -2080,7 +2161,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-5th--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-4th--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

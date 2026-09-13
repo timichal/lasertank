@@ -280,10 +280,14 @@ src/LaserTank.Solver/
   Push.cs        layer 5: a PF-preserving movement closure, then every board
                  change reachable from it; PushRun / ShotRun.  Layer 9's
                  FireTier is here too -- it is a tier over the same
-                 successors, not a heuristic term.  RecordWidth is item 14:
-                 --push-width-record sizes the beam per level from the level's
-                 own .ghs record, raise-only, and writes the width it chose
-                 into the report row
+                 successors, not a heuristic term.  RecordWidth is closed item
+                 14: --push-width-record sizes the beam per level from the
+                 level's own .ghs record, raise-only, and writes the width it
+                 chose into the report row.  It ships OFF and stays off -- the
+                 three-arm sweep lost to the global width at every F (76/78/78
+                 against 85 of 138), so the flag is kept to re-run the table
+                 and for the narrowing direction item 19 asks about, not as a
+                 default
   Analyze.cs     layer 6: the read.  ReadDerive / ReadAdvances / ReadOpens /
                  the enables pass, as an instrument and as a ranking tier
   Line.cs        --push-line: replay a winning line against the real beam;

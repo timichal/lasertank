@@ -81,7 +81,7 @@ post-processing is a substitute for finding a better one"*). `--best-of-round RA
 the round on although their shot count says the strategy is wrong, and 17 it keeps the round open on
 although the shot count says the strategy is already right, so those rounds can only buy polish. The
 column is shipped (closed item 13) and the rule inside `--best-of-round` is
-[item 4](next-actions.md#4-4th--the-campaign-that-decides-whether---best-of-round-is-a-default)'s.
+[item 4](next-actions.md#4-3rd--the-campaign-that-decides-whether---best-of-round-is-a-default)'s.
 
 ---
 
@@ -121,18 +121,21 @@ are the ones they were spent at, not the current list:
 | **16** | 2nd | four derivations the read does not have — author intent, spending an irreversible resource, FMO mobility as a quantity, a per-carry constant in `MatchFerry` | two `--read-dump` columns and one replay decide the first two; an `--analyze-tsv` column the third; `--ferry-weight` the fourth | **all four measured, and split 3-1.** `rare` **3.15x**, `spend` **0.04x** (session 42); FMO mobility predicts the rate and **with the sign the series does not have** — freer blocks are *harder*, 1.78x with the record held fixed — and the per-carry constant is **refused**, it changes no level's ascent (session 43). Closed; the tier it left was item 17, **built and refused on the bench** (session 44) |
 | **15** | 3rd | **`--push-seed K`** — the editor trick as an instrument: start the search from the K-th board change of a recording, sweep K over level 6's 168 | eight short runs, and it *is* item 5's falsifier | **built and run.** Level 6's horizon is **50 board changes of 168** and the boundary is exactly one wide: 50 left solves on 36.75M nodes, 51 left does not on 40M. Monotone at every K below it. (Item 15 measured 48 from the two probes K=120/117; item 18's bisection narrowed it to K=118.) |
 | **13** | 4th | **the shot test** — a `report_stats.py` column now, a `--best-of-round` rule with item 4 | already run: measurements 2 and 3 above | the column ships and reproduces measurement 3 from any report; the rule is item 4's |
-| **14** | 6th, now 4th | **per-level width from the record** — the driver ladders width globally today | one run on the 138-level GAUNTLET tail; the free calibration is done, below | open |
+| **14** | 6th, now 4th | **per-level width from the record** — the driver ladders width globally today | one run on the 138-level GAUNTLET tail; the free calibration is done, below | **closed negative** (session 46). Three arms at F = 4.6 / 14 / 60 over the tail at 40M: **76 / 78 / 78 against the control's 85**, chosen widths median **854 to 6,820** against the global 128. Raise-only meant it swept *wider*, and wider loses; the successor is item 19, the same run at `--push-beam 32` |
 
-**Item 14's free half is done and it tempers the item rather than supporting it**, which is why it sat
-6th rather than 2nd (it is 4th now, and only because everything that was ahead of it except items 2, 18
-and 5 has closed). Layer 8's arithmetic is `closure × width × board changes` against the node budget;
+**Item 14's free half tempered the item rather than supporting it**, which is why it sat 6th rather than
+2nd — and the paid half then refused it outright (session 46), which makes this the one item on the list
+whose free calibration predicted its own negative. Layer 8's arithmetic is `closure × width × board changes` against the node budget;
 measurement 1 supplies the board changes and `--analyze-tsv`'s `poses` column the closure, so the estimate
 can be checked against what a run actually spent. Over `l8fire`'s 66 solved levels at a known width of
 128, `nodes / (poses × width × ghs_shots)` reads **p10 1.9 / p25 4.6 / p50 14.2 / p75 59.9 / p90 446**.
 Levels 8 and 9 gave 22x and 47x and looked like a constant; over 66 levels the spread is two and a half
 orders of magnitude. **So the arithmetic sizes an order of magnitude, not a width** — which kills solving
 for the width exactly and leaves scaling the driver's *round-1* width per level, with the ladder still
-doubling from there. Doing that measurement cost one join and it moved the item four places.
+doubling from there. Doing that measurement cost one join and it moved the item four places — and the
+decision run then found that scaling it *up* loses at every F the calibration itself proposes, so what
+the record sizes is not the beam. Measurement 1 stands: the record's shot count is this project's search
+depth, and it is still the only per-level quantity the corpus supplies for free.
 
 ---
 
