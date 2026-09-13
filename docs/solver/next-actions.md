@@ -339,18 +339,53 @@ unattended driver run found the beam's 294-key route instead and cancelled the g
 `--best-of-round` is exactly the removal of that cancel, and with it the driver beats the hand-run by
 twelve keys.
 
-**A lost result worth knowing about, because it is what this item is really for.** The shortest verified
-files for levels 8 and 9 once lived in a gitignored `build/w/` and went with it:
+**The lost result this item was really for is not lost — session 48 recovered it**, from the *port*
+machine's `build/`, which never took part in the machine move that emptied the solver's. Both files are
+committed at `bench/recovered/LaserTank/` and **both pass the gate** (`python
+tools/verify_solutions.py bench/recovered` → 2/2, both engines, byte-identical traces):
 
-| lvl | the lost file | keys | ratio | banked now |
+| lvl | the recovered file | keys | ratio | banked now |
 |---:|---|---:|---:|---|
-| 8 | `build/w/w8-2048/LaserTank/00008.lpb` | 308 (262 + 46) | 1.4x | 335 / 1.5x |
-| 9 | `build/w/b9-b/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **115 / 1.9x** |
+| 8 | `bench/recovered/LaserTank/00008.lpb` | **308 (262 + 46)** | **1.4x** | 335 / 1.5x |
+| 9 | `bench/recovered/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **115 / 1.9x** |
 
-Which configuration produced either is not recorded — the widths in the directory names were the only
-clue — so **neither is reproducible as a recipe.** Level 9's 114 has effectively been re-derived (the
-acceptance run comes back at 115, one key longer, at the same ratio, from the driver with no flags aimed
-at the level). **Level 8's 308 has not.**
+Level 9's 114 stays retired: the acceptance run comes back at 115, one key longer, at the same ratio,
+from the driver with no flags aimed at the level. **Level 8's 308 is the one that matters** — 27 keys
+and a tenth of a ratio point better than what is banked, never re-derived, and now a *file* rather than
+a memory. Neither is banked into `data/solutions/`, deliberately: session 42's move of level 9 was
+"re-derived rather than restored", and a shorter route with no recipe behind it is exactly what that
+preference is about. **The recovery changes what can be asked, not what is banked.**
+
+**What the recovery makes actionable, cheapest first.**
+
+1. **Level 8's 308 is now this item's second acceptance bar, for free.** Item 4's whole question is
+   whether an unattended `--best-of-round` round matches what a hand-run found, and until now it had
+   exactly one data point — level 9's 114 against the driver's 115. Level 8 gives it a second, on a
+   level whose record is nearly four times longer (176 + 46 against 37 + 22), and the target is a
+   verified file the run can be diffed against rather than
+   a number in a table. **Add level 8 to the acceptance run and read the keys.** No new machine time:
+   the campaign this item already specifies passes through it.
+2. **Try the candidate recipe — it is under six minutes.** The run logs came back with the solutions and
+   they carry the budget, which is more than the directory names item 4 was written around:
+   `w8-2048.log` is *1 worker, 5,400,000 ms + 60,000,000 nodes, beam 600*, **solved in 5m51s**, and the
+   directory name says width 2048. So the residue is a real candidate — **driver at `--lanes 1`,
+   `--push-beam 2048`, ~60M nodes** — and the falsifier costs one coffee. If 308 comes back, "not
+   reproducible as a recipe" closes and the level-8 route has a command; if it does not, that is the
+   more interesting answer, because it says the 308 came from a flag set nobody wrote down and the
+   banked 335 is the best *reproducible* route.
+3. **Fix the thing that caused this, at the source: `--report` rows do not record the configuration.**
+   A row carries `keys`, `raw_keys`, `moves`, `shots`, `ratio`, `nodes`, `ms`, `method`, `stop`, `depth`,
+   `restarts` — and nothing about how the search was set up. That is why two of this project's best
+   results survived only as directory names, and why `bench/README.md`'s rule ("an output carries the
+   command that produced it in its header") cannot be obeyed by the driver's own output. **Write the
+   flag set into each report row, and into the driver's log header.** It is a few lines, it is the root
+   cause of item 4's lost recipe, and every run after it is self-documenting. This is the one item on
+   this page that pays whether or not any level is solved.
+
+One loose end closed while checking, worth having because it re-attributes a banked file:
+**`build/w/d8-w512w/…/00008.lpb` was byte-identical to the banked `data/solutions/LaserTank/00008.lpb`**,
+so the banked level-8 route came from that run — 400M nodes, beam 600, width 512 — and not from an
+unknown one. The 335 and the 308 are the same searcher at two widths.
 
 ---
 
@@ -469,6 +504,24 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
   most 6! orderings on level 6 and mostly pruned by the matching. Cheap enough that the first thing to do
   is not build it but run the arithmetic against `--analyze`'s output on the two levels: how many
   subgoals, and how deep each is on the hand line.
+- **The recovered bench lists, and the one question only they can answer.** Session 48 also brought back
+  the **originals** of all three level lists from the same `build/` — `bench/recovered/{bench,deep,ferry}-levels.txt`,
+  the ones `bench/bench-levels.txt`'s header calls gone. They rebase nothing and restore nothing: every
+  pre-session-25 number was measured against these levels *by a solver that no longer exists*, so
+  re-running them today compares two code versions, not two lists. The committed reconstructions stay
+  the lists current numbers are quoted against. What the pair makes possible is one measurement that was
+  not possible with either alone — **the same binary over both bench-1 lists, which isolates the
+  population from the code.** Every bench-1 delta this project has ever argued about confounds the two;
+  this separates them once, cheaply, and the answer is worth knowing before the next list is trusted.
+  It already retired one guess for free: `bench/bench-levels.txt`'s header supposes the original's
+  GAUNTLET-heavy label "was a pre-fix read", and read **today**, post-barrier-fix, the original is still
+  **GAUNTLET 18 / FERRY 7** against the reconstruction's **8 / 30** — the difference is the population,
+  not the read. The second use is held-out, and it is the weaker of the two: those 18 GAUNTLETs are
+  **16 disjoint from `bench/gauntlet-tail.txt`**, so they are a near-independent GAUNTLET population for
+  a fire tier whose +9 has been measured on exactly one — but they are *layer-0* failures, not *chain*
+  failures, so how many the chain still fails is unknown until a report says so, and the standing rule
+  applies: two fifty-level lists agreeing is not a population. Ask the cheap question first; the
+  held-out one needs `chain.jsonl` and a filter before it means anything.
 - **Parent pointers instead of copied keystreams, if width is ever the wall again.** `Snapshot` copies
   the whole consumed key prefix (`Engine.Search.cs`, `Array.Copy(RecBuffer, s.Keys, s.KeyLen)`) and
   `Restore` copies it back, so on a 900-key line every node moves ~1.8 KB of keys on top of its 1 KB of

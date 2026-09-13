@@ -95,7 +95,8 @@ this round` (under first-win-cancels there is exactly one, and it is whichever r
 than whichever is best); `kept the shortest at 115 keys against 294` (the 294 is the beam's route, still
 found, still first, and now losing); and **`push-ferry`, not `push-ferry-work`** — the acceptance
 criterion named the wrong rung, and the winner was the `coarse`-key rung two keys off the 114 that was
-lost with `build/w/b9-b/`. **An acceptance test that names the mechanism can be passed by a different
+lost with `build/w/b9-b/` (recovered in session 48 and gated —
+`bench/recovered/LaserTank/00009.lpb`; the reading is unchanged, the file is simply no longer gone). **An acceptance test that names the mechanism can be passed by a different
 mechanism, and that is a result rather than a technicality:** what was broken was the cancel, not the
 ranking key.
 

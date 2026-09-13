@@ -10,6 +10,16 @@ with it — along with `chain.jsonl` and every banked campaign solution. Every t
 whole file unreproducible the moment that machine changes. They are a few kilobytes. They belong
 in git.
 
+**Some of what that move took was not actually gone, and `bench/recovered/` is what came back.**
+Session 48 found the *port* machine's own `build/` still holding its pre-move copies — the originals
+of all three level lists below, and the two shortest verified `LaserTank.lvl` 8 and 9 routes that
+`docs/solver/next-actions.md` item 4 writes off as lost (level 8's **308 / 1.4x** is 27 keys shorter
+than what is banked, and had never been re-derived). Both solutions pass the gate. See
+[`recovered/README.md`](recovered/README.md) — including the one doc guess the recovery retires, and
+the reasons **none of it rebases anything**: the lists are back, the solver that measured them is not.
+The rule that failure adds to this file is one line: **before calling a gitignored artefact lost,
+check the other machine's `build/` while it still exists.**
+
 ## What goes in here
 
 The test that matters is the one this directory was created for: **would losing this file make a
@@ -47,6 +57,7 @@ reproducible).
 | `goal-counters.json` | input | closed item 6: the Moves/Shots the panel of a blogspot screenshot shows, hand-read. The panel is `TextOut` with the system font (`LTANK.C:563`), not a sprite, so it is the one thing about a post no committed graphic can draw — the *other* side of the rule below |
 | `goal-boards.json` | input | closed item 6: **the whole decoded goal-board bank** — 5,975 levels, 7,462 boards, `--goal-board`'s input and the acceptance test's. Written by `python tools/harvest.py complete` and by nothing else (a scoped `bank --levels X` keeps its gitignored `build/harvest/goals.json` default rather than replacing 5,975 levels with one). Derived, and here for the second reason: re-deriving it needs 6,218 blog posts and 12,487 images, so without it nothing quoted against a goal board reproduces offline. It was `LaserTank.lvl` 10 alone until session 40's corpus-scale run |
 | `trace10.err` | output | item 8's traced level-10 run: 64 depths, unsolved at 399M nodes, and a barrier on **0 of 63,454** expansions |
+| `recovered/` | both | the pre-move originals of the three lists above, and the two lost `LaserTank.lvl` 8/9 routes (both gated). Recovered from the port machine's `build/`, not re-measured — so it restores populations and solutions, and rebases nothing. [Its own README](recovered/README.md) |
 
 `goal-tiles.json` was here for the plainest version of the first reason, and **session 35 took that
 reason away from it** — which makes it the most useful entry in this table, because it shows how the
