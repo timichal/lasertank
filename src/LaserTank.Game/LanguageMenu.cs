@@ -91,9 +91,10 @@ namespace LaserTank.Game
         }
 
         // ---- drawing --------------------------------------------------------
-        private const int Pad = 10;
-        private const int Line = 17;
-        private const int CodeCol = 76;      // wide enough for "> zh-Hans" at 13 px
+        private static int Pad => Ui.Px(16);
+        private static int Line => Ui.Px(18);
+        /// Wide enough for "zh-Hans" set in the mono face at 11.5 px.
+        private static int CodeCol => Ui.Px(66);
 
         /// A dialog-shaped box over the board, sized from its content.
         ///
@@ -108,59 +109,62 @@ namespace LaserTank.Game
         /// than the endonym: this draws in ThemeDB.FallbackFont, which has no
         /// CJK glyphs, so the two Chinese rows would be boxes.  The endonyms
         /// are worth having the day this gets a font that can render them.
-        public void Draw(Node2D n, Font font, Rect2 board, Language lang)
+        public void Draw(Node2D n, Font font, Rect2 host, Language lang)
         {
             if (_langs == null || _langs.Count == 0) return;
 
-            float height = Pad + 13 + (Line + 4)
-                           + _langs.Count * Line + 6
-                           + Line + 4 + Line + Pad;
+            float w = Mathf.Min(Ui.Px(360), host.Size.X - Ui.Px(40));
+            float height = Pad + Ui.Px(12) + Ui.Px(16)
+                           + _langs.Count * Line + Ui.Px(8)
+                           + Line + Ui.Px(6) + Line + Pad;
+            height = Mathf.Min(height, host.Size.Y - Ui.Px(40));
 
-            var panel = new Rect2(board.Position + new Vector2(6, 6),
-                                  new Vector2(board.Size.X - 12,
-                                              Mathf.Min(height, board.Size.Y - 12)));
-            n.DrawRect(panel, new Color(0.05f, 0.06f, 0.08f, 0.96f));
-            n.DrawRect(panel, new Color(0.55f, 0.60f, 0.70f), false, 1);
+            Ui.Scrim(n, host);
+            var panel = new Rect2(
+                Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                Mathf.Round(host.Position.Y + (host.Size.Y - height) / 2f), w, height);
+            Ui.Dialog(n, panel);
 
             float x = panel.Position.X + Pad;
-            float w = panel.Size.X - 2 * Pad;
-            float y = panel.Position.Y + Pad + 13;
+            float wInner = panel.Size.X - 2 * Pad;
+            float y = panel.Position.Y + Pad + Ui.Px(11);
 
             // There is no string in the original for "pick a language" -- there
             // was nothing to pick.  ID_GRAPHBOX_01, "Select One", is the
             // nearest thing the corpus has that is not about graphics, and it
             // is translated in all ten files, so the panel's own title is in
             // the language being previewed like everything else on it.
-            n.DrawString(font, new Vector2(x, y), lang["ID_GRAPHBOX_01"],
-                         HorizontalAlignment.Left, w, 15, Colors.White);
-            y += Line + 4;
+            Ui.Caps(n, new Vector2(x, y), lang["ID_GRAPHBOX_01"], Ui.Text, 12);
+            y += Ui.Px(12);
+            Ui.Rule(n, x, y, wInner);
+            y += Ui.Px(16);
 
-            // Two columns rather than one padded string: the codes are now 2
-            // to 7 characters wide (`en`, `zh-Hans`) and this font is
-            // proportional, so spaces would not line the names up.
+            // Two columns rather than one padded string: the codes are 2 to 7
+            // characters wide (`en`, `zh-Hans`) and this font is proportional,
+            // so spaces would not line the names up.
             for (int i = 0; i < _langs.Count; i++)
             {
                 bool cur = i == _sel;
-                Color col = cur ? Colors.Yellow : Colors.Gainsboro;
-                n.DrawString(font, new Vector2(x, y),
-                             (cur ? "> " : "  ") + _langs[i].Code,
-                             HorizontalAlignment.Left, w, 13, col);
-                n.DrawString(font, new Vector2(x + CodeCol, y), _langs[i].Name,
-                             HorizontalAlignment.Left, w - CodeCol, 13, col);
+                if (cur)
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.Accent, 6f, 1f),
+                                   new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
+                                             wInner + 2 * Ui.Px(8), Line + Ui.Px(3)));
+                Ui.Write(n, new Vector2(x, y), _langs[i].Code, 11.5f,
+                         cur ? Ui.Accent : Ui.Faint, CodeCol, HorizontalAlignment.Left,
+                         Ui.Mono);
+                Ui.Write(n, new Vector2(x + CodeCol, y), _langs[i].Name, 12.5f,
+                         cur ? Ui.Text : Ui.Dim, wInner - CodeCol);
                 y += Line;
             }
 
-            y += 6;
+            y += Ui.Px(8);
             if (lang.Author.Length > 0)
-            {
-                n.DrawString(font, new Vector2(x, y),
-                             lang["ID_GRAPHBOX_05"] + " " + lang.Author,
-                             HorizontalAlignment.Left, w, 12, Colors.LightSteelBlue);
-            }
-            y += Line + 4;
-            n.DrawString(font, new Vector2(x, y),
-                         "up/down picks   Enter or Esc closes",
-                         HorizontalAlignment.Left, w, 11, Colors.Gray);
+                Ui.Write(n, new Vector2(x, y), lang["ID_GRAPHBOX_05"] + " " + lang.Author,
+                         11.5f, Ui.Cyan, wInner);
+            y += Line + Ui.Px(6);
+            Ui.Write(n, new Vector2(x, y),
+                     "↑↓ picks · Enter or Esc closes", 11, Ui.Faint,
+                     wInner);
         }
     }
 }

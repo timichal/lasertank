@@ -30,6 +30,13 @@ the editor's brush, edits and saves a `.lvl` byte-faithfully, labels the board A
 sides the way `WM_PAINT` does, shows its UI in any of the original's ten translations, and remembers
 its settings in a `LaserTank.ini` with the original's own section and key names.
 
+**It now also looks like something.** Step 7 — the redesign the faithful port was the prelude to —
+replaced the text strip under the board with a designed interface: a resizable, aspect-locked board
+that takes whatever square the window gives it, a top bar, an info column, a status line, an `F1`
+key overlay in place of the old wall of legend text, and a hint that is finally *behind* a key
+instead of spoiling every level that has one. Nothing mechanical moved and every gate says so. See
+*Finished*.
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
@@ -113,14 +120,14 @@ python tools/sweep.py                            # everything on engines.py read
 
 Nothing is blocked. Roughly in the order they are worth doing.
 
-### 1. i18n: actually use the translations  *(after the UI is polished — not before)*
+### 1. i18n: actually use the translations  *(the UI has settled — this is now unblocked)*
 
 The strings **are** wired, but only sixteen of them: `ID_DEADBOX_DEAD`, `ID_GHIGHLIST_00`,
 `ID_GRAPHBOX_00`–`_05`, `ID_HIGHLIST_00`, `ID_LOADLEV_00`, `REC_Title` and `txt009`–`txt014`. That
 is 16 of the **155** keys in each file. The rest describe dialogs and a nine-button control panel
 this port does not have, which is why they read as unused.
 
-So the job is an audit, and it has to wait for the UI to settle: for each key, either a widget reads
+So the job is an audit, and step 7 is what it was waiting for: for each key, either a widget reads
 it or it goes. `ButText1`–`ButText9` are the original's button strip; the 96 `ID_*` slots are its
 dialogs; `txt001`–`txt045` are its status and message lines. Deleting a key means editing all ten
 JSON files **and** `lang_check.py`'s expectation, because the gate ties the JSON back to the 2007
@@ -128,14 +135,28 @@ bytes line by line — a dropped key currently fails it, which is the gate worki
 audit removes, the *converter* should keep reading, so the mapping from the frozen artifact stays
 complete and re-runnable.
 
-The port's own legend strip has no key in the original (the original has no such strip) and falls
-back to English by having only an English form. That is the model for any new UI string.
+**Step 7 made the audit bigger and easier at the same time.** Bigger, because the redesign wrote a
+lot of new English: the F1 overlay's six group headings and thirty-odd key labels, the info
+column's `Level n of m` / `Score` / `moves` / `shots` / `par`, the status bar's default line, and
+the editor panel's `Palette` / `left` / `right`. Easier, because they are all in **two tables and
+two draw functions** (`PlayKeys`, `EditorKeys`, `DrawInfoColumn`, `EditMode.Draw`) rather than
+scattered through a legend. The port's own strings still have no key in the original and still fall
+back to English by having only an English form — the model set by the legend strip, which step 7
+deleted.
 
-### 2. Hint on demand — command 301
+### 2. A menu bar — *or whatever step 7 makes of it*
 
-The hint is currently drawn under the board **always**, which spoils every level that has one. The
-original has a Hint dialog (`ButText7`, command 301) behind a button. Cheap, and it is the one
-piece of current UI that is actively wrong rather than merely plain.
+Step 6 converted all 73 menu items of both trees with their command ids and accelerator labels, so
+`Language.MainMenu` / `Language.EditorMenu` is a ready-made model, and this is still the cheapest
+remaining piece of the original that is *fully specified data* rather than design work.
+
+**But step 7 answered half of what it was for.** The reason a menu bar was worth building was
+discoverability: the port was key-driven and the only way to learn a key was a wall of grey legend
+text under the board. F1 is that now — the original's own help accelerator (907 / 903), showing
+every binding as keycaps, grouped, including the editor's. What a menu bar would still add is a
+*pointing* route to the commands, which a touch or web build would want and which F1 does not give.
+So this is no longer "the cheapest thing left" so much as "the thing to do if the port is going
+somewhere without a keyboard". If it is built, the top bar is where it goes.
 
 ### 3. The rest of the original that is still missing
 
@@ -151,17 +172,19 @@ dialog.
 **Blocked on a modal prompt:** the "save changes?" prompt on leaving the editor (`Modified` is
 tracked and shown, there is just no message box), the `RecordBox`/`HSBox` name prompts (both INI
 keys are read and written; there is nowhere to type), the Difficulty dialog (225), the DeadBox
-itself (a HUD line here — see *Finished*, the level-39 report), and the `LoadTID` tunnel dialog *as* a dialog (the id is a
-mode here, cycled with `T`, because a modal prompt per painted cell is worse than a mode).
+itself (a status line here — see *Finished*, the level-39 report), and the `LoadTID` tunnel dialog
+*as* a dialog (the id is a mode here, cycled with `T`, because a modal prompt per painted cell is
+worse than a mode). **Step 7 built the shape all of these want** — `Ui.Dialog` plus a scrim, a
+measured panel, keycaps for the buttons — so what is left is a text field and a yes/no, not a look.
 
 **And the DeadBox has a rule of its own that nothing here implements yet.** Its dialog proc is four
 lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
 else EndDialog(Dialog, ID_DEADBOX_RESTART);` — **die on the first turn and every button is Restart**,
-Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as the level-39 report in *Finished*:
-logic that lives in a dialog proc rather than in the game, and therefore a guard the port has to
-write down or lose. It is a *separate* change because Restart is command 105, which none of the
-three script drivers has a token for — implementing it faithfully means adding one to all three, so
-it does not ride along with `Session.AcceptsInput`.
+Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as the
+level-39 report in *Finished*: logic that lives in a dialog proc rather than in the game, and
+therefore a guard the port has to write down or lose. It is a *separate* change because Restart is
+command 105, which none of the three script drivers has a token for — implementing it faithfully
+means adding one to all three, so it does not ride along with `Session.AcceptsInput`.
 
 **Additive, nothing blocking:** the Search sub-dialog (`SearchBox`, `LTANK_D.C:394` — name or
 author substring, difficulty mask, skip-completed) and `TransListKey`'s type-ahead, neither of which
@@ -169,7 +192,8 @@ changes a row; `Backspace[]`'s ten-level history (118); Resume Recording (125); 
 Opening Screen" (`ID_GRAPHBOX_08` — toggles `QHELP` and paints `Opening.bmp` over the board, its own
 piece of drawing); "Change Directory" (`ID_GRAPHBOX_09`, a shell folder browser — the key is
 persisted and `--gfx-dir` sets it); and `LoadImageFile`'s per-language `Control.bmp` / `Opening.bmp`
-/ `LaserTank.hlp`.
+/ `LaserTank.hlp`. **`LaserTank.hlp` is the one F1 stands in for**: command 907 is WinHelp in the
+original and the key list here, which is the answer the port can actually give.
 
 **Wants a `LoadNextLevel` port rather than a menu:** `[OPT] SkipComLev` and `[DATA] Diff_Setting`.
 Both are read into `Options` as comments only.
@@ -177,34 +201,39 @@ Both are read into `Options` as comments only.
 **Not coming:** the `.ln` files under `Setups/Language/` (a 4.0-era format superseded by the
 `.dat`s and not read by the 2007 build).
 
-### 4. A menu bar
+### 4. The UI redesign, second pass
 
-Step 6 converted all 73 menu items of both trees with their command ids and accelerator labels, so
-`Language.MainMenu` / `Language.EditorMenu` is a ready-made model. The port is still key-driven and
-has no menu widget. This is the cheapest remaining piece of the original that is *fully specified
-data* rather than design work.
+The first pass is built — see *Finished*, step 7 — and it deliberately stopped at the chrome. What
+it left:
 
-### 5. The UI redesign this whole approach was a prelude to
+* **Mouse and touch.** Everything step 7 drew is keyboard-driven, because that is what the port
+  was. The keycaps in the F1 overlay, the pills in the top bar, the rows in the four list panels and
+  the `H`/`F1` affordances in the column are all *labels for keys* and none of them is clickable.
+  Making them clickable is the single biggest remaining gap, and it is the one a web build will feel
+  first. The hit tests are the easy half; the hard half is that `BoardView._UnhandledInput` routes
+  the mouse through the original's two arms (`MouseOperation` and the editor brush), so a third
+  arm — the chrome — has to come *before* both and must never reach `MBuffer`.
+* **Web.** Nothing in step 7 needs a platform branch (`SystemFont` falls through to Godot's own
+  face, and there is no stretch mode to fight), so an HTML5 export should draw correctly today. It
+  has not been tried. `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing.
+* **Motion.** There is none, and two places want it: the status line, which replaces its content
+  with no transition, and the win state, which is a colour change on a line of text. The tick is 20
+  Hz and `_Process` already redraws every frame, so a tween has somewhere to live.
+* **The graphics packs' own chrome.** `Control.bmp` and `Opening.bmp` ship per language and per pack
+  and nothing reads them. The top bar's app mark is drawn from the sheet, which is as far as step 7
+  took the idea.
 
-The line was drawn out loud and holds: **the mechanics of the puzzles must be exactly the same —
-every level solvable in exactly the way it was — and the UI need not be.** The port was finished
-faithfully first because that is the cheap way to be sure nothing mechanical moved while the game
-was built around it. Every UI detail in this file is therefore **written down rather than locked
-down**: when one is deliberately changed, the note explaining what the original did stays (it is why
-the change is a choice rather than a regression). What must not move: `replay_all.py`, `sweep.py`,
-`test_difftrace.py`, `tick_check.py`'s 208/208. What is expected to be edited on purpose:
-`options_check.py`'s pixel arithmetic.
-
-### 6. More fuzzing, indefinitely
+### 5. More fuzzing, indefinitely
 
 `fuzz.py` can keep running on new seeds and on the **12 collections its first campaign never
 touched**. `undo_check.py`, `mouse_check.py` and `editor_check.py` are three more campaigns of the
 same kind against the same oracle. All four are worth leaving running.
 
-### 7. The solver
+### 6. The solver
 
 The larger unfinished half of the project and a goal in its own right: 11.3% of a 4,185-level sample
 against a goal of all 20,914. It runs on the other machine now, so treat that number as a
+last-known value. See `SOLVER.md`.
 last-known value. See `SOLVER.md`.
 
 ---
@@ -675,9 +704,22 @@ Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101
 `Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels (106), `O` collections (108),
 `V` own scores (113), `G`
 global scores (906), `S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
+`H` hint (301), `F1` the key list (907, and 903 in the editor),
 `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
 (123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented), `Z`
-board size, `I` interpolation, `C` the A1–P16 grid, `Esc` quit. `[` and `]` are ours.
+board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit. `[` and `]` are ours.
+
+**The list is also `PlayKeys` and `EditorKeys` in `BoardView.cs`**, which is what `F1` draws, so
+the overlay and this paragraph are two renderings of one table rather than two lists to keep in
+step. A binding added to the router and not to the table is a binding no player will find.
+
+**The window is resizable and the board is the thing that resizes** (step 7 — see *Finished*). The
+layout is measured from the window every frame: the board takes the largest whole-pixel cell that
+fits the square it is left, aspect locked, with the coordinate gutter and the label type scaled off
+that cell. `Z` and `[SCREEN] Size` are still the original's three sizes and still persist, but what
+they now do is **snap the window** so the board lands on exactly 24, 32 or 40 px cells; the next
+drag of the window frame frees it again. Below ~660 px of width the info column moves under the
+board and becomes a strip. `--window WxH` is the instrument for reviewing any of that.
 
 **Three dialog properties are reproduced because they are observable.** The graphics dialog (226)
 **applies immediately** (every `WM_COMMAND` branch ends in `SetUpGraphicsBox`, which is
@@ -720,9 +762,13 @@ back at the dialog from *inside* the tick, and an engine with no dialog cannot, 
 
 **The editor is a mode of the window, not a dialog over it**, because that is what the original is:
 command 201 swaps the menu bar and the accelerator table (`LTANK.C:1446` picks `hAccelTable2` when
-`EditorOn`), hides the nine buttons and repaints the control panel as a palette. There is no
-180-pixel control panel here, so the window *widens* and the palette goes beside the board. Three
-things the C does that a reasonable reading gets wrong:
+`EditorOn`), hides the nine buttons and repaints the control panel as a palette. **Step 7 put the
+palette where the original's is**: there was no control panel here to repaint, so until then the
+window *widened* by a palette's width on `F9` and narrowed again on the way out — the one thing in
+this UI that moved the window out from under the player. The redesign gave the window a column of
+its own, so the editor now takes that column over, the window is left alone, and the palette's slot
+size is the column's rather than the board's. Three things the C does that a reasonable reading gets
+wrong:
 
 - **`GetNextBMArray` is declared `[MaxObjects+1]` and initialised with 25 entries** (`LTANK.C:18`),
   so C zero-fills the last two. Rotating thin ice (25) or the tunnel selector (26) therefore turns
@@ -738,8 +784,10 @@ things the C does that a reasonable reading gets wrong:
   arm). Defined, so it stays; the panel draws the slot as an empty frame so it is at least visible.
 
 **Reviewing UI without a window** is the same trick everywhere: `--shot FILE` draws one frame and
-exits, and `--menu` / `--panel levels|scores|global|collections|playback` / `--editor` open the thing
-first.
+exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint` / `--editor`
+open the thing first. `--window WxH` sets the window to an arbitrary size and frees the preset,
+which is how the responsive layout is reviewed: there is no fixed board size to screenshot any
+more, so "what does it look like at that size" needed an instrument like every other panel.
 Every path after `--` must be **absolute** — see *Environment notes*.
 
 ```bash
@@ -747,6 +795,7 @@ GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.M
 "$GODOT" --path src/LaserTank.Game                                     # play it
 "$GODOT" --path src/LaserTank.Game -- --shot D:/abs/out.png --menu --pack 3 --zoom 40 --level 7
 "$GODOT" --path src/LaserTank.Game -- --panel levels --level 900 --shot D:/abs/out.png
+"$GODOT" --path src/LaserTank.Game -- --panel help --window 520x560 --shot D:/abs/out.png
 "$GODOT" --headless --path src/LaserTank.Game -- --play --lpb D:/abs/x.lpb
 "$GODOT" --headless --path src/LaserTank.Game -- --play --script "uufz.zllZ" --level 7 --out DIR
 "$GODOT" --headless --path src/LaserTank.Game -- --editor --edit '<06l22' --save \
@@ -1065,7 +1114,11 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                     EditDriver.cs — `--edit`;  LangDump.cs — `--lang-dump`/`--lang-list`
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
   LaserTank.Game/   the Godot 4.7 project
-                    BoardView.cs   draws Game.BMF, routes keys, owns the HUD
+                    BoardView.cs   draws Game.BMF, routes keys, measures the
+                                   layout, owns the chrome
+                    Ui.cs          the redesign's palette, type and box styles —
+                                   the one file here that answers to nothing in
+                                   the original
                     Session.cs     LTANK.C's driver half — WM_TIMER, WM_KEYDOWN,
                                    WM_Dead, ReStart, WM_SaveRec, commands 110/111/
                                    112/114/124
@@ -1402,7 +1455,7 @@ and requires the transcript to match the un-knocked run. Guard reverted, it fail
 ```
 
 **The status line was sticky, too, and that was the third report.** `_error` is drawn every frame by
-the HUD's `_ =>` arm and nothing cleared it, so the first *"nothing to undo"* — which every player
+the status line's `_ =>` arm (`DrawHud` then, `DrawStatusBar` since step 7) and nothing cleared it, so the first *"nothing to undo"* — which every player
 gets, by pressing U on turn one or by holding it one repeat past the bottom of the buffer — stayed on
 screen for the rest of the level, contradicting every undo that worked afterwards. It is cleared at
 the top of key handling now: a message survives until the next key. The board has no status line in
@@ -1474,12 +1527,21 @@ The margin change moved the window and the HUD strip (`HudH` 166 → 190, and th
 the bottom row of labels). Green after: `options_check` — the three window sizes and the laser bar,
 which is the gate this could have moved — plus `editor_check`, `mouse_check` and `list_check`.
 
+*Step 7 dissolved both constants.* The 24 px margin became `GutterFor(cell)` and `HudH` became a top
+bar and a status strip that are laid out rather than reserved; the grid itself, and the reasoning
+above for drawing it on all four sides, is unchanged.
+
 ### ~~Drop the Animation option~~ — **decided against, 2026-09-13**
 
 `[OPT] Animation` / command 104 / the `A` key was listed here for removal on the grounds that
 nothing would ever want `Animate()` switched off. That was wrong: a still board is easier to read
 than a shimmering one, which is a reason to keep the key rather than a reason to drop it. It stays,
 UI and all, and `Engine.Ani_On` stays the transliterated field it always was.
+
+*Step 7 finished the job*: the toggle now takes effect on the tick after the keypress rather than on
+the next level load, which is what the original does and what makes "a still board is easier to
+read" an argument for the key at all — deferred to the next level, the key does not answer the
+question the player asked it. See *Finished*, step 7.
 
 ### ~~A collection picker — command 108, "Open Data File"~~ — **done 2026-09-13**
 
@@ -1539,7 +1601,7 @@ Session an arbitrary name — the collection came from the command line or the I
 before the Session was built — but a picker can offer a file that is deleted before Enter is
 pressed, and an exception out of a key handler takes the window down. The check found it by asking
 for a `.lvl` that is not there, and the symptom was not a red line: Godot never reached `Quit()`
-and the run hung. Both answers are one now, in the driver: `Error`, which the HUD already shows.
+and the run hung. Both answers are one now, in the driver: `Error`, which the status line already shows.
 
 `tools/collections_check.py` is the gate, and it has the two halves the shape of the change asks
 for. The **list** is derived from the filesystem and nothing else, so it gets the
@@ -1560,6 +1622,107 @@ Mirrors-Challenge.LVL` has a **space** in it, and a `\S+` in the tool's regex qu
 
 `out/levels/` is in the scan alongside the two corpus trees. It is where `EditMode.Save` puts a
 level that came out of `data/`, and listing it is what closes that loop: edit, save, open, play.
+
+### ~~Step 7: the UI redesign, first pass~~ — **done 2026-09-13**
+
+The thing the whole approach was a prelude to. The line was drawn out loud at the start and it
+held: **the mechanics of the puzzles must be exactly the same — every level solvable in exactly the
+way it was — and the UI need not be.** The port was finished faithfully first because that is the
+cheap way to be sure nothing mechanical moved while the game was built around it, and this is the
+cashing-in. All four fidelity gates and all eleven presentation gates are green on the far side.
+
+**What it replaced.** One function, `DrawHud`, drew eight lines of grey text in a fixed 190 px strip
+under a board that was one of exactly three sizes. Four of those eight lines were a key legend —
+twenty-eight bindings set as running text, a paragraph to be read rather than a list to be scanned,
+costing a permanent quarter of the window to something a player needs twice. The ninth thing it drew
+was the level's hint, **always**, which spoils every level that has one.
+
+**The four changes that matter:**
+
+1. **The board resizes with the window.** The layout is measured from the window every frame
+   (`BoardView.Measure`): the board takes the largest *whole-pixel* cell that fits the square it is
+   left, aspect locked, and the coordinate gutter and its type are derived from that cell rather
+   than being the constant 24 and 15 they were. Whole pixels because a fractional cell puts the
+   sprite grid off the pixel grid, and with nearest-neighbour filtering — which is what keeps this
+   looking like the original rather than like a photo of it — that shows as rows of sprites one
+   pixel taller than their neighbours.
+
+2. **The three sizes became presets rather than the whole story.** `Z` and `[SCREEN] Size` are still
+   `SetGameSize`'s 24 / 32 / 40 and still persist, but what they do now is *snap the window* so the
+   board lands on that cell exactly. `_pinCell` holds it there; the player's next drag of the window
+   frame frees it (`_selfResizes` tells our own resize from theirs). So the presets are a snap-to
+   and not a mode, and `[SCREEN] Size` is never silently redefined by a drag.
+
+3. **Animation applies on the spot.** `A` (command 104) used to say "next level" and mean it:
+   `Engine.Ani_On` is the one persisted option that changes what a tick does, and that was read as
+   a reason to defer it to the next `Session.Load`. The original does no such thing — `Ani_On` is a
+   global, `ToggleOpt` flips it (`LTANK.C:887`) and the very next `WM_TIMER` reads it (`if (Ani_On)
+   AniCount++;`, `LTANK.C:589`), so the board stops shimmering between one 50 ms tick and the next.
+   It was a port artifact, not a fidelity constraint: **every gate runs headless with `Engine`'s own
+   default of `true` and none of them presses `A`**, so nothing was protecting the old behaviour.
+
+4. **The hint is command 301 again.** `H` — the original's own accelerator for it (`lt32l_us.inc:140`)
+   — and off by default, as a card in the info column or, on a narrow window, a panel over the
+   board. This was the one piece of the old UI that was actively *wrong* rather than merely plain.
+
+**And the legend wall became `F1`**, which is also not an invented binding: `VK_F1` is command 907
+in `ACC1` and 903 in `ACC2`, so the overlay took the key the original already had for the question.
+It draws every binding as keycaps, grouped, in one or two columns depending on the window, and it
+swaps its list for the editor's when the editor is open. The bindings live in two tables
+(`PlayKeys`, `EditorKeys`) so the overlay and the router cannot drift.
+
+**`Ui.cs` is new and answers to nothing in the original**, on purpose — palette, three faces, a
+scale, and `StyleBoxFlat` factories for cards, dialogs, pills and keycaps. The port draws its whole
+interface in immediate mode, which has no theme and no cascade, so the only way a panel here can
+look like a panel there is for both to ask one file; nine dialogs, the editor palette, the HUD and
+the overlay went from eleven private palettes to one. Immediate mode was **kept** rather than
+rebuilt on Control nodes because the dialogs are the part of this port with observable *rules* —
+modality, what stops the clock, what reaches `AddKBuff` — and those live in the key router, not in a
+node tree. A Control-node rewrite would have bought layout containers at the price of re-deriving
+all of that. `DrawStyleBox` is what makes immediate mode enough: corner radii, borders and drop
+shadows are every modern-chrome primitive this interface needs. Web and native are the same code
+path — `SystemFont` falls through its name list to Godot's own face, which is what a browser export
+does — so there is no per-platform branch and no font file to ship.
+
+**The one interpolation, and why it is one.** `LaserOffset` was a three-entry table read out of the
+original (`LTANK2.C:1747/:1756/:1765` — 10, 13, 17), and a continuously-sized board needs it at cell
+sizes the table does not have. The rule those three are samples of turns out to be
+`round(cell * 10 / 24)`: it reproduces all three **exactly** — 24 → 10, 32 → 13.33 → 13, 40 → 16.67
+→ 17 — so it is an interpolation *through* the original's own points rather than a guess beside
+them. `_Ready` asserts that against the table at start-up, beside the tick-rate guard and for the
+same reason. `options_check.py` still measures the bar in the PNG and still gets 4, 6 and 6 px.
+
+**Two bugs the gates caught, both worth keeping written down** — they are the same bug in two
+places, and it is the bug a *derived* layout has that a constant one does not:
+
+- **A headless run has no window, and its viewport is not one.** Godot gives a headless root
+  viewport a size of its own that has nothing to do with `project.godot`'s, and `Measure` believed
+  it: a 92×160 "window", a board origin at (−274, −228), and a palette whose five columns landed on
+  top of board cells — so `EditMode.Script`, driving the mouse headless, clicked cell (7,10) and
+  selected palette slot 25 instead of painting. `editor_check.py` went red on one edit in eight.
+  Headless now lays out the preset's window instead, so the geometry a gate exercises is the
+  geometry a player at that preset gets, which is what makes driving the mouse headless mean
+  anything.
+- **`Measure` only ran in `_Draw`, which a headless run never calls.** Same gate, same symptom,
+  found first. `Resize` measures unconditionally now.
+
+`EditMode.Palette` also got the bound it should always have had: the *panel rect*, not just the
+grid inside it. The original's test is `LOWORD(lparam) > ContXPos`, a half-plane, because its
+palette and its board were either side of a fixed divider and could not overlap. Here both are laid
+out from the window, so "cannot overlap" has to be asserted rather than assumed — otherwise a bad
+layout silently turns board clicks into palette selections instead of missing loudly.
+
+**`options_check.py` was edited on purpose, as this file said it would be.** It used to assert that
+the window is `2 * margin + 16 * cell` wide and that the strip under the board is a constant height
+at all three sizes. Both were true while the window *was* the board plus a fixed strip and neither
+survives a window the player can drag. What it asserts now is what the presets actually promise: the
+board is 16 cells of exactly the requested size, square, with its coordinate gutter inside the
+window. `--shot` grew `board_x` / `board_y` for it — `margin` kept its old meaning, the gutter, and
+is no longer the board's origin, so a tool wanting cell (x,y) wants `board_x + x * cell`.
+
+**What was deliberately left for a second pass:** everything drawn is still keyboard-driven and
+none of the new chrome is clickable; the HTML5 export has not been tried; there is no motion
+anywhere. See *Next steps*, "The UI redesign, second pass".
 
 ---
 

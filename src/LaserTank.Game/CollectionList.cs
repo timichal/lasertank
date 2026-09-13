@@ -242,24 +242,31 @@ namespace LaserTank.Game
         }
 
         // ---- drawing --------------------------------------------------------
-        private const int Pad_ = 10;
-        private const int Line = 15;
+        /// The row pitch, on the UI scale -- see LevelList.Line.
+        private static int Line => Ui.Px(16);
 
-        private static readonly Color CurrentTint = Colors.LightGreen;
-        private static readonly Color PlainTint = Colors.Gainsboro;
-        /// DrawLevels' selected background, the same 0x00404080 LevelList uses.
-        private static readonly Color SelBack = new Color(0.5f, 0.25f, 0.25f);
+        private static readonly Color CurrentTint = Ui.Good;
+        private static readonly Color PlainTint = Ui.Dim;
 
-        public void Draw(Node2D n, Font font, Font mono, Rect2 board)
+        public void Draw(Node2D n, Font font, Font mono, Rect2 host)
         {
-            var panel = new Rect2(board.Position + new Vector2(4, 4),
-                                  board.Size - new Vector2(8, 8));
-            n.DrawRect(panel, new Color(0.04f, 0.05f, 0.07f, 0.97f));
-            n.DrawRect(panel, new Color(0.55f, 0.60f, 0.70f), false, 1);
+            // Centred on the window, the same shape as LevelList -- the two are
+            // deliberately not one class (see PROGRESS.md: these rows have no
+            // original to be diffed against and LevelList's do), but they are
+            // the same panel to look at, which is the part a player cares
+            // about.
+            Ui.Scrim(n, host);
+            float w = Mathf.Min(Ui.Px(560), host.Size.X - Ui.Px(40));
+            float h = Mathf.Min(Ui.Px(560), host.Size.Y - Ui.Px(40));
+            var panel = new Rect2(
+                Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f), w, h);
+            Ui.Dialog(n, panel);
 
-            float x = panel.Position.X + Pad_;
-            float w = panel.Size.X - 2 * Pad_;
-            float y = panel.Position.Y + Pad_ + 12;
+            float pad = Ui.Px(18);
+            float x = panel.Position.X + pad;
+            w = panel.Size.X - 2 * pad;
+            float y = panel.Position.Y + pad + Ui.Px(11);
 
             // Both halves of the title are the loaded language's: the menu
             // item's own label (`&Open Data File...`, command 108, out of
@@ -267,46 +274,52 @@ namespace LaserTank.Game
             // hands GetOpenFileName as its `*.LVL` filter.  Step 6 converted
             // both and nothing had read either until now.
             Language lang = _view.Strings;
-            n.DrawString(font, new Vector2(x, y),
-                         $"{lang.Label(108)}   {lang["txt002"]}   ({_rows.Length})",
-                         HorizontalAlignment.Left, w, 14, Colors.White);
-            y += Line + 5;
+            Ui.Caps(n, new Vector2(x, y), lang.Label(108), Ui.Text, 12);
+            Ui.Write(n, new Vector2(x + w - Ui.Px(240), y),
+                     $"{lang["txt002"]}  ·  {_rows.Length}", 11, Ui.Faint, Ui.Px(240),
+                     HorizontalAlignment.Right);
+            y += Ui.Px(12);
+            Ui.Rule(n, x, y, w);
+            y += Ui.Px(16);
 
             if (_rows.Length == 0)
             {
-                n.DrawString(font, new Vector2(x, y),
-                             "no .lvl under " + string.Join(", ", Roots),
-                             HorizontalAlignment.Left, w, 12, Colors.OrangeRed);
+                Ui.Write(n, new Vector2(x, y + Ui.Px(10)),
+                         "no .lvl under " + string.Join(", ", Roots), 12, Ui.Bad, w);
                 return;
             }
 
-            n.DrawString(mono, new Vector2(x, y),
+            n.DrawString(mono, new Vector2(x, y + Ui.Px(9)),
                          Pad("collection", 24) + " solved/total where",
-                         HorizontalAlignment.Left, w, 12, Colors.SlateGray);
-            y += Line + 2;
+                         HorizontalAlignment.Left, w, Ui.Px(11), Ui.Faint);
+            y += Line + Ui.Px(4);
 
-            int rows = Math.Max(1, (int)((panel.End.Y - y - 26) / Line));
+            int rows = Math.Max(1, (int)((panel.End.Y - y - Ui.Px(30)) / Line));
             _rowsShown = rows;
             int top = Math.Clamp(_top, 0, Math.Max(0, _rows.Length - rows));
             top = Math.Clamp(top, _sel - rows + 1, _sel);
             _top = top = Math.Max(0, top);
             for (int i = top; i < Math.Min(_rows.Length, top + rows); i++)
             {
+                Color tint = i == _current ? CurrentTint : PlainTint;
                 if (i == _sel)
-                    n.DrawRect(new Rect2(x - 3, y - 11, w + 6, Line), SelBack);
+                {
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.BorderLit, 5f, 1f),
+                                   new Rect2(x - Ui.Px(7), y - Line + 4,
+                                             w + 2 * Ui.Px(7), Line + 3));
+                    n.DrawRect(new Rect2(x - Ui.Px(7), y - Line + 4,
+                                         Mathf.Max(2, Ui.Px(2)), Line + 3),
+                               i == _current ? Ui.Good : Ui.Accent);
+                    if (i != _current) tint = Ui.Text;
+                }
                 n.DrawString(mono, new Vector2(x, y), _rows[i],
-                             HorizontalAlignment.Left, w, 12,
-                             i == _current ? CurrentTint : PlainTint);
+                             HorizontalAlignment.Left, w, Ui.Px(12), tint);
                 y += Line;
             }
 
-            n.DrawString(font, new Vector2(x, panel.End.Y - 12),
-                         // The same line as LevelList's, to the character
-                         // width -- it is measured to fit at the 24 px zoom,
-                         // where DrawString clips a long line silently.
-                         "up/down + PgUp/PgDn pick   Enter opens   "
-                         + "any other key closes",
-                         HorizontalAlignment.Left, w, 11, Colors.Gray);
+            Ui.Write(n, new Vector2(x, panel.End.Y - Ui.Px(13)),
+                     "↑↓ PgUp/PgDn pick · Enter opens · any other key closes",
+                     11, Ui.Faint, w);
         }
     }
 }

@@ -14,10 +14,21 @@ config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 
 [display]
 
-; The board at the default 32 px zoom, plus the HUD strip.  BoardView
-; resizes the window when the zoom changes, exactly as SetGameSize does.
-window/size/viewport_width=544
-window/size/viewport_height=670
+; The size-1 preset's window: a 24 px board, its coordinate gutter, the top bar,
+; the info column and the status strip.  BoardView overrides this at start-up
+; from [SCREEN] Size and snaps to it again on `Z` -- see Resize / WindowFor --
+; so these two are only what a run gets before the INI has been read.
+;
+; **The window is resizable and the board follows it** (step 7).  BoardView
+; measures the layout every frame and takes the largest integer cell size that
+; fits the square it is left, so there is no fixed board size any more and no
+; stretch mode: scaling the viewport would resample the sprites, and the point
+; is to draw them at the size they are going to be. The minimum size is set in
+; code, beside the SizeChanged hookup that frees the preset when the player
+; drags.
+window/size/viewport_width=699
+window/size/viewport_height=527
+window/size/resizable=true
 
 [physics]
 

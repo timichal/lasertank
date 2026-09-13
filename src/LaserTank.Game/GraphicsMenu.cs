@@ -133,93 +133,107 @@ namespace LaserTank.Game
         private void Apply() => _view.ApplyPack(_packs[_sel]);
 
         // ---- drawing --------------------------------------------------------
-        private const int Pad = 10;
-        private const int Line = 17;
+        private static int Pad => Ui.Px(16);
+        private static int Line => Ui.Px(18);
 
+        /// The .ltg Info field, with its CRLFs normalised -- Godot's multiline
+        /// layout wants \n and the field carries whatever the pack's author
+        /// typed.
         private static string InfoText(Pack p) =>
             p.Info.Replace("\r\n", "\n").Replace('\r', '\n');
 
-        /// A dialog-shaped box rather than a full-board overlay: the original is
-        /// a small window over the game, and the game is still running behind
-        /// it, so covering the whole board would hide the thing the pack is
-        /// being chosen for.  The height is measured from the content, which is
-        /// also what SetUpGraphicsBox does -- it resizes the dialog to 100 or
-        /// 160 dialog base units depending on whether a .ltg is selected
+        /// A dialog-shaped box rather than a full-window overlay: the original
+        /// is a small window over the game, and the game is still running behind
+        /// it, so covering the board would hide the thing the pack is being
+        /// chosen for.  The height is measured from the content, which is also
+        /// what SetUpGraphicsBox does -- it resizes the dialog to 100 or 160
+        /// dialog base units depending on whether a .ltg is selected
         /// (LTANK_D.C:1160).
-        public void Draw(Node2D n, Font font, Rect2 board)
+        public void Draw(Node2D n, Font font, Rect2 host)
         {
             if (_packs == null) return;
             Pack sel0 = _packs[_sel];
-            float wInner = board.Size.X - 12 - 2 * Pad;
+            float w = Mathf.Min(Ui.Px(400), host.Size.X - Ui.Px(40));
+            float wInner = w - 2 * Pad;
             float infoH = sel0.Info.Length == 0 ? 0
-                : Mathf.Min(6 * 15,
-                            font.GetMultilineStringSize(InfoText(sel0),
-                                                        HorizontalAlignment.Left,
-                                                        wInner, 12).Y);
+                : Mathf.Min(6 * Ui.Px(15),
+                            Ui.Sans.GetMultilineStringSize(InfoText(sel0),
+                                                           HorizontalAlignment.Left,
+                                                           wInner, Ui.Px(12)).Y);
             // The same arithmetic the drawing below walks through, in the same
             // order.  Keep the two in step: a height that disagrees with the
             // flow puts the footer through the middle of the description.
-            float height = Pad + 13 + (Line + 4)              // title
-                           + _packs.Count * Line + 6          // the list
+            float height = Pad + Ui.Px(12) + Ui.Px(16)        // title + rule
+                           + _packs.Count * Line + Ui.Px(8)   // the list
                            + (sel0.Author.Length > 0 ? Line : 0)
-                           + (infoH > 0 ? infoH + 6 : 0)
-                           + 4 + Line + Line + Pad;           // size + footer
+                           + (infoH > 0 ? infoH + Ui.Px(8) : 0)
+                           + Ui.Px(8) + Line + Line + Pad;    // size + footer
 
-            var panel = new Rect2(board.Position + new Vector2(6, 6),
-                                  new Vector2(board.Size.X - 12,
-                                              Mathf.Min(height, board.Size.Y - 12)));
-            n.DrawRect(panel, new Color(0.05f, 0.06f, 0.08f, 0.96f));
-            n.DrawRect(panel, new Color(0.55f, 0.60f, 0.70f), false, 1);
+            Ui.Scrim(n, host);
+            var panel = new Rect2(
+                Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                Mathf.Round(host.Position.Y
+                            + (host.Size.Y - Mathf.Min(height, host.Size.Y - Ui.Px(40)))
+                              / 2f),
+                w, Mathf.Min(height, host.Size.Y - Ui.Px(40)));
+            Ui.Dialog(n, panel);
 
             float x = panel.Position.X + Pad;
-            float w = panel.Size.X - 2 * Pad;
-            float y = panel.Position.Y + Pad + 13;
+            float y = panel.Position.Y + Pad + Ui.Px(11);
 
-            n.DrawString(font, new Vector2(x, y), Title, HorizontalAlignment.Left, w, 15,
-                         Colors.White);
-            y += Line + 4;
+            Ui.Caps(n, new Vector2(x, y), Title, Ui.Text, 12);
+            y += Ui.Px(12);
+            Ui.Rule(n, x, y, wInner);
+            y += Ui.Px(16);
 
             for (int i = 0; i < _packs.Count; i++)
             {
                 Pack p = _packs[i];
                 bool cur = i == _sel;
-                string mark = cur ? ">" : " ";
                 string name = LabelOf(p) + (p.Available ? "" : "   (not found)");
-                Color tint = !p.Available ? Colors.DimGray : cur ? Colors.Yellow : Colors.Gainsboro;
-                n.DrawString(font, new Vector2(x, y), mark + " " + name,
-                             HorizontalAlignment.Left, w, 13, tint);
+                Color tint = !p.Available ? Ui.Faint : cur ? Ui.Text : Ui.Dim;
+                if (cur)
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.Accent, 6f, 1f),
+                                   new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
+                                             wInner + 2 * Ui.Px(8), Line + Ui.Px(3)));
+                Ui.Write(n, new Vector2(x, y), name, 12.5f, tint, wInner);
                 y += Line;
             }
 
-            y += 6;
+            y += Ui.Px(8);
             Pack sel = _packs[_sel];
             if (sel.Author.Length > 0)
             {
-                n.DrawString(font, new Vector2(x, y), AuthorLabel + " " + sel.Author,
-                             HorizontalAlignment.Left, w, 12, Colors.LightSteelBlue);
+                Ui.Write(n, new Vector2(x, y), AuthorLabel + " " + sel.Author, 11.5f,
+                         Ui.Cyan, wInner);
                 y += Line;
             }
             if (infoH > 0)
             {
                 // The .ltg Info field is 245 bytes of free text with its own
                 // line breaks; wrap what does not fit rather than clipping it.
-                n.DrawMultilineString(font, new Vector2(x, y), InfoText(sel),
-                                      HorizontalAlignment.Left, w, 12, 6,
-                                      new Color(0.72f, 0.72f, 0.75f));
-                y += infoH + 6;
+                Ui.Wrapped(n, new Vector2(x, y), InfoText(sel), 11.5f, Ui.Dim,
+                           wInner, 6);
+                y += infoH + Ui.Px(8);
             }
 
-            // The last two lines: the size, and how to leave.
-            y += 4;
-            string sizes = "";
-            for (int s = 1; s <= 3; s++)
-                sizes += (s == _view.Size ? "[" + BoardView.CellOf(s) + "]"
-                                          : " " + BoardView.CellOf(s) + " ") + " ";
-            n.DrawString(font, new Vector2(x, y), "Size  " + sizes.TrimEnd(),
-                         HorizontalAlignment.Left, w, 12, Colors.Gainsboro);
-            n.DrawString(font, new Vector2(x, y + Line),
-                         "up/down picks   1/2/3 or Z sizes   Enter or Esc closes",
-                         HorizontalAlignment.Left, w, 11, Colors.Gray);
+            // The last two lines: the size, and how to leave.  The three sizes
+            // are *presets* since step 7 -- the board fits the window at any
+            // cell size and these snap it to a crisp one -- so the label says
+            // so rather than pretending they are the only three.
+            y += Ui.Px(8);
+            float sx = x;
+            Ui.Write(n, new Vector2(sx, y), "Snap", 11.5f, Ui.Faint, Ui.Px(40));
+            sx += Ui.Px(44);
+            for (int sz = 1; sz <= 3; sz++)
+            {
+                bool on = sz == _view.Size;
+                sx = Ui.Pill(n, sx, y - Ui.Px(11), BoardView.CellOf(sz) + " px",
+                             on ? Ui.Accent : Ui.Faint, on ? Ui.Raised : Ui.Bg);
+            }
+            Ui.Write(n, new Vector2(x, y + Line), 
+                     "↑↓ picks · 1/2/3 or Z snaps · Enter or Esc closes",
+                     11, Ui.Faint, wInner);
         }
     }
 }

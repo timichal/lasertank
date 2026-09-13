@@ -26,9 +26,17 @@ they knew what to look for:
           the header's Name field the way GetLTGFiles names it, plus the two
           radio buttons.
 
-  size    the three sizes (24 / 32 / 40 px, SetGameSize's 1..3) render, and
-          changing size changes nothing but pixels: the board is 16 cells
-          square in each and the HUD strip below it keeps its height.
+  size    the three size *presets* (24 / 32 / 40 px, SetGameSize's 1..3)
+          render, and changing size changes nothing but pixels: the board is 16
+          cells square in each, at exactly the cell the preset names, with its
+          coordinate gutter inside the window.
+
+          Step 7 made the board fit whatever square the window leaves it and
+          made the presets a snap-to rather than the only three sizes, so what
+          this used to assert -- that the window is `2 * margin + 16 * cell`
+          wide and that the strip under the board is a constant height -- is no
+          longer true of a window the player can drag.  The board's own
+          geometry is, and that is what the laser check below needs.
 
   laser   **the laser bar is `cell - 2 * LaserOffset` wide -- 4, 6 and 6 px.**
           LaserOffset is a per-size constant (LTANK2.C:1747/:1756/:1765), not a
@@ -472,29 +480,51 @@ def check_window(tmp):
             return None
         shots[size] = (out_png, geo, las)
 
-    # Nothing but pixels: 16 cells of board in each size, and the HUD strip
-    # below it keeps its height.
-    huds = set()
+    # Nothing but pixels, and the claim moved in step 7.  It used to be "the
+    # window is exactly the board plus two margins, and the HUD strip under it
+    # is the same height at all three sizes" -- which was true while the window
+    # *was* the board plus a fixed strip, and stopped being true when the board
+    # started fitting itself to a resizable window with chrome around it.
+    #
+    # What is checked now is what the three presets actually promise: the board
+    # is 16 cells of exactly the requested size, it is square, and it is inside
+    # the window with the chrome clear of it.  The window's own size is no
+    # longer a derived constant and is not asserted -- dragging it is the
+    # feature.
+    boards = {}
     for size, cell, offset in SIZES:
         out_png, geo, _ = shots[size]
         w, h, ch, px = png(out_png)
         margin, c = int(geo["margin"]), int(geo["cell"])
+        bx, by = int(geo["board_x"]), int(geo["board_y"])
         if c != cell:
-            good = fail("size %d renders" % size, "cell=%d, wanted %d" % (c, cell))
-            continue
-        if w != 2 * margin + 16 * c:
             good = fail("size %d renders" % size,
-                        "window %d px wide, 2*%d + 16*%d = %d"
-                        % (w, margin, c, 2 * margin + 16 * c))
+                        "cell=%d, wanted %d" % (c, cell))
             continue
-        huds.add(h - w)
-        good &= ok("size %d renders" % size, "%dx%d window, %d px cells" % (w, h, c))
-    if len(huds) != 1:
-        good = fail("size changes nothing but pixels",
-                    "the HUD strip is %s px in the three sizes" % sorted(huds))
-    else:
+        # The gutter the A1-P16 labels live in is the board's own margin, and
+        # since step 7 it follows the cell rather than being a constant 24.
+        # Both edges of it have to be inside the window or a label is clipped.
+        if bx < margin or by < margin:
+            good = fail("size %d renders" % size,
+                        "board at (%d,%d) leaves no room for the %d px gutter"
+                        % (bx, by, margin))
+            continue
+        if bx + 16 * c + margin > w or by + 16 * c + margin > h:
+            good = fail("size %d renders" % size,
+                        "board 16*%d at (%d,%d) runs off a %dx%d window"
+                        % (c, bx, by, w, h))
+            continue
+        boards[size] = (bx, by, c)
+        good &= ok("size %d renders" % size,
+                   "16x%d px board at (%d,%d) in a %dx%d window" % (c, bx, by, w, h))
+
+    # "Changing size changes nothing but pixels" still holds and is still worth
+    # saying -- it is just said about the board rather than about the window:
+    # the board is square and 16 cells across in every one of the three.
+    if len(boards) == len(SIZES):
         good &= ok("size changes nothing but pixels",
-                   "board 16 cells square, HUD %d px in all three" % huds.pop())
+                   "board 16 cells square at %s px"
+                   % "/".join(str(boards[s][2]) for s, _c, _o in SIZES))
 
     # The laser bar, measured in the cell the engine names.
     for size, cell, offset in SIZES:
@@ -505,9 +535,13 @@ def check_window(tmp):
                         % (LASER_TICK, las.get("firing")))
             continue
         w, h, ch, px = png(out_png)
-        margin, c = int(geo["margin"]), int(geo["cell"])
+        c = int(geo["cell"])
+        # `board_x`/`board_y` since step 7: the board floats in the window now,
+        # so the cell's corner is the board's own origin plus the offset, and
+        # `margin` -- which is the gutter the labels live in -- is not it.
+        bx, by = int(geo["board_x"]), int(geo["board_y"])
         lx, ly, d = int(las["x"]), int(las["y"]), int(las["dir"])
-        box = green_box(w, h, ch, px, margin + lx * c, margin + ly * c, c)
+        box = green_box(w, h, ch, px, bx + lx * c, by + ly * c, c)
         if box is None:
             good = fail("laser at %d px" % cell,
                         "no green in cell (%d,%d)" % (lx, ly))

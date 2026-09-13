@@ -35,6 +35,13 @@ namespace LaserTank.Game
         // size here changes nothing but pixels.  (Hazard #11 lives in that
         // function -- `if (GFXOn) GFXKill;`, missing its parens.  It stays
         // missing; nothing here calls it.)
+        //
+        // **Step 7 made these three presets rather than the whole story.**  The
+        // board now takes whatever square the window leaves it (Measure), at any
+        // integer cell size; `Z` still cycles 24 / 32 / 40 and still writes
+        // [SCREEN] Size, but what it does is *resize the window* so the board
+        // lands on that cell exactly -- a snap to a crisp size, not a mode.  See
+        // `_pinCell`.
         private static readonly int[] Zooms = { 24, 32, 40 };
 
         /// **LaserOffset is a per-size constant, not a fraction of the cell**
@@ -48,34 +55,263 @@ namespace LaserTank.Game
         /// in a table in the original, so read the table.
         private static readonly int[] LaserOffsets = { 10, 13, 17 };
 
-        /// The original's size 1..3, which is [SCREEN] Size.
+        /// A continuously-sized board needs the table at cell sizes the table
+        /// does not have, and the rule the three entries are three samples of
+        /// turns out to be **`round(cell * 10 / 24)`**: it reproduces all three
+        /// exactly -- 24 -> 10, 32 -> 13.33 -> 13, 40 -> 16.67 -> 17 -- so this
+        /// is an interpolation *through* the original's own points rather than
+        /// a guess beside them.  **_Ready asserts exactly that**, beside the
+        /// tick-rate guard and for the same reason, so the claim cannot quietly
+        /// stop being true if anyone edits either.
+        ///
+        /// AwayFromZero rather than C#'s banker's default: the three points do
+        /// not land on a half, but cells 6, 18, 30, 42... do, and a rule that
+        /// rounds 17.5 down and 18.5 up puts a one-pixel wobble in the laser as
+        /// the window is dragged.
+        internal static int LaserOffsetFor(int cell)
+            => (int)Math.Round(cell * 10.0 / 24.0, MidpointRounding.AwayFromZero);
+
+        /// The original's size 1..3, which is [SCREEN] Size.  Now a *preset*:
+        /// the size `Z` snaps the window to, and the size the window opens at.
         private int _size = 1;
-        private int Cell => Zooms[_size - 1];
-        private int LaserOffset => LaserOffsets[_size - 1];
 
         internal int Size => _size;
         internal static int CellOf(int size) => Zooms[Math.Clamp(size, 1, 3) - 1];
 
-        /// The original's XOffset / YOffset (LTANK.H:93) are **17**, and that
-        /// gutter is not decoration: it is what the coordinate labels are drawn
-        /// in (LTANK.C:502).  At size 1 the board's right edge is 17 + 384 =
-        /// 401 and ContXPos is 419, so the right-hand gutter is 18 px and the
-        /// labels in it start 8 px in -- which is why the original hand-kerns
-        /// its two-digit row numbers into 10 px (see DrawGrid).  This port
-        /// takes 24 rather than 17 because it does not hand-kern: "16" at the
-        /// original's own 15 px type is ~16 px wide and is simply drawn.
-        private const int Margin = 24;
-        /// EditMode does the same window arithmetic for its palette.
-        internal const int MarginPx = Margin;
-        // Room for DrawHud's eight lines: the header, the scores, the state
-        // line, four key legends and the hint.  Step 4 added a dozen keys, and
-        // they went into *four short* legends rather than three long ones
-        // because the window is only as wide as the board -- 384 px at the
-        // default 24 px zoom, where DrawString clips a long line silently.
-        // Keep this in step with DrawHud or the hint falls off the window;
-        // options_check.py checks the strip is the same height at all three
-        // sizes, not that it is any particular height.
-        private const int HudH = 190;
+        // ---- the layout, measured from the window every frame ---------------
+        //
+        // The original's XOffset / YOffset (LTANK.H:93) are **17**, and that
+        // gutter is not decoration: it is what the coordinate labels are drawn
+        // in (LTANK.C:502).  It was a constant 24 here while the cell was one of
+        // three; with the cell continuous it has to follow the type it holds, so
+        // both are derived from the cell -- see GridPtFor / GutterFor.
+
+        /// Where everything is this frame.  Recomputed at the top of _Draw and
+        /// read by the mouse hit test, the dialogs and the editor: one function
+        /// decides the geometry and nothing else is allowed an opinion, which is
+        /// what stopped `2 * Margin + 16 * Cell` from being spelled out in six
+        /// files the way it was before step 7.
+        private struct Layout
+        {
+            /// The whole window.
+            public Rect2 Window;
+            /// The top bar and the status strip, full width, top and bottom.
+            public Rect2 Top, Status;
+            /// The square the board sits in, gutter included -- the "well".
+            public Rect2 Well;
+            /// The 16x16 cells inside it.  `Board.Position` is cell (0,0).
+            public Rect2 Board;
+            /// The info column (or, in the stacked layout, the strip under the
+            /// board), and in the editor the palette.
+            public Rect2 Side;
+            public int Cell, Gutter, GridPt;
+            /// True when the window is too narrow for a column beside the board
+            /// and the panel has gone under it instead.
+            public bool Stacked;
+        }
+
+        private Layout _l;
+
+        /// The coordinate labels' type, and the gutter that holds it.  The
+        /// original's own 15 px at its own 24..40 px cells is the anchor the
+        /// ratio is taken from (LTANK.C:504 centres its row labels against a
+        /// literal 15, which is the line height of the face it was drawing
+        /// with); the clamps keep the labels legible on a tiny board and stop
+        /// them growing into decoration on a huge one.
+        private static int GridPtFor(int cell)
+            => Math.Clamp((int)MathF.Round(cell * 0.40f), 9, 20);
+
+        private static int GutterFor(int cell) => GridPtFor(cell) + 9;
+
+        /// The largest cell whose board -- gutter and all -- still fits a square
+        /// `square` px on a side.  Integer cells only: a fractional one puts the
+        /// sprite grid off the pixel grid, and with nearest-neighbour filtering
+        /// (project.godot sets it, and it is what keeps this looking like the
+        /// original rather than like a photo of it) that shows up as rows of
+        /// sprites one pixel taller than their neighbours.
+        private static int CellFor(float square)
+        {
+            // 16 cells plus two gutters of ~0.4 cell + 9 is ~16.8 cell + 18.
+            int c = Math.Clamp((int)((square - 18f) / 16.8f), MinCell, MaxCell);
+            while (c > MinCell && 16 * c + 2 * GutterFor(c) > square) c--;
+            while (c < MaxCell && 16 * (c + 1) + 2 * GutterFor(c + 1) <= square) c++;
+            return c;
+        }
+
+        private const int MinCell = 8, MaxCell = 120;
+
+        // The chrome's own metrics, in design pixels -- Ui.Px turns them into
+        // real ones.  See Ui.Scale for why the type does not simply track the
+        // board.
+        private const float PadD = 16, TopD = 54, StatusD = 36, SideD = 276, GapD = 16;
+        /// The stacked layout's strip.  Two lines of numbers and a name, which
+        /// is what survives of the column when there is no room for a column.
+        private const float StripD = 86;
+        /// Below this window width the info column goes under the board.  A raw
+        /// pixel count rather than a scaled one: it is a question about the
+        /// *device*, and scaling it by a factor derived from the same number is
+        /// circular.
+        ///
+        /// The number is what a column beside a board actually costs, not a
+        /// round one: two pads and a gap (~44), the column (~235 at the small
+        /// end of the UI scale), and a board wide enough to still be a board --
+        /// the 24 px preset's 422.  That is 700, and 660 leaves the preset a
+        /// little room to be dragged narrower before the layout gives up on the
+        /// column.  **It has to stay under the size-1 preset's own window** or
+        /// the smallest preset opens stacked, which is what it did on the first
+        /// pass here: the board was pinned to 24 px, the strip took the space
+        /// the column would have had, and the board overflowed upward into the
+        /// top bar.  WindowFor's clamp is the belt to this brace.
+        private const int StackBelow = 660;
+
+        /// Non-zero while the board is held at an exact cell size rather than
+        /// fitted to the window -- what `Z`, `--zoom` and the startup [SCREEN]
+        /// Size do.  Dragging the window clears it (see `_selfResizes`), which
+        /// is the whole interaction: the presets are a snap-to, and the moment
+        /// the player disagrees the board goes back to filling what it is given.
+        private int _pinCell;
+
+        /// Resize() sets the window itself, and that fires the same
+        /// SizeChanged the player's own drag does.  One counter tells them
+        /// apart: anything not accounted for here was the player, and frees the
+        /// pin.
+        private int _selfResizes;
+
+        // The three the rest of the file reads.  They were a constant and two
+        // table lookups before step 7; keeping the names means the drawing code
+        // below -- DrawCell, DrawTank, DrawLaser, DrawGrid -- did not have to
+        // learn that the geometry moved.
+        internal int Cell => _l.Cell;
+        private int LaserOffset => LaserOffsetFor(_l.Cell);
+        private int GridPt => _l.GridPt;
+        /// The top-left of cell (0,0), in window pixels.  EditMode and the
+        /// mouse hit test read it; nothing may re-derive it.
+        internal Vector2 Origin => _l.Board.Position;
+        /// The square the board and its labels occupy.
+        internal Rect2 Well => _l.Well;
+        /// The column beside the board -- the editor's palette lives here.
+        internal Rect2 SidePanel => _l.Side;
+
+        /// Everything the frame's geometry is.  Called at the top of _Draw and
+        /// by anything that needs the layout before the first draw.
+        private void Measure()
+        {
+            Vector2 win = GetViewportRect().Size;
+            // **A headless run has no window, and its viewport is not one.**
+            // Godot gives a headless root viewport a size of its own that has
+            // nothing to do with project.godot's, and the layout believed it: it
+            // produced a 92x160 "window", a board whose origin was off at
+            // (-274, -228) and a palette whose five columns landed *on top of*
+            // board cells -- so a headless mouse driver clicking cell (7,10)
+            // selected palette slot 25 instead of painting.  That is how
+            // tools/editor_check.py found this, one edit in eight.
+            //
+            // So headless lays out the preset's window instead.  The geometry a
+            // gate exercises is then exactly the geometry a player at that
+            // preset gets, which is what makes driving the mouse headless mean
+            // anything at all.
+            if (win.X < 320 || win.Y < 320)
+                win = WindowFor(_pinCell > 0 ? _pinCell : CellOf(_size));
+            Ui.SetScale(win);
+            var l = new Layout { Window = new Rect2(Vector2.Zero, win) };
+            int pad = Ui.Px(PadD), top = Ui.Px(TopD), st = Ui.Px(StatusD),
+                gap = Ui.Px(GapD), sideW = Ui.Px(SideD);
+
+            l.Top = new Rect2(0, 0, win.X, top);
+            l.Status = new Rect2(0, win.Y - st, win.X, st);
+
+            var inner = new Rect2(pad, top + pad,
+                                  Mathf.Max(64f, win.X - 2 * pad),
+                                  Mathf.Max(64f, win.Y - top - st - 2 * pad));
+
+            // The editor's palette is 28 sprites in a grid; there is no stacked
+            // form of that which is not a scroll bar, so the editor keeps its
+            // column and lets the board shrink instead.
+            bool editing = _edit != null && _edit.Open;
+            l.Stacked = win.X < StackBelow && !editing;
+
+            Rect2 area;
+            if (l.Stacked)
+            {
+                int strip = Ui.Px(StripD);
+                area = new Rect2(inner.Position,
+                                 new Vector2(inner.Size.X,
+                                             Mathf.Max(64f, inner.Size.Y - strip - gap)));
+                l.Side = new Rect2(inner.Position.X, inner.End.Y - strip,
+                                   inner.Size.X, strip);
+            }
+            else
+            {
+                // Never more than two fifths of the window: on a wide-and-short
+                // window the board is height-bound and a fixed column would take
+                // space the board could not have used anyway -- but on a *narrow*
+                // one just above the stacking threshold it would squeeze the
+                // board to nothing.
+                sideW = (int)Mathf.Min(sideW, inner.Size.X * 0.42f);
+                area = new Rect2(inner.Position,
+                                 new Vector2(Mathf.Max(64f, inner.Size.X - sideW - gap),
+                                             inner.Size.Y));
+                l.Side = new Rect2(inner.End.X - sideW, inner.Position.Y,
+                                   sideW, inner.Size.Y);
+            }
+
+            float square = Mathf.Min(area.Size.X, area.Size.Y);
+            l.Cell = _pinCell > 0 ? _pinCell : CellFor(square);
+            l.Gutter = GutterFor(l.Cell);
+            l.GridPt = GridPtFor(l.Cell);
+
+            // Rounded, not floored: the board's origin has to be a whole pixel
+            // or every sprite in it lands on a half one, and nearest-neighbour
+            // then drops a column here and doubles one there.
+            float side = 16 * l.Cell + 2 * l.Gutter;
+            var at = new Vector2(
+                Mathf.Round(area.Position.X + (area.Size.X - side) / 2f),
+                Mathf.Round(area.Position.Y + (area.Size.Y - side) / 2f));
+            l.Well = new Rect2(at, new Vector2(side, side));
+            l.Board = new Rect2(at + new Vector2(l.Gutter, l.Gutter),
+                                new Vector2(16 * l.Cell, 16 * l.Cell));
+            _l = l;
+        }
+
+        /// The window size that puts the board at exactly `cell`.  A fixed
+        /// point rather than a formula because the chrome's own metrics are
+        /// scaled by a factor derived from the window (Ui.SetScale), so the
+        /// answer depends on itself; four or five rounds settle it, and exactness
+        /// does not actually rest on the loop converging -- `_pinCell` holds the
+        /// cell whatever window comes back.
+        private static Vector2I WindowFor(int cell)
+        {
+            float sq = 16 * cell + 2 * GutterFor(cell);
+            var w = new Vector2(sq * 1.7f, sq * 1.3f);
+            for (int i = 0; i < 8; i++)
+            {
+                Ui.SetScale(w);
+                var next = new Vector2(
+                    2 * Ui.Px(PadD) + sq + Ui.Px(GapD) + Ui.Px(SideD),
+                    Ui.Px(TopD) + 2 * Ui.Px(PadD) + sq + Ui.Px(StatusD));
+                bool settled = (next - w).LengthSquared() < 1f;
+                w = next;
+                if (settled) break;
+            }
+            // A preset must never open stacked: the arithmetic above lays out a
+            // column, and a window that then falls under the threshold gets a
+            // strip instead, which is a different and smaller space for the same
+            // pinned board to fit in.
+            w.X = Mathf.Max(w.X, StackBelow);
+            return new Vector2I(Mathf.RoundToInt(w.X), Mathf.RoundToInt(w.Y));
+        }
+
+        /// The player dragged the window: the preset stops applying and the
+        /// board goes back to filling whatever it is given.  `[SCREEN] Size` is
+        /// *not* rewritten -- it is still the size `Z` and the next start-up
+        /// mean, which is the one thing a dragged window should not silently
+        /// redefine.
+        private void OnWindowResized()
+        {
+            if (_selfResizes > 0) { _selfResizes--; return; }
+            _pinCell = 0;
+            QueueRedraw();
+        }
 
         private Session _s;
         private Atlas _atlas;
@@ -94,12 +330,12 @@ namespace LaserTank.Game
         private Sfx _sfx;
         private string _error;
 
-        /// A monospace face for the three list panels.  Their rows are the
-        /// original's own `%4d %-30.30s` sprintf output, so the padding only
-        /// lines up in a fixed-pitch font; ThemeDB.FallbackFont is proportional.
-        /// A SystemFont falls through its name list and then to the default, so
-        /// a machine with none of the three still draws readable rows.
-        private Font _mono;
+        /// A monospace face for the list panels.  Their rows are the original's
+        /// own `%4d %-30.30s` sprintf output, so the padding only lines up in a
+        /// fixed pitch.  It is `Ui.Mono` since step 7 -- there is one type
+        /// system now, and a second name list here would be a second answer to
+        /// the same question.
+        private Font _mono => Ui.Mono;
 
         /// Off in --shot mode: the shot awaits two frames, and physics would
         /// otherwise tick the game past the frame being captured.
@@ -133,6 +369,20 @@ namespace LaserTank.Game
         /// menu item and no INI key.  `C` is this port's, on the same terms as
         /// `I`: on by default, not persisted.
         private bool _grid = true;
+
+        /// Command 907 (VK_F1, lt32l_us.inc:141) -- the help, which the original
+        /// answers with WinHelp and `LaserTank.hlp`.  There is no .hlp here, so
+        /// F1 is the key list instead: the same question, the answer this port
+        /// can actually give.  See DrawHelp.
+        private bool _help;
+
+        /// Command 301 (VK_H, :140) -- the Hint dialog.  **Off by default, and
+        /// that is the point of it**: before step 7 the hint was drawn under the
+        /// board on every frame, which spoils every level that has one.  Not
+        /// persisted and reset by nothing: asking for a hint on one level is not
+        /// a standing request for them on all of them, but it is also not worth
+        /// making the player ask twice on the level they asked about.
+        private bool _hint;
 
         public override void _Ready()
         {
@@ -190,6 +440,18 @@ namespace LaserTank.Game
                     $"physics_ticks_per_second is {tps}, must be " +
                     $"{1000 / Session.GameDelayMs} (GameDelay = {Session.GameDelayMs} ms)");
 
+            // The same species of guard for step 7's one interpolation.  The
+            // board takes any cell size now, so LaserOffset had to become a
+            // rule rather than a three-entry table -- and the rule is only
+            // defensible while it still answers the table's own three points.
+            // Fail loudly rather than drawing a laser one pixel off the width
+            // tools/options_check.py measures to.
+            for (int i = 0; i < Zooms.Length; i++)
+                if (LaserOffsetFor(Zooms[i]) != LaserOffsets[i])
+                    throw new InvalidOperationException(
+                        $"LaserOffsetFor({Zooms[i]}) is {LaserOffsetFor(Zooms[i])}, " +
+                        $"and LTANK2.C's table says {LaserOffsets[i]}");
+
             // ---- the persisted options, and the overrides on top of them ----
             // An instrument run -- a screenshot, a scripted playthrough, a
             // check, a clock measurement -- reads the file and writes nothing,
@@ -239,10 +501,6 @@ namespace LaserTank.Game
             _list = new LevelList(this);
             _collections = new CollectionList(this);
             _edit = new EditMode(this);
-            _mono = new SystemFont
-            {
-                FontNames = new[] { "Consolas", "DejaVu Sans Mono", "Courier New", "monospace" },
-            };
             Pack want = Packs.FromOptions(_packs, _opt);
             if (ArgStr(args, "--pack") is string ps)
             {
@@ -362,7 +620,45 @@ namespace LaserTank.Game
 
             _s = new Session(levels, _opt);
             if (!_s.Load(level)) _error = _s.Error;
+
+            // Step 7: the window is resizable and the board follows it.  The
+            // minimum is the one the stacked layout still reads at -- below it
+            // the info strip and the board start eating each other -- and the
+            // start-up size is the [SCREEN] Size preset, which is what Resize
+            // snaps to.  Both are no-ops headless.
+            if (DisplayServer.GetName() != "headless")
+            {
+                DisplayServer.WindowSetMinSize(new Vector2I(460, 420));
+                GetTree().Root.SizeChanged += OnWindowResized;
+            }
             Resize();
+
+            // `--window WxH` is the responsive layout's own instrument, on the
+            // same terms as --panel and --editor: the board fits whatever the
+            // window gives it now, so "what does it look like at that size" is a
+            // question with an answer, and a screenshot is the only way to
+            // review it without a hand on the window frame.  It clears the
+            // preset pin deliberately -- an arbitrary size is exactly the case
+            // the pin is not for.
+            if (ArgStr(args, "--window") is string ws
+                && DisplayServer.GetName() != "headless")
+            {
+                string[] wh = ws.ToLowerInvariant().Split('x');
+                if (wh.Length == 2 && int.TryParse(wh[0], out int ww)
+                                   && int.TryParse(wh[1], out int whh))
+                {
+                    _selfResizes++;
+                    DisplayServer.WindowSetSize(new Vector2I(ww, whh));
+                    _pinCell = 0;
+                    Measure();
+                }
+                else
+                {
+                    GD.PrintErr("--window wants WxH, e.g. 900x700");
+                    GetTree().Quit(2);
+                    return;
+                }
+            }
 
             // SFxInit (lt_sfx.c:47), at WM_CREATE where the original does it
             // (LTANK.C:452).  Not in a headless run: there is nobody to hear
@@ -406,9 +702,15 @@ namespace LaserTank.Game
                 case "global": OpenList(ListMode.GlobalScores); break;
                 case "collections": OpenCollections(); break;
                 case "playback": OpenPlayback(); break;
+                // Step 7's two.  `help` is command 907's overlay and `hint` is
+                // 301's card, and both are here for the reason the rest are: a
+                // panel nothing can screenshot is a panel nothing reviews.
+                case "help": _help = true; break;
+                case "hint": _hint = true; break;
                 case null: break;
                 default:
-                    GD.PrintErr("--panel wants levels|scores|global|collections|playback");
+                    GD.PrintErr("--panel wants "
+                                + "levels|scores|global|collections|playback|help|hint");
                     GetTree().Quit(2);
                     return;
             }
@@ -521,17 +823,33 @@ namespace LaserTank.Game
 
         /// The original resizes its window per zoom too (SetGameSize); the
         /// numbers there are its own layout's and mean nothing here.
+        ///
+        /// **What this does changed in step 7.**  It used to be the only way the
+        /// board's size was ever set, and the editor called it a second time to
+        /// widen the window for the palette (the original hangs that palette in
+        /// its 180-pixel control panel, ContXPos LTANK2.C:47, and this port had
+        /// no such panel to hang it in).  The board now fits itself to whatever
+        /// the window gives it and the palette has a column of its own, so this
+        /// is left doing one job: snapping the window to a preset so the board
+        /// lands on exactly 24, 32 or 40 px cells.  `_pinCell` is what makes it
+        /// exact rather than approximate, and the player's next drag frees it.
         private void Resize()
         {
+            _pinCell = CellOf(_size);
+            // **Headless still lays out.**  The layout used to be two static
+            // fields, so a run with no window had the same geometry as one with
+            // a window and nothing had to say so.  It is now measured in _Draw
+            // -- which a headless run never calls -- and the headless drivers
+            // that press the *mouse* need it: EditMode.Script turns `<05` and
+            // `l3c` into clicks at board and palette coordinates, and with an
+            // unmeasured layout those land on a zero-sized board.  That is
+            // exactly how this was found: tools/editor_check.py went red on the
+            // two of its eight edits that click the palette.
+            Measure();
             if (DisplayServer.GetName() == "headless") return;
-            // The editor widens the window rather than covering the board: the
-            // original turns the same window into an editor and hangs the
-            // palette in its 180-pixel control panel (ContXPos, LTANK2.C:47).
-            // There is no such panel here, so the window grows one instead.
-            int extra = _edit != null && _edit.Open ? _edit.PanelWidth : 0;
-            DisplayServer.WindowSetSize(
-                new Vector2I(2 * Margin + 16 * Cell + extra,
-                             2 * Margin + 16 * Cell + HudH));
+            _selfResizes++;
+            DisplayServer.WindowSetSize(WindowFor(_pinCell));
+            Measure();
         }
 
         private async void Shot(string path)
@@ -548,7 +866,13 @@ namespace LaserTank.Game
             // pixels come from the renderer, which is what makes comparing the
             // two a check rather than a tautology.
             TTANKREC l = _s.E.laser;
-            GD.PrintRaw($"shot-geometry margin={Margin} cell={Cell} " +
+            // `margin` was the board's origin *and* the gutter while those were
+            // the same number; step 7 made the board a box that floats in the
+            // window, so the origin is its own pair of fields and `margin` keeps
+            // its old meaning -- the gutter the coordinate labels live in.  A
+            // tool wanting cell (x,y) wants board_x + x * cell, never margin.
+            GD.PrintRaw($"shot-geometry margin={_l.Gutter} cell={Cell} " +
+                        $"board_x={(int)Origin.X} board_y={(int)Origin.Y} " +
                         $"laser_offset={LaserOffset}\n" +
                         $"shot-laser x={l.X} y={l.Y} dir={l.Dir} " +
                         $"firing={_s.E.Game.Tank.Firing} good={l.Good}\n");
@@ -645,7 +969,14 @@ namespace LaserTank.Game
                 "options rll={10} rll_file={11} rll_level={12}\n" +
                 "options sound={13} animation={14} auto_record={15}\n" +
                 "options player={16} record_author={17}\n",
-                _opt.Ini.Path, _size, Cell, LaserOffset,
+                // **The preset, not the live layout.**  `--check-options` runs
+                // before there is a window or a Session, so `Cell` is whatever
+                // the unmeasured layout holds -- zero.  What this line is about
+                // is the *option*: [SCREEN] Size, and the cell it means.  Since
+                // step 7 that is a preset the window snaps to rather than the
+                // only size the board can be, so it is read straight off the
+                // size the same way the INI wrote it.
+                _opt.Ini.Path, _size, CellOf(_size), LaserOffsetFor(CellOf(_size)),
                 _pack.Mode, _pack.File.Length > 0 ? _pack.File : "-", _opt.GraphicsDir,
                 _pack.Mode == 1 ? "external" : _pack.Mode == 0 ? "internal" : _pack.File,
                 _atlas.Label, Convert.ToHexString(h).ToLowerInvariant(),
@@ -712,6 +1043,22 @@ namespace LaserTank.Game
             if (ev is InputEventMouseMotion mm) { MouseMotion(mm); return; }
             if (ev is not InputEventKey k || !k.Pressed) return;
 
+            // The help overlay is modal for keys and nothing else -- the same
+            // shape as the graphics dialog (226), which never calls
+            // GameOn(FALSE), so the clock runs under it and an exposed tank can
+            // die while the list is up.  That is deliberate rather than
+            // convenient: every other panel in this port behaves that way, and a
+            // help screen that silently paused the game would be the one place
+            // the rule did not hold.
+            if (_help)
+            {
+                if (k.Keycode is Key.F1 or Key.Escape or Key.Enter or Key.KpEnter
+                    or Key.Space)
+                    _help = false;
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
             // The graphics menu is a modal dialog: while it is up the main
             // window has no focus, so no WM_KEYDOWN fires and nothing reaches
             // AddKBuff -- not even the arrows and space, which is what makes it
@@ -777,9 +1124,12 @@ namespace LaserTank.Game
             {
                 if (!_edit.Key(k))
                 {
-                    // The one accelerator ACC2 shares with ACC1: Ctrl+G, the
-                    // graphics dialog.  It falls through to the block below.
+                    // The two ACC2 shares with ACC1: Ctrl+G, the graphics
+                    // dialog, and F1 -- which is 903 in the editor's table and
+                    // 907 in the game's, two help ids for the same key.  The
+                    // overlay answers both and swaps its list for the editor's.
                     if (k.Keycode == Key.G && k.CtrlPressed) _menu.Show(_packs, _pack);
+                    else if (k.Keycode == Key.F1) _help = true;
                 }
                 if (!_edit.Open) Resize();       // it left
                 GetViewport().SetInputAsHandled();
@@ -907,13 +1257,45 @@ namespace LaserTank.Game
                     bool on = _opt.ToggleSound();
                     if (_sfx != null) _sfx.SoundOn = on;
                     break;
-                // Command 104, "Animation" (LTANK.C:886).  The only option that
-                // changes what a tick does, so it takes effect on the next level
-                // load rather than mid-level: Ani_On is read by Session.Load.
+                // Command 104, "Animation" (LTANK.C:886).
+                //
+                // **This takes effect on the spot, and it did not used to.**
+                // Ani_On is the one persisted option that changes what a tick
+                // does -- AniCount and AniLevel are both trace fields -- and
+                // that was read here as a reason to defer it to the next level
+                // load, so the key said "next level" and the board went on
+                // shimmering.  The original does no such thing: `Ani_On` is a
+                // global, ToggleOpt flips it (LTANK.C:887) and the very next
+                // WM_TIMER reads it (`if (Ani_On) AniCount++;`, LTANK.C:589),
+                // so animation stops between one 50 ms tick and the next.  So
+                // the option is set on the live engine here *and* persisted, and
+                // Session.Load keeps reading it for a new engine.
+                //
+                // What made the deferral look safe was the fidelity gates, and
+                // they are unaffected either way: every one of them runs
+                // headless with Engine's own default of true and none of them
+                // presses A.  Nothing was protecting the behaviour -- it was
+                // simply a port artifact, and a visible one.
                 case Key.A:
-                    _error = "animation " + (_opt.ToggleAnimation() ? "on" : "off")
-                             + " -- next level";
+                    bool ani = _opt.ToggleAnimation();
+                    if (_s?.E != null) _s.E.Ani_On = ani;
+                    _error = "animation " + (ani ? "on" : "off");
                     break;
+
+                // Command 301, "Hint" (LTANK.C's ButText7 button, VK_H in ACC1).
+                // The original raises a dialog; this is a card in the column, or
+                // a panel over the board when the window is too narrow for one.
+                case Key.H:
+                    if (string.IsNullOrEmpty(_s?.Rec.Hint))
+                        _error = "this level has no hint";
+                    else
+                        _hint = !_hint;
+                    break;
+
+                // Command 907, Help (VK_F1).  The original's is WinHelp on
+                // LaserTank.hlp, which this port does not ship; the keys are
+                // what it can answer with.
+                case Key.F1: _help = true; break;
                 // Command 115, "Auto Record" (LTANK.C:978), which also turns the
                 // recorder itself on or off.
                 case Key.F8:
@@ -986,10 +1368,7 @@ namespace LaserTank.Game
             // stands for a modal box has to be applied only after the editor arm
             // has had the click.  See Session.AcceptsInput.
             if (_s?.E == null) return;
-            int cell = Cell;
-            int x = (int)Math.Floor((mb.Position.X - Margin) / (float)cell);
-            int y = (int)Math.Floor((mb.Position.Y - Margin) / (float)cell);
-            if (x < 0 || x > 15 || y < 0 || y > 15) return;
+            if (!CellAt(mb.Position, out int x, out int y)) return;
             _s.Click(x, y, button);
             GetViewport().SetInputAsHandled();
         }
@@ -1007,6 +1386,20 @@ namespace LaserTank.Game
         /// `wparam`'s MK_LBUTTON / MK_RBUTTON on every WM_MOUSEMOVE; Godot
         /// delivers press and release, so it is kept here instead.
         private int _held;
+
+        /// Window pixels -> board cell.  **The one place the inverse of the
+        /// layout is written down**: it used to be spelled out here and again in
+        /// EditMode, in terms of a constant margin and a table lookup, and with
+        /// the board now floating in the window that arithmetic can no longer be
+        /// guessed from two static fields.  False when the point is off the
+        /// board, which includes the gutter the labels are in.
+        internal bool CellAt(Vector2 pos, out int x, out int y)
+        {
+            Vector2 o = Origin;
+            x = (int)Math.Floor((pos.X - o.X) / Cell);
+            y = (int)Math.Floor((pos.Y - o.Y) / Cell);
+            return x >= 0 && x < 16 && y >= 0 && y < 16;
+        }
 
         /// Godot keycodes -> Win32 virtual-key codes, for the nine keys
         /// LTANK.C:572's `(wparam < 32) || (wparam > 40)` admits.  33..36 are
@@ -1151,13 +1544,24 @@ namespace LaserTank.Game
 
         public override void _Draw()
         {
-            Font font = ThemeDB.FallbackFont;
+            Measure();
+            Font font = Ui.Sans;
+
+            // The ground, always -- the window is resizable now, so there is
+            // usually more of it than there is board.
+            DrawRect(_l.Window, Ui.Bg);
+
             if (_s?.E == null || _atlas == null)
             {
-                DrawString(font, new Vector2(Margin, Margin + 16), _error ?? "no level",
-                           HorizontalAlignment.Left, -1, 16, Colors.OrangeRed);
+                DrawTopBar();
+                Ui.Card(this, _l.Well);
+                Ui.Write(this, _l.Well.Position + new Vector2(Ui.Px(20), Ui.Px(36)),
+                         _error ?? "no level", 15, Ui.Bad, _l.Well.Size.X - Ui.Px(40));
                 return;
             }
+
+            DrawTopBar();
+            DrawBoardWell();
 
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++)
@@ -1165,20 +1569,50 @@ namespace LaserTank.Game
             DrawTank();
             DrawLaser();
             if (_grid) DrawGrid(font);
-            DrawHud(font);
+
+            // The editor takes the column over -- its palette *is* the panel
+            // while it is open, which is the original's own arrangement (command
+            // 201 repaints the control panel as a palette, LTANK2.C:1692) and
+            // not, as this port had it until step 7, a second window's worth of
+            // width bolted onto the right-hand edge.
+            if (_edit != null && _edit.Open) _edit.Draw(this, font, _atlas, _l.Side);
+            else if (_l.Stacked) DrawInfoStrip();
+            else DrawInfoColumn();
+            DrawStatusBar();
+
             // The dialogs, over the board and under nothing: the original's are
             // modal windows on top of the game, which keeps playing behind them.
-            var board = new Rect2(Margin, Margin, 16 * Cell, 16 * Cell);
-            _edit?.Draw(this, font, _atlas);
-            if (_menu.Open) _menu.Draw(this, font, board);
-            if (_langMenu.Open) _langMenu.Draw(this, font, board, Strings);
-            if (_list.Open) _list.Draw(this, font, _mono, board);
-            if (_collections.Open) _collections.Draw(this, font, _mono, board);
-            if (_s.Pb.PanelUp) DrawPlaybackPanel(font, board);
+            // They are centred on the *window* now rather than on the board,
+            // because on a wide window the board is no longer in the middle of
+            // it and a dialog that ignored that sat visibly off to one side.
+            Rect2 host = _l.Window;
+            if (_menu.Open) _menu.Draw(this, font, host);
+            if (_langMenu.Open) _langMenu.Draw(this, font, host, Strings);
+            if (_list.Open) _list.Draw(this, font, _mono, host);
+            if (_collections.Open) _collections.Draw(this, font, _mono, host);
+            // The stacked layout has no column to hold the hint card, so command
+            // 301 becomes a panel there instead -- under the dialogs, because it
+            // is content rather than a prompt.
+            if (_hint && _l.Stacked && !string.IsNullOrEmpty(_s.Rec.Hint))
+                DrawHintOverlay(host);
+            if (_s.Pb.PanelUp) DrawPlaybackPanel(host);
+            if (_help) DrawHelp(host);
         }
 
         private Rect2 CellRect(int x, int y) =>
-            new Rect2(Margin + x * Cell, Margin + y * Cell, Cell, Cell);
+            new Rect2(Origin.X + x * Cell, Origin.Y + y * Cell, Cell, Cell);
+
+        /// The board's own frame: a well sunk into the ground, with the gutter
+        /// the coordinate labels live in inside it.  Purely this port's -- the
+        /// original's board is flush against its window -- and it is what stops
+        /// a small board on a big window from floating unanchored.
+        private void DrawBoardWell()
+        {
+            DrawStyleBox(Ui.Box(Ui.BoardWell, Ui.Border, 12f, 1f), _l.Well);
+            // A hairline immediately around the cells, so the sprite grid has an
+            // edge of its own and does not bleed into the gutter.
+            DrawRect(_l.Board.Grow(1), Ui.Border, false, Mathf.Max(1, Ui.Px(1)));
+        }
 
         /// "Lable Game Grid" (LTANK.C:502), transliterated: sixteen letters
         /// along the top edge **and the bottom**, sixteen numbers down the left
@@ -1186,10 +1620,13 @@ namespace LaserTank.Game
         /// is the point of it -- a cell in the middle of the board is two short
         /// looks from a label instead of one long one.
         ///
-        /// **The type size is read from the original rather than chosen.**  Its
+        /// **The type size was read from the original rather than chosen.**  Its
         /// row labels sit at `y = (SpBm_Height - 15) / 2` into the cell, and
-        /// that 15 is the line height it is centring: MS Sans Serif 8 pt.  So
-        /// 15 px here, and the 24 px margin is sized to hold it.
+        /// that 15 is the line height it is centring: MS Sans Serif 8 pt at its
+        /// own 24..40 px cells.  Step 7 made the cell continuous, so the literal
+        /// 15 became the *ratio* it is a sample of -- GridPtFor, 0.40 of the
+        /// cell, which is 16 px at the 40 px cell the original drew 15 at.  The
+        /// gutter follows the type rather than the other way round.
         ///
         /// Two things the original does that this does not, both consequences
         /// of the 18 px gutter it had and this does not:
@@ -1209,35 +1646,34 @@ namespace LaserTank.Game
         private void DrawGrid(Font font)
         {
             TTANKREC t = _s.E.Game.Tank;
-            float top = Margin - 6;                        // baseline, above the board
-            float bottom = Margin + 16 * Cell + GridPt;    // baseline, below it
-            float right = Margin + 16 * Cell + 6;
+            Vector2 o = Origin;
+            int gut = _l.Gutter;
+            float top = o.Y - 5;                          // baseline, above the board
+            float bottom = o.Y + 16 * Cell + GridPt;      // baseline, below it
+            float right = o.X + 16 * Cell + 5;
             for (int i = 0; i < 16; i++)
             {
                 // `temps[0] = '@' + i` for i = 1..16 -- A..P (LTANK.C:521).
                 string col = ((char)('A' + i)).ToString();
                 Color cc = i == t.X ? GridLit : GridDim;
-                DrawString(font, new Vector2(Margin + i * Cell, top), col,
+                DrawString(font, new Vector2(o.X + i * Cell, top), col,
                            HorizontalAlignment.Center, Cell, GridPt, cc);
-                DrawString(font, new Vector2(Margin + i * Cell, bottom), col,
+                DrawString(font, new Vector2(o.X + i * Cell, bottom), col,
                            HorizontalAlignment.Center, Cell, GridPt, cc);
 
                 // `itoa(i)` for i = 1..16, centred on the row.
                 string row = (i + 1).ToString();
                 Color rc = i == t.Y ? GridLit : GridDim;
-                float y = Margin + i * Cell + (Cell + GridPt) / 2f - 2;
-                DrawString(font, new Vector2(0, y), row,
-                           HorizontalAlignment.Right, Margin - 6, GridPt, rc);
+                float y = o.Y + i * Cell + (Cell + GridPt) / 2f - 2;
+                DrawString(font, new Vector2(o.X - gut, y), row,
+                           HorizontalAlignment.Right, gut - 5, GridPt, rc);
                 DrawString(font, new Vector2(right, y), row,
-                           HorizontalAlignment.Left, Margin - 6, GridPt, rc);
+                           HorizontalAlignment.Left, gut - 5, GridPt, rc);
             }
         }
 
-        /// LTANK.C:504's own `15`: the line height its row labels are centred
-        /// against, and therefore the size of the face it was drawing with.
-        private const int GridPt = 15;
-        private static readonly Color GridDim = new Color(0.45f, 0.48f, 0.55f);
-        private static readonly Color GridLit = Colors.Khaki;
+        private static readonly Color GridDim = Ui.Faint;
+        private static readonly Color GridLit = Ui.Accent;
 
         /// The editor keeps this key too, the way it keeps `Z`.
         internal bool ToggleGrid() => _grid = !_grid;
@@ -1409,141 +1845,701 @@ namespace LaserTank.Game
             return s + "   Enter next, F6 saves";
         }
 
-        /// PBWindow (LTANK_D.C:1003) as a strip at the bottom of the board.  The
-        /// original positions its dialog beside the game window
-        /// (`SetWindowPos(..., Box.left + ContXPos + 2, Box.top + 280, ...)`);
-        /// there is no second column here, so it goes over the board's foot,
-        /// where it hides two rows rather than the whole thing.
-        private void DrawPlaybackPanel(Font font, Rect2 board)
-        {
-            Playback pb = _s.Pb;
-            var panel = new Rect2(board.Position.X + 6, board.End.Y - 74,
-                                  board.Size.X - 12, 68);
-            DrawRect(panel, new Color(0.05f, 0.06f, 0.08f, 0.96f));
-            DrawRect(panel, new Color(0.55f, 0.60f, 0.70f), false, 1);
-            float x = panel.Position.X + 9, w = panel.Size.X - 18;
-            float y = panel.Position.Y + 17;
+        // =====================================================================
+        //  The chrome -- step 7's redesign.
+        //
+        //  What was here before was one function, DrawHud, drawing eight lines
+        //  of grey text in a 190 px strip under the board: a header, the
+        //  scores, a status line, *four lines of key legend* and the hint.  It
+        //  worked and it was honest, and two things were wrong with it.
+        //
+        //  The legend was the first.  Twenty-eight keys set as running text is
+        //  a paragraph to be read, not a list to be scanned, and it cost a
+        //  quarter of the window permanently to something a player needs twice.
+        //  It is now the F1 overlay -- which is not an invented binding: VK_F1
+        //  is command 907 in the original's own accelerator table
+        //  (lt32l_us.inc:141), so the redesign took the key the original
+        //  already had for exactly this.
+        //
+        //  The hint was the second, and it was a real bug rather than plain
+        //  drawing: it was on screen *always*, which spoils every level that
+        //  has one.  The original puts it behind a dialog on VK_H, command 301
+        //  (lt32l_us.inc:140).  So does this now.
+        // =====================================================================
 
-            // txt013 + LName + txt014 + Author: "Playback Level : " and
-            // "\nRecorded by " (LANGUAGE.C:54), now out of the loaded language.
-            // txt014 leads with a newline because the original builds a
-            // MessageBox body out of these four pieces; this is one line on a
-            // panel, so the newline is turned into the spacing it stands for.
-            DrawString(font, new Vector2(x, y),
-                       Strings["txt013"] + pb.Rec.LName + "  "
-                       + Strings["txt014"].Replace("\n", " ") + pb.Rec.Author,
-                       HorizontalAlignment.Left, w, 13, Colors.White);
-            // ID_PLAYBOX_09 / _10: the count of keys played, over the total.
-            DrawString(font, new Vector2(x, y + 18),
-                       $"{_s.E.Game.RecP} / {pb.Rec.DataSize}    "
-                       + (_s.E.PlayBack ? "playing" : "paused") + "    "
-                       + pb.Speed.ToString().ToLowerInvariant(),
-                       HorizontalAlignment.Left, w, 12, Colors.LightGreen);
-            DrawString(font, new Vector2(x, y + 36),
-                       "space play/pause   1 fast  2 slow  3 step   R reset   "
-                       + "any other key closes",
-                       HorizontalAlignment.Left, w, 11, Colors.Gray);
+        /// The board's own title bar: what is loaded, and the handful of states
+        /// that are true of the whole session rather than of this level.
+        private void DrawTopBar()
+        {
+            Rect2 r = _l.Top;
+            DrawRect(r, Ui.Surface);
+            DrawRect(new Rect2(r.Position.X, r.End.Y - 1, r.Size.X, Mathf.Max(1, Ui.Px(1))),
+                     Ui.Border);
+
+            float pad = Ui.Px(PadD);
+            float mid = r.Position.Y + r.Size.Y / 2f;
+
+            // The app mark is the tank itself, out of whichever sheet is
+            // loaded.  It costs one DrawTextureRectRegion and it means the
+            // chrome changes with the graphics pack, which is a nice way of
+            // showing which pack is on without a word of text.
+            float x = pad;
+            if (_atlas != null && _atlas.Region(Obj.GetOBM(Obj.Tank), out Rect2 mark))
+            {
+                float m = Ui.Px(26);
+                DrawTextureRectRegion(_atlas.Texture,
+                                      new Rect2(x, mid - m / 2f, m, m), mark);
+                x += m + Ui.Px(10);
+            }
+            Ui.Caps(this, new Vector2(x, mid + Ui.Px(4)), "LaserTank", Ui.Text, 13);
+            x += Ui.CapsWidth("LaserTank", 13) + Ui.Px(14);
+
+            // The collection, which the level number alone does not say: every
+            // one of the 23 opens at level 1 and three of those level 1s are the
+            // same tutorial screen (see OpenDataFile).
+            if (_s != null)
+            {
+                DrawRect(new Rect2(x, mid - Ui.Px(9), Mathf.Max(1, Ui.Px(1)), Ui.Px(18)),
+                         Ui.Border);
+                x += Ui.Px(14);
+                Ui.Write(this, new Vector2(x, mid + Ui.Px(4)),
+                         Path.GetFileNameWithoutExtension(_s.LevelPath), 12.5f, Ui.Dim,
+                         r.Size.X * 0.4f);
+            }
+
+            // The pills, right to left: the exceptional states first, so the
+            // one that matters is always in the same place -- hard against the
+            // edge -- rather than wherever the ones before it happened to end.
+            DrawTopPills(r, pad, mid);
         }
 
-        /// The original's own status strip is a bitmap panel beside the board
-        /// (ContXPos, LTANK.C:556) showing the level name, the author and the
-        /// two counters.  Same information, laid out for this window.  Every
-        /// line is width-clipped, so the 24 px zoom truncates rather than
-        /// spilling past the board.
-        private void DrawHud(Font font)
+        private void DrawTopPills(Rect2 r, float pad, float mid)
         {
-            // Below the board *and* below the bottom row of grid labels, which
-            // share the board's own gutter.
-            float y = Margin + 16 * Cell + Margin + 14;
-            float w = 16 * Cell;
+            var pills = new System.Collections.Generic.List<(string, Color, Color)>();
+            if (_s != null && _s.Rec2.Recording)
+                pills.Add(("rec", Ui.Bad, new Color(0.24f, 0.09f, 0.09f)));
+            if (_s != null && _s.Pb.Open)
+                pills.Add(("playback", Ui.Cyan, new Color(0.07f, 0.16f, 0.18f)));
+            if (_edit != null && _edit.Open)
+                pills.Add(("editor", Ui.Accent, new Color(0.20f, 0.14f, 0.05f)));
+            if (_opt != null && !_opt.SoundOn)
+                pills.Add(("muted", Ui.Faint, Ui.Raised));
+            if (_opt != null && !_opt.AnimationOn)
+                pills.Add(("still", Ui.Faint, Ui.Raised));
+            // The pinned cell size, because it is the one piece of state the
+            // window itself does not show: a board that exactly fills its well
+            // and a board snapped to 32 px look the same until you drag.
+            pills.Add((_pinCell > 0 ? _pinCell + " px" : Cell + " px fit",
+                       Ui.Faint, Ui.Raised));
+
+            float h = Ui.Px(10) + Ui.Px(8);
+            float x = r.End.X - pad;
+            for (int i = pills.Count - 1; i >= 0; i--)
+            {
+                (string text, Color fg, Color bg) = pills[i];
+                float w = Ui.CapsWidth(text, 10) + 2 * Ui.Px(7);
+                x -= w;
+                Ui.Pill(this, x, mid - h / 2f, text, fg, bg);
+                x -= Ui.Px(6);
+            }
+        }
+
+        // ---- the info column ------------------------------------------------
+
+        /// The wide layout's right-hand column: three cards down the side of the
+        /// board.  This is what replaced the header line and the score line of
+        /// the old strip, and it is the reason the redesign was worth doing at
+        /// all -- the two numbers a player is actually watching (moves, shots)
+        /// were the smallest thing on screen and are now the largest.
+        private void DrawInfoColumn()
+        {
+            Rect2 s = _l.Side;
+            float gap = Ui.Px(12);
+            float y = s.Position.Y;
+
+            y += DrawLevelCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+            y += DrawScoreCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+
+            // The hint is the only card whose height is an author's to decide,
+            // so it is measured rather than reserved -- and it is only here at
+            // all once `H` has asked for it (command 301).
+            if (_hint && !string.IsNullOrEmpty(_s.Rec.Hint))
+                y += DrawHintCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+
+            // The five keys a player uses on every level, spelled out -- but
+            // only while the cards above have left room for them.  This is the
+            // part of the old legend wall that earns permanent space: the rest
+            // is F1's.  It goes last so a long level name or an open hint push
+            // it out rather than pushing the hint out.
+            float foot0 = s.End.Y - Ui.Px(34);
+            if (foot0 - y > Ui.Px(180))
+                DrawActionsCard(new Rect2(s.Position.X, y, s.Size.X, 0));
+
+            // The keys footer, pinned to the bottom of the column rather than
+            // flowing after the cards: it is a permanent affordance, and a
+            // permanent thing that moves is worse than one that is out of the
+            // way.
+            float fh = Ui.Px(34);
+            var foot = new Rect2(s.Position.X, s.End.Y - fh, s.Size.X, fh);
+            if (foot.Position.Y > y)
+            {
+                float fx = foot.Position.X + Ui.Px(10);
+                float fy = foot.Position.Y + Ui.Px(6);
+                fx = Ui.Keycap(this, fx, fy, "F1") + Ui.Px(9);
+                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)), "all keys", 11.5f,
+                         Ui.Faint, foot.End.X - fx);
+            }
+        }
+
+        /// Which level, out of how many, by whom, at what difficulty.  Returns
+        /// its own height so the column can stack.
+        private float DrawLevelCard(Rect2 at)
+        {
+            TLEVEL lv = _s.Rec;
+            float pad = Ui.Px(14);
+            float w = at.Size.X - 2 * pad;
+            var info = new TLEVELINFO { SDiff = lv.SDiff };
+
+            // Measure first: the name is the author's and wraps to two lines
+            // often enough that a fixed card clips real level names.
+            string name = string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName;
+            float nameH = Ui.WrappedHeight(name, 17, w, 2);
+            float h = pad + Ui.Px(13) + Ui.Px(8) + nameH + Ui.Px(6)
+                      + Ui.Px(15) + Ui.Px(10) + Ui.Px(20) + pad;
+
+            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
+            Ui.Card(this, r);
+
+            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(9);
+            Ui.Caps(this, new Vector2(x, y), $"Level {_s.Level} of {_s.LevelCount}",
+                    Ui.Faint);
+            y += Ui.Px(8) + Ui.Px(13);
+
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(13)), name, 17, Ui.Text, w, 2);
+            y += nameH + Ui.Px(6);
+
+            if (!string.IsNullOrEmpty(lv.Author))
+                Ui.Write(this, new Vector2(x, y + Ui.Px(11)), "by " + lv.Author, 12,
+                         Ui.Dim, w);
+            y += Ui.Px(15) + Ui.Px(10);
+
+            // The difficulty, as a chip in the original's own five ranks -- it
+            // colours its level number by them (`SetTextColor(DifCList[...])`,
+            // LTANK.C:532) and this is the same information given a shape.
+            // DiffName is " - Kids" and the like, hence the trim.
+            string rank = info.DiffName.TrimStart(' ', '-').Trim();
+            Color dc = Ui.Diff[Math.Clamp((int)lv.SDiff, 0, 5)];
+            Ui.Pill(this, x, y, rank == "" ? "unrated" : rank, dc,
+                    dc * new Color(1, 1, 1, 0.16f));
+            return h;
+        }
+
+        /// Moves, shots, and the .ghs par beside them.  The par is the number a
+        /// player is chasing, so it sits with the counters rather than in a line
+        /// of its own the way it did in the strip.
+        private float DrawScoreCard(Rect2 at)
+        {
+            TGAMEREC g = _s.E.Game;
+            float pad = Ui.Px(14);
+            bool hasPar = LevelFile.ReadHighScore(_s.Files.Ghs, _s.Level,
+                                                  out ushort tm, out ushort ts);
+            float h = pad + Ui.Px(13) + Ui.Px(10) + Ui.Px(44) + pad;
+            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
+            Ui.Card(this, r);
+
+            float x = r.Position.X + pad;
+            float y = r.Position.Y + pad + Ui.Px(9);
+            Ui.Caps(this, new Vector2(x, y), hasPar ? "Score  ·  par " + tm + "/" + ts
+                                                    : "Score", Ui.Faint);
+            y += Ui.Px(10) + Ui.Px(4);
+
+            float tileW = (r.Size.X - 2 * pad - Ui.Px(10)) / 2f;
+            Tile(new Rect2(x, y, tileW, Ui.Px(44)), "moves", g.ScoreMove,
+                 hasPar ? tm : (ushort)0, hasPar);
+            Tile(new Rect2(x + tileW + Ui.Px(10), y, tileW, Ui.Px(44)), "shots",
+                 g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
+            return h;
+
+            void Tile(Rect2 t, string label, int value, ushort par, bool compare)
+            {
+                Ui.Tile(this, t);
+                Ui.Caps(this, new Vector2(t.Position.X + Ui.Px(9),
+                                          t.Position.Y + Ui.Px(14)), label, Ui.Faint, 9);
+                // Amber once the count is past the posted par: the player has
+                // spent the budget, which is the one thing these numbers are
+                // ever compared against.  Not red -- being over par is not a
+                // failure, it is just no longer a record.
+                Color c = compare && par > 0 && value > par ? Ui.Accent : Ui.Text;
+                DrawString(Ui.Bold, new Vector2(t.Position.X + Ui.Px(9),
+                                                t.End.Y - Ui.Px(10)),
+                           value.ToString(), HorizontalAlignment.Left,
+                           t.Size.X - Ui.Px(18), Ui.Px(22), c);
+            }
+        }
+
+        /// The handful of keys that are pressed on every level, as keycaps.
+        ///
+        /// Which five is a judgement and worth writing down: undo and restart
+        /// are the two a player reaches for without looking (and are the
+        /// DeadBox's own two buttons, LTANK_D.C:159); the hint is the one this
+        /// redesign *hid*, so it has to be visible as an affordance or it is
+        /// simply gone; and the level pair is how you leave a level you have
+        /// given up on.  Everything else is F1's.
+        private float DrawActionsCard(Rect2 at)
+        {
+            (string, string)[] rows =
+            {
+                ("U", "undo"),
+                ("R", "restart"),
+                ("H", "hint"),
+                ("L", "levels"),
+                ("O", "collections"),
+            };
+            float pad = Ui.Px(14), rowH = Ui.Px(24);
+            float h = pad + Ui.Px(13) + Ui.Px(10) + rows.Length * rowH + pad - Ui.Px(6);
+            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
+            Ui.Card(this, r);
+
+            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(9);
+            Ui.Caps(this, new Vector2(x, y), "Keys", Ui.Faint);
+            y += Ui.Px(10) + Ui.Px(4);
+            foreach ((string key, string label) in rows)
+            {
+                Ui.Keycap(this, x, y, key, 10.5f);
+                Ui.Write(this, new Vector2(x + Ui.Px(40), y + Ui.Px(14)), label, 11.5f,
+                         Ui.Dim, r.End.X - x - Ui.Px(40) - pad);
+                y += rowH;
+            }
+            return h;
+        }
+
+        /// Command 301's content, on demand.  The frame is the original's
+        /// reason for existing: a hint is a spoiler, and a spoiler on screen by
+        /// default is not a hint.
+        private float DrawHintCard(Rect2 at)
+        {
+            string hint = _s.Rec.Hint.Replace("\r\n", " ").Replace("\n", " ");
+            float pad = Ui.Px(14);
+            float w = at.Size.X - 2 * pad;
+            float th = Ui.WrappedHeight(hint, 12.5f, w, 8);
+            float h = pad + Ui.Px(13) + Ui.Px(8) + th + pad;
+            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
+            DrawStyleBox(Ui.Box(new Color(0.13f, 0.11f, 0.06f), Ui.AccentDim, 10f), r);
+            Ui.Caps(this, new Vector2(r.Position.X + pad, r.Position.Y + pad + Ui.Px(9)),
+                    "Hint  ·  H hides", Ui.Accent);
+            Ui.Wrapped(this, new Vector2(r.Position.X + pad,
+                                         r.Position.Y + pad + Ui.Px(13) + Ui.Px(8)
+                                         + Ui.Px(11)),
+                       hint, 12.5f, new Color(0.87f, 0.82f, 0.70f), w, 8);
+            return h;
+        }
+
+        /// The narrow layout's replacement for the column: one strip under the
+        /// board with the name and the two counters.  What is dropped is what a
+        /// small window cannot afford and can be asked for -- the author, the
+        /// difficulty chip and the hint, which is still on `H` and appears as an
+        /// overlay instead (see DrawHintOverlay).
+        private void DrawInfoStrip()
+        {
+            Rect2 r = _l.Side;
+            Ui.Card(this, r);
             TLEVEL lv = _s.Rec;
             TGAMEREC g = _s.E.Game;
+            float pad = Ui.Px(14);
+            float x = r.Position.X + pad, y = r.Position.Y + pad;
 
-            // One column, never right-aligned: the window is only as wide as
-            // the board, and at the 24 px zoom that is 384 px -- two columns
-            // collide there.
-            // The level number carries its difficulty name and takes its colour
-            // from it, which is what the original's panel does -- `itoa(CurLevel)`
-            // then `strcat(txt023..027)` and `SetTextColor(DifCList[1..5])`
-            // (LTANK.C:532).
-            var info = new TLEVELINFO { SDiff = lv.SDiff };
-            string head = $"{_s.Level}{info.DiffName}/{_s.LevelCount}  {lv.LName}";
-            if (!string.IsNullOrEmpty(lv.Author)) head += $"   by {lv.Author}";
-            DrawString(font, new Vector2(Margin, y), head,
-                       HorizontalAlignment.Left, w, 16, Colors.White);
+            Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
+                    $"Level {_s.Level} of {_s.LevelCount}", Ui.Faint);
+            Ui.Write(this, new Vector2(x, y + Ui.Px(34)),
+                     string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName,
+                     15, Ui.Text, r.Size.X * 0.55f);
 
-            // The .ghs target beside the live score, because that is the number
-            // a player is actually chasing.  The .hs half is only interesting
-            // once it exists.
-            string par = "";
-            if (LevelFile.ReadHighScore(_s.Files.Ghs, _s.Level, out ushort tm, out ushort ts))
-                par = $"   par {tm}/{ts}";
-            // Single-spaced, and every word short: the window is only as wide as
-            // the board, and at the default 24 px zoom that is 384 px.  Both
-            // this line and the three legends below are written to fit *there*
-            // rather than at the size they were composed at -- step 4 added a
-            // dozen keys and clipped the legend mid-word before this was
-            // measured.  DrawString's `w` clips rather than spilling, so a line
-            // that is too long loses its tail silently.
-            DrawString(font, new Vector2(Margin, y + 20),
-                       $"moves {g.ScoreMove}  shots {g.ScoreShot}{par}  " +
-                       $"{_atlas.Label}  {(_interpolate ? "smooth" : "snap")}  " +
-                       $"{(_opt.SoundOn ? "sound" : "muted")}" +
-                       (_s.Rec2.Recording ? "  *** REC ***" : ""),
-                       HorizontalAlignment.Left, w, 14,
-                       _s.Rec2.Recording ? Colors.Khaki : Colors.White);
+            float tw = Ui.Px(74);
+            float tx = r.End.X - pad - 2 * tw - Ui.Px(8);
+            Tile(new Rect2(tx, y, tw, r.Size.Y - 2 * pad), "moves", g.ScoreMove);
+            Tile(new Rect2(tx + tw + Ui.Px(8), y, tw, r.Size.Y - 2 * pad), "shots",
+                 g.ScoreShot);
 
-            // In the editor the win/dead line has nothing to say -- the clock
-            // is stopped and the board on screen is not the one anything
-            // happened on -- so the strip carries the editor's own status
-            // instead, which is where a save says where it went.
+            void Tile(Rect2 t, string label, int value)
+            {
+                Ui.Tile(this, t);
+                Ui.Caps(this, new Vector2(t.Position.X + Ui.Px(9),
+                                          t.Position.Y + Ui.Px(14)), label, Ui.Faint, 9);
+                DrawString(Ui.Bold, new Vector2(t.Position.X + Ui.Px(9),
+                                                t.End.Y - Ui.Px(9)),
+                           value.ToString(), HorizontalAlignment.Left,
+                           t.Size.X - Ui.Px(18), Ui.Px(20), Ui.Text);
+            }
+        }
+
+        // ---- the status bar --------------------------------------------------
+
+        /// One line, across the foot of the window: what just happened.
+        ///
+        /// **The status line is the last thing the player did, not a log** --
+        /// see the input router, which clears `_error` on every key.  The win
+        /// and death lines override it because they are states rather than
+        /// events, and in the editor the strip carries the editor's own status,
+        /// which is where a save says where it went.
+        private void DrawStatusBar()
+        {
+            Rect2 r = _l.Status;
+            DrawRect(r, Ui.Surface);
+            DrawRect(new Rect2(r.Position.X, r.Position.Y, r.Size.X, Mathf.Max(1, Ui.Px(1))),
+                     Ui.Border);
+
             bool editing = _edit != null && _edit.Open;
             (string what, Color tint) = editing
-                ? (_edit.Status ?? "", Colors.Yellow)
+                ? (_edit.Status ?? "", Ui.Accent)
                 : _s.Now switch
                 {
-                    Session.State.Won => (WinLine(), Colors.LightGreen),
+                    Session.State.Won => (WinLine(), Ui.Good),
                     // ID_DEADBOX_DEAD is the dialog's own headline ("YOU ARE
                     // DEAD ! ! !"); the two keys after it are this port's
                     // legend, because DeadBox offers them as buttons and there
                     // are no buttons here.
                     Session.State.Dead =>
-                        (Strings["ID_DEADBOX_DEAD"]
-                         + " -- U undoes the last move, R restarts",
-                         Colors.OrangeRed),
-                    _ => (_error ?? "", Colors.Yellow),
+                        (Strings["ID_DEADBOX_DEAD"] + "  —  U undoes the last move, R restarts",
+                         Ui.Bad),
+                    _ => (_error ?? "", Ui.Accent),
                 };
-            if (what != "")
-                DrawString(font, new Vector2(Margin, y + 38), what,
-                           HorizontalAlignment.Left, w, 14, tint);
 
-            // Four short lines rather than three long ones, for the same reason.
-            // The editor's are the palette's, so the strip only names the two
-            // keys that are *not* on the panel beside it.
-            string[] legend = editing
-                ? new[]
-                {
-                    "EDITOR -- the palette beside the board has the rest",
-                    "F9 leaves and resumes play on the board you drew",
-                    "ctrl+S saves; a level out of data/ goes to out/levels/",
-                    "ctrl+G gfx  Z size  C grid  Esc leaves",
-                }
-                : new[]
+            float pad = Ui.Px(PadD);
+            float base_ = r.Position.Y + r.Size.Y / 2f + Ui.Px(4);
+            if (what != "")
             {
-                "arrows move  space fires  U undo  R restart  ctrl+C/V pos",
-                "L levels  O collections  V scores  G global  S/P next/prev",
-                "F5 rec  F6 save  F7 play  F4 replay  F8 auto-rec",
-                "Z size  I smooth  N sound  A anim  F9 editor  Esc quit",
-                "C grid (A1-P16)  ctrl+L language  ctrl+G gfx",
-            };
-            for (int i = 0; i < legend.Length; i++)
-                DrawString(font, new Vector2(Margin, y + 56 + 16 * i), legend[i],
-                           HorizontalAlignment.Left, w, 12, Colors.Gray);
-            if (!string.IsNullOrEmpty(lv.Hint))
-                DrawString(font, new Vector2(Margin, y + 56 + 16 * legend.Length + 4),
-                           lv.Hint.Replace("\r\n", " "),
-                           HorizontalAlignment.Left, w, 12, Colors.DarkGray);
+                // A dot in the line's own colour: at 11 px a tint alone is not
+                // a strong enough signal that the line changed.
+                float d = Ui.Px(6);
+                DrawCircle(new Vector2(pad + d / 2f, r.Position.Y + r.Size.Y / 2f),
+                           d / 2f, tint);
+                Ui.Write(this, new Vector2(pad + d + Ui.Px(9), base_), what, 12, tint,
+                         r.Size.X - 2 * pad - d - Ui.Px(9));
+            }
+            else
+            {
+                Ui.Write(this, new Vector2(pad, base_),
+                         "arrows move · space fires · U undo · R restart · F1 keys",
+                         12, Ui.Faint, r.Size.X - 2 * pad);
+            }
         }
+
+        // ---- the playback panel ----------------------------------------------
+
+        /// PBWindow (LTANK_D.C:1003).  The original positions its dialog beside
+        /// the game window (`SetWindowPos(..., Box.left + ContXPos + 2, Box.top
+        /// + 280, ...)`); step 7 gave this port a column of its own, so it goes
+        /// at the foot of the window as a transport bar -- over nothing, where
+        /// it used to cover the board's bottom two rows.
+        private void DrawPlaybackPanel(Rect2 host)
+        {
+            Playback pb = _s.Pb;
+            float w = Mathf.Min(Ui.Px(560), host.Size.X - 2 * Ui.Px(PadD));
+            // Tall enough for four rows: the level line, the author line, the
+            // track, and the transport legend under it.  Sized from the flow
+            // below rather than guessed -- the first pass guessed 76 and put the
+            // legend a few pixels under the panel's own bottom edge.
+            float h = Ui.Px(16) * 2 + Ui.Px(74);
+            var panel = new Rect2(Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                                  Mathf.Round(_l.Status.Position.Y - h - Ui.Px(14)), w, h);
+            Ui.Dialog(this, panel, 12f);
+
+            float pad = Ui.Px(16);
+            float x = panel.Position.X + pad;
+            float y = panel.Position.Y + pad;
+
+            // txt013 + LName + txt014 + Author: "Playback Level : " and
+            // "\nRecorded by " (LANGUAGE.C:54), out of the loaded language.
+            // txt014 leads with a newline because the original builds a
+            // MessageBox body out of these four pieces; this is one line on a
+            // panel, so the newline is turned into the spacing it stands for.
+            Ui.Write(this, new Vector2(x, y + Ui.Px(11)),
+                     Strings["txt013"] + pb.Rec.LName, 12.5f, Ui.Text,
+                     panel.Size.X - 2 * pad);
+            Ui.Write(this, new Vector2(x, y + Ui.Px(28)),
+                     Strings["txt014"].Replace("\n", "") + pb.Rec.Author, 11.5f,
+                     Ui.Dim, panel.Size.X - 2 * pad);
+
+            // ID_PLAYBOX_09 / _10: the count of keys played, over the total,
+            // drawn as a track as well as a number -- a recording is a
+            // *duration*, and a bar says how much is left where "372 / 1136"
+            // has to be read twice.
+            float bx = x, by = y + Ui.Px(40), bw = panel.Size.X - 2 * pad - Ui.Px(150);
+            float bh = Ui.Px(5);
+            DrawStyleBox(Ui.Box(Ui.Raised, Ui.Border, bh / 2f, 0f),
+                         new Rect2(bx, by, bw, bh));
+            float frac = pb.Rec.DataSize > 0
+                ? Mathf.Clamp(_s.E.Game.RecP / (float)pb.Rec.DataSize, 0f, 1f) : 0f;
+            if (frac > 0)
+                DrawStyleBox(Ui.Box(Ui.Cyan, Ui.Cyan, bh / 2f, 0f),
+                             new Rect2(bx, by, Mathf.Max(bh, bw * frac), bh));
+
+            float px = bx + bw + Ui.Px(14);
+            Ui.Write(this, new Vector2(px, by + Ui.Px(5)),
+                     $"{_s.E.Game.RecP}/{pb.Rec.DataSize}", 11, Ui.Dim,
+                     panel.End.X - px - pad, HorizontalAlignment.Left, Ui.Mono);
+
+            // The four buttons and the radio group of three, as keycaps: the
+            // dialog has buttons and this has none, so the keys are drawn as the
+            // things they stand in for.
+            float kx = panel.End.X - pad;
+            foreach ((string key, string label, bool on) in new[]
+            {
+                ("3", "step", pb.Speed == PbSpeed.Step),
+                ("2", "slow", pb.Speed == PbSpeed.Slow),
+                ("1", "fast", pb.Speed == PbSpeed.Fast),
+            })
+            {
+                float lw = Ui.Width(label, 10.5f);
+                kx -= lw;
+                Ui.Write(this, new Vector2(kx, panel.Position.Y + Ui.Px(26)), label,
+                         10.5f, on ? Ui.Cyan : Ui.Faint);
+                kx -= Ui.Px(24) + Ui.Px(5);
+                Ui.Keycap(this, kx, panel.Position.Y + Ui.Px(12), key, 10.5f);
+                kx -= Ui.Px(12);
+            }
+            // The legend goes under the track, across the panel's own width --
+            // not beside the counter, where there is a keycap row above it and
+            // no room.
+            Ui.Write(this, new Vector2(x, panel.End.Y - pad),
+                     (_s.E.PlayBack ? "space pauses" : "space plays")
+                     + " · R resets · any other key closes",
+                     10.5f, Ui.Faint, panel.Size.X - 2 * pad);
+        }
+
+        // ---- the hint and the help overlay -----------------------------------
+
+        /// Command 301 in the narrow layout, where there is no column to put a
+        /// card in: the same content as a panel over the board.
+        private void DrawHintOverlay(Rect2 host)
+        {
+            string hint = _s.Rec.Hint.Replace("\r\n", " ").Replace("\n", " ");
+            float w = Mathf.Min(Ui.Px(420), host.Size.X - 2 * Ui.Px(PadD));
+            float pad = Ui.Px(16);
+            float th = Ui.WrappedHeight(hint, 13, w - 2 * pad, 10);
+            float h = pad + Ui.Px(13) + Ui.Px(10) + th + pad;
+            var r = new Rect2(host.Position.X + (host.Size.X - w) / 2f,
+                              _l.Well.End.Y - h - Ui.Px(16), w, h);
+            DrawStyleBox(Ui.Box(new Color(0.13f, 0.11f, 0.06f), Ui.AccentDim, 12f, 1f, 16f),
+                         r);
+            Ui.Caps(this, new Vector2(r.Position.X + pad, r.Position.Y + pad + Ui.Px(9)),
+                    "Hint  ·  H hides", Ui.Accent);
+            Ui.Wrapped(this, new Vector2(r.Position.X + pad,
+                                         r.Position.Y + pad + Ui.Px(23) + Ui.Px(11)),
+                       hint, 13, new Color(0.87f, 0.82f, 0.70f), w - 2 * pad, 10);
+        }
+
+        /// Command 907 (F1).  Every binding this port has, grouped, as keycaps
+        /// and labels -- which is the whole of what the four grey legend lines
+        /// under the old board were trying to be.
+        ///
+        /// The bindings themselves have not moved: they are still the
+        /// original's own accelerator tables (see the input router).  What
+        /// changed is that they are no longer *always* on screen.
+        ///
+        /// **Measured, then drawn.**  The first pass here guessed the height
+        /// from a row count and was wrong by about a third of the panel, which
+        /// on a dialog with a border and a shadow is not a rounding error but a
+        /// visibly empty box.  The column assignment is the thing that has to be
+        /// decided before the height can be known -- a group never splits across
+        /// columns -- so it is decided once, in Plan, and both passes read it.
+        private void DrawHelp(Rect2 host)
+        {
+            Ui.Scrim(this, host);
+
+            bool editing = _edit != null && _edit.Open;
+            (string, (string, string)[])[] groups = editing ? EditorKeys : PlayKeys;
+
+            float pad = Ui.Px(24), colGap = Ui.Px(28);
+            float rowH = Ui.Px(24), headH = Ui.Px(26), groupGap = Ui.Px(10);
+            float head = pad + Ui.Px(12) + Ui.Px(14) + Ui.Px(14);   // title + rule
+            float availH = host.Size.Y - Ui.Px(32) - head - pad;
+
+            // **Two columns is about height as much as width.**  The first pass
+            // here picked the column count off the window's width alone, the way
+            // the board's own layout does -- and on a narrow-but-tall window
+            // (560x760, a phone shape) thirty-one rows in one column ran off the
+            // bottom of the panel and took the last group with them.  So: two
+            // columns when the window is wide enough to prefer them, *and* two
+            // when one column would not fit and the window can hold a pair of
+            // narrow ones at all.
+            float total = 0;
+            foreach ((string _, (string, string)[] items) in groups)
+                total += headH + items.Length * rowH + groupGap;
+
+            int cols = 1;
+            if (host.Size.X >= Ui.Px(700)) cols = 2;
+            else if (total > availH && host.Size.X >= Ui.Px(500)) cols = 2;
+
+            float w = Mathf.Min(cols * Ui.Px(300) + (cols - 1) * colGap + 2 * pad,
+                                host.Size.X - Ui.Px(32));
+            float colW = (w - 2 * pad - (cols - 1) * colGap) / cols;
+
+            // Still too tall -- a short window, or a small one where even two
+            // columns do not fit -- so squeeze the pitch rather than clip the
+            // list.  A key list with a group missing off the bottom is worse
+            // than a tight one, and there is nothing here to scroll with.
+            float squeeze = Mathf.Clamp(availH / (total / cols), 0.66f, 1f);
+            if (squeeze < 1f)
+            {
+                rowH *= squeeze;
+                headH *= squeeze;
+                groupGap *= squeeze;
+                total *= squeeze;
+            }
+
+            // ---- pass one: which column each group goes in, and how tall the
+            // tallest column ends up.
+            float[] colH = new float[cols];
+            int[] colOf = new int[groups.Length];
+            float target = total / cols;
+
+            int c = 0;
+            for (int i = 0; i < groups.Length; i++)
+            {
+                float need = headH + groups[i].Item2.Length * rowH + groupGap;
+                // Move on once this column has had its share -- but never leave
+                // a column empty, and never spill past the last one.
+                if (c < cols - 1 && colH[c] > 0 && colH[c] + need / 2f > target) c++;
+                colOf[i] = c;
+                colH[c] += need;
+            }
+            float body = 0;
+            foreach (float ch in colH) body = Mathf.Max(body, ch);
+
+            float h = Mathf.Min(head + body - groupGap + pad, host.Size.Y - Ui.Px(32));
+
+            // ---- pass two: draw it.
+            var r = new Rect2(Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                              Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f), w, h);
+            Ui.Dialog(this, r, 16f);
+
+            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(12);
+            Ui.Caps(this, new Vector2(x, y), editing ? "Editor keys" : "Keys", Ui.Text, 13);
+            // Right-aligned *inside* the panel: DrawString lays a right-aligned
+            // string out in the box [at.X, at.X + w], so the box has to start a
+            // width back from the edge rather than at it.
+            float cw = Ui.Px(150);
+            Ui.Write(this, new Vector2(r.End.X - pad - cw, y), "F1 or Esc closes", 11,
+                     Ui.Faint, cw, HorizontalAlignment.Right);
+            y += Ui.Px(14);
+            Ui.Rule(this, x, y, r.Size.X - 2 * pad);
+            y += Ui.Px(14);
+
+            float[] colY = new float[cols];
+            for (int i = 0; i < cols; i++) colY[i] = y;
+            for (int i = 0; i < groups.Length; i++)
+            {
+                (string title, (string, string)[] items) = groups[i];
+                int ci = colOf[i];
+                float cx = x + ci * (colW + colGap);
+                Ui.Caps(this, new Vector2(cx, colY[ci] + Ui.Px(9)), title, Ui.Accent, 9.5f);
+                colY[ci] += headH;
+                foreach ((string key, string label) in items)
+                {
+                    float kx = cx;
+                    foreach (string k in key.Split(' '))
+                        kx = Ui.Keycap(this, kx, colY[ci], k, 10.5f) + Ui.Px(4);
+                    // The labels line up at a fixed indent, except where the
+                    // caps are wider than it -- four arrows are, and ran into
+                    // "move the tank" on the first pass.
+                    float lx = Mathf.Max(cx + Ui.Px(96), kx + Ui.Px(10));
+                    Ui.Write(this, new Vector2(lx, colY[ci] + Ui.Px(14)),
+                             label, 11.5f, Ui.Dim, cx + colW - lx);
+                    colY[ci] += rowH;
+                }
+                colY[ci] += groupGap;
+            }
+        }
+
+        /// The bindings, as data -- so the overlay and the router cannot drift.
+        /// The command ids in the comments are the original's; every key here
+        /// except the four marked "ours" is out of ACC1 (lt32l_us.inc:120).
+        private static readonly (string, (string, string)[])[] PlayKeys =
+        {
+            ("Play", new[]
+            {
+                ("← ↑ → ↓", "move the tank"),
+                ("space", "fire"),
+                ("U", "undo the last move"),          // 110
+                ("R", "restart the level"),           // 105
+                ("H", "show or hide the hint"),       // 301
+            }),
+            ("Levels", new[]
+            {
+                ("L", "pick a level"),                // 106
+                ("O", "pick a collection"),           // 108
+                ("S", "next level"),                  // 107
+                ("P", "previous level"),              // 119
+                ("F2", "new game"),                   // 101
+            }),
+            ("Scores", new[]
+            {
+                ("V", "your own best times"),         // 113
+                ("G", "the posted best times"),       // 906
+                ("ctrl C", "save this position"),     // 111
+                ("ctrl V", "restore it"),             // 112
+            }),
+            ("Recording", new[]
+            {
+                ("F5", "start or stop recording"),    // 123
+                ("F6", "save the recording"),         // 117
+                ("F7", "play one back"),              // 114
+                ("F4", "replay this level"),          // 124
+                ("F8", "record every level"),         // 125
+            }),
+            ("View", new[]
+            {
+                ("Z", "snap to 24 / 32 / 40 px"),     // 120-122
+                ("C", "the A1-P16 grid"),             // ours
+                ("I", "smooth or snap the tank"),     // ours
+                ("N", "sound"),                       // 102
+                ("A", "animation"),                   // 104
+                ("ctrl G", "graphics pack"),          // 226
+                ("ctrl L", "language"),               // ours
+            }),
+            ("Session", new[]
+            {
+                ("F9", "the level editor"),           // 201
+                ("F1", "this list"),                  // 907
+                ("Esc", "quit"),                      // ours
+            }),
+        };
+
+        /// ACC2 (lt32l_us.inc:150) plus the palette's own, which the editor
+        /// panel used to have to list itself in eight grey lines.
+        private static readonly (string, (string, string)[])[] EditorKeys =
+        {
+            ("Paint", new[]
+            {
+                ("click", "paint with the left brush"),
+                ("right", "paint with the right brush"),
+                ("shift", "shift-click rotates in place"),
+                ("X", "swap the two brushes"),
+                ("T", "the tunnel id"),
+            }),
+            ("Board", new[]
+            {
+                ("ctrl ←→", "shift the board"),       // 710/711
+                ("ctrl ↑↓", "shift the board"),       // 712/713
+                ("ctrl C", "clear the field"),        // 601
+                ("1 - 5", "the difficulty"),
+            }),
+            ("File", new[]
+            {
+                ("ctrl S", "save the level"),         // 603
+                ("tab", "name / author / hint"),
+                ("F9", "leave the editor"),           // 604
+            }),
+            ("View", new[]
+            {
+                ("Z", "snap to 24 / 32 / 40 px"),
+                ("C", "the A1-P16 grid"),
+                ("ctrl G", "graphics pack"),          // 226
+                ("F1", "this list"),                  // 903
+                ("Esc", "leave the editor"),
+            }),
+        };
     }
 
     /// Headless self-check for the atlas half of Phase 5 step 0's exit

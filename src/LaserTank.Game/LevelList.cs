@@ -54,20 +54,19 @@ namespace LaserTank.Game
 
         /// DifCList (LTANK_D.C:24), which is COLORREF -- 0x00BBGGRR, so the
         /// bytes read backwards from an RGB literal.  Index is the difficulty
-        /// digit: 0 unrated (white), then Kids yellow, Easy cyan, Medium green,
-        /// Hard magenta, Deadly red.
-        private static readonly Color[] DifCList =
-        {
-            new Color(1f, 1f, 1f),          // 0x00FFFFFF
-            new Color(1f, 1f, 0f),          // 0x0000FFFF
-            new Color(0f, 1f, 1f),          // 0x00FFFF00
-            new Color(0f, 1f, 0f),          // 0x0000FF00
-            new Color(1f, 0f, 1f),          // 0x00FF00FF
-            new Color(1f, 0f, 0f),          // 0x000000FF
-        };
-
-        /// DrawLevels' selected background, 0x00404080.
-        private static readonly Color SelBack = new Color(0.5f, 0.25f, 0.25f);
+        /// digit, and the original's six values are:
+        ///
+        ///   0 unrated 0x00FFFFFF white     1 Kids   0x0000FFFF yellow
+        ///   2 Easy    0x00FFFF00 cyan      3 Medium 0x0000FF00 green
+        ///   4 Hard    0x00FF00FF magenta   5 Deadly 0x000000FF red
+        ///
+        /// **What is drawn is Ui.Diff** -- the same six ranks in the same order,
+        /// re-picked in step 7 for a dark ground, because six saturated
+        /// primaries were chosen against the original's light grey listbox and
+        /// three of them vibrate on this one.  The values above stay written
+        /// down: which *rank* each index is is the part that is load-bearing,
+        /// and it is the same in both.
+        private static Color[] DifCList => Ui.Diff;
 
         private readonly BoardView _view;
         private TLEVELINFO[] _levels = Array.Empty<TLEVELINFO>();
@@ -275,41 +274,56 @@ namespace LaserTank.Game
         }
 
         // ---- drawing --------------------------------------------------------
-        private const int Pad_ = 10;
-        private const int Line = 15;
+        /// The row pitch, which follows the UI scale like every other length in
+        /// the redesign -- and which the paging arithmetic reads, so a bigger
+        /// window really does page by a bigger screenful rather than scrolling
+        /// the same fifteen rows faster.
+        private static int Line => Ui.Px(16);
 
-        /// Full-board, unlike the graphics dialog: a 2,030-row list is what this
-        /// panel is for, and the original's is a big window too.
-        public void Draw(Node2D n, Font font, Font mono, Rect2 board)
+        /// A centred dialog, unlike the graphics one which is a small box: a
+        /// 2,030-row list is what this panel is for, and the original's is a big
+        /// window too.
+        public void Draw(Node2D n, Font font, Font mono, Rect2 host)
         {
-            var panel = new Rect2(board.Position + new Vector2(4, 4),
-                                  board.Size - new Vector2(8, 8));
-            n.DrawRect(panel, new Color(0.04f, 0.05f, 0.07f, 0.97f));
-            n.DrawRect(panel, new Color(0.55f, 0.60f, 0.70f), false, 1);
+            // Centred on the window rather than filling the board: step 7 made
+            // the window bigger than the board, and a list that filled the
+            // *board* on a wide one sat off to the left of everything else.
+            // The width is the rows' own -- they are fixed-pitch sprintf output
+            // and a column wider than the text is just a wider column.
+            Ui.Scrim(n, host);
+            float w = Mathf.Min(Ui.Px(560), host.Size.X - Ui.Px(40));
+            float h = Mathf.Min(Ui.Px(620), host.Size.Y - Ui.Px(40));
+            var panel = new Rect2(
+                Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
+                Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f), w, h);
+            Ui.Dialog(n, panel);
 
-            float x = panel.Position.X + Pad_;
-            float w = panel.Size.X - 2 * Pad_;
-            float y = panel.Position.Y + Pad_ + 12;
+            float pad = Ui.Px(18);
+            float x = panel.Position.X + pad;
+            w = panel.Size.X - 2 * pad;
+            float y = panel.Position.Y + pad + Ui.Px(11);
 
-            n.DrawString(font, new Vector2(x, y),
-                         $"{_view.Strings[TitleKeys[Mode]]}   {_fileLabel}   "
-                         + $"({_rows.Length})",
-                         HorizontalAlignment.Left, w, 14, Colors.White);
-            y += Line + 5;
+            Ui.Caps(n, new Vector2(x, y), _view.Strings[TitleKeys[Mode]], Ui.Text, 12);
+            Ui.Write(n, new Vector2(x + w - Ui.Px(220), y),
+                     $"{_fileLabel}  ·  {_rows.Length}", 11, Ui.Faint, Ui.Px(220),
+                     HorizontalAlignment.Right);
+            y += Ui.Px(12);
+            Ui.Rule(n, x, y, w);
+            y += Ui.Px(16);
 
             if (_rows.Length == 0)
             {
-                n.DrawString(font, new Vector2(x, y),
-                             Mode == ListMode.Levels
-                                 ? "the level file could not be read"
-                                 : $"no {_fileLabel} yet -- solve a level first",
-                             HorizontalAlignment.Left, w, 12, Colors.OrangeRed);
+                Ui.Write(n, new Vector2(x, y + Ui.Px(10)),
+                         Mode == ListMode.Levels
+                             ? "the level file could not be read"
+                             : $"no {_fileLabel} yet -- solve a level first",
+                         12, Ui.Bad, w);
                 return;
             }
 
             // As many rows as the panel has room for, remembered so that a
             // page-up moves by exactly one screenful at every board size.
-            int rows = Math.Max(1, (int)((panel.End.Y - y - 26) / Line));
+            int rows = Math.Max(1, (int)((panel.End.Y - y - Ui.Px(30)) / Line));
             _rowsShown = rows;
             int top = Math.Clamp(_top, 0, Math.Max(0, _rows.Length - rows));
             top = Math.Clamp(top, _sel - rows + 1, _sel);
@@ -322,16 +336,27 @@ namespace LaserTank.Game
                 string row = _rows[i];
                 Color tint = DifCList[row[0] - '0'];
                 if (i == _sel)
-                    n.DrawRect(new Rect2(x - 3, y - 11, w + 6, Line), SelBack);
+                {
+                    // DrawLevels fills the selected row (0x00404080); here it is
+                    // a rounded band plus a rule down its left edge in the row's
+                    // own difficulty colour -- which says *which* row is
+                    // selected and keeps saying what rank it is.
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.BorderLit, 5f, 1f),
+                                   new Rect2(x - Ui.Px(7), y - Line + 4,
+                                             w + 2 * Ui.Px(7), Line + 3));
+                    n.DrawRect(new Rect2(x - Ui.Px(7), y - Line + 4,
+                                         Mathf.Max(2, Ui.Px(2)), Line + 3), tint);
+                }
                 // temps + 1: the digit is the colour key, not text.
                 n.DrawString(mono, new Vector2(x, y), row.Substring(1),
-                             HorizontalAlignment.Left, w, 12, tint);
+                             HorizontalAlignment.Left, w, Ui.Px(12),
+                             i == _sel ? tint : tint * new Color(1, 1, 1, 0.78f));
                 y += Line;
             }
 
-            n.DrawString(font, new Vector2(x, panel.End.Y - 12),
-                         "up/down + PgUp/PgDn pick   Enter loads   any other key closes",
-                         HorizontalAlignment.Left, w, 11, Colors.Gray);
+            Ui.Write(n, new Vector2(x, panel.End.Y - Ui.Px(13)),
+                     "↑↓ PgUp/PgDn pick · Enter loads · any other key closes",
+                     11, Ui.Faint, w);
         }
     }
 }
