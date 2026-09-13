@@ -26,9 +26,11 @@ restores a position, picks a collection and a level inside it and shows both hig
 `.lvl`/`.hs`/`.ghs`, writes
 a `.hs` the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all three
 speeds, takes the mouse both as a *move order* through the original's own `MouseOperation` and as
-the editor's brush, edits and saves a `.lvl` byte-faithfully, labels the board A1–P16 on all four
-sides the way `WM_PAINT` does, shows its UI in any of the original's ten translations, and remembers
-its settings in a `LaserTank.ini` with the original's own section and key names.
+the editor's brush, **answers that mouse in its own chrome as well — every keycap, pill, row and
+card is a button, and a tap is a click**, edits and saves a `.lvl` byte-faithfully, labels the
+board A1–P16 on all four sides the way `WM_PAINT` does, shows its UI in any of the original's ten
+translations, and remembers its settings in a `LaserTank.ini` with the original's own section and
+key names.
 
 **It now also looks like something.** Step 7 — the redesign the faithful port was the prelude to —
 replaced the text strip under the board with a designed interface: a resizable, aspect-locked board
@@ -78,7 +80,7 @@ binary meanwhile gets a spurious red. Observed exactly once and it cost a diagno
 same seed re-run cleanly on its own. The other gates parallelise fine with each other; this one is
 exclusive. A red gate that will not reproduce serially was probably racing this.
 
-Eleven more gates cover the presentation. They are listed apart because nothing about the rules
+Twelve more gates cover the presentation. They are listed apart because nothing about the rules
 depends on them, and `options_check.py`'s pixel arithmetic is the one gate *expected* to be edited
 when the look changes on purpose:
 
@@ -94,14 +96,18 @@ python tools/mouse_check.py      # MouseOperation vs the oracle, 5,000 scripts, 
 python tools/editor_check.py     # the editor + the .lvl it writes, ~25 s
 python tools/lang_check.py       # 10 languages back to the 2007 bytes, ~25 s
 python tools/collections_check.py  # the 23 collections + command 108's switch, ~20 s
+python tools/chrome_check.py     # the chrome under the mouse, ~90 s (opens windows)
 ```
 
-All eleven want Godot; `atlas_check`, `sound_check`'s WAV half, `editor_check`'s third half and
+All twelve want Godot; `atlas_check`, `sound_check`'s WAV half, `editor_check`'s third half and
 `lang_check`'s fourth degrade to a loud SKIP without it, `undo_check` and `mouse_check` need only
 the two engines, the rest need Godot outright. Every one that runs the project **rebuilds its C#
 first**, because `godot --path` does not — see *Environment notes*. None of them touches
 `build/lasertank-solve.exe`, so all are safe beside a live solver. `options_check` opens three brief
 windows for its pixel measurements; `--no-window` skips that half.
+**`chrome_check` is windows all the way down and cannot be otherwise** — the hit list is built by
+`_Draw` and by nothing else, so a headless run has an empty one; `--no-diff` cuts it to the twelve
+dumps, ~15 s.
 
 **If a solve is running on this machine the plain build block does not work**, and the first symptom
 is a build failure, not a red gate: `src/build.sh` publishes into `build/`, which a live
@@ -165,6 +171,12 @@ every binding as keycaps, grouped, including the editor's. What a menu bar would
 So this is no longer "the cheapest thing left" so much as "the thing to do if the port is going
 somewhere without a keyboard". If it is built, the top bar is where it goes.
 
+**Step 9 answered the other half, and answered it without a menu bar.** Every keycap, pill, row and
+card the redesign drew is now a button, and the F1 overlay is a *command list* rather than a legend:
+the pointing route to thirty-odd commands is the same list that documents them. What a menu bar
+would still add over that is a route to the handful of commands nothing on screen names — the ones
+in *item 3* that are not built yet. So it is worth less than it was, not more.
+
 ### 3. The rest of the original that is still missing
 
 Everything here was named as left out at the time rather than forgotten.
@@ -212,25 +224,26 @@ Both are read into `Options` as comments only.
 
 ### 4. The UI redesign, second pass
 
-The first pass is built — see *Finished*, step 7 — and it deliberately stopped at the chrome. What
-it left:
+The first pass is built — see *Finished*, step 7 — and it deliberately stopped at the chrome. The
+biggest thing it left was **mouse and touch**, and that is *Finished*, step 9. What is still open:
 
-* **Mouse and touch.** Everything step 7 drew is keyboard-driven, because that is what the port
-  was. The keycaps in the F1 overlay, the pills in the top bar, the rows in the four list panels and
-  the `H`/`F1` affordances in the column are all *labels for keys* and none of them is clickable.
-  Making them clickable is the single biggest remaining gap, and it is the one a web build will feel
-  first. The hit tests are the easy half; the hard half is that `BoardView._UnhandledInput` routes
-  the mouse through the original's two arms (`MouseOperation` and the editor brush), so a third
-  arm — the chrome — has to come *before* both and must never reach `MBuffer`.
 * **Web.** Nothing in step 7 needs a platform branch (`SystemFont` falls through to Godot's own
   face, and there is no stretch mode to fight), so an HTML5 export should draw correctly today. It
   has not been tried. `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing.
-* **Motion.** There is none, and two places want it: the status line, which replaces its content
-  with no transition, and the win state, which is a colour change on a line of text. The tick is 20
-  Hz and `_Process` already redraws every frame, so a tween has somewhere to live.
+* **Motion.** There is none, and three places want it now: the status line, which replaces its
+  content with no transition; the win state, which is a colour change on a line of text; and, since
+  step 9, the press itself — a target that highlights on hover but does not move under a click says
+  nothing to a finger, which has no hover. The tick is 20 Hz and `_Process` already redraws every
+  frame, so a tween has somewhere to live.
 * **The graphics packs' own chrome.** `Control.bmp` and `Opening.bmp` ship per language and per pack
   and nothing reads them. The top bar's app mark is drawn from the sheet, which is as far as step 7
   took the idea.
+* **A drag on the board, and a two-finger gesture.** Step 9 gave the chrome the pointer and left the
+  *board* exactly as the original has it: a click is a move order and `WM_MOUSEMOVE` outside the
+  editor does nothing at all, so there is no swipe-to-move and no pinch-to-zoom. Both would be this
+  port's own rather than the original's, and both are the kind of thing that has to be decided
+  rather than added — a swipe over a board whose clicks are already a move order is two gestures
+  competing for one surface.
 
 ### 5. More fuzzing, indefinitely
 
@@ -728,6 +741,15 @@ accelerators, still bound, still in the table.
 the overlay and this paragraph are two renderings of one table rather than two lists to keep in
 step. A binding added to the router and not to the table is a binding no player will find.
 
+**Every label in that list is also a button** (step 9 — see *Finished*). The pills in the top bar
+turn off the state they name, the collection beside them opens 108, the cards in the column open the
+panels they summarise, the five keycaps in the `Keys` card do what they say, the rows of all four
+list panels select and then commit on a second click, the F1 overlay's thirty-odd rows *press the
+key they draw*, and every panel has a close button and closes on a click outside. A click is routed
+through `BoardView.Press`, which is the accelerator table as a function — so a chrome click is the
+key, going to whichever table is live (ACC1 while playing, ACC2 in the editor), and a binding added
+to the router is reachable from the pointer or from neither.
+
 **The window is resizable and the board is the thing that resizes** (step 7 — see *Finished*). The
 layout is measured from the window every frame: the board takes the largest whole-pixel cell that
 fits the square it is left, aspect locked, with the coordinate gutter and the label type scaled off
@@ -851,7 +873,12 @@ wrong:
 
 **Reviewing UI without a window** is the same trick everywhere: `--shot FILE` draws one frame and
 exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint|quit` / `--editor`
-open the thing first. `--window WxH` sets the window to an arbitrary size and frees the preset,
+open the thing first. **Step 9 added four more, and they need a window rather than avoiding one**:
+`--dump-hits` prints every clickable rectangle this frame registered, with its name; `--click X,Y`
+pushes a synthetic press and release through `MouseButton` — the whole arm, guards included — and
+prints what it landed on and what changed; `--press key:U` does the same through the keyboard's
+route, which is what makes the two comparable; and `--hover X,Y` parks the pointer so a screenshot
+can show a hot target. `X,Y,r` is the right button and `X,Y,u` / `X,Y,d` the wheel. `--window WxH` sets the window to an arbitrary size and frees the preset,
 which is how the responsive layout is reviewed: there is no fixed board size to screenshot any
 more, so "what does it look like at that size" needed an instrument like every other panel.
 Every path after `--` must be **absolute** — see *Environment notes*.
@@ -1185,6 +1212,9 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                     Ui.cs          the redesign's palette, type and box styles —
                                    the one file here that answers to nothing in
                                    the original
+                    Hits.cs        the chrome's clickable rectangles for one
+                                   frame: registered by _Draw, tested by the
+                                   mouse, named so a gate can drive them
                     Session.cs     LTANK.C's driver half — WM_TIMER, WM_KEYDOWN,
                                    WM_Dead, ReStart, WM_SaveRec, commands 110/111/
                                    112/114/124
@@ -1228,6 +1258,7 @@ tools/      the fidelity and presentation gates; solver-only tools: docs/solver/
 | `editor_check.py` | 3,000 edit scripts against the oracle's own `ChangeGO`; the `.lvl` writer (an untouched level re-saves byte for byte across all 23 collections, the `GetWindowText` widths rebuilt in Python, the gap zero-filled, the saved board tied to the trace, and **the oracle — which *is* the 2010 loader — opening what was written**); and the game's own editor saving the same bytes as the driver |
 | `lang_check.py` | the tab policy; 2,293 source lines rebuilt out of the JSON and compared **as bytes in each file's own codepage**; the key set and both menu trees against the frozen header and `.inc`; `code`/`name`/`sourceDir`/`sourceEncoding` against `convert_language.LANGUAGES` and `sourceName` against the `.dat`'s own banner line (the one string the round trip cannot reach — it sits on a `#` line the original's loader skips); `--lang-dump` and the game's `--check-lang` against a Python rebuild; a synthetic partial language for the fallback; 5 INI checks |
 | `collections_check.py` | the collection picker's 23 rows, rebuilt in Python from the same two directory trees against `--check-collections`; and the switch behind them — all 23 opened in order through one Session, with the `.hs` / `.ghs` / `.lpb` names checked to have followed each one (`AssignHSFile`), the level checked to be 1, an open playback checked to be closed by the change, and a `.lvl` that is not there checked to restore rather than throw |
+| `chrome_check.py` | the third arm of the window proc. Dumps every clickable rectangle of twelve screens (`--dump-hits`) and checks three things a screenshot cannot show: that no target is outside its window or under something drawn later (Hits.Click rewritten in Python), that none is under the finger-sized floor `Ui.Touch` puts them at, and that **clicking a target called `key:U` leaves the game in the same state as pressing U** — `--click` against `--press`, two processes, one comparison. Needs a real window and says so |
 | `convert_language.py` | the one-time import behind that. `--check` reports staleness without writing |
 | `bump_rate.py` | classify consumed keys; bumps = desync signature |
 | `dump_level.py` | print a `.lvl` level as ASCII with its hint |
@@ -1821,6 +1852,66 @@ the rest of the port is blocked on — see *Next steps*, item 3.
 
 `--panel quit` reviews the prompt; `--panel levels|scores|global` are three names for the one table
 now, kept so that no instrument named in this file started printing usage.
+
+### ~~Step 9: the chrome answers the mouse~~ — **done 2026-09-13**
+
+Step 7 drew an interface and every piece of it was a *label for a key*. The keycaps were pictures of
+keys, the pills were read-outs, the rows were things the arrows moved a cursor through. This is the
+half that was missing, and it is *Next steps* item 4's first bullet, closed.
+
+**The click is the key.** The accelerator switch was the tail of `_UnhandledInput` and nothing else
+could reach it, so every clickable thing would have needed its own copy of what the key does. It is
+`BoardView.Press(code, ctrl)` now, and a chrome click presses the key — going to whichever table is
+live, ACC1 while playing and ACC2 in the editor, by walking the same two branches the key router
+walks. That is the one rule this arm has: **the chrome may not reach a command the keyboard could
+not have reached from where the player is standing.** Clicking `muted` in the top bar while the
+editor is open is swallowed exactly as pressing `N` there is.
+
+**A hit list, not a node tree.** `Ui.cs`'s header says why this UI is immediate mode — the dialogs'
+observable rules (modality, what stops the clock, what reaches `AddKBuff`) live in the key router,
+and a Control-node rewrite would have to re-derive all of them. That argument did not change when
+the mouse arrived, so the mouse was fitted to immediate mode instead: **everything clickable
+registers the rectangle it just drew** (`Hits.cs`), and the click is tested against what the last
+frame put on screen. That inverts the usual bug — there is one rectangle, handed to the draw call
+and to `Hits.Add` in the same breath, so a button that moves takes its hit box with it and a button
+that is not drawn is not clickable. The cost is one frame of staleness, which `_Process`'s redraw
+every frame makes unobservable.
+
+**The third arm comes before the other two**, and the six modality guards come *behind* it — because
+every panel registers its own scrim, so while one is up the chrome has already answered. Those
+guards are what answer on the frame a panel was opened and not yet drawn, and headless, where
+nothing draws and the list is always empty. That last part is why `mouse_check.py` and
+`editor_check.py` never had to learn that any of this exists.
+
+**What became a button.** The pills turn off the state they name; the collection beside them opens
+108; the level card and the info strip open the table; the `Keys` card's five rows do what they say;
+all four list panels select on the first click and commit on the second (a double-click that does
+not have to be fast — touch has no hover, so the selection *is* the preview); every panel grew a
+close button and closes on a click outside; the playback panel's transport is three keycaps; the
+quit prompt is two buttons far enough apart that no repeated gesture reaches both; the editor's
+three fields take the caret and its difficulty chip cycles 701..705. **And the F1 overlay became a
+command list** — thirty-odd rows that press the key they draw.
+
+**`Ui.Touch` is the concession to a finger.** The chrome scales with the window, so a keycap that is
+comfortable at 1100 px is 17 px across at 520 — which is the width a phone gets. The hit rectangle
+is grown to a 32-design-pixel floor and the drawing is left alone. 32 and not the 44 the guidelines
+ask for: past the row gap neighbours overlap, and since draw order is z order the right-hand one
+would quietly steal the left one's edge.
+
+**Touch is the emulated mouse**, declared in `project.godot` rather than assumed — a tap is a press
+and a release at the same position, so the hit list, the editor's brush and `MouseOperation` all
+work on a phone with no code of their own. `emulate_touch_from_mouse` stays off: it would cost a
+desktop player the hover the chrome uses to say what is clickable.
+
+**A bug fell out of it.** `EditMode.Key`'s switch swallows everything it does not decline, and `F1`
+fell through — so command 903 did nothing at all in the editor while the panel's own footer
+advertised it. Found by wiring that footer to the pointer: the click worked and the key did not.
+
+**And it has a gate**, which is the point of naming every target after the key it presses:
+`chrome_check.py` dumps twelve screens, re-derives `Hits.Click` in Python to catch overlaps,
+asserts the touch floor, and then runs 41 pairs of `--click centre` against `--press key:X` and
+requires the two to end in the same state. Two paths agreeing is evidence; one path agreeing with
+itself is not.
 
 ---
 

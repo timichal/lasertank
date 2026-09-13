@@ -288,17 +288,82 @@ namespace LaserTank.Game
                                    float size = 11f)
         {
             int px = Px(size);
-            float tw = Mathf.Max(Width(key, size, Bold), px * 0.75f);
-            float padX = Px(6), h = px + Px(9);
-            var r = new Rect2(x, y, tw + 2 * padX, h);
+            var r = new Rect2(x, y, KeycapWidth(key, size), KeycapHeight(size));
             ci.DrawStyleBox(Box(Raised, BorderLit, 5f, 1f), r);
-            ci.DrawString(Bold, new Vector2(x, y + h - Px(6)), key,
+            ci.DrawString(Bold, new Vector2(x, y + r.Size.Y - Px(6)), key,
                           HorizontalAlignment.Center, r.Size.X, px, Text);
             return r.End.X;
         }
 
+        /// What Keycap will take, for the callers that have to know the box
+        /// before they draw it -- a hit test registers the rectangle, and a
+        /// hover has to paint under the cap rather than over it.
+        public static float KeycapWidth(string key, float size = 11f)
+            => Mathf.Max(Width(key, size, Bold), Px(size) * 0.75f) + 2 * Px(6);
+
+        public static float KeycapHeight(float size = 11f) => Px(size) + Px(9);
+
         /// A horizontal rule inside a card.
         public static void Rule(CanvasItem ci, float x, float y, float w)
             => ci.DrawRect(new Rect2(x, y, w, Mathf.Max(1, Px(1))), Border);
+
+        // ---- what the pointer needs ------------------------------------------
+        //
+        // Step 9's two additions.  Everything above is drawn; these are drawn
+        // *and pointed at*, so they have a hot state -- and the rectangle they
+        // are drawn in is the same one Hits.Add is given, which is the whole
+        // trick (see Hits).
+
+        /// The wash behind a hovered row.  A light veil rather than a colour
+        /// change: rows in this interface are already tinted by difficulty, by
+        /// being current and by being selected, and a fourth signal in the same
+        /// channel would be a fourth thing to tell apart.  It is drawn *under*
+        /// the row's own content, so nothing it highlights changes shape.
+        public static void Hot(CanvasItem ci, Rect2 r, float radius = 6f)
+            => ci.DrawStyleBox(Box(new Color(1f, 1f, 1f, 0.055f), Border, radius, 1f), r);
+
+        /// **A finger is not a cursor.**  A target drawn as a 17-pixel keycap
+        /// is a target a thumb misses, so the *hit* rectangle is grown to a
+        /// floor and the drawing is left alone -- the chrome does not have to
+        /// become chunky for it to be tappable.
+        ///
+        /// 32 design pixels, not the 44 the platform guidelines ask for, and
+        /// that is a deliberate compromise with a chrome whose rows are 24
+        /// apart: past the gap, neighbours overlap, and since draw order is z
+        /// order the right-hand one would quietly steal the left one's edge.
+        /// Where they do overlap it is only outside the drawn caps, so the
+        /// nearest cap still wins -- which is the behaviour a thumb expects
+        /// anyway.
+        public static Rect2 Touch(Rect2 r, float min = 32f)
+        {
+            float w = Mathf.Max(r.Size.X, Px(min)), h = Mathf.Max(r.Size.Y, Px(min));
+            return new Rect2(r.Position.X - (w - r.Size.X) / 2f,
+                             r.Position.Y - (h - r.Size.Y) / 2f, w, h);
+        }
+
+        /// Where a panel's close button goes: the top-right corner, inside the
+        /// padding, on the title's own line.
+        public static Rect2 CloseRect(Rect2 panel, float pad)
+        {
+            float d = Px(22);
+            return new Rect2(panel.End.X - pad - d, panel.Position.Y + pad - Px(2), d, d);
+        }
+
+        /// The button itself.  **Every panel here closes on "any other key"**,
+        /// which is a complete answer with a keyboard and no answer at all
+        /// without one -- this is that key, for a finger.  Drawn as an outline
+        /// rather than a filled control so it stays quieter than the panel's
+        /// own title beside it.
+        public static void CloseX(CanvasItem ci, Rect2 r, bool hot)
+        {
+            ci.DrawStyleBox(Box(hot ? Raised : new Color(0f, 0f, 0f, 0f),
+                                hot ? BorderLit : Border, 6f, 1f), r);
+            float m = r.Size.X * 0.33f;
+            Color c = hot ? Text : Dim;
+            float t = Mathf.Max(1f, Px(1.4f));
+            ci.DrawLine(r.Position + new Vector2(m, m), r.End - new Vector2(m, m), c, t, true);
+            ci.DrawLine(new Vector2(r.End.X - m, r.Position.Y + m),
+                        new Vector2(r.Position.X + m, r.End.Y - m), c, t, true);
+        }
     }
 }

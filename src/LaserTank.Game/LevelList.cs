@@ -434,6 +434,29 @@ namespace LaserTank.Game
             _top = Math.Clamp(_top, 0, Math.Max(0, _wide.Length - _rowsShown));
         }
 
+        /// The wheel.  It moves the *selection*, not a second scroll position:
+        /// Draw clamps the viewport to the cursor, so a list that scrolled away
+        /// from its own cursor would snap back on the next arrow key.
+        public void Scroll(int d) => Move(d);
+
+        /// A click on a row.  **The first lands on it and the second loads it**
+        /// -- a double-click that does not have to be fast.  Godot's own
+        /// DoubleClick would do on a desktop and be a coin toss on a phone, and
+        /// the reason a list needs two taps at all is that there is no hover on
+        /// a touch screen: the selection *is* the preview here, and a 2,030-row
+        /// table is not a place to load something on the first tap.
+        private void Pick(int i)
+        {
+            if (_wide.Length == 0) return;
+            if (i == _sel)
+            {
+                if (i < _levels.Length) Chosen = _levels[i].Number;
+                Close();
+                return;
+            }
+            _sel = Math.Clamp(i, 0, _wide.Length - 1);
+        }
+
         // ---- drawing --------------------------------------------------------
         /// The row pitch, which follows the UI scale like every other length in
         /// the redesign -- and which the paging arithmetic reads, so a bigger
@@ -486,6 +509,9 @@ namespace LaserTank.Game
             // the window bigger than the board, and a list that filled the
             // *board* on a wide one sat off to the left of everything else.
             Ui.Scrim(n, host);
+            // "Any other key closes", for a pointer.  Registered before the
+            // panel because the hit list is walked backwards -- see Hits.
+            _view.Chrome.Add(host, "scrim", Close);
 
             float pad = Ui.Px(18);
             (Cells c, float size, float table) = Fit(host.Size.X - Ui.Px(40) - 2 * pad,
@@ -497,6 +523,8 @@ namespace LaserTank.Game
                 Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
                 Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f), w, h);
             Ui.Dialog(n, panel);
+            // A miss inside the panel is not an answer, so it does not close it.
+            _view.Chrome.Swallow(panel);
 
             float x = panel.Position.X + pad;
             w = panel.Size.X - 2 * pad;
@@ -507,8 +535,10 @@ namespace LaserTank.Game
             // you have solved -- which is the one number in this game that
             // answers "where was I", and the reason the collection picker shows
             // it too.
+            Rect2 close = Ui.CloseRect(panel, pad);
+            Ui.CloseX(n, close, _view.Chrome.Add(Ui.Touch(close), "close", Close));
             float cw = Ui.Px(280);
-            Ui.Write(n, new Vector2(panel.End.X - pad - cw, y),
+            Ui.Write(n, new Vector2(close.Position.X - Ui.Px(10) - cw, y),
                      $"{_lvlName}  ·  {_wide.Length} levels  ·  {_solved} solved",
                      11, Ui.Faint, cw, HorizontalAlignment.Right);
             y += Ui.Px(12);
@@ -573,6 +603,14 @@ namespace LaserTank.Game
             {
                 string row = table_[i];
                 Color tint = DifCList[row[0] - '0'];
+                // The band the selection is drawn in *is* the hit box -- one
+                // rectangle, passed to the draw call and to Add in the same
+                // breath, which is the property the whole hit list is for.
+                var band = new Rect2(x - Ui.Px(7), y - Line + 4,
+                                     w + 2 * Ui.Px(7), Line + 3);
+                int at = i;
+                if (_view.Chrome.Add(band, "row:" + i, () => Pick(at)) && i != _sel)
+                    Ui.Hot(n, band, 5f);
                 if (i == _sel)
                 {
                     // DrawLevels fills the selected row (0x00404080); here it is
@@ -597,8 +635,9 @@ namespace LaserTank.Game
 
         private static void Footer(Node2D n, Rect2 panel, float x, float w)
             => Ui.Write(n, new Vector2(x, panel.End.Y - Ui.Px(13)),
-                        "↑↓ PgUp/PgDn pick · Enter loads · any other key closes "
-                        + "·  ** and > mark a level where you beat the posted best",
+                        "↑↓ or wheel picks · Enter or a second click loads · "
+                        + "any other key or a click outside closes "
+                        + "·  ** and > beat the posted best",
                         11, Ui.Faint, w);
     }
 }
