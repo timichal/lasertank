@@ -30,6 +30,19 @@ window/size/viewport_width=699
 window/size/viewport_height=527
 window/size/resizable=true
 
+[input_devices]
+
+; **Touch arrives as mouse events, and that is the whole of the touch support.**
+; Godot's emulate_mouse_from_touch defaults on; it is written down here because
+; step 9's claim to work on a touch screen rests on it -- a tap becomes a press
+; and a release at the same position, so the chrome's hit list (Hits), the
+; editor's brush and MouseOperation's move order all work on a phone without a
+; line of code of their own.  The reverse is off on purpose: emulating touch
+; from the mouse would cost a desktop player the hover the chrome uses to say
+; what is clickable.
+pointing/emulate_mouse_from_touch=true
+pointing/emulate_touch_from_mouse=false
+
 [physics]
 
 ; The tick.  GameDelay = 50 ms (LTANK.H:96) is 20 Hz, and BoardView refuses to

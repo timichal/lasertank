@@ -4,8 +4,9 @@ A port of **LaserTank 4.1.2** (Jim Kindley, 1995–2001; released to the public 
 to Godot, preserving the original game logic exactly — **including its bugs**, because upstream
 level packs deliberately exploit them.
 
-**Start here: [`PROGRESS.md`](PROGRESS.md)** — the living plan, phase status, decoded file formats
-and quirk catalog.
+**Start here: [`PROGRESS.md`](PROGRESS.md)** — the living plan, the phase status and the gates, with
+the detail one file per subject under [`docs/game/`](docs/game/): the decoded file formats, the quirk
+catalog, the harnesses, the UI and the environment traps.
 
 ## Layout
 
@@ -24,6 +25,8 @@ src/               The C# port.  LaserTank.Core is the transliterated engine —
                    pure C#, no Godot; LaserTank.Cli is a headless driver that
                    speaks the oracle's command line and writes the oracle's trace
 tools/             Replay gate, trace differ, level dumper, .lpb decoder, bump analysis
+docs/              The detail behind the two entry points.  game/ is PROGRESS.md's,
+                   solver/ is SOLVER.md's
 ```
 
 ## Prerequisites
@@ -88,10 +91,11 @@ python tools/sweep.py                # 2,347/2,347 identical
 python tools/test_fuzz.py            # 25 passed  (slow: injects faults and rebuilds the core)
 ```
 
-`PROGRESS.md` holds the canonical expected counts and an *Environment notes* section with the
-traps behind each of them — including why `test_fuzz.py` must never run while a solver process is
-alive (Windows keeps `build/LaserTank.Core.dll` locked, and the rebuild fails for reasons that
-have nothing to do with the code).
+`PROGRESS.md` holds the canonical expected counts and
+[`docs/game/repo.md`](docs/game/repo.md#environment-notes) the traps behind each of them — including
+why `test_fuzz.py` must never run while a solver process is alive (Windows keeps
+`build/LaserTank.Core.dll` locked, and the rebuild fails for reasons that have nothing to do with
+the code).
 
 ## Solving levels
 

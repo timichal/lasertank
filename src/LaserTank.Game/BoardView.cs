@@ -1,4 +1,4 @@
-// Phase 5, steps 0 and 1: the board on screen, and the 20 Hz tick under it.
+﻿// Phase 5, steps 0 and 1: the board on screen, and the 20 Hz tick under it.
 //
 // This node draws and routes keys.  It reads Game.BMF / Game.BMF2 / Game.PF2,
 // the tank and the laser, exactly as UpDateSprite, UpDateTank, UpDateLaser and
@@ -145,8 +145,12 @@ namespace LaserTank.Game
         // board.
         private const float PadD = 16, TopD = 54, StatusD = 36, SideD = 276, GapD = 16;
         /// The stacked layout's strip.  Two lines of numbers and a name, which
-        /// is what survives of the column when there is no room for a column.
-        private const float StripD = 86;
+        /// is what survives of the column when there is no room for a column --
+        /// plus, since step 9, the row of chips that is the only way into the
+        /// rest of the game on a window this narrow.  It grew from 86 to make
+        /// room for them, which is 14 px the board gives up on a phone-shaped
+        /// window for the ability to be played on one at all.
+        private const float StripD = 106;
         /// Below this window width the info column goes under the board.  A raw
         /// pixel count rather than a scaled one: it is a question about the
         /// *device*, and scaling it by a factor derived from the same number is
@@ -329,6 +333,16 @@ namespace LaserTank.Game
         private EditMode _edit;
         private Sfx _sfx;
         private string _error;
+
+        /// The chrome's clickable rectangles, rebuilt every frame by _Draw and
+        /// read by the mouse -- see Hits, and see MouseButton for where in the
+        /// window proc's two arms this one goes (before both of them).
+        private readonly Hits _hits = new();
+
+        /// The panels reach it through here: they draw themselves and register
+        /// what they drew in the same function, which is the only way the two
+        /// can be kept in step.
+        internal Hits Chrome => _hits;
 
         /// A monospace face for the list panels.  Their rows are the original's
         /// own `%4d %-30.30s` sprintf output, so the padding only lines up in a
@@ -783,7 +797,39 @@ namespace LaserTank.Game
                 _langMenu.Show(Language.Available(Paths.Data(Language.DirName)),
                                Strings.Code);
 
+            // `--hover X,Y` parks the pointer before the frame is captured, so
+            // a screenshot can show what the chrome looks like under one --
+            // which is a state no key can put the UI into and which `--shot`
+            // could therefore not review.
+            if (ArgStr(args, "--hover") is string hs && Point(hs, out Vector2 hp))
+                _hits.Point(hp);
+
+            string clicks = ArgStr(args, "--click");
+
+            // `--press key:U;key:ctrl+G` -- the *other* half of the
+            // differential.  chrome_check.py clicks a target called `key:U` and
+            // presses this, and the two StateLines have to be the same line;
+            // without it the gate could only assert that a click did
+            // *something*.  It goes through Press, which is the same function
+            // the chrome click goes through -- what is being checked is that
+            // the rectangle is over the command it claims, not that Press
+            // works.
+            string press = ArgStr(args, "--press");
+
             string shot = ArgStr(args, "--shot");
+            // The three step-9 flags run as one coroutine, and it takes `--shot`
+            // over: presses, then the dump, then the clicks, each with frames
+            // drawn in between -- so a capture has to be the last step of that
+            // sequence rather than a second one racing it.
+            if (clicks != null || press != null
+                || Array.IndexOf(args, "--dump-hits") >= 0)
+            {
+                _driving = false;
+                RunTicks(script, Arg(args, "--ticks", 0));
+                ClickScript(clicks, press, shot,
+                            Array.IndexOf(args, "--dump-hits") >= 0);
+                return;
+            }
             if (shot != null)
             {
                 _driving = false;
@@ -791,6 +837,153 @@ namespace LaserTank.Game
                 Shot(shot);
             }
         }
+
+        /// `key:U`, `key:ctrl+G` -- KeyName read backwards.
+        private static bool ParseKey(string s, out Key code, out bool ctrl)
+        {
+            code = Key.None;
+            ctrl = false;
+            if (s == null || !s.StartsWith("key:")) return false;
+            string rest = s.Substring(4);
+            if (rest.StartsWith("ctrl+")) { ctrl = true; rest = rest.Substring(5); }
+            return Enum.TryParse(rest, true, out code) && code != Key.None;
+        }
+
+        /// `X,Y`, invariant, for --click and --hover.
+        private static bool Point(string s, out Vector2 at)
+        {
+            at = Vector2.Zero;
+            string[] xy = (s ?? "").Split(',');
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            if (xy.Length != 2
+                || !float.TryParse(xy[0], System.Globalization.NumberStyles.Float, inv,
+                                   out float x)
+                || !float.TryParse(xy[1], System.Globalization.NumberStyles.Float, inv,
+                                   out float y))
+                return false;
+            at = new Vector2(x, y);
+            return true;
+        }
+
+        /// **`--click X,Y;X,Y;...` -- the chrome, pressed from a command line.**
+        ///
+        /// Every other instrument in this file exists because a panel nothing
+        /// can screenshot is a panel nothing reviews; this one exists because
+        /// the *hit list is built by _Draw and by nothing else*, so a headless
+        /// run has an empty one (see Hits) and there is no way at all to
+        /// exercise the third arm without a window.  `tools/chrome_check.py` is
+        /// what drives it.
+        ///
+        /// Two properties it is worth being exact about, because a gate that
+        /// got either wrong would pass while the game was broken:
+        ///
+        /// * **It pushes through `MouseButton`, not through the hit list.**  So
+        ///   what is exercised is the whole arm -- the wheel branch, the chrome,
+        ///   the six modality guards, the editor brush, MouseOperation -- in
+        ///   the order the window proc has them, and not just the lookup.
+        /// * **A frame is drawn before every click.**  The list a click is
+        ///   tested against is the last frame's, so a click that opens a panel
+        ///   has to let that panel draw before the next click can land on it.
+        ///   That is the real timing a player gets, spelled out.
+        private async void ClickScript(string spec, string press, string shot,
+                                       bool dump)
+        {
+            Measure();
+            GD.PrintRaw(ChromeLine());
+
+            // The keys first, so `--press` and `--click` in one run mean "put
+            // the UI here, then click that" rather than racing.
+            foreach (string k in (press ?? "").Split(';',
+                                 StringSplitOptions.RemoveEmptyEntries))
+            {
+                await ToSignal(RenderingServer.Singleton,
+                               RenderingServer.SignalName.FramePostDraw);
+                if (!ParseKey(k, out Key code, out bool ctrl))
+                {
+                    GD.PrintErr("--press wants key:U or key:ctrl+G");
+                    GetTree().Quit(2);
+                    return;
+                }
+                Press(code, ctrl);
+                GD.PrintRaw($"press {k} {StateLine()}" + "\n");
+                QueueRedraw();
+            }
+
+            if (dump)
+            {
+                await ToSignal(RenderingServer.Singleton,
+                               RenderingServer.SignalName.FramePostDraw);
+                await ToSignal(RenderingServer.Singleton,
+                               RenderingServer.SignalName.FramePostDraw);
+                GD.PrintRaw(_hits.Dump());
+            }
+
+            foreach (string one in (spec ?? "").Split(';',
+                                   StringSplitOptions.RemoveEmptyEntries))
+            {
+                await ToSignal(RenderingServer.Singleton,
+                               RenderingServer.SignalName.FramePostDraw);
+                await ToSignal(RenderingServer.Singleton,
+                               RenderingServer.SignalName.FramePostDraw);
+                // `X,Y` is the left button; `X,Y,r` the right, `X,Y,u` and
+                // `X,Y,d` the wheel -- the editor's second brush and the lists'
+                // scroll are part of this arm too.
+                string[] f = one.Split(',');
+                bool ok = f.Length >= 2 && Point(f[0] + "," + f[1], out Vector2 at);
+                if (!ok)
+                {
+                    GD.PrintErr("--click wants X,Y[,r|u|d];X,Y...");
+                    GetTree().Quit(2);
+                    return;
+                }
+                Point(f[0] + "," + f[1], out Vector2 p);
+                Godot.MouseButton b = f.Length > 2 ? f[2] switch
+                {
+                    "r" => Godot.MouseButton.Right,
+                    "u" => Godot.MouseButton.WheelUp,
+                    "d" => Godot.MouseButton.WheelDown,
+                    _ => Godot.MouseButton.Left,
+                } : Godot.MouseButton.Left;
+                bool took = MouseButton(new InputEventMouseButton
+                { ButtonIndex = b, Pressed = true, Position = p });
+                MouseButton(new InputEventMouseButton
+                { ButtonIndex = b, Pressed = false, Position = p });
+                GD.PrintRaw($"click {f[0]},{f[1]} {b} took={took} " +
+                            $"on={_hits.Took} {StateLine()}\n");
+                QueueRedraw();
+            }
+            if (shot != null) { Shot(shot); return; }
+            await ToSignal(RenderingServer.Singleton,
+                           RenderingServer.SignalName.FramePostDraw);
+            GetTree().Quit(0);
+        }
+
+        /// Where the chrome is, for a tool that has to aim at it.  The board's
+        /// own geometry is `shot-geometry`, which predates step 9 and is about
+        /// cells; this is the rest of the window, which is what a click lands
+        /// in.  A gate reads this and computes its own coordinates rather than
+        /// hardcoding a layout that is measured from the window every frame and
+        /// has no constants left to hardcode.
+        private string ChromeLine()
+            => $"chrome top={R(_l.Top)} side={R(_l.Side)} well={R(_l.Well)} " +
+               $"board={R(_l.Board)} status={R(_l.Status)} window={R(_l.Window)} " +
+               $"stacked={_l.Stacked}\n";
+
+        private static string R(Rect2 r)
+            => $"{(int)r.Position.X},{(int)r.Position.Y},{(int)r.Size.X},{(int)r.Size.Y}";
+
+        /// What the click changed, in one line a gate can diff against the same
+        /// line after the *key* that is supposed to be equivalent.  Deliberately
+        /// coarse: the question is whether clicking `undo` undid, not what the
+        /// chrome looked like while it did.
+        private string StateLine() =>
+            $"level={_s?.Level} moves={_s?.E?.Game.ScoreMove} " +
+            $"shots={_s?.E?.Game.ScoreShot} help={_help} quit={_quitAsk} " +
+            $"hint={_hint} list={_list?.Open} coll={_collections?.Open} " +
+            $"gfx={_menu?.Open} lang={_langMenu?.Open} editor={_edit?.Open} " +
+            $"pb={_s?.Pb.PanelUp} rec={_s?.Rec2.Recording} sound={_opt?.SoundOn} " +
+            $"ani={_opt?.AnimationOn} cell={Cell} pack={_atlas?.Label} " +
+            $"lvlfile={(_s == null ? "" : Path.GetFileName(_s.LevelPath))}";
 
         /// Measure the tick rate the same way a player experiences it: through
         /// _PhysicsProcess, against the wall clock.
@@ -892,6 +1085,7 @@ namespace LaserTank.Game
             // own L=x,y,dir,firing,good -- read out of the engine, while the
             // pixels come from the renderer, which is what makes comparing the
             // two a check rather than a tautology.
+            GD.PrintRaw(ChromeLine());
             TTANKREC l = _s.E.laser;
             // `margin` was the board's origin *and* the gutter while those were
             // the same number; step 7 made the board a box that floats in the
@@ -1074,9 +1268,28 @@ namespace LaserTank.Game
         /// Rendering only.  Nothing here may touch the game.
         public override void _Process(double delta) => QueueRedraw();
 
+        /// The pointer left the window, so nothing is hovered any more.  Without
+        /// this the last target under the cursor stays lit after the mouse has
+        /// gone somewhere else entirely, which reads as a button waiting to be
+        /// pressed.
+        public override void _Notification(int what)
+        {
+            if (what == NotificationWMMouseExit)
+                _hits.Point(new Vector2(-1e6f, -1e6f));
+        }
+
         public override void _UnhandledInput(InputEvent ev)
         {
-            if (ev is InputEventMouseButton mb) { MouseButton(mb); return; }
+            if (ev is InputEventMouseButton mb)
+            {
+                // **SetInputAsHandled moved out here in step 9.**  It may only
+                // be called while an input event is being dispatched, and
+                // `--click` drives MouseButton from a coroutine instead -- so
+                // the arm answers whether it took the click and the caller,
+                // which knows whether it is the OS, marks it.
+                if (MouseButton(mb)) GetViewport().SetInputAsHandled();
+                return;
+            }
             if (ev is InputEventMouseMotion mm) { MouseMotion(mm); return; }
             if (ev is not InputEventKey k || !k.Pressed) return;
 
@@ -1225,6 +1438,21 @@ namespace LaserTank.Game
             // port, which is written down rather than locked down.
             if (k.Echo && !RepeatsOnHold(k.Keycode)) return;
 
+            if (Command(k.Keycode, k.CtrlPressed)) GetViewport().SetInputAsHandled();
+        }
+
+        /// **The accelerator table as a function, which is what step 9 needed.**
+        /// It was the tail of _UnhandledInput and nothing else could reach it,
+        /// so every clickable thing the redesign drew would have had to carry
+        /// its own copy of what the key does.  Pulling it out means the chrome
+        /// *presses the key*: a row in the F1 overlay, a keycap in the column
+        /// and the key itself are three ways into one switch, and a binding
+        /// added here is reachable from all three or from none.
+        ///
+        /// -> false when the code is not bound, which is the caller's cue to
+        /// leave the event alone.
+        internal bool Command(Key code, bool ctrl)
+        {
             // **The bindings are the original's accelerator table**
             // (`ACC1 ACCELERATORS`, lt32l_us.inc:120), which is a table, and the
             // rule in this project when the original has a table is to read it.
@@ -1235,8 +1463,7 @@ namespace LaserTank.Game
             // global high-score list).  `[`/`]` and I are this port's own and
             // have no accelerator; every one of them is outside VK 32..40, so
             // none can eat a byte a recording needed.
-            bool ctrl = k.CtrlPressed;
-            switch (k.Keycode)
+            switch (code)
             {
                 // ---- levels -------------------------------------------------
                 // **106, and 113 and 906 with it.**  The level picker and the
@@ -1365,9 +1592,9 @@ namespace LaserTank.Game
 
                 // Ours, and it asks first -- see _quitAsk.
                 case Key.Escape: _quitAsk = true; break;
-                default: return;
+                default: return false;
             }
-            GetViewport().SetInputAsHandled();
+            return true;
         }
 
         /// The accelerators that repeat while the key is held.  Undo is the
@@ -1377,6 +1604,86 @@ namespace LaserTank.Game
         /// right: UndoStep is not a tick, it is a WM_COMMAND, and the original
         /// took it as fast as Windows sent it.
         private static bool RepeatsOnHold(Key k) => k == Key.U;
+
+        // ---- the chrome, which is step 9's whole subject --------------------
+
+        /// **A chrome click is an accelerator by another route**, so it goes to
+        /// whichever table is live -- ACC1 while playing, ACC2 in the editor --
+        /// by walking the same two branches the key router walks.  That is the
+        /// one rule this arm has to keep: the chrome may not reach a command
+        /// the keyboard could not have reached from where the player is
+        /// standing.  Clicking `muted` in the top bar while the editor is open
+        /// is therefore swallowed exactly as pressing N there is.
+        ///
+        /// Named for what it does: the chrome *presses the key*.  `Chrome` next
+        /// to it is the hit list, which is a different noun.
+        internal void Press(Key code, bool ctrl = false)
+        {
+            if (_edit != null && _edit.Open)
+            {
+                if (!_edit.Key(new InputEventKey
+                    { Keycode = code, CtrlPressed = ctrl, Pressed = true }))
+                {
+                    // ACC2's two shares with ACC1, as in the router.
+                    if (code == Key.G && ctrl) _menu.Show(_packs, _pack);
+                    else if (code == Key.F1) _help = true;
+                }
+                if (!_edit.Open) Resize();
+                return;
+            }
+            // The status line is the last thing the player *did*, and a click is
+            // as much a thing done as a key is -- the router clears it on every
+            // key for that reason and this is the same reason.
+            _error = null;
+            Command(code, ctrl);
+        }
+
+        /// Register a rectangle the board's own chrome just drew.
+        ///
+        /// **This is the modality rule applied to the third arm.**  The key
+        /// router tests six panels before it reaches the accelerators, so a key
+        /// pressed under a dialog never gets to them; a click has to answer to
+        /// the same list, or the mouse becomes a way around a modality the
+        /// keyboard respects -- muting the game from the top bar while a dialog
+        /// holds the keyboard.  The panels themselves register through
+        /// `Chrome` (the Hits instance) directly, because they *are* the modal
+        /// thing.  The editor is not on the list, because the editor is a mode
+        /// of the window rather than a dialog over it -- the same reason it is
+        /// not in that half of the router.
+        private bool Hit(Rect2 r, string name, Action act)
+            => ChromeLive && _hits.Add(r, name, act);
+
+        /// The common case: a rectangle that presses a key.  Naming it after
+        /// the key is what lets tools/chrome_check.py diff the click against
+        /// the keystroke it is drawn as -- see Hits.
+        private bool HitKey(Rect2 r, Key code, bool ctrl = false)
+            => Hit(r, KeyName(code, ctrl), () => Press(code, ctrl));
+
+        /// How a binding is spelled in --dump-hits and --press.  One function,
+        /// so the two cannot drift.
+        internal static string KeyName(Key code, bool ctrl)
+            => "key:" + (ctrl ? "ctrl+" : "") + code;
+
+        private bool ChromeLive =>
+            !_quitAsk && !_help
+            && !(_menu != null && _menu.Open)
+            && !(_langMenu != null && _langMenu.Open)
+            && !(_list != null && _list.Open)
+            && !(_collections != null && _collections.Open)
+            && !(_s != null && _s.Pb.PanelUp);
+
+        /// The wheel, over whichever list is open.  The panels keep one cursor
+        /// and clamp the viewport to it (LevelList.Move), so scrolling here
+        /// *moves the selection* rather than introducing a second, independent
+        /// scroll position that the next arrow key would jump away from.
+        private bool Scroll(int d)
+        {
+            if (_list != null && _list.Open) { _list.Scroll(d); return true; }
+            if (_collections != null && _collections.Open) { _collections.Scroll(d); return true; }
+            if (_menu != null && _menu.Open) { _menu.Scroll(d); return true; }
+            if (_langMenu != null && _langMenu.Open) { _langMenu.Scroll(d); return true; }
+            return false;
+        }
 
         // ---- the mouse, WM_?BUTTONDOWN and WM_MOUSEMOVE ---------------------
         //
@@ -1389,15 +1696,55 @@ namespace LaserTank.Game
         // The dialogs come first for the same reason they do for keys: a modal
         // window over the board takes the mouse with it, and clicking through
         // one would drive a tank the player cannot see.
-        private void MouseButton(InputEventMouseButton mb)
+        /// -> true when this arm took the click, which is the caller's cue to
+        /// mark the event handled.
+        private bool MouseButton(InputEventMouseButton mb)
         {
-            if (!mb.Pressed) { _held = 0; return; }
-            if (_quitAsk) return;
-            if (_menu != null && _menu.Open) return;
-            if (_langMenu != null && _langMenu.Open) return;
-            if (_list != null && _list.Open) return;
-            if (_collections != null && _collections.Open) return;
-            if (_s != null && _s.Pb.PanelUp) return;
+            _hits.Point(mb.Position);
+
+            // The wheel is not a click and never reaches the board: the
+            // original's non-editor arm takes a *cell*, and a wheel has no
+            // position to give it.  It scrolls whichever list is up and does
+            // nothing when none is.
+            if (mb.ButtonIndex is Godot.MouseButton.WheelUp
+                              or Godot.MouseButton.WheelDown)
+            {
+                return mb.Pressed
+                       && Scroll(mb.ButtonIndex == Godot.MouseButton.WheelUp ? -3 : 3);
+            }
+            if (!mb.Pressed) { _held = 0; return false; }
+
+            // **The third arm, and it comes before the other two.**  Everything
+            // the last frame drew as clickable registered the rectangle it drew
+            // itself in (see Hits); if the click landed on any of it, that is
+            // what the click was, and nothing below may see it.  A chrome click
+            // must never reach MBuffer -- a tank that moved because the player
+            // pressed `undo` is the interface driving the game.
+            if (_hits.Click(mb.Position))
+            {
+                // The two pickers answer in a field rather than in a return
+                // value -- `EndDialog(Dialog, i + 100)` and the `if (i > 100)`
+                // that meets it -- so the click path has to collect it in
+                // exactly the place the key path does.
+                if (_list != null && _list.Chosen > 0) _s?.Load(_list.Chosen);
+                if (_collections != null && _collections.Chosen != null)
+                    OpenDataFile(_collections.Chosen);
+                return true;
+            }
+
+            // The same guards the key router has, in the same order and for the
+            // same reason: a modal window over the board takes the mouse with
+            // it.  They sit *behind* the chrome rather than in front of it
+            // because every panel registers its own scrim, so while one is up
+            // the test above has already answered -- these are what answer on
+            // the frame a panel was opened and not yet drawn, and headless,
+            // where nothing draws at all and the hit list is always empty.
+            if (_quitAsk) return false;
+            if (_menu != null && _menu.Open) return false;
+            if (_langMenu != null && _langMenu.Open) return false;
+            if (_list != null && _list.Open) return false;
+            if (_collections != null && _collections.Open) return false;
+            if (_s != null && _s.Pb.PanelUp) return false;
 
             int button = mb.ButtonIndex switch
             {
@@ -1405,14 +1752,13 @@ namespace LaserTank.Game
                 Godot.MouseButton.Right => 2,
                 _ => 0,
             };
-            if (button == 0) return;
+            if (button == 0) return false;
             _held = button;
 
             if (_edit != null && _edit.Open)
             {
                 _edit.Click(mb.Position, button, mb.ShiftPressed);
-                GetViewport().SetInputAsHandled();
-                return;
+                return true;
             }
 
             // The play arm.  `Session.Click` is the window proc's non-editor
@@ -1424,10 +1770,10 @@ namespace LaserTank.Game
             // than a dialog and command 201 calls GameOn(FALSE): a guard that
             // stands for a modal box has to be applied only after the editor arm
             // has had the click.  See Session.AcceptsInput.
-            if (_s?.E == null) return;
-            if (!CellAt(mb.Position, out int x, out int y)) return;
+            if (_s?.E == null) return false;
+            if (!CellAt(mb.Position, out int x, out int y)) return false;
             _s.Click(x, y, button);
-            GetViewport().SetInputAsHandled();
+            return true;
         }
 
         /// WM_MOUSEMOVE (LTANK.C:764).  **Only the editor has one**: out of the
@@ -1435,6 +1781,10 @@ namespace LaserTank.Game
         /// dragging across the board while playing queues nothing.
         private void MouseMotion(InputEventMouseMotion mm)
         {
+            // Hover, which is the only affordance the chrome gives a desktop
+            // player for free -- see Hits.End.  It is taken from every motion
+            // event, including the ones the two arms below ignore.
+            _hits.Point(mm.Position);
             if (_held == 0 || _edit == null || !_edit.Open) return;
             _edit.Drag(mm.Position, _held, mm.ShiftPressed);
         }
@@ -1602,6 +1952,17 @@ namespace LaserTank.Game
         public override void _Draw()
         {
             Measure();
+            // **The frame is also the hit test.**  Every clickable thing below
+            // registers the rectangle it draws in, in draw order, and the mouse
+            // is tested against the list this leaves behind -- see Hits, and
+            // MouseButton for where that test goes.
+            _hits.Begin();
+            DrawFrame();
+            _hits.End();
+        }
+
+        private void DrawFrame()
+        {
             Font font = Ui.Sans;
 
             // The ground, always -- the window is resizable now, so there is
@@ -1933,7 +2294,11 @@ namespace LaserTank.Game
         private void DrawTopBar()
         {
             Rect2 r = _l.Top;
-            DrawRect(r, Ui.Surface);
+            // **Not a filled bar.**  Step 7 drew this as a surface panel with a
+            // hairline under it, which is the header component every framework
+            // ships and reads as one.  The ground is simply the window's, and
+            // what separates the bar from the board is the rule -- a line the
+            // eye takes as an edge rather than a slab it takes as a widget.
             DrawRect(new Rect2(r.Position.X, r.End.Y - 1, r.Size.X, Mathf.Max(1, Ui.Px(1))),
                      Ui.Border);
 
@@ -1952,8 +2317,14 @@ namespace LaserTank.Game
                                       new Rect2(x, mid - m / 2f, m, m), mark);
                 x += m + Ui.Px(10);
             }
-            Ui.Caps(this, new Vector2(x, mid + Ui.Px(4)), "LaserTank", Ui.Text, 13);
-            x += Ui.CapsWidth("LaserTank", 13) + Ui.Px(14);
+            // The wordmark, and **the only other string in the port set in the
+            // display face** (the level name is the first -- see DrawLevelBlock).
+            // Amber rather than white: it is the first thing in the window and
+            // the dominant colour should be established there rather than
+            // discovered later beside a number.
+            DrawString(Ui.Mark, new Vector2(x, mid + Ui.Px(6)), "LASERTANK",
+                       HorizontalAlignment.Left, -1, Ui.Px(19), Ui.Accent);
+            x += Ui.Width("LASERTANK", 19, Ui.Mark) + Ui.Px(14);
 
             // The collection, which the level number alone does not say: every
             // one of the 23 opens at level 1 and three of those level 1s are the
@@ -1963,9 +2334,20 @@ namespace LaserTank.Game
                 DrawRect(new Rect2(x, mid - Ui.Px(9), Mathf.Max(1, Ui.Px(1)), Ui.Px(18)),
                          Ui.Border);
                 x += Ui.Px(14);
-                Ui.Write(this, new Vector2(x, mid + Ui.Px(4)),
-                         Path.GetFileNameWithoutExtension(_s.LevelPath), 12.5f, Ui.Dim,
-                         r.Size.X * 0.4f);
+                // **The top bar's one button.**  It names what is loaded, and
+                // command 108 is how another gets loaded, so the label and the
+                // command are one place.  This is the pointing route worth
+                // having most: `O` is the least guessable letter in ACC1, and
+                // the name beside it is the only thing on screen that says what
+                // it would change.
+                string coll = Path.GetFileNameWithoutExtension(_s.LevelPath);
+                float cwid = Mathf.Min(Ui.Width(coll, 12.5f), r.Size.X * 0.4f);
+                var box = Ui.Touch(new Rect2(x - Ui.Px(7), mid - Ui.Px(12),
+                                             cwid + 2 * Ui.Px(7), Ui.Px(24)));
+                bool hot = HitKey(box, Key.O);
+                if (hot) Ui.Hot(this, box);
+                Ui.Write(this, new Vector2(x, mid + Ui.Px(4)), coll, 12.5f,
+                         hot ? Ui.Text : Ui.Dim, r.Size.X * 0.4f);
             }
 
             // The pills, right to left: the exceptional states first, so the
@@ -1974,171 +2356,266 @@ namespace LaserTank.Game
             DrawTopPills(r, pad, mid);
         }
 
+        /// **Each pill is a state, and since step 9 clicking one is how you
+        /// leave it** -- the key that put it there, pressed for you.  That the
+        /// affordance is one-way is the honest shape of it rather than a gap:
+        /// the pills are drawn only for the states that are *exceptional*, so
+        /// there is no `muted` chip to click while the sound is on.  The way in
+        /// is still the key; the way out is the thing on screen saying you are
+        /// in.
         private void DrawTopPills(Rect2 r, float pad, float mid)
         {
-            var pills = new System.Collections.Generic.List<(string, Color, Color)>();
+            var pills = new System.Collections.Generic.List<(string, Color, Color, Key)>();
             if (_s != null && _s.Rec2.Recording)
-                pills.Add(("rec", Ui.Bad, new Color(0.24f, 0.09f, 0.09f)));
+                pills.Add(("rec", Ui.Bad, new Color(0.24f, 0.09f, 0.09f), Key.F5));
             if (_s != null && _s.Pb.Open)
-                pills.Add(("playback", Ui.Cyan, new Color(0.07f, 0.16f, 0.18f)));
+                pills.Add(("playback", Ui.Cyan, new Color(0.07f, 0.16f, 0.18f), Key.F7));
             if (_edit != null && _edit.Open)
-                pills.Add(("editor", Ui.Accent, new Color(0.20f, 0.14f, 0.05f)));
+                pills.Add(("editor", Ui.Accent, new Color(0.20f, 0.14f, 0.05f), Key.F9));
             if (_opt != null && !_opt.SoundOn)
-                pills.Add(("muted", Ui.Faint, Ui.Raised));
+                pills.Add(("muted", Ui.Faint, Ui.Raised, Key.N));
             if (_opt != null && !_opt.AnimationOn)
-                pills.Add(("still", Ui.Faint, Ui.Raised));
+                pills.Add(("still", Ui.Faint, Ui.Raised, Key.A));
             // The pinned cell size, because it is the one piece of state the
             // window itself does not show: a board that exactly fills its well
-            // and a board snapped to 32 px look the same until you drag.
+            // and a board snapped to 32 px look the same until you drag.  `Z`
+            // cycles the three, which is what a click on it does.
             pills.Add((_pinCell > 0 ? _pinCell + " px" : Cell + " px fit",
-                       Ui.Faint, Ui.Raised));
+                       Ui.Faint, Ui.Raised, Key.Z));
 
             float h = Ui.Px(10) + Ui.Px(8);
             float x = r.End.X - pad;
             for (int i = pills.Count - 1; i >= 0; i--)
             {
-                (string text, Color fg, Color bg) = pills[i];
+                (string text, Color fg, Color bg, Key code) = pills[i];
                 float w = Ui.CapsWidth(text, 10) + 2 * Ui.Px(7);
                 x -= w;
-                Ui.Pill(this, x, mid - h / 2f, text, fg, bg);
+                bool hot = HitKey(Ui.Touch(new Rect2(x, mid - h / 2f, w, h)), code);
+                Ui.Pill(this, x, mid - h / 2f, text, hot ? Ui.Text : fg,
+                        hot ? Ui.Raised : bg);
                 x -= Ui.Px(6);
             }
         }
 
         // ---- the info column ------------------------------------------------
 
-        /// The wide layout's right-hand column: three cards down the side of the
-        /// board.  This is what replaced the header line and the score line of
-        /// the old strip, and it is the reason the redesign was worth doing at
-        /// all -- the two numbers a player is actually watching (moves, shots)
-        /// were the smallest thing on screen and are now the largest.
+        /// The wide layout's right-hand column.
+        ///
+        /// **Step 7 built this as three cards and step 10 took the cards away.**
+        /// The cards were the single most template-shaped thing in the port:
+        /// three bordered surfaces at one radius, one border colour and one gap,
+        /// stacked, each opening with the same small letter-spaced caps label.
+        /// Three peer boxes rank nothing -- and ranking is the whole job of this
+        /// column, because a player glances at it for the two counters and reads
+        /// the rest once.
+        ///
+        /// What replaced them is a **rail**: one vertical hairline down the left
+        /// of the column that every group hangs off, with the level's own span of
+        /// it lit in the dominant colour.  The groups are separated by a rule and
+        /// by air, and they are ranked by type size -- the level name is set in
+        /// the display face at better than twice the body, the counters are the
+        /// only other large thing, and everything else is 11 px mono.  Nothing
+        /// here is boxed, which is also what buys the counters their size: a
+        /// number inside a bordered tile has to leave room for the tile.
+        ///
+        /// The rail is the asymmetry the old layout had none of.  Three centred
+        /// cards in a column are symmetric about their own axis and read as a
+        /// component stack; a rail has a side, so the column has a spine and a
+        /// reading edge, and the eye starts in the same place every time.
         private void DrawInfoColumn()
         {
             Rect2 s = _l.Side;
-            float gap = Ui.Px(12);
-            float y = s.Position.Y;
+            float railX = s.Position.X;
+            float x = railX + Ui.Px(16);
+            float w = s.End.X - x;
+            float y = s.Position.Y + Ui.Px(4);
 
-            y += DrawLevelCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
-            y += DrawScoreCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+            // The rail's full span first, in the quiet colour; the lit section is
+            // painted over it once the title block knows how tall it is.
+            Ui.Rail(this, railX, s.Position.Y, s.Size.Y, Ui.Border);
 
-            // The hint is the only card whose height is an author's to decide,
+            float titleTop = y;
+            y = DrawLevelBlock(x, y, w);
+            // **The lit span is the level, not the column.**  It marks where the
+            // thing this window is currently about begins and ends, which is the
+            // one piece of state worth spending the dominant colour on when the
+            // board itself is already carrying four saturated hues.
+            Ui.Rail(this, railX, titleTop, y - titleTop, Ui.Accent);
+
+            y += Ui.Px(18);
+            Ui.Rule(this, x, y, w);
+            y += Ui.Px(18);
+
+            y = DrawScoreBlock(x, y, w);
+
+            // The hint is the only block whose height is an author's to decide,
             // so it is measured rather than reserved -- and it is only here at
             // all once `H` has asked for it (command 301).
             if (_hint && !string.IsNullOrEmpty(_s.Rec.Hint))
-                y += DrawHintCard(new Rect2(s.Position.X, y, s.Size.X, 0)) + gap;
+            {
+                y += Ui.Px(18);
+                Ui.Rule(this, x, y, w);
+                y += Ui.Px(22);
+                y = DrawHintBlock(x, y, w);
+            }
 
-            // The five keys a player uses on every level, spelled out -- but
-            // only while the cards above have left room for them.  This is the
-            // part of the old legend wall that earns permanent space: the rest
-            // is F1's.  It goes last so a long level name or an open hint push
-            // it out rather than pushing the hint out.
-            float foot0 = s.End.Y - Ui.Px(34);
-            if (foot0 - y > Ui.Px(180))
-                DrawActionsCard(new Rect2(s.Position.X, y, s.Size.X, 0));
+            // **The column is read from both ends.**  What the level *is* flows
+            // down from the top and grows with the content; what a player can
+            // *do* is anchored to the bottom and never moves.  Step 7 flowed all
+            // four blocks from the top, which left a third of the column blank
+            // between the last card and the footer -- and blank space at the end
+            // of a stack is not composition, it is just what the stack ran out
+            // at.  Split, the same space becomes the gap between two groups that
+            // genuinely are different in kind, and the keys sit where a hand
+            // already is: beside the footer that opens the rest of them.
+            //
+            // It is still conditional, because the two ends can collide: a long
+            // name and an open hint can reach the bottom group, and when they do
+            // it is the keys that go.  The rest of them are on F1, which stays.
+            float fh = Ui.Px(34);
+            float actH = 5 * Ui.Px(25);
+            float actY = s.End.Y - fh - Ui.Px(10) - actH;
+            if (actY - Ui.Px(20) > y)
+            {
+                Ui.Rule(this, x, actY - Ui.Px(20), w);
+                DrawActionRows(x, actY, w);
+            }
 
             // The keys footer, pinned to the bottom of the column rather than
-            // flowing after the cards: it is a permanent affordance, and a
+            // flowing after the blocks: it is a permanent affordance, and a
             // permanent thing that moves is worse than one that is out of the
             // way.
-            float fh = Ui.Px(34);
-            var foot = new Rect2(s.Position.X, s.End.Y - fh, s.Size.X, fh);
+            var foot = new Rect2(x - Ui.Px(7), s.End.Y - fh, w + Ui.Px(7), fh);
             if (foot.Position.Y > y)
             {
-                float fx = foot.Position.X + Ui.Px(10);
+                bool hot = HitKey(foot, Key.F1);
+                if (hot) Ui.Hot(this, foot, 2f);
+                float fx = x;
                 float fy = foot.Position.Y + Ui.Px(6);
-                fx = Ui.Keycap(this, fx, fy, "F1") + Ui.Px(9);
-                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)), "all keys", 11.5f,
-                         Ui.Faint, foot.End.X - fx);
+                fx = Ui.Keycap(this, fx, fy, "F1") + Ui.Px(10);
+                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)), "all keys", 11f,
+                         hot ? Ui.Text : Ui.Faint, foot.End.X - fx);
             }
         }
 
+        /// The level name's point size.  Large enough that it is unambiguously
+        /// the first thing in the column and not merely the boldest -- step 7's
+        /// 17 px was one step up from the body and read as a card heading.
+        private const float TitlePt = 25f;
+
         /// Which level, out of how many, by whom, at what difficulty.  Returns
-        /// its own height so the column can stack.
-        private float DrawLevelCard(Rect2 at)
+        /// the y it finished at so the column can flow.
+        ///
+        /// **This is the one block in the interface set in the display face**,
+        /// and it is the reason there is one: a level name is written by a
+        /// person, it is different every level, and it is the answer to "what am
+        /// I looking at".  Everything else in this window is a measurement and is
+        /// set in the mono accordingly.  A display face used on more than this
+        /// would be a UI sans with extra steps -- see Ui.Display.
+        private float DrawLevelBlock(float x, float y, float w)
         {
             TLEVEL lv = _s.Rec;
-            float pad = Ui.Px(14);
-            float w = at.Size.X - 2 * pad;
             var info = new TLEVELINFO { SDiff = lv.SDiff };
-
-            // Measure first: the name is the author's and wraps to two lines
-            // often enough that a fixed card clips real level names.
             string name = string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName;
-            float nameH = Ui.WrappedHeight(name, 17, w, 2);
-            float h = pad + Ui.Px(13) + Ui.Px(8) + nameH + Ui.Px(6)
-                      + Ui.Px(15) + Ui.Px(10) + Ui.Px(20) + pad;
 
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            Ui.Card(this, r);
+            // Measured, not reserved: the name is the author's and wraps to two
+            // lines often enough that a fixed block clips real level names.
+            float nameH = Ui.WrappedHeight(name, TitlePt, w, 2, Ui.Title);
 
-            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(9);
-            Ui.Caps(this, new Vector2(x, y), $"Level {_s.Level} of {_s.LevelCount}",
-                    Ui.Faint);
-            y += Ui.Px(8) + Ui.Px(13);
+            float top = y;
 
-            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(13)), name, 17, Ui.Text, w, 2);
+            // The level number reads as a fraction, not as a sentence: in a
+            // column whose every other line is a reading, the counter should be
+            // one too.
+            Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
+                    "Level " + _s.Level + " / " + _s.LevelCount, Ui.Faint, 9.5f);
+            y += Ui.Px(9) + Ui.Px(13);
+
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(TitlePt) * 0.80f), name,
+                       TitlePt, Ui.Text, w, 2, Ui.Title);
             y += nameH + Ui.Px(6);
 
-            if (!string.IsNullOrEmpty(lv.Author))
-                Ui.Write(this, new Vector2(x, y + Ui.Px(11)), "by " + lv.Author, 12,
-                         Ui.Dim, w);
-            y += Ui.Px(15) + Ui.Px(10);
-
-            // The difficulty, as a chip in the original's own five ranks -- it
-            // colours its level number by them (`SetTextColor(DifCList[...])`,
-            // LTANK.C:532) and this is the same information given a shape.
-            // DiffName is " - Kids" and the like, hence the trim.
+            // Author and rank on one line, divided by a middot.  Two lines and a
+            // chip was three vertical decisions for a fact that fits on one --
+            // and the rank is a *word* here rather than a filled badge, because a
+            // pill beside a name is the component-library reflex this pass is
+            // trying to get out of.  The colour still carries the rank (the
+            // original colours its level number by exactly this table,
+            // `DifCList`, LTANK.C:532); the box around it was never carrying
+            // anything.  DiffName is " - Kids" and the like, hence the trim.
             string rank = info.DiffName.TrimStart(' ', '-').Trim();
+            if (rank == "") rank = "unrated";
             Color dc = Ui.Diff[Math.Clamp((int)lv.SDiff, 0, 5)];
-            Ui.Pill(this, x, y, rank == "" ? "unrated" : rank, dc,
-                    dc * new Color(1, 1, 1, 0.16f));
-            return h;
+            const string Sep = "  ·  ";
+            float ax = x;
+            if (!string.IsNullOrEmpty(lv.Author))
+            {
+                float maxBy = w - Ui.Width(rank, 11f) - Ui.Width(Sep, 11f);
+                Ui.Write(this, new Vector2(ax, y + Ui.Px(11)), lv.Author, 11f,
+                         Ui.Dim, maxBy);
+                ax += Mathf.Min(Ui.Width(lv.Author, 11f), maxBy);
+                Ui.Write(this, new Vector2(ax, y + Ui.Px(11)), Sep, 11f, Ui.Faint);
+                ax += Ui.Width(Sep, 11f);
+            }
+            Ui.Write(this, new Vector2(ax, y + Ui.Px(11)), rank, 11f, dc);
+            y += Ui.Px(15);
+
+            // The block says which level this is; `L` is how another gets picked.
+            // Same pairing as the collection name in the top bar: the label of a
+            // thing is the button that changes it.
+            var hit = new Rect2(x - Ui.Px(8), top - Ui.Px(4), w + Ui.Px(8),
+                                y - top + Ui.Px(6));
+            if (HitKey(hit, Key.L)) Ui.Hot(this, hit, 2f);
+            return y;
         }
 
-        /// Moves, shots, and the .ghs par beside them.  The par is the number a
-        /// player is chasing, so it sits with the counters rather than in a line
-        /// of its own the way it did in the strip.
-        private float DrawScoreCard(Rect2 at)
+        /// Moves, shots, and the `.ghs` par, as a readout: label hard left,
+        /// number hard right, the two of them tied by the space between.
+        ///
+        /// **The counters are still the largest thing in the column** -- that was
+        /// step 7's one genuinely good decision about this panel and it survives
+        /// the cards it arrived in.  What is gone is the two bordered tiles they
+        /// sat in, which is the stat tile of every analytics dashboard ever
+        /// shipped, and which cost the numbers most of their size to draw.
+        private float DrawScoreBlock(float x, float y, float w)
         {
             TGAMEREC g = _s.E.Game;
-            float pad = Ui.Px(14);
             bool hasPar = LevelFile.ReadHighScore(_s.Files.Ghs, _s.Level,
                                                   out ushort tm, out ushort ts);
-            float h = pad + Ui.Px(13) + Ui.Px(10) + Ui.Px(44) + pad;
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            Ui.Card(this, r);
+            Row("moves", g.ScoreMove, hasPar ? tm : (ushort)0, hasPar);
+            y += Ui.Px(36);
+            Row("shots", g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
+            y += Ui.Px(36);
 
-            float x = r.Position.X + pad;
-            float y = r.Position.Y + pad + Ui.Px(9);
-            Ui.Caps(this, new Vector2(x, y), hasPar ? "Score  ·  par " + tm + "/" + ts
-                                                    : "Score", Ui.Faint);
-            y += Ui.Px(10) + Ui.Px(4);
-
-            float tileW = (r.Size.X - 2 * pad - Ui.Px(10)) / 2f;
-            Tile(new Rect2(x, y, tileW, Ui.Px(44)), "moves", g.ScoreMove,
-                 hasPar ? tm : (ushort)0, hasPar);
-            Tile(new Rect2(x + tileW + Ui.Px(10), y, tileW, Ui.Px(44)), "shots",
-                 g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
-            return h;
-
-            void Tile(Rect2 t, string label, int value, ushort par, bool compare)
+            // The par is set small and dim on purpose: it is the *other*
+            // player's number, it never changes while this level is open, and
+            // the two above it are what the eye comes back to.  The gap before
+            // it is wider than the gap between them for the same reason -- it
+            // belongs to the pair without being one of them.
+            if (hasPar)
             {
-                Ui.Tile(this, t);
-                Ui.Caps(this, new Vector2(t.Position.X + Ui.Px(9),
-                                          t.Position.Y + Ui.Px(14)), label, Ui.Faint, 9);
+                y += Ui.Px(4);
+                Ui.Caps(this, new Vector2(x, y + Ui.Px(9)), "par", Ui.Faint, 9.5f);
+                Ui.Write(this, new Vector2(x, y + Ui.Px(9)), tm + " / " + ts, 11f,
+                         Ui.Dim, w, HorizontalAlignment.Right);
+                y += Ui.Px(13);
+            }
+            return y;
+
+            void Row(string label, int value, ushort par, bool compare)
+            {
+                Ui.Caps(this, new Vector2(x, y + Ui.Px(21)), label, Ui.Faint, 9.5f);
                 // Amber once the count is past the posted par: the player has
                 // spent the budget, which is the one thing these numbers are
                 // ever compared against.  Not red -- being over par is not a
                 // failure, it is just no longer a record.
                 Color c = compare && par > 0 && value > par ? Ui.Accent : Ui.Text;
-                DrawString(Ui.Bold, new Vector2(t.Position.X + Ui.Px(9),
-                                                t.End.Y - Ui.Px(10)),
-                           value.ToString(), HorizontalAlignment.Left,
-                           t.Size.X - Ui.Px(18), Ui.Px(22), c);
+                DrawString(Ui.Bold, new Vector2(x, y + Ui.Px(24)), value.ToString(),
+                           HorizontalAlignment.Right, w, Ui.Px(26), c);
             }
         }
 
-        /// The handful of keys that are pressed on every level, as keycaps.
+        /// The handful of keys that are pressed on every level.
         ///
         /// Which five is a judgement and worth writing down: undo and restart
         /// are the two a player reaches for without looking (and are the
@@ -2146,56 +2623,63 @@ namespace LaserTank.Game
         /// redesign *hid*, so it has to be visible as an affordance or it is
         /// simply gone; and the level pair is how you leave a level you have
         /// given up on.  Everything else is F1's.
-        private float DrawActionsCard(Rect2 at)
+        private void DrawActionRows(float x, float y, float w)
         {
-            (string, string)[] rows =
+            (string, string, Key)[] rows =
             {
-                ("U", "undo"),
-                ("R", "restart"),
-                ("H", "hint"),
+                ("U", "undo", Key.U),
+                ("R", "restart", Key.R),
+                ("H", "hint", Key.H),
                 // Since step 8 this one panel is also both high-score lists,
                 // which is what the label has to say: V and G are gone and a
                 // player who used them looks here first.
-                ("L", "levels & scores"),
-                ("O", "collections"),
+                ("L", "levels & scores", Key.L),
+                ("O", "collections", Key.O),
             };
-            float pad = Ui.Px(14), rowH = Ui.Px(24);
-            float h = pad + Ui.Px(13) + Ui.Px(10) + rows.Length * rowH + pad - Ui.Px(6);
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            Ui.Card(this, r);
-
-            float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(9);
-            Ui.Caps(this, new Vector2(x, y), "Keys", Ui.Faint);
-            y += Ui.Px(10) + Ui.Px(4);
-            foreach ((string key, string label) in rows)
+            float rowH = Ui.Px(25);
+            // **Step 9 made these five rows do what they name.**  They were
+            // drawn as keycaps because a keycap is a picture of a key -- and a
+            // picture of a key beside the word `undo` is exactly the thing a
+            // player tries to click.  The row is the target rather than the cap:
+            // clicking the word is clicking the key.
+            foreach ((string key, string label, Key code) in rows)
             {
+                var row = new Rect2(x - Ui.Px(8), y - Ui.Px(3), w + Ui.Px(8),
+                                    rowH - Ui.Px(2));
+                bool hot = HitKey(row, code);
+                if (hot) Ui.Hot(this, row, 2f);
                 Ui.Keycap(this, x, y, key, 10.5f);
-                Ui.Write(this, new Vector2(x + Ui.Px(40), y + Ui.Px(14)), label, 11.5f,
-                         Ui.Dim, r.End.X - x - Ui.Px(40) - pad);
+                Ui.Write(this, new Vector2(x + Ui.Px(38), y + Ui.Px(14)), label, 11f,
+                         hot ? Ui.Text : Ui.Dim, w - Ui.Px(38));
                 y += rowH;
             }
-            return h;
         }
 
-        /// Command 301's content, on demand.  The frame is the original's
+        /// Command 301's content, on demand.  The *frame* is the original's
         /// reason for existing: a hint is a spoiler, and a spoiler on screen by
         /// default is not a hint.
-        private float DrawHintCard(Rect2 at)
+        ///
+        /// It is the one block that still tints its ground, and it earns that by
+        /// being the only thing in the column that is not there most of the time
+        /// -- a block that appears has to say so.  A flat amber wash and no
+        /// border: the rail is already drawing this column's left edge.
+        private float DrawHintBlock(float x, float y, float w)
         {
             string hint = _s.Rec.Hint.Replace("\r\n", " ").Replace("\n", " ");
-            float pad = Ui.Px(14);
-            float w = at.Size.X - 2 * pad;
-            float th = Ui.WrappedHeight(hint, 12.5f, w, 8);
-            float h = pad + Ui.Px(13) + Ui.Px(8) + th + pad;
-            var r = new Rect2(at.Position, new Vector2(at.Size.X, h));
-            DrawStyleBox(Ui.Box(new Color(0.13f, 0.11f, 0.06f), Ui.AccentDim, 10f), r);
-            Ui.Caps(this, new Vector2(r.Position.X + pad, r.Position.Y + pad + Ui.Px(9)),
-                    "Hint  ·  H hides", Ui.Accent);
-            Ui.Wrapped(this, new Vector2(r.Position.X + pad,
-                                         r.Position.Y + pad + Ui.Px(13) + Ui.Px(8)
-                                         + Ui.Px(11)),
-                       hint, 12.5f, new Color(0.87f, 0.82f, 0.70f), w, 8);
-            return h;
+            float tw = w - Ui.Px(4);
+            float th = Ui.WrappedHeight(hint, 11.5f, tw, 8);
+            var r = new Rect2(x - Ui.Px(11), y - Ui.Px(12), w + Ui.Px(11),
+                              th + Ui.Px(24) + Ui.Px(16));
+            DrawRect(r, Ui.Accent with { A = 0.075f });
+            // The caption already says what closes it; clicking the block is the
+            // same instruction for a player with no H to press.
+            if (HitKey(r, Key.H)) Ui.Hot(this, r, 2f);
+            Ui.Caps(this, new Vector2(x, y + Ui.Px(8)), "Hint  ·  H hides",
+                    Ui.Accent, 9.5f);
+            y += Ui.Px(8) + Ui.Px(13);
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(10)), hint, 11.5f,
+                       new Color(0.92f, 0.86f, 0.74f), tw, 8);
+            return y + th;
         }
 
         /// The narrow layout's replacement for the column: one strip under the
@@ -2206,33 +2690,65 @@ namespace LaserTank.Game
         private void DrawInfoStrip()
         {
             Rect2 r = _l.Side;
-            Ui.Card(this, r);
+            // **The strip is the column turned on its side, and it follows the
+            // same rule**: no card, no tiles, a rule for the edge and the
+            // readout hard right.  Step 7 boxed this one too, which in a strip
+            // that already has the whole window's width for a border was a box
+            // drawn around the only thing on the row.
+            Ui.Rule(this, r.Position.X, r.Position.Y, r.Size.X);
             TLEVEL lv = _s.Rec;
             TGAMEREC g = _s.E.Game;
             float pad = Ui.Px(14);
             float x = r.Position.X + pad, y = r.Position.Y + pad;
 
+            // The level line opens the level table, as the column's title does.
+            var name = new Rect2(x - Ui.Px(6), y - Ui.Px(2),
+                                 r.Size.X * 0.55f + Ui.Px(12), Ui.Px(42));
+            if (HitKey(name, Key.L)) Ui.Hot(this, name, 2f);
             Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
-                    $"Level {_s.Level} of {_s.LevelCount}", Ui.Faint);
-            Ui.Write(this, new Vector2(x, y + Ui.Px(34)),
-                     string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName,
-                     15, Ui.Text, r.Size.X * 0.55f);
+                    "Level " + _s.Level + " / " + _s.LevelCount, Ui.Faint, 9.5f);
+            Ui.Wrapped(this, new Vector2(x, y + Ui.Px(34)),
+                       string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName,
+                       17, Ui.Text, r.Size.X * 0.55f, 1, Ui.Title);
 
-            float tw = Ui.Px(74);
-            float tx = r.End.X - pad - 2 * tw - Ui.Px(8);
-            Tile(new Rect2(tx, y, tw, r.Size.Y - 2 * pad), "moves", g.ScoreMove);
-            Tile(new Rect2(tx + tw + Ui.Px(8), y, tw, r.Size.Y - 2 * pad), "shots",
-                 g.ScoreShot);
-
-            void Tile(Rect2 t, string label, int value)
+            // **The narrow layout's only way in, and the reason step 9 exists.**
+            // There is no column here, so no actions card and no F1 footer --
+            // and a window this shape is exactly the one that is likeliest to
+            // have no keyboard behind it either.  So the five keys the column
+            // spells out become chips, plus F1 for the rest: six targets, each
+            // a whole keycap wide, which is the smallest thing a finger should
+            // be asked to hit.
+            float cx = x, cy = y + Ui.Px(42);
+            foreach ((string cap, Key code) in new[]
+                     { ("U", Key.U), ("R", Key.R), ("H", Key.H), ("L", Key.L),
+                       ("O", Key.O), ("F1", Key.F1) })
             {
-                Ui.Tile(this, t);
-                Ui.Caps(this, new Vector2(t.Position.X + Ui.Px(9),
-                                          t.Position.Y + Ui.Px(14)), label, Ui.Faint, 9);
-                DrawString(Ui.Bold, new Vector2(t.Position.X + Ui.Px(9),
-                                                t.End.Y - Ui.Px(9)),
-                           value.ToString(), HorizontalAlignment.Left,
-                           t.Size.X - Ui.Px(18), Ui.Px(20), Ui.Text);
+                // Set larger than the column's caps and hit larger still: this
+                // row is the one place in the port that has to work under a
+                // thumb, so it is drawn at 13 and tested through Ui.Touch.
+                var box = Ui.Touch(new Rect2(cx, cy, Ui.KeycapWidth(cap, 13f),
+                                             Ui.KeycapHeight(13f)), 34f);
+                if (HitKey(box, code)) Ui.Hot(this, box, 8f);
+                Ui.Keycap(this, cx, cy, cap, 13f);
+                cx += Ui.KeycapWidth(cap, 13f) + Ui.Px(9);
+            }
+
+            // The two counters, stacked hard against the right edge in the same
+            // label-left / number-right readout the column uses.  No tiles: in
+            // a strip whose height is already the row, a bordered box around
+            // each number was two more edges saying what the edge of the strip
+            // had said.
+            float tw = Ui.Px(96);
+            float tx = r.End.X - pad - tw;
+            Readout(y + Ui.Px(4), "moves", g.ScoreMove);
+            Readout(y + Ui.Px(27), "shots", g.ScoreShot);
+
+            void Readout(float ry, string label, int value)
+            {
+                Ui.Caps(this, new Vector2(tx, ry + Ui.Px(14)), label, Ui.Faint, 9.5f);
+                DrawString(Ui.Bold, new Vector2(tx, ry + Ui.Px(16)),
+                           value.ToString(), HorizontalAlignment.Right, tw,
+                           Ui.Px(17), Ui.Text);
             }
         }
 
@@ -2303,10 +2819,18 @@ namespace LaserTank.Game
             // track, and the transport legend under it.  Sized from the flow
             // below rather than guessed -- the first pass guessed 76 and put the
             // legend a few pixels under the panel's own bottom edge.
-            float h = Ui.Px(16) * 2 + Ui.Px(74);
+            // The transport row under the track is keycaps with room to be hit
+            // since step 9, not a legend line, which is why this is 84 and was
+            // 74.
+            float h = Ui.Px(16) * 2 + Ui.Px(84);
             var panel = new Rect2(Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
                                   Mathf.Round(_l.Status.Position.Y - h - Ui.Px(14)), w, h);
             Ui.Dialog(this, panel, 12f);
+            // No scrim: 114 is a dialog beside the game, not over it, and the
+            // board keeps ticking behind.  So the panel swallows its own clicks
+            // and everything outside it is left to the PanelUp guard in
+            // MouseButton -- the same split the key router makes.
+            _hits.Swallow(panel);
 
             float pad = Ui.Px(16);
             float x = panel.Position.X + pad;
@@ -2347,28 +2871,52 @@ namespace LaserTank.Game
             // dialog has buttons and this has none, so the keys are drawn as the
             // things they stand in for.
             float kx = panel.End.X - pad;
-            foreach ((string key, string label, bool on) in new[]
+            foreach ((string key, string label, bool on, Key code) in new[]
             {
-                ("3", "step", pb.Speed == PbSpeed.Step),
-                ("2", "slow", pb.Speed == PbSpeed.Slow),
-                ("1", "fast", pb.Speed == PbSpeed.Fast),
+                ("3", "step", pb.Speed == PbSpeed.Step, Key.Key3),
+                ("2", "slow", pb.Speed == PbSpeed.Slow, Key.Key2),
+                ("1", "fast", pb.Speed == PbSpeed.Fast, Key.Key1),
             })
             {
                 float lw = Ui.Width(label, 10.5f);
                 kx -= lw;
-                Ui.Write(this, new Vector2(kx, panel.Position.Y + Ui.Px(26)), label,
-                         10.5f, on ? Ui.Cyan : Ui.Faint);
+                float labelX = kx;
                 kx -= Ui.Px(24) + Ui.Px(5);
+                var box = new Rect2(kx - Ui.Px(6), panel.Position.Y + Ui.Px(8),
+                                    labelX + lw - kx + Ui.Px(12),
+                                    Ui.KeycapHeight(10.5f) + Ui.Px(8));
+                bool hot = _hits.Add(box, "pb:" + key, () => PlaybackKey(code));
+                if (hot) Ui.Hot(this, box);
+                Ui.Write(this, new Vector2(labelX, panel.Position.Y + Ui.Px(26)), label,
+                         10.5f, on ? Ui.Cyan : hot ? Ui.Text : Ui.Faint);
                 Ui.Keycap(this, kx, panel.Position.Y + Ui.Px(12), key, 10.5f);
                 kx -= Ui.Px(12);
             }
-            // The legend goes under the track, across the panel's own width --
-            // not beside the counter, where there is a keycap row above it and
-            // no room.
-            Ui.Write(this, new Vector2(x, panel.End.Y - pad),
-                     (_s.E.PlayBack ? "space pauses" : "space plays")
-                     + " · R resets · any other key closes",
-                     10.5f, Ui.Faint, panel.Size.X - 2 * pad);
+
+            // **The transport, as three targets rather than a sentence.**  A
+            // playback is *watched*, which is exactly the state in which the
+            // hands are not on the keyboard -- so the three things PBWindow's
+            // buttons do (ID_PLAYBOX_02 Play/Pause, _03 Reset, _01 Close) are
+            // the three things under the track, each a keycap wide.
+            float tx = x, ty = panel.End.Y - pad - Ui.KeycapHeight(10.5f) + Ui.Px(4);
+            foreach ((string cap, string label, Key code) in new[]
+            {
+                ("space", _s.E.PlayBack ? "pause" : "play", Key.Space),
+                ("R", "reset", Key.R),
+                ("Esc", "close", Key.Escape),
+            })
+            {
+                float cwid = Ui.KeycapWidth(cap, 10.5f), lw = Ui.Width(label, 10.5f);
+                var box = new Rect2(tx - Ui.Px(6), ty - Ui.Px(4),
+                                    cwid + Ui.Px(8) + lw + Ui.Px(14),
+                                    Ui.KeycapHeight(10.5f) + Ui.Px(8));
+                bool hot = _hits.Add(box, "pb:" + cap, () => PlaybackKey(code));
+                if (hot) Ui.Hot(this, box);
+                Ui.Keycap(this, tx, ty, cap, 10.5f);
+                Ui.Write(this, new Vector2(tx + cwid + Ui.Px(8), ty + Ui.Px(14)),
+                         label, 10.5f, hot ? Ui.Text : Ui.Faint);
+                tx = box.End.X + Ui.Px(4);
+            }
         }
 
         // ---- the hint and the help overlay -----------------------------------
@@ -2410,9 +2958,14 @@ namespace LaserTank.Game
         private void DrawHelp(Rect2 host)
         {
             Ui.Scrim(this, host);
+            // Click-off closes, which is the pointer's form of "any other key"
+            // -- the rule every panel in this port already states in its own
+            // footer.  Registered first because it is drawn first: the hit list
+            // is walked backwards, so draw order is z order.
+            _hits.Add(host, "scrim", () => _help = false);
 
             bool editing = _edit != null && _edit.Open;
-            (string, (string, string)[])[] groups = editing ? EditorKeys : PlayKeys;
+            (string, Binding[])[] groups = editing ? EditorKeys : PlayKeys;
 
             float pad = Ui.Px(24), colGap = Ui.Px(28);
             float rowH = Ui.Px(24), headH = Ui.Px(26), groupGap = Ui.Px(10);
@@ -2428,7 +2981,7 @@ namespace LaserTank.Game
             // when one column would not fit and the window can hold a pair of
             // narrow ones at all.
             float total = 0;
-            foreach ((string _, (string, string)[] items) in groups)
+            foreach ((string _, Binding[] items) in groups)
                 total += headH + items.Length * rowH + groupGap;
 
             int cols = 1;
@@ -2477,15 +3030,20 @@ namespace LaserTank.Game
             var r = new Rect2(Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
                               Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f), w, h);
             Ui.Dialog(this, r, 16f);
+            // The panel's own body eats the click the scrim would otherwise
+            // have taken as "close": a miss inside a dialog is not an answer.
+            _hits.Swallow(r);
 
             float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(12);
             Ui.Caps(this, new Vector2(x, y), editing ? "Editor keys" : "Keys", Ui.Text, 13);
             // Right-aligned *inside* the panel: DrawString lays a right-aligned
             // string out in the box [at.X, at.X + w], so the box has to start a
             // width back from the edge rather than at it.
+            Rect2 close = Ui.CloseRect(r, pad);
             float cw = Ui.Px(150);
-            Ui.Write(this, new Vector2(r.End.X - pad - cw, y), "F1 or Esc closes", 11,
-                     Ui.Faint, cw, HorizontalAlignment.Right);
+            Ui.Write(this, new Vector2(close.Position.X - Ui.Px(10) - cw, y),
+                     "F1 or Esc closes", 11, Ui.Faint, cw, HorizontalAlignment.Right);
+            Ui.CloseX(this, close, _hits.Add(Ui.Touch(close), "close", () => _help = false));
             y += Ui.Px(14);
             Ui.Rule(this, x, y, r.Size.X - 2 * pad);
             y += Ui.Px(14);
@@ -2494,22 +3052,36 @@ namespace LaserTank.Game
             for (int i = 0; i < cols; i++) colY[i] = y;
             for (int i = 0; i < groups.Length; i++)
             {
-                (string title, (string, string)[] items) = groups[i];
+                (string title, Binding[] items) = groups[i];
                 int ci = colOf[i];
                 float cx = x + ci * (colW + colGap);
                 Ui.Caps(this, new Vector2(cx, colY[ci] + Ui.Px(9)), title, Ui.Accent, 9.5f);
                 colY[ci] += headH;
-                foreach ((string key, string label) in items)
+                foreach (Binding b in items)
                 {
+                    // **The overlay is a command list now, not a legend.**  A
+                    // row whose Cmd is set presses that key and closes -- which
+                    // is what a player who came here to find out how to restart
+                    // wanted to happen anyway.  F1's own row only closes: it
+                    // would otherwise shut the panel and open it again.
+                    var row = new Rect2(cx - Ui.Px(6), colY[ci] - Ui.Px(2),
+                                        colW + Ui.Px(12), rowH);
+                    bool hot = b.Cmd != Key.None
+                               && _hits.Add(row, KeyName(b.Cmd, b.Ctrl), () =>
+                                  {
+                                      _help = false;
+                                      if (b.Cmd != Key.F1) Press(b.Cmd, b.Ctrl);
+                                  });
+                    if (hot) Ui.Hot(this, row);
                     float kx = cx;
-                    foreach (string k in key.Split(' '))
+                    foreach (string k in b.Caps.Split(' '))
                         kx = Ui.Keycap(this, kx, colY[ci], k, 10.5f) + Ui.Px(4);
                     // The labels line up at a fixed indent, except where the
                     // caps are wider than it -- four arrows are, and ran into
                     // "move the tank" on the first pass.
                     float lx = Mathf.Max(cx + Ui.Px(96), kx + Ui.Px(10));
                     Ui.Write(this, new Vector2(lx, colY[ci] + Ui.Px(14)),
-                             label, 11.5f, Ui.Dim, cx + colW - lx);
+                             b.Label, 11.5f, hot ? Ui.Text : Ui.Dim, cx + colW - lx);
                     colY[ci] += rowH;
                 }
                 colY[ci] += groupGap;
@@ -2533,6 +3105,11 @@ namespace LaserTank.Game
         private void DrawQuitAsk(Rect2 host)
         {
             Ui.Scrim(this, host);
+            // Click-off is No, which is the pointer's form of the key rule --
+            // "every other key including Esc keeps playing", so every other
+            // *place* does too.  A mistaken click lands on the safe answer for
+            // the same reason a mistaken keypress does.
+            _hits.Add(host, "scrim", () => _quitAsk = false);
 
             float pad = Ui.Px(22);
             string title = "Quit LaserTank?";
@@ -2540,8 +3117,15 @@ namespace LaserTank.Game
                 ? "this level is won -- the next one is S"
                 : "the level you are on will not be saved";
 
+            // Wide enough for the copy *and* for the two buttons side by side
+            // -- which is what the answers became in step 9, and which is a
+            // longer line than the question on a short body.
+            float buttons = Ui.KeycapWidth("Enter", 11f) + Ui.Width("quit", 11.5f)
+                            + Ui.KeycapWidth("Esc", 11f)
+                            + Ui.Width("keep playing", 11.5f) + Ui.Px(64);
             float w = Mathf.Min(Mathf.Max(Ui.Px(320),
-                                          Ui.Width(body, 12) + 2 * pad),
+                                          Mathf.Max(Ui.Width(body, 12), buttons)
+                                          + 2 * pad),
                                 host.Size.X - Ui.Px(40));
             // Measured from the same advances the draw below uses, rather than
             // a round number that is nearly right: this box is small enough
@@ -2553,6 +3137,7 @@ namespace LaserTank.Game
                               Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f),
                               w, h);
             Ui.Dialog(this, r, 14f);
+            _hits.Swallow(r);
 
             float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(12);
             Ui.Caps(this, new Vector2(x, y), title, Ui.Text, 13);
@@ -2566,100 +3151,131 @@ namespace LaserTank.Game
             // second and labelled with what it does rather than with "no",
             // because "no" to a quit prompt is not a state a player pictures --
             // staying is.
+            //
+            // **As two buttons they keep the property the two keys have**: the
+            // answers are far apart, so no single repeated gesture can reach
+            // both.  A double-click that opened the prompt cannot also confirm
+            // it, which is the pointer's version of "Esc is never the key that
+            // quits".
+            float kh = Ui.KeycapHeight(11f);
+            float yesW = Ui.KeycapWidth("Enter", 11f) + Ui.Px(9)
+                         + Ui.Width("quit", 11.5f);
+            var yes = new Rect2(x - Ui.Px(8), y - Ui.Px(4),
+                                yesW + 2 * Ui.Px(8), kh + Ui.Px(8));
+            if (_hits.Add(yes, "quit:yes", () => { _quitAsk = false; GetTree().Quit(); }))
+                Ui.Hot(this, yes);
             float kx = Ui.Keycap(this, x, y, "Enter", 11f) + Ui.Px(9);
             Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), "quit", 11.5f, Ui.Text);
-            kx += Ui.Width("quit", 11.5f) + Ui.Px(20);
-            kx = Ui.Keycap(this, kx, y, "Esc", 11f) + Ui.Px(9);
+
+            float nx = yes.End.X + Ui.Px(14);
+            float noW = Ui.KeycapWidth("Esc", 11f) + Ui.Px(9)
+                        + Ui.Width("keep playing", 11.5f);
+            var no = new Rect2(nx, y - Ui.Px(4), noW + 2 * Ui.Px(8), kh + Ui.Px(8));
+            bool noHot = _hits.Add(no, "quit:no", () => _quitAsk = false);
+            if (noHot) Ui.Hot(this, no);
+            kx = Ui.Keycap(this, nx + Ui.Px(8), y, "Esc", 11f) + Ui.Px(9);
             Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), "keep playing", 11.5f,
-                     Ui.Dim);
+                     noHot ? Ui.Text : Ui.Dim);
         }
+
+        /// One row of the key list.  **Since step 9 it carries the command as
+        /// well as the caption**, because the overlay is the port's only full
+        /// list of what it can do and a list of things you cannot press is a
+        /// worse answer to F1 than it looks: on a touch build it is the *whole*
+        /// interface.  `Key.None` marks the rows that are not a key at all --
+        /// the arrows and space, which the router takes through the original's
+        /// own WM_KEYDOWN filter and which a click cannot stand in for, and the
+        /// editor's three mouse verbs, which describe the pointer rather than
+        /// name a key for it to press.
+        private readonly record struct Binding(string Caps, string Label,
+                                               Key Cmd = Key.None, bool Ctrl = false);
 
         /// The bindings, as data -- so the overlay and the router cannot drift.
         /// The command ids in the comments are the original's; every key here
         /// except the four marked "ours" is out of ACC1 (lt32l_us.inc:120).
-        private static readonly (string, (string, string)[])[] PlayKeys =
+        private static readonly (string, Binding[])[] PlayKeys =
         {
-            ("Play", new[]
+            ("Play", new Binding[]
             {
-                ("← ↑ → ↓", "move the tank"),
-                ("space", "fire"),
-                ("U", "undo the last move"),          // 110
-                ("R", "restart the level"),           // 105
-                ("H", "show or hide the hint"),       // 301
-                ("ctrl C", "save this position"),     // 111
-                ("ctrl V", "restore it"),             // 112
+                new("← ↑ → ↓", "move the tank"),
+                new("space", "fire"),
+                new("U", "undo the last move", Key.U),          // 110
+                new("R", "restart the level", Key.R),           // 105
+                new("H", "show or hide the hint", Key.H),       // 301
+                new("ctrl C", "save this position", Key.C, true),   // 111
+                new("ctrl V", "restore it", Key.V, true),           // 112
             }),
             // The Scores group used to be a group: V and G had a row each, and
             // step 8 merged both lists into L's panel and unbound the two keys.
             // The one row left says so -- "levels and high scores" is what the
             // panel is, and a player who knew the old keys has to be told where
             // they went by the list that used to carry them.
-            ("Levels", new[]
+            ("Levels", new Binding[]
             {
-                ("L", "levels and high scores"),      // 106, 113, 906
-                ("O", "pick a collection"),           // 108
-                ("S", "next level"),                  // 107
-                ("P", "previous level"),              // 119
-                ("F2", "new game"),                   // 101
+                new("L", "levels and high scores", Key.L),      // 106, 113, 906
+                new("O", "pick a collection", Key.O),           // 108
+                new("S", "next level", Key.S),                  // 107
+                new("P", "previous level", Key.P),              // 119
+                new("F2", "new game", Key.F2),                  // 101
             }),
-            ("Recording", new[]
+            ("Recording", new Binding[]
             {
-                ("F5", "start or stop recording"),    // 123
-                ("F6", "save the recording"),         // 117
-                ("F7", "play one back"),              // 114
-                ("F4", "replay this level"),          // 124
-                ("F8", "record every level"),         // 125
+                new("F5", "start or stop recording", Key.F5),   // 123
+                new("F6", "save the recording", Key.F6),        // 117
+                new("F7", "play one back", Key.F7),             // 114
+                new("F4", "replay this level", Key.F4),         // 124
+                new("F8", "record every level", Key.F8),        // 125
             }),
-            ("View", new[]
+            ("View", new Binding[]
             {
-                ("Z", "snap to 24 / 32 / 40 px"),     // 120-122
-                ("C", "the A1-P16 grid"),             // ours
-                ("I", "smooth or snap the tank"),     // ours
-                ("N", "sound"),                       // 102
-                ("A", "animation"),                   // 104
-                ("ctrl G", "graphics pack"),          // 226
-                ("ctrl L", "language"),               // ours
+                new("Z", "snap to 24 / 32 / 40 px", Key.Z),     // 120-122
+                new("C", "the A1-P16 grid", Key.C),             // ours
+                new("I", "smooth or snap the tank", Key.I),     // ours
+                new("N", "sound", Key.N),                       // 102
+                new("A", "animation", Key.A),                   // 104
+                new("ctrl G", "graphics pack", Key.G, true),    // 226
+                new("ctrl L", "language", Key.L, true),         // ours
             }),
-            ("Session", new[]
+            ("Session", new Binding[]
             {
-                ("F9", "the level editor"),           // 201
-                ("F1", "this list"),                  // 907
-                ("Esc", "quit -- it asks first"),     // ours
+                new("F9", "the level editor", Key.F9),          // 201
+                new("F1", "this list", Key.F1),                 // 907
+                new("Esc", "quit -- it asks first", Key.Escape), // ours
             }),
         };
 
         /// ACC2 (lt32l_us.inc:150) plus the palette's own, which the editor
         /// panel used to have to list itself in eight grey lines.
-        private static readonly (string, (string, string)[])[] EditorKeys =
+        private static readonly (string, Binding[])[] EditorKeys =
         {
-            ("Paint", new[]
+            ("Paint", new Binding[]
             {
-                ("click", "paint with the left brush"),
-                ("right", "paint with the right brush"),
-                ("shift", "shift-click rotates in place"),
-                ("X", "swap the two brushes"),
-                ("T", "the tunnel id"),
+                new("click", "paint with the left brush"),
+                new("right", "paint with the right brush"),
+                new("shift", "shift-click rotates in place"),
+                new("X", "swap the two brushes", Key.X),
+                new("T", "the tunnel id", Key.T),
             }),
-            ("Board", new[]
+            ("Board", new Binding[]
             {
-                ("ctrl ←→", "shift the board"),       // 710/711
-                ("ctrl ↑↓", "shift the board"),       // 712/713
-                ("ctrl C", "clear the field"),        // 601
-                ("1 - 5", "the difficulty"),
+                new("ctrl ←→", "shift the board"),              // 710/711
+                new("ctrl ↑↓", "shift the board"),              // 712/713
+                new("ctrl C", "clear the field", Key.C, true),  // 601
+                new("1 - 5", "the difficulty"),
             }),
-            ("File", new[]
+            ("File", new Binding[]
             {
-                ("ctrl S", "save the level"),         // 603
-                ("tab", "name / author / hint"),
-                ("F9", "leave the editor"),           // 604
+                new("ctrl S", "save the level", Key.S, true),   // 603
+                new("tab", "name / author / hint", Key.Tab),
+                new("F9", "leave the editor", Key.F9),          // 604
             }),
-            ("View", new[]
+            ("View", new Binding[]
             {
-                ("Z", "snap to 24 / 32 / 40 px"),
-                ("C", "the A1-P16 grid"),
-                ("ctrl G", "graphics pack"),          // 226
-                ("F1", "this list"),                  // 903
-                ("Esc", "leave the editor"),
+                new("Z", "snap to 24 / 32 / 40 px", Key.Z),
+                new("C", "the A1-P16 grid", Key.C),
+                new("ctrl G", "graphics pack", Key.G, true),    // 226
+                new("F1", "this list", Key.F1),                 // 903
+                new("Esc", "leave the editor", Key.Escape),
             }),
         };
     }

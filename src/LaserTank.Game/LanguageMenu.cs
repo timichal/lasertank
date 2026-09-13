@@ -90,6 +90,19 @@ namespace LaserTank.Game
             _view.ApplyLanguage(_langs[_sel].Code);
         }
 
+        /// The wheel and the click, on the graphics menu's terms -- this panel
+        /// is modelled on 226 deliberately (see the class header) and the
+        /// pointer half is modelled on it too: a click previews, a second click
+        /// on the row already showing closes.
+        public void Scroll(int d) => Move(d > 0 ? 1 : -1);
+
+        private void Pick(int i)
+        {
+            if (_langs == null || i < 0 || i >= _langs.Count) return;
+            if (i == _sel) { Close(); return; }
+            Jump(i);
+        }
+
         // ---- drawing --------------------------------------------------------
         private static int Pad => Ui.Px(16);
         private static int Line => Ui.Px(18);
@@ -120,10 +133,12 @@ namespace LaserTank.Game
             height = Mathf.Min(height, host.Size.Y - Ui.Px(40));
 
             Ui.Scrim(n, host);
+            _view.Chrome.Add(host, "scrim", Close);
             var panel = new Rect2(
                 Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
                 Mathf.Round(host.Position.Y + (host.Size.Y - height) / 2f), w, height);
             Ui.Dialog(n, panel);
+            _view.Chrome.Swallow(panel);
 
             float x = panel.Position.X + Pad;
             float wInner = panel.Size.X - 2 * Pad;
@@ -135,6 +150,8 @@ namespace LaserTank.Game
             // is translated in all ten files, so the panel's own title is in
             // the language being previewed like everything else on it.
             Ui.Caps(n, new Vector2(x, y), lang["ID_GRAPHBOX_01"], Ui.Text, 12);
+            Rect2 close = Ui.CloseRect(panel, Pad);
+            Ui.CloseX(n, close, _view.Chrome.Add(Ui.Touch(close), "close", Close));
             y += Ui.Px(12);
             Ui.Rule(n, x, y, wInner);
             y += Ui.Px(16);
@@ -145,15 +162,18 @@ namespace LaserTank.Game
             for (int i = 0; i < _langs.Count; i++)
             {
                 bool cur = i == _sel;
+                var band = new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
+                                     wInner + 2 * Ui.Px(8), Line + Ui.Px(3));
+                int at = i;
+                bool hot = _view.Chrome.Add(band, "row:" + i, () => Pick(at)) && !cur;
+                if (hot) Ui.Hot(n, band, 6f);
                 if (cur)
-                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.Accent, 6f, 1f),
-                                   new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
-                                             wInner + 2 * Ui.Px(8), Line + Ui.Px(3)));
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.Accent, 6f, 1f), band);
                 Ui.Write(n, new Vector2(x, y), _langs[i].Code, 11.5f,
                          cur ? Ui.Accent : Ui.Faint, CodeCol, HorizontalAlignment.Left,
                          Ui.Mono);
                 Ui.Write(n, new Vector2(x + CodeCol, y), _langs[i].Name, 12.5f,
-                         cur ? Ui.Text : Ui.Dim, wInner - CodeCol);
+                         cur || hot ? Ui.Text : Ui.Dim, wInner - CodeCol);
                 y += Line;
             }
 
@@ -163,7 +183,7 @@ namespace LaserTank.Game
                          11.5f, Ui.Cyan, wInner);
             y += Line + Ui.Px(6);
             Ui.Write(n, new Vector2(x, y),
-                     "↑↓ picks · Enter or Esc closes", 11, Ui.Faint,
+                     "↑↓ or click picks · Enter, Esc or outside closes", 11, Ui.Faint,
                      wInner);
         }
     }

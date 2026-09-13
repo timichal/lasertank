@@ -128,6 +128,23 @@ namespace LaserTank.Game
             Apply();
         }
 
+        /// The wheel.  Move wraps, which is right for a six-row radio group and
+        /// would be wrong for a 2,030-row table -- see LevelList.Scroll, which
+        /// clamps.
+        public void Scroll(int d) => Move(d > 0 ? 1 : -1);
+
+        /// A click on a row.  The first applies it -- 226 *is* the dialog that
+        /// applies immediately, which is the whole reason the board keeps
+        /// drawing behind it -- and a click on the row already showing is
+        /// ID_GRAPHBOX_04, Close.
+        private void Pick(int i)
+        {
+            if (_packs == null || i < 0 || i >= _packs.Count) return;
+            if (i == _sel) { Close(); return; }
+            _sel = i;
+            Apply();
+        }
+
         /// SetUpGraphicsBox: load the pack now, so the board behind the panel is
         /// the answer to "what does this one look like".
         private void Apply() => _view.ApplyPack(_packs[_sel]);
@@ -170,6 +187,7 @@ namespace LaserTank.Game
                            + Ui.Px(8) + Line + Line + Pad;    // size + footer
 
             Ui.Scrim(n, host);
+            _view.Chrome.Add(host, "scrim", Close);
             var panel = new Rect2(
                 Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
                 Mathf.Round(host.Position.Y
@@ -177,11 +195,14 @@ namespace LaserTank.Game
                               / 2f),
                 w, Mathf.Min(height, host.Size.Y - Ui.Px(40)));
             Ui.Dialog(n, panel);
+            _view.Chrome.Swallow(panel);
 
             float x = panel.Position.X + Pad;
             float y = panel.Position.Y + Pad + Ui.Px(11);
 
             Ui.Caps(n, new Vector2(x, y), Title, Ui.Text, 12);
+            Rect2 close = Ui.CloseRect(panel, Pad);
+            Ui.CloseX(n, close, _view.Chrome.Add(Ui.Touch(close), "close", Close));
             y += Ui.Px(12);
             Ui.Rule(n, x, y, wInner);
             y += Ui.Px(16);
@@ -192,10 +213,16 @@ namespace LaserTank.Game
                 bool cur = i == _sel;
                 string name = LabelOf(p) + (p.Available ? "" : "   (not found)");
                 Color tint = !p.Available ? Ui.Faint : cur ? Ui.Text : Ui.Dim;
+                var band = new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
+                                     wInner + 2 * Ui.Px(8), Line + Ui.Px(3));
+                int at = i;
+                if (_view.Chrome.Add(band, "row:" + i, () => Pick(at)) && !cur)
+                {
+                    Ui.Hot(n, band, 6f);
+                    if (p.Available) tint = Ui.Text;
+                }
                 if (cur)
-                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.Accent, 6f, 1f),
-                                   new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
-                                             wInner + 2 * Ui.Px(8), Line + Ui.Px(3)));
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.Accent, 6f, 1f), band);
                 Ui.Write(n, new Vector2(x, y), name, 12.5f, tint, wInner);
                 y += Line;
             }
@@ -228,11 +255,24 @@ namespace LaserTank.Game
             for (int sz = 1; sz <= 3; sz++)
             {
                 bool on = sz == _view.Size;
-                sx = Ui.Pill(n, sx, y - Ui.Px(11), BoardView.CellOf(sz) + " px",
-                             on ? Ui.Accent : Ui.Faint, on ? Ui.Raised : Ui.Bg);
+                string text = BoardView.CellOf(sz) + " px";
+                int z = sz;
+                // The three pills are the three size commands (120/121/122), so
+                // they are buttons: the keys 1/2/3 named in the footer are what
+                // these pills are about, and a pill is a bigger target than a
+                // digit is a memory.
+                var box = new Rect2(sx, y - Ui.Px(11),
+                                    Ui.CapsWidth(text, 10) + 2 * Ui.Px(7),
+                                    Ui.Px(10) + Ui.Px(8));
+                bool hot = _view.Chrome.Add(Ui.Touch(box), "snap:" + sz,
+                                            () => _view.SetSize(z));
+                sx = Ui.Pill(n, sx, y - Ui.Px(11), text,
+                             on || hot ? Ui.Accent : Ui.Faint,
+                             on || hot ? Ui.Raised : Ui.Bg);
             }
             Ui.Write(n, new Vector2(x, y + Line), 
-                     "↑↓ picks · 1/2/3 or Z snaps · Enter or Esc closes",
+                     "↑↓ or click picks · 1/2/3 or Z snaps · "
+                     + "Enter, Esc or outside closes",
                      11, Ui.Faint, wInner);
         }
     }

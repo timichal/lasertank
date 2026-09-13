@@ -308,6 +308,15 @@ namespace LaserTank.Game
                 // ACC2) -- so it stays live in the editor and BoardView keeps
                 // it.  Everything else in ACC1 is not.
                 case Godot.Key.G when ctrl: return false;
+                // **And F1, which was being swallowed here.**  The router hands
+                // this switch the key first and only acts on the ones it
+                // declines, so a key that falls through to the `return true`
+                // below is a key the editor has eaten -- and F1 fell through,
+                // which meant command 903 did nothing at all in the editor
+                // while the panel's own footer advertised it.  Found by
+                // wiring that footer up to the pointer in step 9: the click
+                // worked and the key did not.
+                case Godot.Key.F1: return false;
                 case Godot.Key.Z: _view.SetSize(_view.Size % 3 + 1); return true;
                 // The coordinate grid, this port's own and useful in both
                 // modes -- a level's hint is written in A1-P16 and this is
@@ -365,6 +374,17 @@ namespace LaserTank.Game
                 default: return;
             }
             Modified = true;
+        }
+
+        /// The five ranks, in the order the five digits set them.  701..705 is
+        /// a menu in the original and a menu is a list you walk; the chip is the
+        /// same list with one item showing.
+        private static readonly ushort[] Ranks = { 1, 2, 4, 8, 16 };
+
+        private void CycleDiff()
+        {
+            int at = Array.IndexOf(Ranks, _rec.Diff);
+            SetDiff(Ranks[(at + 1) % Ranks.Length]);
         }
 
         /// Commands 701..705 through EditDiffSet (LTANK.C:84), whose last line
@@ -583,15 +603,22 @@ namespace LaserTank.Game
             Ui.Rule(n, x0, y2, w);
             y2 += Ui.Px(14);
 
-            y2 = Field(n, x0, y2, w, "name", _name, _focus == 1);
-            y2 = Field(n, x0, y2, w, "by", _author, _focus == 2);
-            y2 = Field(n, x0, y2, w, "hint", _hint, _focus == 3);
+            y2 = Field(n, x0, y2, w, "name", _name, 1);
+            y2 = Field(n, x0, y2, w, "by", _author, 2);
+            y2 = Field(n, x0, y2, w, "hint", _hint, 3);
             y2 += Ui.Px(6);
 
             var info = new TLEVELINFO { SDiff = _rec.Diff };
             string rank = info.DiffName.TrimStart(' ', '-').Trim();
             Color dc = Ui.Diff[Math.Clamp((int)_rec.Diff, 0, 5)];
-            float px = Ui.Pill(n, x0, y2, rank == "" ? "unrated" : rank, dc,
+            string rankText = rank == "" ? "unrated" : rank;
+            // Commands 701..705 are five menu items and the digits 1-5 stand in
+            // for them; the chip that shows the answer cycles through the same
+            // five, which is the pointer's version of a menu with no menu bar.
+            var chip = new Rect2(x0, y2, Ui.CapsWidth(rankText, 10) + 2 * Ui.Px(7),
+                                 Ui.Px(10) + Ui.Px(8));
+            if (_view.Chrome.Add(Ui.Touch(chip), "diff", CycleDiff)) Ui.Hot(n, chip, 9f);
+            float px = Ui.Pill(n, x0, y2, rankText, dc,
                                dc * new Color(1, 1, 1, 0.16f));
             if (Modified)
                 Ui.Pill(n, px, y2, "modified", Ui.Accent,
@@ -602,9 +629,14 @@ namespace LaserTank.Game
             float fy = panel.End.Y - Ui.Px(34) + Ui.Px(6);
             if (fy > y2 + Ui.Px(24))
             {
+                var foot = new Rect2(x0 - Ui.Px(6), fy - Ui.Px(4), w + Ui.Px(12),
+                                     Ui.KeycapHeight() + Ui.Px(8));
+                bool hot = _view.Chrome.Add(foot, BoardView.KeyName(Godot.Key.F1, false),
+                                            () => _view.Press(Godot.Key.F1));
+                if (hot) Ui.Hot(n, foot, 8f);
                 float fx = Ui.Keycap(n, x0, fy, "F1") + Ui.Px(9);
                 Ui.Write(n, new Vector2(fx, fy + Ui.Px(15)), "editor keys", 11.5f,
-                         Ui.Faint, panel.End.X - fx - Pad);
+                         hot ? Ui.Text : Ui.Faint, panel.End.X - fx - Pad);
             }
         }
 
@@ -625,13 +657,23 @@ namespace LaserTank.Game
         /// bar: at 12 px a one-pixel bar after a proportional string is easy to
         /// miss, and which of the three has focus is the thing a player needs to
         /// know before typing.
-        private static float Field(Node2D n, float x, float y, float w,
-                                   string label, string value, bool focused)
+        ///
+        /// **A click puts the caret in it**, which is what a box shaped like a
+        /// text field promises and what Tab was the only way to do until step 9.
+        /// It goes through the hit list rather than through the editor's own
+        /// mouse arm because that arm is a transliteration of `LOWORD(lparam) >
+        /// ContXPos` -- a half-plane split between board and palette, with
+        /// nothing in it about fields the original drew as Windows controls.
+        private float Field(Node2D n, float x, float y, float w,
+                            string label, string value, int which)
         {
+            bool focused = _focus == which;
             float h = Ui.Px(28);
             var r = new Rect2(x, y, w, h);
-            n.DrawStyleBox(Ui.Box(focused ? Ui.Raised : Ui.Bg,
-                                  focused ? Ui.Accent : Ui.Border, 6f, 1f), r);
+            bool hot = _view.Chrome.Add(r, "field:" + which, () => _focus = which);
+            n.DrawStyleBox(Ui.Box(focused || hot ? Ui.Raised : Ui.Bg,
+                                  focused ? Ui.Accent : hot ? Ui.BorderLit : Ui.Border,
+                                  6f, 1f), r);
             Ui.Caps(n, new Vector2(x + Ui.Px(8), y + h / 2f + Ui.Px(3)), label,
                     Ui.Faint, 9);
             // Measured rather than a fixed indent: "name" and "hint" set wider
