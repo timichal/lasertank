@@ -1,0 +1,79 @@
+# deep-levels.txt -- THE ORIGINAL deep bench: 50 Beginner-I levels with a long
+# .ghs record.  Recovered, not reconstructed.
+#
+# The list bench/deep-levels.txt reconstructs.  See bench/recovered/README.md
+# for how it was recovered and why it is believed to be the original.
+#
+# Provenance: build/reports/deep-levels.txt on the port machine, mtime
+# 2026-09-06 19:47, predating the reconstruction (21e223b, 2026-09-07).
+# 50 levels, no header -- the rule was not recorded at the time.
+#
+# 6 of its 50 levels are in the reconstruction.  That overlap is small for what
+# reads like a deterministic rule, and the reconstruction's own header explains
+# why: the rule is "40 <= moves+shots <= 150 (781 of the 2,000), keep every
+# 15th in level order, take the first 50".  A stride is not a filter -- a
+# different offset selects a different fifty out of the same 781 -- so the two
+# lists can both obey the rule and share almost nothing.  This is the one list
+# whose *rule* was never really in doubt; what was lost was which fifty it
+# picked.
+#
+# Contains 1488, the deep-bench level SOLVER.md quotes -- the same anchor the
+# reconstruction was checked against.
+#
+# The read, current solver binary (2026-09-13), `--analyze-tsv`:
+#   FERRY 26  SETUP 5  GAUNTLET 5  WALLED 4  DEMOLITION 4  OPEN 3  SOKOBAN 2  RIDE 1
+#
+# As the reconstruction's header says, this list is "not filtered by what any
+# layer solved, so it is the one list a code change cannot bias" -- which makes
+# it the one recovered list a pre-session-25 number could in principle be
+# re-measured against, if the code version were also pinned.  It is not.
+1484
+1488
+1117
+1068
+422
+1136
+895
+1703
+983
+388
+1566
+646
+413
+600
+1034
+9
+1377
+1827
+1157
+377
+1012
+1747
+462
+1084
+368
+711
+1367
+1317
+988
+1161
+1434
+383
+1796
+195
+1479
+1050
+385
+1389
+1544
+573
+1353
+1994
+1251
+1700
+1850
+167
+1920
+475
+1033
+616

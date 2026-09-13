@@ -1,0 +1,78 @@
+# ferry-levels.txt -- THE ORIGINAL ferry bench: 50 levels the chain fails that
+# the read calls FERRY or SOKOBAN.  Recovered, not reconstructed.
+#
+# The list bench/ferry-levels.txt reconstructs.  See bench/recovered/README.md.
+#
+# Provenance: build/reports/ferry-levels.txt on the port machine, mtime
+# 2026-09-06 04:01, predating the reconstruction (21e223b, 2026-09-07).
+# 50 levels, no header.  16 of the 50 are in the reconstruction -- the largest
+# overlap of the three, which is what a narrow population should do.
+#
+# Contains 1581, the ferry-bench level the solver docs name and the same anchor
+# the reconstruction was checked against.
+#
+# The read, current solver binary (2026-09-13), `--analyze-tsv`:
+#   FERRY 48  SOKOBAN 2
+#
+# That is the rule read straight back off the file -- 50 of 50 inside the
+# stated population -- which is the strongest single check any of the three
+# recovered lists passes, and the reason this one can be trusted even though
+# its selection rule (which 50 of the eligible levels, and in what order) is
+# still not recorded.
+#
+# NOTE the one number this list is *not* evidence about.  SOLVER.md's ferry
+# bench is 19/50 where earlier sessions banked 20/50, attributed to the
+# buried-flag fix; the regenerated list then gave 18, "and the two are not the
+# same fifty levels".  This is the other fifty.  It does not settle the 20-vs-19
+# question either, because that 20 was measured by a solver two weeks of commits
+# behind the one on this machine -- the list is restored, the binary is not.
+191
+346
+366
+426
+461
+466
+476
+486
+576
+581
+656
+661
+796
+856
+861
+871
+881
+921
+946
+956
+961
+1021
+1086
+1131
+1151
+1161
+1176
+1231
+1271
+1311
+1336
+1386
+1396
+1401
+1431
+1446
+1456
+1486
+1556
+1566
+1581
+1601
+1656
+1701
+1711
+1801
+1886
+1901
+1906
+1996

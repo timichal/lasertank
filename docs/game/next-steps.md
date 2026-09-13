@@ -10,10 +10,20 @@ their numbers because the other files refer to them by number; what is done is i
 
 ## 1. i18n: actually use the translations  *(the UI has settled — this is now unblocked)*
 
-The strings **are** wired, but only fourteen of them: `ID_DEADBOX_DEAD`, `ID_GRAPHBOX_00`–`_05`,
-`ID_LOADLEV_00`, `REC_Title` and `txt009`–`txt014`. That is 14 of the **155** keys in each file. The
-rest describe dialogs and a nine-button control panel this port does not have, which is why they
-read as unused.
+The strings **are** wired, but only twenty-three of them: `ID_DEADBOX_DEAD`,
+`ID_GRAPHBOX_00`–`_05`, `ID_LOADLEV_00`, `ID_SEARCH_01`, `_03`, `_04`, `_08`, `_10`–`_14`,
+`REC_Title` and `txt009`–`txt014`. That is 23 of the **155** keys in each file. The rest describe
+dialogs and a nine-button control panel this port does not have, which is why they read as unused.
+
+**Nine of those twenty-three arrived in step 11, and they arrived the right way round.** The level
+list's filter bar is the Search sub-dialog inlined, so it needed the Search dialog's own labels and
+took them — which is this item's rule (*a key is read by a widget or it goes*) settled by the widget
+turning up rather than by a deletion. It also produced six more *findings* of the other kind, all in
+the same dialog: `ID_SEARCH_00` is a caption and there is no dialog, `_02` is a group box, `_05` and
+`_06` are Cancel and Ok and the bar commits as you type, `_09` is the "Filter by Difficulty" master
+checkbox that greys the five rank buttons — which a row of chips you can click does not need — and
+`ID_LOADLEV_03` is the button that opened the dialog. Six keys with no widget and a reason each,
+which is what the audit is supposed to produce.
 
 **It was sixteen until step 8, and the two it lost are the audit working.** `ID_HIGHLIST_00` and
 `ID_GHIGHLIST_00` are the captions of the two score dialogs, and merging the three lists into one
@@ -91,27 +101,38 @@ therefore a guard the port has to write down or lose. It is a *separate* change 
 command 105, which none of the three script drivers has a token for — implementing it faithfully
 means adding one to all three, so it does not ride along with `Session.AcceptsInput`.
 
-**Additive, nothing blocking:** the Search sub-dialog (`SearchBox`, `LTANK_D.C:394` — name or
-author substring, difficulty mask, skip-completed) and `TransListKey`'s type-ahead, neither of which
-changes a row; `Backspace[]`'s ten-level history (118); Resume Recording (125); Print (126); "View
+**Additive, nothing blocking:** `Backspace[]`'s ten-level history (118); Resume Recording (125);
+Print (126); "View
 Opening Screen" (`ID_GRAPHBOX_08` — toggles `QHELP` and paints `Opening.bmp` over the board, its own
 piece of drawing); "Change Directory" (`ID_GRAPHBOX_09`, a shell folder browser — the key is
 persisted and `--gfx-dir` sets it); and `LoadImageFile`'s per-language `Control.bmp` / `Opening.bmp`
 / `LaserTank.hlp`. **`LaserTank.hlp` is the one F1 stands in for**: command 907 is WinHelp in the
 original and the key list here, which is the answer the port can actually give.
 
+**Done in step 11**, and listed here because this is where they were left out: the Search
+sub-dialog (`SearchBox`, `LTANK_D.C:197` — name or author substring, difficulty mask,
+skip-completed), `TransListKey`'s type-ahead, and `ID_LOADLEV_02`'s direct level-number entry. All
+three are the level list's filter bar now, and the third is folded into the first field rather than
+given one of its own. See [*Finished*](history.md), step 11.
+
 **Wants a `LoadNextLevel` port rather than a menu:** `[OPT] SkipComLev` and `[DATA] Diff_Setting`.
-Both are read into `Options` as comments only.
+Both are read into `Options` as comments only. **`Diff_Setting` is closer than it was**: the
+Difficulty dialog (225) writes the same five-bit mask the level list's rank chips now toggle, so what
+is left is persisting it and having `LoadNextLevel` read it.
 
 **Not coming:** the `.ln` files under `Setups/Language/` (a 4.0-era format superseded by the
 `.dat`s and not read by the 2007 build).
 
-## 4. The UI redesign, second pass
+## 4. The UI redesign, third pass
 
 The first pass is built — see [*Finished*](history.md), step 7 — and it deliberately stopped at the
 chrome. The biggest thing it left was **mouse and touch**, and that is [*Finished*](history.md),
-step 9. The second-biggest was that the chrome looked generated, and that is step 10. What is still
-open:
+step 9. The second-biggest was that the chrome looked generated, and that is step 10. Step 11 did
+the third thing it left, which was not a *look* at all: the one table it built was unusable at the
+size the corpus actually is, and it took a filter bar, a mark column, a scrollbar and column gutters
+to fix — **none of which is in this list, because none of them was visible until someone played
+it.** Worth remembering before the bullets below are treated as the whole of what is left. What is
+still open:
 
 * **Web.** Nothing here needs a platform branch and there is no stretch mode to fight, so an HTML5
   export should draw correctly today. It has not been tried. **Step 10 removed the one thing that

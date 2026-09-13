@@ -1,0 +1,107 @@
+# bench-levels.txt -- THE ORIGINAL "bench 1": 60 Beginner-I levels the layer-0
+# beam failed.  Recovered, not reconstructed.
+#
+# This is the list bench/bench-levels.txt is a *reconstruction* of.  Its own
+# header says "the report that named them is gone"; it was not gone, it was
+# sitting in the gitignored build/reports/ of the machine that runs the game
+# half, which never took part in the machine move that lost the solver's copy.
+# Recovered 2026-09-13, the session before that build/ was deleted.
+#
+# Provenance: build/reports/bench-levels.txt on the port machine, mtime
+# 2026-09-05 19:45, two days before the reconstruction was committed
+# (21e223b "bench recompute", 2026-09-07).  No header, because the rule that
+# produced it was not recorded at the time -- which is the whole reason bench/
+# exists.  The levels are recovered; the rule behind them still is not.
+#
+# Four things say this is the original rather than another intermediate:
+#   * it is exactly 60 levels, and it predates the reconstruction;
+#   * it is GAUNTLET-heavy and ferry-poor, which is how the original was
+#     described and what the reconstruction could not reproduce;
+#   * only 3 of its 60 levels are in the reconstruction, so it is not a copy
+#     of it at any stage;
+#   * the same reconstruction read back exactly the mix its own header records
+#     (FERRY 30, DEMOLITION 9, GAUNTLET 8, SETUP 4, RIDE 4, SOKOBAN 3,
+#     WALLED 1, OPEN 1), so the instrument below was calibrated on a known
+#     answer before it was pointed at this file.
+#
+# The read, both lists through the same current solver binary (2026-09-13,
+# post-barrier-fix), `--analyze-tsv`:
+#
+#     this file    GAUNTLET 18  RIDE 13  OPEN 9  FERRY 7  DEMOLITION 7
+#                  SETUP 3  WALLED 2  SOKOBAN 1
+#     bench/       FERRY 30  DEMOLITION 9  GAUNTLET 8  SETUP 4  RIDE 4
+#                  SOKOBAN 3  WALLED 1  OPEN 1
+#
+# That retires a guess in bench/bench-levels.txt's header.  It supposed the
+# original's GAUNTLET label "was a pre-fix read" -- layer 8's barrier fix moved
+# 164 rows out of GAUNTLET corpus-wide.  Read *today*, post-fix, this list is
+# still GAUNTLET 18 against the reconstruction's 8 and FERRY 7 against its 30.
+# The difference is the population, not the read.
+#
+# WHAT THIS DOES NOT DO: it does not un-rebase anything.  Bench-1 numbers
+# quoted before session 25 were measured against these levels by a solver that
+# no longer exists, so re-running them here compares two code versions, not two
+# lists.  What it restores is the ability to run *the original population*
+# again at all -- and to ask, now that both lists exist, how much of any bench-1
+# delta was the levels.  bench/bench-levels.txt stays the list current numbers
+# are quoted against; nothing here replaces it.
+835
+455
+863
+1141
+1159
+839
+884
+529
+1088
+1407
+1417
+976
+1090
+1687
+96
+859
+100
+1041
+1277
+1919
+1930
+101
+223
+796
+502
+1008
+507
+1253
+1540
+44
+190
+269
+275
+359
+592
+1490
+1819
+1849
+222
+588
+643
+739
+1049
+1449
+1079
+1525
+1541
+276
+1898
+1222
+1610
+1707
+852
+1097
+1843
+585
+1965
+557
+686
+1462

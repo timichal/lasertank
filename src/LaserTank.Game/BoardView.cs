@@ -499,6 +499,24 @@ namespace LaserTank.Game
                               || ArgStr(args, "--replay") != null
                               || Array.IndexOf(args, "--check-options") >= 0
                               || Array.IndexOf(args, "--check-deadbox") >= 0
+                              // **Step 9's three and step 11's belong on this
+                              // list and were not on it.**  They are as much
+                              // instruments as --shot is, and the gap never
+                              // showed because tools/chrome_check.py always
+                              // passes --ini and an explicit --ini makes the
+                              // options live anyway.  What it cost was an
+                              // ad-hoc `--click`/`--dump-hits` run by hand:
+                              // it rewrote the player's LaserTank.ini, and a
+                              // session of them left [DATA] RLLFilename on a
+                              // different collection than the one the player
+                              // had open.  Same rule as everything else here --
+                              // an instrument must not write the player's
+                              // state, and the test is whether it could run
+                              // eight times over and leave the tree as it was.
+                              || ArgStr(args, "--click") != null
+                              || ArgStr(args, "--press") != null
+                              || ArgStr(args, "--type") != null
+                              || Array.IndexOf(args, "--dump-hits") >= 0
                               || Arg(args, "--tick-rate", 0) > 0;
             // One rule, used twice: **an explicit --ini makes the options
             // live** -- writable, and allowed to choose the level -- while an
@@ -816,17 +834,28 @@ namespace LaserTank.Game
             // works.
             string press = ArgStr(args, "--press");
 
+            // `--type STRING` -- the level list's filter field, from a command
+            // line.  **It is here because neither of the other two can reach
+            // it.**  `--press` goes through Press, which is the accelerator
+            // table, and a text field is not an accelerator; `--click` reaches
+            // only what the hit list holds, and the field is a swallow because
+            // it is always focused.  So the one arm of step 11 with no
+            // instrument would have been the one it was mostly for -- which is
+            // the "make the thing being added observable" rule, and the sound
+            // that shipped silent is what it was learned from.
+            string typed = ArgStr(args, "--type");
+
             string shot = ArgStr(args, "--shot");
             // The three step-9 flags run as one coroutine, and it takes `--shot`
             // over: presses, then the dump, then the clicks, each with frames
             // drawn in between -- so a capture has to be the last step of that
             // sequence rather than a second one racing it.
-            if (clicks != null || press != null
+            if (clicks != null || press != null || typed != null
                 || Array.IndexOf(args, "--dump-hits") >= 0)
             {
                 _driving = false;
                 RunTicks(script, Arg(args, "--ticks", 0));
-                ClickScript(clicks, press, shot,
+                ClickScript(clicks, press, typed, shot,
                             Array.IndexOf(args, "--dump-hits") >= 0);
                 return;
             }
@@ -837,6 +866,58 @@ namespace LaserTank.Game
                 Shot(shot);
             }
         }
+
+        /// `\\b` -> Backspace, `\\t` -> Tab, `\\\\` -> one backslash;
+        /// anything else is itself.  See --type's comment for why.
+        private static string Unescape(string s)
+        {
+            var sb = new System.Text.StringBuilder(s.Length);
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] != '\\' || i + 1 >= s.Length) { sb.Append(s[i]); continue; }
+                char c = s[++i];
+                sb.Append(c switch
+                {
+                    'b' => '\b',
+                    't' => '\t',
+                    '\\' => '\\',
+                    _ => c,
+                });
+            }
+            return sb.ToString();
+        }
+
+        /// One character into whichever list panel is open, through exactly
+        /// the `Key(InputEventKey)` the router calls -- the filter's own arm,
+        /// not a back door into its fields.  `\b` and `\t` carry the two
+        /// editing keys the field answers.
+        private void Type(char ch)
+        {
+            if (_list == null || !_list.Open) return;
+            Key code = ch switch
+            {
+                '\b' => Key.Backspace,
+                '\t' => Key.Tab,
+                _ => Key.None,
+            };
+            _list.Key(new InputEventKey
+            {
+                Pressed = true,
+                Keycode = code,
+                Unicode = code == Key.None ? ch : 0,
+            });
+        }
+
+        /// What the open list is showing, for `--type`'s log: the query, how
+        /// many rows survived it and where the cursor is.  A gate can assert on
+        /// this without a copy of the filter in Python -- and the *count* is
+        /// the assertion, because it is the one number the four filter fields
+        /// all land in.
+        private string ListLine()
+            => _list == null || !_list.Open
+                ? "list=False"
+                : $"list=True rows={_list.Count} of={_list.Total} "
+                  + $"filtering={_list.Filtering} q={_list.Query}";
 
         /// `key:U`, `key:ctrl+G` -- KeyName read backwards.
         private static bool ParseKey(string s, out Key code, out bool ctrl)
@@ -885,8 +966,8 @@ namespace LaserTank.Game
         ///   tested against is the last frame's, so a click that opens a panel
         ///   has to let that panel draw before the next click can land on it.
         ///   That is the real timing a player gets, spelled out.
-        private async void ClickScript(string spec, string press, string shot,
-                                       bool dump)
+        private async void ClickScript(string spec, string press, string typed,
+                                       string shot, bool dump)
         {
             Measure();
             GD.PrintRaw(ChromeLine());
@@ -907,6 +988,29 @@ namespace LaserTank.Game
                 Press(code, ctrl);
                 GD.PrintRaw($"press {k} {StateLine()}" + "\n");
                 QueueRedraw();
+            }
+
+            // The characters next, so `--press key:L --type sokoban` reads as
+            // "open the list, then type into it".
+            //
+            // **`\\b` and `\\t` are two characters here, not control
+            // codes**, and that is the whole reason Unescape exists: a real
+            // `\b` in an argument does not survive the trip through the shell,
+            // Python's argument quoting and Godot's own command-line split --
+            // measured, not assumed, and the symptom was a backspace that
+            // silently did nothing while the gate went green on the digits
+            // beside it.  A filter that cannot be corrected is half an
+            // instrument, so the two editing keys get a spelling that travels.
+            if (typed != null)
+            {
+                foreach (char ch in Unescape(typed))
+                {
+                    await ToSignal(RenderingServer.Singleton,
+                                   RenderingServer.SignalName.FramePostDraw);
+                    Type(ch);
+                    QueueRedraw();
+                }
+                GD.PrintRaw($"type {typed} {ListLine()}\n");
             }
 
             if (dump)
@@ -1350,7 +1454,7 @@ namespace LaserTank.Game
             // and the `if (i > 100)` that meets it (LTANK.C:910).
             if (_list != null && _list.Open)
             {
-                _list.Key(k.Keycode);
+                _list.Key(k);
                 if (_list.Chosen > 0) _s?.Load(_list.Chosen);
                 GetViewport().SetInputAsHandled();
                 return;
@@ -1712,7 +1816,9 @@ namespace LaserTank.Game
                 return mb.Pressed
                        && Scroll(mb.ButtonIndex == Godot.MouseButton.WheelUp ? -3 : 3);
             }
-            if (!mb.Pressed) { _held = 0; return false; }
+            // The one drag in this interface is released here too -- see
+            // the `scroll` target below and LevelList.DragTo.
+            if (!mb.Pressed) { _held = 0; _dragList = false; return false; }
 
             // **The third arm, and it comes before the other two.**  Everything
             // the last frame drew as clickable registered the rectangle it drew
@@ -1722,6 +1828,15 @@ namespace LaserTank.Game
             // pressed `undo` is the interface driving the game.
             if (_hits.Click(mb.Position))
             {
+                // **The one target that is dragged rather than clicked.**  The
+                // level list's scrollbar wants the pointer's *position*, which
+                // a hit list of rectangles-and-actions has no way to carry, and
+                // it wants every motion until the button comes up.  So the
+                // press latches here and MouseMotion feeds LevelList.DragTo --
+                // the rest of the chrome stays click-only, which is the whole
+                // reason Hits can be as simple as it is.
+                _dragList = _hits.Took == "scroll" && _list != null && _list.Open;
+                if (_dragList) _list.DragTo(mb.Position.Y);
                 // The two pickers answer in a field rather than in a return
                 // value -- `EndDialog(Dialog, i + 100)` and the `if (i > 100)`
                 // that meets it -- so the click path has to collect it in
@@ -1785,6 +1900,14 @@ namespace LaserTank.Game
             // player for free -- see Hits.End.  It is taken from every motion
             // event, including the ones the two arms below ignore.
             _hits.Point(mm.Position);
+            // The level list's scrollbar, which is the one thing here that reads
+            // a motion the editor did not ask for.  It comes first because a
+            // drag that started on the chrome must not also paint.
+            if (_dragList && _list != null && _list.Open)
+            {
+                _list.DragTo(mm.Position.Y);
+                return;
+            }
             if (_held == 0 || _edit == null || !_edit.Open) return;
             _edit.Drag(mm.Position, _held, mm.ShiftPressed);
         }
@@ -1793,6 +1916,11 @@ namespace LaserTank.Game
         /// `wparam`'s MK_LBUTTON / MK_RBUTTON on every WM_MOUSEMOVE; Godot
         /// delivers press and release, so it is kept here instead.
         private int _held;
+
+        /// Whether the press that is down started on the level list's
+        /// scrollbar.  Cleared on release and ignored once the panel is gone,
+        /// so a drag cannot outlive the thing it was dragging.
+        private bool _dragList;
 
         /// Window pixels -> board cell.  **The one place the inverse of the
         /// layout is written down**: it used to be spelled out here and again in

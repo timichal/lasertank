@@ -27,13 +27,20 @@ ways to be wrong that a screenshot cannot show:
              agreeing with itself is not -- the rule the sprite sheets and the
              three list dialogs are held to.
 
+  typing    step 11 put a *text field* in the level list -- the Search sub-dialog's, inlined --
+             and that is the one arm of the chrome neither of the two above can
+             drive: `--press` goes through the accelerator table and a field is
+             not an accelerator, `--click` reaches only the hit list and the
+             field is a swallow because it is always focused.  `--type` is its
+             instrument and `filter_check` below is what drives it.
+
 **It needs a window**, and there is no way around that: the hit list is built by
 `_Draw` and by nothing else, so a headless run has an empty one -- which is
 exactly why tools/mouse_check.py and tools/editor_check.py never had to learn
 that the chrome exists.  So this opens a short-lived window per case, the way
 options_check does for its pixel measurements.
 
-    python tools/chrome_check.py            # ~90 s
+    python tools/chrome_check.py            # ~110 s
     python tools/chrome_check.py -v         # every target
     python tools/chrome_check.py --no-diff  # aim and reach only, ~15 s
 
@@ -92,8 +99,17 @@ MUST = {
     "play":        ["key:U", "key:R", "key:H", "key:L", "key:O", "key:F1"],
     "stacked":     ["key:U", "key:R", "key:H", "key:L", "key:O", "key:F1"],
     "help":        ["scrim", "close"],
-    "levels":      ["scrim", "close", "row:0"],
-    "levels-narrow": ["scrim", "close", "row:0"],
+    # Step 11's filter bar and scrollbar are on this list for the same reason
+    # `close` is: they are the only way a player without a keyboard narrows a
+    # 2,030-row table or gets to the far end of it.  Both widths, because the
+    # chips shed to initials when the panel is narrow and a shed label that
+    # stopped being a button would be invisible in a screenshot.
+    "levels":      ["scrim", "close", "row:0", "scroll",
+                    "by:title", "by:author", "unsolved",
+                    "diff:1", "diff:2", "diff:3", "diff:4", "diff:5"],
+    "levels-narrow": ["scrim", "close", "row:0", "scroll",
+                      "by:title", "by:author", "unsolved",
+                      "diff:1", "diff:2", "diff:3", "diff:4", "diff:5"],
     "collections": ["scrim", "close", "row:0"],
     "graphics":    ["scrim", "close", "row:0", "snap:1"],
     "language":    ["scrim", "close", "row:0"],
@@ -314,8 +330,72 @@ def main():
         if want:
             print("  %-12s %2d binding(s) clicked and pressed" % (name, len(want)))
 
+    fails += filter_check(godot, ini, fresh)
+
     shutil.rmtree(tmp, ignore_errors=True)
     return report(fails, screens, pairs)
+
+
+# The filter field is the one arm of the chrome neither of the two above can
+# reach: `--press` goes through the accelerator table and `--click` reaches only
+# what the hit list holds, and the field is a swallow because it is always
+# focused.  `--type` is its instrument and this is what drives it.
+#
+# **What is asserted is the row count**, which is the one number all four filter
+# fields land in -- an empty query, a substring that matches some, one that
+# matches none, the digits that are the original's own direct level-number entry
+# (ID_LOADLEV_02, folded into the field), and a query backspaced away again.
+#
+# **`\b` is two characters on this command line, not a control code.**  `--type`
+# decodes it (BoardView.Unescape), because a real backspace does not survive the
+# shell, this file's own argument quoting and Godot's command-line split.  Found
+# the ugly way: a backspace that silently did nothing while the digits beside it
+# went green.
+FILTERS = [
+    (r"\b",               lambda n, a: n == a,      "an empty field lists everything"),
+    ("sokoban",           lambda n, a: 0 < n < 50,  "a substring narrows it"),
+    ("zzzznotalevelname", lambda n, a: n == 0,      "a miss lists nothing"),
+    ("1760",              lambda n, a: n >= 1,      "digits reach a level number"),
+    ("sokoban" + r"\b" * 7, lambda n, a: n == a,
+     "backspacing the query away restores every row"),
+]
+
+
+def filter_check(godot, ini, fresh):
+    """`--type` into the level list, and the row count it answers with.
+
+    The expectations are bounds rather than exact counts on purpose: they are
+    about LaserTank.lvl, which is corpus data, and a gate that pinned 7 would go
+    red the day someone adds a level called Sokoban.  The total is read off the
+    same line rather than hard-coded, for the same reason.
+    """
+    print("the filter field:")
+    out = []
+    flags = ["--level", "1", "--panel", "levels", "--window", "1180x820"]
+    for query, ok, what in FILTERS:
+        fresh()
+        n, total = typed_rows(run(godot, flags + ["--type", query], ini))
+        if n is None:
+            out.append("filter %r: no type line" % query)
+        elif not ok(n, total):
+            out.append("filter %r: %d rows of %d -- %s" % (query, n, total, what))
+        else:
+            print("  %-22s %5d of %d rows   ok" % (repr(query), n, total))
+    return out
+
+
+def typed_rows(lines):
+    """`type <s> list=True rows=N of=M filtering=B q=Q` -> (N, M)."""
+    for line in lines:
+        if line.startswith("type "):
+            got = {}
+            for field in line.split():
+                for key in ("rows=", "of="):
+                    if field.startswith(key):
+                        got[key[:-1]] = int(field[len(key):])
+            if "rows" in got and "of" in got:
+                return got["rows"], got["of"]
+    return None, None
 
 
 def report(fails, screens, pairs):

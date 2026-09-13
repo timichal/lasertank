@@ -481,9 +481,11 @@ namespace LaserTank.Game
             return new Rect2(panel.End.X - pad - d, panel.Position.Y + pad - Px(2), d, d);
         }
 
-        /// The button itself.  **Every panel here closes on "any other key"**,
-        /// which is a complete answer with a keyboard and no answer at all
-        /// without one -- this is that key, for a finger.  Drawn as an outline
+        /// The button itself.  **Every panel here closes on a key** -- "any
+        /// other key" for most of them, and Escape alone for the level list,
+        /// whose alphabet belongs to its filter field (see LevelList's header,
+        /// change 2).  Either way that is a complete answer with a keyboard and
+        /// no answer at all without one, and this is that key for a finger.  Drawn as an outline
         /// rather than a filled control so it stays quieter than the panel's
         /// own title beside it.
         public static void CloseX(CanvasItem ci, Rect2 r, bool hot)
