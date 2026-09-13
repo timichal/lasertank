@@ -1,21 +1,31 @@
 # Next actions — the open items in full
 
-Five items are open. The order and the reasoning behind it are in
+Four items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 19, 4, 7, 10**. **Item 14 closed in session 46 and it closed negative on a clean sweep**:
-three arms at the calibration's own p25 / p50 / p75 over the 138-level GAUNTLET tail at 40M, against a
-control that was already banked, and **every one of them lost to the global width** — 76 / 78 / 78
-against **85 of 138**. What it swept was the beam getting *wider*, because the flag is raise-only, and
-the item's own evidence had said narrow: median chosen width **854 to 6,820 against the global 128**.
-The three arms hold 4 / 1 / 1 exclusive levels, so the union climbs to 97 (70.3%), but that is three
-extra 40M passes for 12 levels and a worse trade than item 2's. **The successor is item 19** — the same
-run with `--push-beam 32`, the direction raise-only forbade — and it takes item 14's slot rather than
-its number, because the machinery and the arithmetic it built both survive the negative.
-[Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
+Order: **2, 4, 7, 10**. **Items 14 and 19 both closed on the same 138 levels, and between them they
+retire per-level width from both sides.** Item 14 swept the beam *wider* (raise-only is what the flag
+allows) at the calibration's own p25 / p50 / p75 and lost every arm — **76 / 78 / 78 against a banked
+control's 85 of 138**, at median chosen widths of 854 to 6,820 against the global 128. Item 19 then ran
+the one arm in the narrowing direction, `--push-beam 32`, against that same control in session 47, and
+**tied: 84 of 138**, 84/84 gated, 100 min wall at four jobs beside item 2's pass.
+
+**The tie is not the finding; the failed prediction is.** Item 19 was written on four measurements that
+all said a narrow beam should hold the **deep** levels — the ones whose record is long. Its 8 exclusive
+levels split **4 long / 4 short** about the population's median `ghs_shots` of 13, so whatever decides a
+level between width 32 and 128, **it is not the length of the record**, and
+`budget / (poses x ghs_shots x F)` — the free per-level estimate that survived item 14 — is not the way
+to size width in either direction. What *is* real is **cost**: on the 76 levels both widths solve, 32 is
+cheaper on 46 at a median of **1.03M nodes against 1.61M**, and four of its exclusive wins land in 1.8M
+to 3.4M on levels the control burned the whole 40M and failed. Two arms that tie at 40M and differ 1.6x
+in nodes **do not tie at 4M**, so the follow-up is [item 7](#7-3rd--the-solved-vs-budget-curve)'s budget
+curve rather than any new width item, and the five banked reports mean any rung of that curve can be read
+without re-running a control. Five-arm union **101 of 138 (73.2%)**.
+[Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width),
+[closed item 19](history.md#19-the-narrow-beam--run-on-a-population-at-last-and-it-ties).
 
 **Item 5 closed in session 45 and it closed negative on its own example**,
 which is the second time running that the item at the front of the list has been refused by a falsifier
@@ -29,13 +39,14 @@ still cannot walk the middle of the line: what defeats level 6 is **not** the le
 is the premise this item was written on.
 [Closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
 
-**Two things came out of it that are worth more than the item was, and the first one is now item
-19.** `tools/phase_reach.py` solves level 6 from **K = 102, 66 board changes from the end, at width 32
-on 3.4M nodes**, where item 18 measured its horizon of **50** at width 512 on 40M — the narrow arm goes
-deeper on a twelfth of the budget, so **the horizon is width-dependent and 50 is not the searcher's
-best**. Narrow-and-deep for the fourth time. Item 18's number stands as measured; what it no longer
-supports is "50 is the reach". Item 14 then spent a three-arm sweep going the *other* way and lost every
-arm, which is what turned this from a footnote into the item in 2nd place.
+**Two things came out of it that are worth more than the item was, and the first one became item 19 and
+has now closed.** `tools/phase_reach.py` solves level 6 from **K = 102, 66 board changes from the end, at
+width 32 on 3.4M nodes**, where item 18 measured its horizon of **50** at width 512 on 40M — the narrow
+arm goes deeper on a twelfth of the budget, so **the horizon is width-dependent and 50 is not the
+searcher's best**. Item 18's number stands as measured; what it no longer supports is "50 is the reach".
+Item 19 then took that reading to a population and it **half survived**: width 32 does not solve more
+levels than 128, but it solves the ones it solves at a twelfth to two-thirds of the nodes, which is the
+same shape as level 6's result and the first time it has been seen off that level.
 And phase 2's trace is `best=137` flat for 237
 depths, the *same signature* as level 10's GAUNTLET: a beam ranking distinct boards by a key that has
 stopped discriminating. **What is binding in the middle of a Sokoban is the ranking, not the depth.**
@@ -296,70 +307,7 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 19 (2nd) — the narrow beam, the direction item 14 did not measure
-
-**Item 14 ran its decision run and lost at every F**, and the way it lost is this item. The flag is
-raise-only, so what it swept was the beam getting *wider* — median chosen width 854 to 6,820 against the
-global 128 — and all three arms came back **below** the control: 76 / 78 / 78 against **85 of 138**.
-[Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
-
-**The opposite direction has four independent measurements behind it and has never been run on a
-population.**
-
-* `tools/phase_reach.py` solves `LaserTank.lvl` 6 from **K = 102, 66 board changes from the end, at
-  width 32 on 3.4M nodes**, where item 18 measured that level's horizon of **50** at width 512 on 40M.
-  A twelfth of the budget, a third deeper.
-* The same table, at a fixed 8M nodes a phase: **width 32 reaches 4 of 6 phases, 128 reaches 2, 512
-  reaches 1.** Monotone, and in the direction nobody widened toward.
-* Item 14's own losing arms say it from the other side — `Challenge-IV` 176 falls to the control in
-  **781,566 nodes** and costs the two widest arms **35.7M and 31.6M** for the same level.
-* Layer 8 solved level 8 at width 512 and that is the only place a wide beam has ever been the answer.
-
-**The falsifier is one arm against a control that is already banked**, the same shape item 14 used and
-the same 138 levels, so it is ~3.5 h of job time, ~1 h wall at four jobs:
-
-```bash
-LT_SOLVE=$PWD/build/lasertank-solve.exe NODES=40000000 BUDGET_MS=1800000 JOBS=4   bash tools/second_pass.sh build/reports/gauntlet-tail.jsonl gtw/b32   build/reports/gtw-b32.jsonl --no-ida --no-beam --push --push-read   --max-keys 5000 --max-keys-record --push-reach --push-ferry-match --push-ferry-maze   --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 32 --push-eval work --push-fire-tier
-python tools/verify_solutions.py build/gtw/b32
-python tools/arms_union.py fire=build/reports/gt-fire.jsonl b32=build/reports/gtw-b32.jsonl   f4p6=build/reports/gtw-f4p6.jsonl f14=build/reports/gtw-f14.jsonl f60=build/reports/gtw-f60.jsonl
-```
-
-The union call takes item 14's three arms with it because they are banked and free to include, and the
-five-arm greedy order is the only thing that says whether width is a *portfolio* axis on this population
-or a single setting that wants tuning.
-
-**Read it as solved count and exclusive levels, and then as which levels.** The prediction the four
-measurements above license is specific: a narrow beam should win the **deep** levels — the ones whose
-record is long — and lose the shallow ones it no longer holds enough breadth for, so an arm that ties
-85 while holding exclusives at the long-record end is a bigger result than one that beats it by two on
-no pattern. `ghs_shots` is in every row, so that split costs a join and no search.
-
-**Three outcomes and what each one means.**
-
-* **32 beats 128.** Then the global width is simply mistuned and the cheap follow-up is 64, not a
-  per-level anything.
-* **32 ties 128 with exclusives at the long end.** Then width *is* per-level and item 14's arithmetic
-  is the way to size it — with the raise-only rule dropped, which is a one-line change to
-  `Push.cs` `RecordWidth` and the only part of item 14 that would need rebuilding.
-* **32 loses flat.** Then level 6's width-32 result is a property of that level's phase structure and
-  not of the searcher, `--push-beam 128` is vindicated on a population for the first time, and the
-  narrow-and-deep reading — which this project has now recorded five times — stops being a lead.
-
-**What this item is not.** It is not per-level width; it is the *global* control that tells you whether
-a per-level version is worth building in the narrowing direction. Item 14 built the per-level machinery
-and the arithmetic already, and both survive its negative: the flag ships off by default, and
-`budget / (poses x ghs_shots x F)` is still the only free per-level estimate this project has.
-
-**What not to re-derive:** the calibration. `nodes / (poses x width x ghs_shots)` over 66 solved levels
-is **p10 1.9 / p25 4.6 / p50 14.2 / p75 59.9 / p90 446** — two and a half orders of magnitude, so the
-arithmetic sizes an order of magnitude and never a width, and any F is a policy choice rather than a
-fit. Also dead: *record shots = 0 as a licence to drop the space bar* (17 levels of 3,709), and
-**parity** — the series' part 3 — which is an *optimality* tool and prunes nothing in a satisficing
-search.
-
----
-
-## 4 (3rd) — the campaign that decides whether `--best-of-round` is a default
+## 4 (2nd) — the campaign that decides whether `--best-of-round` is a default
 
 **The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
 115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
@@ -406,7 +354,7 @@ at the level). **Level 8's 308 has not.**
 
 ---
 
-## 7 (4th) — the solved-vs-budget curve
+## 7 (3rd) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;
@@ -533,11 +481,13 @@ derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either.
   transfers for free.
 - **Record shots = 0 as a licence to drop the space bar:** only 17 of the 3,709 unsolved have a zero-shot
   record, and several of those are 0/0, i.e. no record at all.
-- **Raising the push beam per level from the record:** measured over 138 levels at three values of the
-  calibration's own spread and it **loses at every one** — 76 / 78 / 78 against the global width's 85.
-  The flag (`--push-width-record`) is built and ships off; what is still open is the *narrowing*
-  direction, which is [item 19](#19-2nd--the-narrow-beam-the-direction-item-14-did-not-measure) and a
-  different question. [Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width).
+- **Per-level push beam width from the record, in *either* direction:** raising it loses over 138 levels
+  at three values of the calibration's own spread (76 / 78 / 78 against the global width's 85), and
+  narrowing it globally to 32 ties (84) while splitting its exclusive levels 4 long / 4 short about the
+  population's median record length — so the record does not predict which width a level wants. The flag
+  (`--push-width-record`) is built and ships off.
+  [Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width),
+  [closed item 19](history.md#19-the-narrow-beam--run-on-a-population-at-last-and-it-ties).
 - **The read's `opens` as level 10's hidden cost:** the default `--push-read-opens -1` is the cheap
   flood, and a run with `-1` and one with `0` are node-identical, so the read is not a node multiplier at
   defaults.

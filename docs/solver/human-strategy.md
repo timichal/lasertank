@@ -81,7 +81,7 @@ post-processing is a substitute for finding a better one"*). `--best-of-round RA
 the round on although their shot count says the strategy is wrong, and 17 it keeps the round open on
 although the shot count says the strategy is already right, so those rounds can only buy polish. The
 column is shipped (closed item 13) and the rule inside `--best-of-round` is
-[item 4](next-actions.md#4-3rd--the-campaign-that-decides-whether---best-of-round-is-a-default)'s.
+[item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default)'s.
 
 ---
 
@@ -121,7 +121,7 @@ are the ones they were spent at, not the current list:
 | **16** | 2nd | four derivations the read does not have — author intent, spending an irreversible resource, FMO mobility as a quantity, a per-carry constant in `MatchFerry` | two `--read-dump` columns and one replay decide the first two; an `--analyze-tsv` column the third; `--ferry-weight` the fourth | **all four measured, and split 3-1.** `rare` **3.15x**, `spend` **0.04x** (session 42); FMO mobility predicts the rate and **with the sign the series does not have** — freer blocks are *harder*, 1.78x with the record held fixed — and the per-carry constant is **refused**, it changes no level's ascent (session 43). Closed; the tier it left was item 17, **built and refused on the bench** (session 44) |
 | **15** | 3rd | **`--push-seed K`** — the editor trick as an instrument: start the search from the K-th board change of a recording, sweep K over level 6's 168 | eight short runs, and it *is* item 5's falsifier | **built and run.** Level 6's horizon is **50 board changes of 168** and the boundary is exactly one wide: 50 left solves on 36.75M nodes, 51 left does not on 40M. Monotone at every K below it. (Item 15 measured 48 from the two probes K=120/117; item 18's bisection narrowed it to K=118.) |
 | **13** | 4th | **the shot test** — a `report_stats.py` column now, a `--best-of-round` rule with item 4 | already run: measurements 2 and 3 above | the column ships and reproduces measurement 3 from any report; the rule is item 4's |
-| **14** | 6th, now 4th | **per-level width from the record** — the driver ladders width globally today | one run on the 138-level GAUNTLET tail; the free calibration is done, below | **closed negative** (session 46). Three arms at F = 4.6 / 14 / 60 over the tail at 40M: **76 / 78 / 78 against the control's 85**, chosen widths median **854 to 6,820** against the global 128. Raise-only meant it swept *wider*, and wider loses; the successor is item 19, the same run at `--push-beam 32` |
+| **14** | 6th, now 4th | **per-level width from the record** — the driver ladders width globally today | one run on the 138-level GAUNTLET tail; the free calibration is done, below | **closed negative** (session 46). Three arms at F = 4.6 / 14 / 60 over the tail at 40M: **76 / 78 / 78 against the control's 85**, chosen widths median **854 to 6,820** against the global 128. Raise-only meant it swept *wider*, and wider loses. Its successor item 19 then ran the narrowing direction — a global `--push-beam 32` — and **tied at 84**, with its exclusive levels split 4 long / 4 short about the population's median record length, so **the record does not size width in either direction** (session 47) |
 
 **Item 14's free half tempered the item rather than supporting it**, which is why it sat 6th rather than
 2nd — and the paid half then refused it outright (session 46), which makes this the one item on the list
