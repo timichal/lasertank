@@ -37,6 +37,18 @@ report WIN with byte-identical traces. A solution that fails is deleted and the 
 loudly, because after Phase 3 that can only mean an engine divergence. Missing engines or no python is a
 startup error, not a discovery made six levels in.
 
+**The driver can be measured now, which it could not before session 48.** It takes the batch harness's
+`--report FILE.jsonl` — one row per level, the same `Outcome.Json` every other report in the tree is made
+of, so `report_stats.py`, its `--diff` and `arms_union.py` all read it — plus five numbers only the driver
+has: `rounds`, `wins` (how many rungs solved the round that ended the level), `longest` (the longest of
+those routes, which is what a first-win-cancels run could have banked instead), and `total_nodes` /
+`total_ms`, **the level's whole bill against the winning rung's own**. A level nobody solved gets a row
+too, with `stop` saying which of the three ways it ended. It also takes the selection flags the batch path
+has always had — `--stride`, `--levels-list`, `--difficulty`, `--limit` — in level order, which is the one
+thing the driver does differently on purpose. Together those are what makes a *campaign of driver runs*
+comparable, which is what [item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default)
+needs and what nothing in the tree could express before.
+
 **The driver writes to `data/solutions`, not `build/`.** A campaign's output is disposable (regenerated
 by `tools/campaign.sh`, thousands of files, gitignored); the driver's output is one hand-supervised
 level at a time, already through the gate, on levels the batch solver could not do. Those are worth
@@ -77,6 +89,16 @@ ever found for a level.** Two flags:
   path has to run the round out because it never knows whether a shorter route exists; the target path
   knows exactly what it is chasing. Without that, a refused round 5 would hold round 6 open across its
   whole 1.6-billion-node budget long after the win that was the point of opening it.
+* **`--best-of-shots [R]`** (off by default, implies `--best-of-round`) — the same flag with closed item
+  13's test in place of the ratio. Shots are the strategy and moves the execution, so **a win that spends
+  more shots than the record is a worse route whatever its keystream ratio** — median 1.85x against 1.41x
+  for one that matches the record — and it keeps the round open; otherwise the ratio decides against a
+  looser bound, `R`, default 3.0, because the shot test has already said the plan is right and what is
+  left to buy is polish. The two tests disagree on **58 of 452 solved rows**: 41 wins the ratio closes the
+  round on although the shot count says the strategy is wrong, 17 it holds open although the shot count
+  says it is already right. Which rule pays is
+  [item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default)'s
+  campaign and it is built but not yet run.
 
 **The mechanism is demonstrated, not only argued for.** The level-9 acceptance run —
 `--from 9 --to 9 --force --best-of-round --max-round 5`, unattended, 44m46s, 258.8M nodes:

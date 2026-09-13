@@ -454,8 +454,14 @@ namespace LaserTank.Solver
             public Program.Args A;
             public Func<int> Next;              // the level dispenser, -1 when done
             public int Count, Lanes;
-            public string OutDir, Work, Ghs, Python, Gate, Root;
+            public string OutDir, Work, Ghs, Python, Gate, Root, Collection;
             public SemaphoreSlim Slots;
+            /// --report, and null without it.  One row per level the driver
+            /// finishes with.  Written under a lock on the writer itself for
+            /// the same reason the console is single-writer: two lanes
+            /// finishing together would otherwise interleave two json lines
+            /// into neither.
+            public StreamWriter Report;
             public int Solved, Skipped, Already, Rejected, Worse;
             public readonly List<int> Unsolved = new List<int>();
         }
@@ -546,9 +552,42 @@ namespace LaserTank.Solver
                 return 2;
             }
 
+            // **The same selection the batch harness makes, in the driver's own
+            // order.**  --from/--to were the whole of it for as long as the
+            // driver was only ever pointed at a level somebody was looking at;
+            // a *campaign* of driver runs -- item 4, which compares two round
+            // rules over a population -- needs the population flags the batch
+            // path has had all along: --stride for a 1-in-N sample of a
+            // collection, --levels-list for a named set (the levels a previous
+            // report solved, say), --difficulty for a tier, --limit for a cap.
+            // The order stays level order, which is the one thing the driver
+            // does differently on purpose and for a reason that has not
+            // changed: somebody working through a collection wants level 7
+            // after level 6, and `--order ghs` is the campaign's affordance.
+            List<int> plan = new List<int>();
+            for (int lv = from; lv <= to; lv++)
+            {
+                if (a.Stride > 1 && (lv - 1) % a.Stride != 0) continue;
+                if (a.Only != null && !a.Only.Contains(lv)) continue;
+                if (a.Difficulty.Count > 0)
+                {
+                    TLEVEL t = LevelFile.ReadLevel(a.Levels, lv);
+                    if (t == null || !a.Difficulty.Contains(t.SDiff)) continue;
+                }
+                plan.Add(lv);
+                if (plan.Count >= a.Limit) break;
+            }
+            if (plan.Count == 0)
+            {
+                Console.Error.WriteLine("{0}: levels {1}-{2} and the selection "
+                                        + "flags between them choose no level",
+                                        collection, from, to);
+                return 2;
+            }
+
             // No more lanes than there are levels to put in them: an empty lane
             // is a painted line that never says anything.
-            int lanes = Math.Max(1, Math.Min(a.Lanes, to - from + 1));
+            int lanes = Math.Max(1, Math.Min(a.Lanes, plan.Count));
             int jobs = Math.Max(1, a.Jobs);
 
             Lane[] pool = new Lane[lanes];
@@ -576,7 +615,7 @@ namespace LaserTank.Solver
                 StopAll();
             };
 
-            Console.WriteLine("{0}  levels {1}-{2} of {3}   {4} searchers per level,"
+            Console.WriteLine("{0}  levels {1}-{2} of {3}{7}   {4} searchers per level,"
                               + " {5}, budget x4 each round{6}",
                               Ansi.Bold(collection), from, to, count, Ladder.Length,
                               // One lane can never have more than the ladder
@@ -587,7 +626,9 @@ namespace LaserTank.Solver
                                 ? Math.Min(jobs, Ladder.Length) + " at a time"
                                 : lanes + " levels at a time over " + jobs + " slots",
                               a.MaxRound == int.MaxValue ? ""
-                                : " to round " + a.MaxRound);
+                                : " to round " + a.MaxRound,
+                              plan.Count == to - from + 1 ? ""
+                                : "  (" + plan.Count + " selected)");
             Console.WriteLine(Ansi.Dim(!Interactive
                 ? "  stdin is not a console, so there is no key to press here: "
                   + "Ctrl+C is the way out\n"
@@ -596,16 +637,24 @@ namespace LaserTank.Solver
                   : "  1-" + lanes + " gives up on that lane's level; q quits\n"));
 
             DateTime t0 = DateTime.UtcNow;
-            int next = from - 1;            // Interlocked.Increment yields `from` first
+            int next = -1;                  // Interlocked.Increment yields 0 first
+            // Append, like the batch harness's --report: a campaign of driver
+            // runs is one report, and an interrupted run that is started again
+            // adds to it rather than losing what it had.  The reader takes the
+            // last line for a level (report_stats.py's `load`), so a re-solve
+            // says what it says now.
+            StreamWriter report = a.Report == null ? null
+                : new StreamWriter(a.Report, append: true, new UTF8Encoding(false));
             Ctx ctx = new Ctx
             {
                 A = a, Count = count, Lanes = lanes, OutDir = outDir, Work = work,
                 Ghs = ghsPath, Python = python, Gate = gate, Root = root,
                 Slots = new SemaphoreSlim(jobs),
+                Collection = collection, Report = report,
                 Next = () =>
                 {
-                    int lv = Interlocked.Increment(ref next);
-                    return lv <= to ? lv : -1;
+                    int i = Interlocked.Increment(ref next);
+                    return i < plan.Count ? plan[i] : -1;
                 },
             };
 
@@ -625,6 +674,7 @@ namespace LaserTank.Solver
             }
             Erase();
             Flush();
+            report?.Dispose();
 
             Sweep(work);
             Console.WriteLine("{0} solved, {1} skipped{2}{3}   in {4}",
@@ -687,6 +737,14 @@ namespace LaserTank.Solver
                 bool won = false;
                 DateTime lt0 = DateTime.UtcNow;
                 int rounds = 0;
+                // What the *level* cost, which is not what the winning rung
+                // cost: every rung of every round is on the bill, and under
+                // --best-of-round the rungs that lost the round ran out their
+                // budget rather than being cancelled on the win.  That
+                // difference is the price of the flag and there is nowhere else
+                // to read it -- the result line reports the winner's own nodes.
+                long spent = 0;
+                Program.Outcome kept = null;
                 // Set the first time a round is refused for being longer than
                 // the banked route.  From then on the level's rounds are held
                 // open regardless of `--best-of-round`, because a refusal is
@@ -706,7 +764,8 @@ namespace LaserTank.Solver
                 {
                     rounds = round + 1;
                     Program.Outcome o = Round(ctx, lane, info, lv, round, lt0,
-                                              beatTarget);
+                                              beatTarget, out long roundNodes);
+                    spent += roundNodes;
                     if (o == null) continue;                       // nobody won
 
                     // **`--beat-banked`: a round that came back worse than the
@@ -760,6 +819,7 @@ namespace LaserTank.Solver
                     if (why == null)
                     {
                         won = true;
+                        kept = o;
                         Interlocked.Increment(ref ctx.Solved);
                         block.Add("  " + Ansi.Green("SOLVED") + "  "
                                   + Detail(o, round, lt0));
@@ -813,6 +873,9 @@ namespace LaserTank.Solver
                         + Progress.Span((DateTime.UtcNow - lt0).TotalSeconds)));
                 }
                 lane.Cur = null;
+                Emit(ctx, info, lv, gm, gs, kept, rounds, spent,
+                     (DateTime.UtcNow - lt0).TotalMilliseconds,
+                     _quit ? "stopped" : lane.Skip ? "skipped" : "rounds");
                 Say(block);
             }
             lane.Cur = null;
@@ -828,8 +891,9 @@ namespace LaserTank.Solver
         /// file is the one the gate is handed; the rest are deleted here.
         private static Program.Outcome Round(Ctx ctx, Lane lane, TLEVEL info,
                                              int lv, int round, DateTime lt0,
-                                             int beatTarget)
+                                             int beatTarget, out long spent)
         {
+            spent = 0;
             Program.Args a = ctx.A;
 
             // Quadrupling has to stop being taken literally at some point or
@@ -988,6 +1052,7 @@ namespace LaserTank.Solver
             for (int i = 0; i < tasks.Length; i++)
             {
                 Program.Outcome o = tasks[i].Result;
+                spent += o.Nodes;
                 if (o.Error != null && !o.Solved)
                     Say("  " + Ansi.Red("error") + " " + o.Error);
                 if (o.Solved && (win == null || o.Keys < win.Keys))
@@ -1020,12 +1085,50 @@ namespace LaserTank.Solver
                     wins++;
                     if (t.Result.Keys > longest) longest = t.Result.Keys;
                 }
+                win.Wins = wins;
+                win.Longest = longest;
                 if (wins > 1)
                     Say("  " + Ansi.Dim(string.Format(CultureInfo.InvariantCulture,
                         "{0} rungs solved this round; kept the shortest at {1} keys"
                         + " against {2}", wins, win.Keys, longest)));
             }
             return win;
+        }
+
+        /// One `--report` row for a level the driver has finished with.
+        ///
+        /// **The driver could not be measured before this.**  A campaign of
+        /// driver runs -- item 4, which asks whether `--best-of-round` should be
+        /// a default -- is a comparison of two runs over a population, and the
+        /// batch harness's report is the only thing in the tree that can hold
+        /// one: `report_stats.py` reads it, `--diff` compares two of them, and
+        /// `arms_union.py` unions them.  So the row is the batch row, written by
+        /// the same `Outcome.Json`, plus the five numbers only the driver has
+        /// (`rounds`, `wins`, `longest`, `total_nodes`, `total_ms`).  A level
+        /// nobody solved gets a row too, with `stop` saying which of the three
+        /// ways it ended: the rounds ran out, a key was pressed, or Ctrl+C.
+        ///
+        /// Locked rather than queued through `Say`, because this is a file and
+        /// the ordering that matters for it is "one whole line at a time" --
+        /// which is the same reason the batch path writes its report under
+        /// `gate`.
+        private static void Emit(Ctx ctx, TLEVEL info, int lv, ushort gm, ushort gs,
+                                 Program.Outcome won, int rounds, long spent,
+                                 double ms, string how)
+        {
+            StreamWriter w = ctx.Report;
+            if (w == null) return;
+            Program.Outcome o = won ?? new Program.Outcome { Stop = how };
+            o.J ??= new Program.Job
+            {
+                Level = lv, Name = info.LName, Author = info.Author,
+                Diff = info.SDiff, GhsMoves = gm, GhsShots = gs,
+            };
+            o.Rounds = rounds;
+            o.TotalNodes = spent;
+            o.TotalMs = ms;
+            string line = o.Json(ctx.Collection);
+            lock (w) { w.WriteLine(line); w.Flush(); }
         }
 
         /// Replace a lane's live line with a one-off note.  Null-guarded
@@ -1068,10 +1171,30 @@ namespace LaserTank.Solver
         /// refuses a round, where a shorter route is known to exist because it
         /// is on disk.  This function is only consulted when nothing is known,
         /// which is why its ratio has to guess and `beatTarget` does not.
+        ///
+        /// **`--best-of-shots` is the other test, and closed item 13 measured
+        /// that it disagrees with this one usefully.**  Shots are the strategy
+        /// and moves the execution (the harvest blog's first rule, reproduced on
+        /// our own rows): a win that spends *more* shots than the record is a
+        /// different and worse route -- median keystream 1.85x against 1.41x for
+        /// one that matches it -- and no amount of polishing takes a shot out of
+        /// a plan that needed it.  The ratio test and the shot test disagree on
+        /// 58 of 452 solved rows, 41 of them wins the ratio closes the round on
+        /// although the shot count says the strategy is wrong.  So the rule is:
+        /// **more shots than the record keeps the round open whatever the ratio;
+        /// otherwise the ratio decides, against a looser bound** -- looser
+        /// because the shot test has already said this is the right plan, and
+        /// what is left to buy is polish (the `shots == record` rows are p90
+        /// 1.79x, so 3.0 closes nearly all of them).  A level with no record
+        /// keeps the round open under either rule, which is the case the flag
+        /// exists for.
         private static bool KeepOpen(Program.Args a, Program.Outcome best)
         {
             if (!a.BestOfRound) return false;
-            return best.Ratio <= 0 || best.Ratio > a.BestRatio;
+            if (best.Ratio <= 0) return true;               // no record to judge by
+            if (a.BestOfShots)
+                return best.Shots > best.J.GhsShots || best.Ratio > a.ShotRatio;
+            return best.Ratio > a.BestRatio;
         }
 
         /// Stop the searchers of one lane -- what a digit key means.
@@ -1450,9 +1573,25 @@ namespace LaserTank.Solver
         /// The repo root, from the executable rather than the working
         /// directory: build/lasertank-solve.exe is one level down, and the
         /// point of this tool is that it can be run from anywhere.
+        /// The repository the exe was built into, found by walking up from it
+        /// until the gate is in sight.
+        ///
+        /// It used to be `BaseDirectory/..`, which is right for the published
+        /// `build/lasertank-solve.exe` and wrong for every other place a build
+        /// lands.  That mattered the first time the driver had to be changed
+        /// *during* a multi-day run: the running pass holds `build/` open, so a
+        /// rebuild can only go to the project's own `bin/Release/net8.0` (which
+        /// is what $LT_SOLVE exists for, PROGRESS), and the driver started from
+        /// there looked for the oracle three directories too deep and refused
+        /// to start.  Walking up for `tools/verify_solutions.py` -- the gate,
+        /// which this function's caller needs anyway -- finds the root from
+        /// either place and needs no new environment variable.
         private static string RepoRoot()
         {
             string dir = AppContext.BaseDirectory;
+            for (DirectoryInfo d = new DirectoryInfo(dir); d != null; d = d.Parent)
+                if (File.Exists(Path.Combine(d.FullName, "tools", "verify_solutions.py")))
+                    return d.FullName;
             return Path.GetFullPath(Path.Combine(dir, ".."));
         }
 

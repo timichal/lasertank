@@ -49,8 +49,11 @@ namespace LaserTank.Solver
 "  run unattended.  The first win ends the round unless --best-of-round says\n" +
 "  otherwise, and a round that came back worse than the .lpb already on disk is\n" +
 "  refused by default (--no-beat-banked).  A solution is kept once\n" +
-"  has replayed it through both engines.  --from/--to/--out/--force/--author/\n" +
-"  --trim-ratio/--jobs apply; --nodes sets round 0's budget, not a cap.\n" +
+"  has replayed it through both engines.  --out/--force/--author/--trim-ratio/\n" +
+"  --jobs apply, the selection flags below all apply (level order, always), and\n" +
+"  --report writes the same jsonl the batch harness does, one row per level,\n" +
+"  plus rounds/wins/longest/total_nodes/total_ms -- which is what makes a\n" +
+"  campaign of driver runs comparable.  --nodes sets round 0's budget, not a cap.\n" +
 "  --lanes N works N levels at once and the lanes share the same --jobs\n" +
 "  slots, so the core budget does not change: press a lane's number to give\n" +
 "  up on the level it is holding.\n" +
@@ -116,6 +119,15 @@ namespace LaserTank.Solver
 "                         round as before, so the cost is only paid where the\n" +
 "                         route looks bad.  A level with no .ghs record always\n" +
 "                         keeps the round open\n" +
+"    --best-of-shots [R]  interactive only: implies --best-of-round and swaps\n" +
+"                         its rule for the shot test.  Shots are the strategy\n" +
+"                         and moves the execution, so a win that spends MORE\n" +
+"                         shots than the record is a worse route whatever its\n" +
+"                         keystream ratio (median 1.85x against 1.41x for one\n" +
+"                         that matches the record) and the round stays open;\n" +
+"                         otherwise the ratio decides against a looser bound,\n" +
+"                         R, default 3.0.  The two tests disagree on 58 of 452\n" +
+"                         solved rows\n" +
 "    --no-beat-banked     interactive only: turn OFF the default, which is that\n" +
 "                         a round whose best route is LONGER than the .lpb\n" +
 "                         already banked is not accepted -- the candidate is\n" +
@@ -532,6 +544,12 @@ namespace LaserTank.Solver
             // skipped before a searcher starts.
             public bool BeatBanked = true;
             public double BestRatio = 2.0;
+            // --best-of-shots: closed item 13's rule inside --best-of-round.
+            // The looser bound is 3.0 because the shot test has already said
+            // the plan is right when this is consulted, and the rows whose
+            // shots match the record are p90 1.79x -- see Auto.KeepOpen.
+            public bool BestOfShots;
+            public double ShotRatio = 3.0;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
             public bool Polish = true;
@@ -607,6 +625,18 @@ namespace LaserTank.Solver
                                                    CultureInfo.InvariantCulture,
                                                    out double br))
                             { a.BestRatio = br; i++; }
+                            break;
+                        // Implies --best-of-round rather than needing it
+                        // spelled beside it: it is a rule for keeping a round
+                        // open, and on its own it would silently do nothing.
+                        // The optional number is read the same way.
+                        case "--best-of-shots":
+                            a.BestOfRound = a.BestOfShots = true;
+                            if (i + 1 < argv.Length
+                                && double.TryParse(argv[i + 1], NumberStyles.Float,
+                                                   CultureInfo.InvariantCulture,
+                                                   out double sr))
+                            { a.ShotRatio = sr; i++; }
                             break;
                         case "--beat-banked": a.BeatBanked = true; break;
                         case "--no-beat-banked": a.BeatBanked = false; break;
@@ -1072,6 +1102,20 @@ namespace LaserTank.Solver
             /// on the same rule Phases follows -- a report banked before
             /// the flag existed stays byte-comparable with one after it.
             public int Width;
+            /// Item 4: what the interactive driver's --report adds, and
+            /// nothing else writes.  `Rounds` is how many rounds the level
+            /// took, `Wins` how many rungs solved the round that ended it
+            /// and `Longest` the longest of those routes -- which is what
+            /// a first-win-cancels run could have banked instead, and the
+            /// whole of the evidence for keeping a won round open.
+            /// `TotalNodes` / `TotalMs` are the *level's* bill, every rung
+            /// of every round, against the winner's own `Nodes` / `Ms`.
+            /// All five follow Width's rule: written only when non-zero,
+            /// so a batch report is byte-identical to one written before
+            /// the fields existed.
+            public int Rounds, Wins, Longest;
+            public long TotalNodes;
+            public double TotalMs;
             public string Method = "-", Stop = "-";
 
             /// Non-null when this level was solved with something the solver
@@ -1141,6 +1185,11 @@ namespace LaserTank.Solver
                     w.WriteNumber("restarts", Restarts);
                     if (Width > 0) w.WriteNumber("width", Width);
                     if (Phases > 0) w.WriteNumber("phases", Phases);
+                    if (Rounds > 0) w.WriteNumber("rounds", Rounds);
+                    if (Wins > 0) w.WriteNumber("wins", Wins);
+                    if (Longest > 0) w.WriteNumber("longest", Longest);
+                    if (TotalNodes > 0) w.WriteNumber("total_nodes", TotalNodes);
+                    if (TotalMs > 0) w.WriteNumber("total_ms", Math.Round(TotalMs, 1));
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
                     if (Hint != null) w.WriteString("hint", Hint);

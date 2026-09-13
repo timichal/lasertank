@@ -312,10 +312,12 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 **The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
 115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
 
-**What is left is a number.** The measurement is a stride campaign with `--best-of-round` against one
-without it, read as *keys* rather than as solved count — the solved set should be identical and the routes
-shorter, and how much shorter is what decides whether this becomes a default. **Every ratio quoted in
-these files was measured under first-win-cancels, so that campaign rebases them.**
+**What is left is a number, and the instrument for it is built (session 48) — what is left of *that* is
+machine time.** `bash tools/bor_campaign.sh` is the campaign; `bash tools/bor_campaign.sh report` prints
+its table again for free from the banked reports. The measurement is a campaign with `--best-of-round`
+against one without it, read as *keys* rather than as solved count — the solved set should be identical
+and the routes shorter, and how much shorter is what decides whether this becomes a default. **Every ratio
+quoted in these files was measured under first-win-cancels, so that campaign rebases them.**
 
 **And it inherits closed item 13's second half, which is a rule rather than a number.** The flag judges a
 win by `keys / record ≤ 2.0`; the shot test says a win that spends *more shots* than the record is a
@@ -326,10 +328,61 @@ with the campaign: *keep the round open when `shots > ghs_shots` whatever the ra
 `shots == ghs_shots` and the ratio is inside a looser bound*, and **a level with no record keeps the
 round open, as it does today.** The measurement is already run and the column is in `report_stats.py` —
 what is not decided is whether the rule pays for the rounds it keeps open, which is this campaign's
-question and not a separate item's.
+question and not a separate item's. **It is now a flag, `--best-of-shots [R]`**, and it is the campaign's
+third arm: more shots than the record keeps the round open whatever the ratio, otherwise the ratio decides
+against a looser `R`, default **3.0** — looser because the shot test has already said the plan is right,
+and the rows whose shots match the record are p90 1.79x, so 3.0 closes nearly all of them.
 
 Note what level 9 says about its price: **44m46s for one level**, against the 16m36s of the hand-run it
 beat, because a round nobody cancels is a round every rung spends in full.
+
+### The run
+
+```bash
+bash tools/bor_campaign.sh                 # both stages, three arms each, ~6-7 h at JOBS=4
+bash tools/bor_campaign.sh a               # the dense stage only, ~1.5 h
+bash tools/bor_campaign.sh b               # the deep stage only, ~5 h
+bash tools/bor_campaign.sh report          # the table again, free, from the banked reports
+tail -f build/reports/item4-run.log        # from any other shell
+```
+
+Priced from a 13-level rehearsal at `JOBS=4` beside item 2's pass rather than guessed: **the ten rungs get
+through about 1.15M nodes a second between them**, so a level nobody solves costs 31M nodes / ~27 s to
+round 2 and 127M / ~110 s to round 3, and a round held open costs the whole of its own budget — 96M at
+round 3.
+
+Safe beside item 2's pass — `JOBS=4` against its 16 on 20 cores, node-governed round by round — with the
+one caveat this item has that item 19 did not: **wall clock is one of the numbers it wants**, so the
+report prints nodes beside every second it quotes and the seconds are the contended ones. **While the pass
+holds `build/lasertank-solve.exe` open the new driver can only be built into the project's own `bin/`**
+(`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`); the script finds that build
+itself and says so, rather than running a third arm that silently repeats the second.
+
+**Three arms, and the third is the new flag.** `ctrl` is the driver as it ships, `bor` is
+`--best-of-round` at its 2.0, `shots` is `--best-of-shots` at 3.0.
+
+**The arms after the control run only over the levels the control solved, and that is not a shortcut —
+it is what the flags are.** Neither is consulted until a rung has already won, and neither adds budget,
+so **a level the control could not solve costs all three arms exactly the same and has no keys to
+compare**. `tools/round_rules.py` checks the assumption instead of trusting it: a level an arm solves that
+the control did not is printed as an instrument warning, not as a win.
+
+**Two stages, because the flag's cost and its benefit live in different populations.**
+
+| stage | population | rounds | what it answers |
+|---|---|---|---|
+| **A** | the **494** levels the shipped chain solves at 150k | to round 2 (150k / 600k / 2.4M per rung) | what a *default* costs and buys on the levels nearly every run touches |
+| **B** | a stride (`SAMPLE=6`, ~115) over `bench/short-record-failures.txt` | to round 3 (adds 9.6M) | what it buys where the ladder's rungs disagree — **level 9 is a stage-B level**, and it is the whole argument for the flag |
+
+`NODES MAXA MAXB SAMPLE JOBS` are the knobs and the numbers are only comparable at the defaults. Both
+stages resume from their own reports: Ctrl-C, reboot, the same command picks up where it stopped.
+
+**What the table has to say for the item to close**, and `round_rules.py` prints all four: keys saved and
+the percentage, the ratio column rebased (p50 and how many rows are still over 2.0x), the **shots** column
+before and after — a round that comes back with *fewer shots* found a different plan rather than a tidier
+keystream, which is the half the ratio cannot see — and the price in nodes and wall, both over the whole
+population and over the levels the rule actually fired on. A rule that fires on a third of a collection
+and buys nothing on most of them is a rule that costs a third of a collection.
 
 *Two things not to re-derive.* What was tried first and is not the answer: making the gate refuse the
 longer write — it fixes the file and hides the run. And the recipe this item replaces: for six sessions
