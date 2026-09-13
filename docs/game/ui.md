@@ -115,7 +115,8 @@ So step 8 prints all of them at once, in one table — not three keys, and **not
 which was the first attempt and was the same three lists with two of them hidden. One row per level:
 number, name, author, the posted best's moves / shots / initials, then yours, with a hairline
 between the groups and the original's own `**` and `>` marking the rows where you beat the posted
-best. `L` opens it and that is the whole of it.
+best. `L` opens it and that is the whole of it. (**Step 11 replaced those two markers** with a
+three-rank mark column at the row's left edge — see below.)
 
 **`V` and `G` are unbound and free**, which is what the merge was *for*: ACC1 has no spare letters,
 every future command needs one, and 113 and 906 were two of them spent on two renderings of the
@@ -149,14 +150,57 @@ column rules are placed in glyph units, so both of these showed up as a rule dri
 text it divides. First, **the header lines must be set at the rows' own size** — one point smaller
 and `moves` sits a finger to the left of the moves it names; faint, not small, is what makes a
 header. Second, **`Font.GetStringSize("0")` is that glyph's width, not the advance the next glyph is
-placed at**: 0.15 px apart here, which over the 77 columns to the `>` is a character and a half.
-`Advance` measures a 32-character run and divides.
+placed at**: 0.15 px apart here, which over the 77 columns to the right-hand rule is a character and
+a half. `Advance` measures a 32-character run and divides.
 
 **The panel sizes itself to the table and drops a column before it shrinks past legibility.** A
 table's columns are only worth having if they are all on screen, so the fit is searched: the full
 table at 12 px, then down to 10.5, then the table *without the author* — flavour rather than score
 — and only then is anything allowed to clip. At an 860 px window the whole table fits; at 560 the
 author goes.
+
+**And since step 11 it is a list you can use at the size the corpus actually is.** The table was
+built for `LaserTank.lvl`'s 2,030 rows and could only show one screenful of them. Five changes, and
+the reason they are worth reading as a group is that **four turned out to be the original's own
+behaviour** — the port had invented past the C in places nobody had gone back and read. The full
+account is in [*Finished*](history.md), step 11; the short form:
+
+* **Only `Esc` closes it.** `TransListKey` (`LTANK_D.C:87`) answers Home / Up / Down / End / PgUp /
+  PgDn and `VK_ESCAPE` and returns **-2 — no action — for everything else**. The port's "any other
+  key closes" was a step-7 convenience with no warrant here, and a text field makes it impossible
+  anyway. Space went with it; the original's Enter is `WM_COMMAND` id 1. **Every other panel keeps
+  "any other key"**, because none of them has anywhere for a letter to go.
+* **A filter bar: the Search sub-dialog (`SearchBox`, `LTANK_D.C:197`) inlined.** A substring field,
+  a Title/Author pair, the five-bit difficulty mask and "only unsolved" — in the panel rather than in
+  a dialog over it, because a filter you cannot see while you read the list is a filter you forget is
+  on. The C's rules, including the one that would never have been guessed: **an unrated level is
+  promoted to 255 before the mask test** (`LTANK_D.C:414`), so it matches whatever is ticked.
+  Type to filter; `Tab` swaps title/author; `Ctrl+1`–`5` toggle the ranks, `Ctrl+0` restores them
+  all, `Ctrl+U` is unsolved-only — and every one of those is a chip you can click. A **digit query
+  also matches the level number**, which is `ID_LOADLEV_02`, the original's direct-entry box folded
+  into the one field. The filter survives the panel closing and is cleared by a change of collection.
+* **A mark column**: `*` solved, `**` matched the posted best, `***` beat it, at the row's left edge
+  in amber rather than in the row's difficulty tint. It replaces the original's `**` and `>`, which
+  were one bit (`BHS`) drawn twice — and the four characters they cost paid for the gutters below.
+  **The predicate is narrower than `BHS` on purpose**: `LevelFile.Beats` counts an absent posted best
+  as beaten, which would three-star every solved row of any collection with no `.ghs`.
+* **Gutters, and the two group rules are floats.** They were `cell - 1` drawn at `+ 0.5`, half a
+  glyph from the cells either side, and the commonest `who` in the corpus is four characters wide and
+  touched one. A column is a position, so its divider has one too.
+* **A scrollbar — the one target in this interface that is dragged.** `Hits` carries the fact of a
+  click and not the pointer's position, which is most of why it can be forty lines, so the thumb gets
+  a latch in `BoardView` and `MouseMotion` feeds `LevelList.DragTo`. It moves the viewport and pulls
+  the cursor after it: **one position, not two**, which is the same rule the wheel follows from the
+  other end.
+
+**`--type STRING` is the filter field's instrument**, and it exists because neither of the other two
+could reach it: `--press` goes through the accelerator table and a text field is not an accelerator,
+`--click` reaches only the hit list and the field is a swallow because it is always focused. It types
+through the same `Key(InputEventKey)` the router calls and prints
+`type <s> list=True rows=N of=M filtering=B q=Q`; `chrome_check.py` drives five queries through it.
+**`\b` and `\t` are two characters on that command line, not control codes** — a real backspace does
+not survive the shell, the gate's argument quoting and Godot's command-line split.
+
 
 **`Esc` asks before it quits, and that prompt is the port's first modal question.** The original
 has no quit accelerator at all — its ways out are the window's close box and the File menu's Exit

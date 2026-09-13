@@ -17,6 +17,15 @@
 // have no original to be diffed against.  Keeping them out of that class keeps
 // that gate meaning what it says.
 //
+// **This one still closes on any other key, and the level list no longer
+// does** -- which is a divergence on purpose rather than an oversight.
+// Step 11 gave that panel a filter field, so every letter there has
+// somewhere to go and only Escape can mean "not this one" (which is also
+// what TransListKey does, LTANK_D.C:87).  There is nothing to type here,
+// so the cheaper way out stays.  If this panel ever grows a filter of its
+// own -- twenty-three collections is not twenty-three hundred levels, so
+// it probably should not -- it inherits the same rule.
+//
 // **The case trap is real and is why nothing here uses a `*.lvl` pattern.**
 // The corpus mixes `.lvl` and `.LVL` -- `Tutor.LVL`, `Game-Objects-in-LT.LVL`,
 // `Rotary Mirrors-Challenge.LVL` -- and Directory.GetFiles' pattern is only

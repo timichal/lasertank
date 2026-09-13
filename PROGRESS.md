@@ -68,6 +68,17 @@ on a rail with no cards in it, read from both ends. **All nineteen gates are gre
 included**, because nothing about the board moved. The full diagnosis, and the one wrong argument in
 `Ui.cs` that produced most of it, is in [*Finished*](docs/game/history.md).
 
+**And since step 11 the one table is a list you can use at the size the corpus actually is.**
+Steps 8 and 9 built it and gave it a pointer; what it still was, at 2,030 rows, was one screenful of
+a file with no way to narrow it, no way to see which rows were done, no way down it but the wheel,
+and a habit of closing itself whenever a finger slipped onto a letter. It has a filter bar — the
+original's Search sub-dialog inlined, substring, title-or-author, difficulty mask and only-unsolved
+— a three-rank mark column, gutters between its column rules, and a scrollbar that is the one thing
+in this interface that is *dragged*. **Four of the five changes turned out to be the original's own
+behaviour**, read out of `LTANK_D.C` rather than invented, which is the finding worth keeping: the
+port had gone past the C in places nobody had gone back and re-read. All nineteen gates are green
+and `chrome_check` has two more things to check. See [*Finished*](docs/game/history.md).
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
@@ -125,7 +136,7 @@ python tools/mouse_check.py      # MouseOperation vs the oracle, 5,000 scripts, 
 python tools/editor_check.py     # the editor + the .lvl it writes, ~25 s
 python tools/lang_check.py       # 10 languages back to the 2007 bytes, ~25 s
 python tools/collections_check.py  # the 23 collections + command 108's switch, ~20 s
-python tools/chrome_check.py     # the chrome under the mouse, ~90 s (opens windows)
+python tools/chrome_check.py     # the chrome under the mouse + the filter field, ~110 s
 ```
 
 All twelve want Godot; `atlas_check`, `sound_check`'s WAV half, `editor_check`'s third half and
@@ -137,7 +148,9 @@ first**, because `godot --path` does not — see
 windows for its pixel measurements; `--no-window` skips that half.
 **`chrome_check` is windows all the way down and cannot be otherwise** — the hit list is built by
 `_Draw` and by nothing else, so a headless run has an empty one; `--no-diff` cuts it to the twelve
-dumps, ~15 s.
+dumps, ~15 s. Since step 11 it also drives `--type` into the level list's filter field and asserts
+the row count, because that field is the one arm of the chrome neither `--press` nor `--click` can
+reach.
 
 **If a solve is running on this machine the plain build block does not work**, and the first symptom
 is a build failure, not a red gate: `src/build.sh` publishes into `build/`, which a live
@@ -160,10 +173,10 @@ waiting on and what the finished work beside it already answered, is in
 
 | # | what it is | the short of it |
 |---|---|---|
-| **1** | **i18n: actually use the translations** | 14 of the 155 keys per file are wired; the rest describe dialogs and a button strip this port does not have. The job is an audit — a key is read by a widget or it goes — and step 7 is what it was waiting for. Deleting one means editing all ten JSON files *and* `lang_check.py`'s expectation |
+| **1** | **i18n: actually use the translations** | 23 of the 155 keys per file are wired — nine of them new in step 11, which needed the Search dialog's own labels and took them; the rest describe dialogs and a button strip this port does not have. The job is an audit — a key is read by a widget or it goes — and step 7 is what it was waiting for. Deleting one means editing all ten JSON files *and* `lang_check.py`'s expectation |
 | **2** | **A menu bar** | still the cheapest fully-specified piece of the original left (73 items, both trees, already converted). But `F1` answered the discoverability half and step 9 answered the pointing half, so what is left is a route to the handful of commands nothing on screen names |
-| **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: two commands blocked on a file dialog, six on a modal prompt (step 8 built the first of those), the DeadBox's own first-turn guard, and a list of additive dialogs that change no row |
-| **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
+| **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: two commands blocked on a file dialog, six on a modal prompt (step 8 built the first of those), the DeadBox's own first-turn guard, and a shrinking list of additive dialogs — step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the level list's filter bar now |
+| **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
 
@@ -242,6 +255,16 @@ These are the ones that cost something. Each is a rule, not a story.
   times in parallel and leave the tree as it found it. `tick_check.py` replaying 208 winning
   recordings wrote `.hs` files into six collections of `data/` before this was noticed, and
   `.gitignore` is why nothing said so.
+  **And the list of what counts as an instrument is part of the rule.** Step 9's `--click`,
+  `--press` and `--dump-hits` were never added to it, so a run of any of them left to find
+  `LaserTank.ini` on its own got it *writable*. The gap hid for two steps because
+  `chrome_check.py` always passes `--ini` and an explicit `--ini` makes the options live anyway —
+  so the only way to meet it was to drive the chrome by hand, which is exactly what reviewing a
+  panel means. It cost a session's worth of `[DATA] RLLFilename` walking off onto another
+  collection, **and then a red gate that would not reproduce**: with the INI pointing at a
+  collection that ships no demos, `--panel playback` opened nothing and `chrome_check` reported
+  three missing targets that had nothing to do with any code. A gate that reads the player's
+  mutable state has a second failure mode nobody can reproduce.
 - **A gate that can write into `data/` is a bug in the gate, and so is a *feature* that can.** The
   editor is the first thing a *player* drives that writes a file the corpus is made of. Command 603
   saves in place; here, saving a level that came out of `data/` writes a working copy under

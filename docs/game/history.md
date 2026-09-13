@@ -635,3 +635,103 @@ only one that was never tested against a different face.** Both now measure what
 *clause* when the answer is too wide — a ranked list of shorter forms, with the marker legend last to
 go because nothing else documents it. That is the same shape as `LevelList.Fit` dropping the author
 column before it shrinks the type, which step 8 already got right one level up.
+
+## ~~Step 11: the level list becomes usable at 2,030 rows~~ — **done 2026-09-13**
+
+Step 8 built the one table and step 9 gave it a pointer. What it still was, as a *list*, was one
+screenful of a two-thousand-row file: no way to narrow it, no way to see at a glance which rows were
+done, no way down it except holding a key or spinning a wheel, and a habit of closing itself the
+moment a finger slipped onto a letter. Five changes — and **four of them turned out to be the
+original's own behaviour**, which is the finding worth keeping: the port had invented past the C in
+places nobody had gone back and read.
+
+**Only `Esc` closes it, and that is `TransListKey`.** `LTANK_D.C:87` is eleven lines and answers
+Home / Up / Down / End / PgUp / PgDn and `VK_ESCAPE`, returning **-2 — *no action* — for everything
+else**. The port's "any other key closes" was a step-7 convenience with no warrant here, and it is
+what a text field makes impossible anyway. Space went with it: the original's Enter is `WM_COMMAND`
+id 1 and space was never a second one. Every *other* panel keeps "any other key", because none of
+them has anywhere for a letter to go.
+
+**The filter bar is the Search sub-dialog, inlined.** `SearchBox` (`LTANK_D.C:197`) is a modal child
+of the LoadBox behind a `&Filter` button: a substring field, a Title/Author radio pair, a difficulty
+mask and an "only unsolved" checkbox. All four are here — in the panel rather than in a dialog over
+it, for the same reason step 8 merged three dialogs into one table: **a filter you cannot see while
+you read the list is a filter you forget is on.** The rules are the C's, including the one line that
+matters most and would never have been guessed: `if (TempRecData.SDiff == 0) TempRecData.SDiff = 255;`
+(`LTANK_D.C:414`) — **an unrated level is promoted before the mask test**, so it matches whatever is
+ticked. Without that line, unticking any one rank hides every unrated level in the corpus.
+
+Three departures, each deliberate. The field is **always focused**, so a letter filters — the
+listbox's own type-ahead, widened from a prefix to a substring, and the thing "only Esc closes" frees
+the keyboard for. A **digit query also matches the level number**, which is `ID_LOADLEV_02`, the "or
+Direct Level Number Entry" box the original put under its list, folded into the one field. And the
+**filter survives the panel closing** but not the collection changing — the original rebuilds
+unfiltered in `WM_INITDIALOG` every time, which is right for a dialog you open to pick one level and
+wrong for the only instrument this port has for traversing a collection.
+
+The original's own bug here is *not* reproduced, and it is named in `LevelList`'s header so nobody
+re-finds it and assumes it was missed: the search branch never resets `i` before its loop, so every
+row it lists is numbered from wherever the unfiltered pass left the counter.
+
+**The mark column replaced two markers with three ranks.** `*` solved, `**` matched the posted best,
+`***` beat it — at the row's own left edge, in the chrome's amber rather than in the row's difficulty
+tint, because the rank is one channel and the marks are another. What it replaces is the original's
+`**` beside the number and its `>` between the score groups, which were **one bit of information
+(`BHS`, `LTANK_D.C:939`) drawn twice** — and the four characters they cost are what paid for the
+column gutters below.
+
+**The predicate is deliberately narrower than `BHS`.** `LevelFile.Beats` counts an *absent* posted
+best as beaten, because there is nothing there to lose to — right for the original's marker, and it
+would put three stars on every solved row of any collection shipped without a `.ghs`, which is most
+of them. So ranks 2 and 3 require a posted best to exist. `Beats` itself is untouched: `BuildRows` is
+the transliteration and still calls it, and `list_check.py` still diffs it against Python.
+
+**The columns have gutters, and the rules are floats.** The two group hairlines were derived as
+`cell - 1` and drawn at `+ 0.5`, which put them half a glyph from the cells either side. The
+commonest `who` in the corpus is four characters — `%4s` is the reachable width of a six-byte field —
+and it touched the rule dividing it from your own score. The rule positions are floats in character
+units now and sit a character and a half clear on both sides. Same species as everything else in this
+table: **a column is a position, so its divider has one too.**
+
+**A scrollbar, and it is the one target in this interface that is dragged.** Everything step 9
+registered is a click, and `Hits` carries the fact of a click and not the pointer's position — which
+is most of why it can be forty lines. So the thumb gets a latch instead: the press on `scroll` sets a
+flag in `BoardView` and `MouseMotion` feeds `LevelList.DragTo` until the button comes up. It moves
+`_top` and pulls the cursor into the viewport after it, which is the mirror image of what the wheel
+does: **the panel has one position and not two**, for the reason in `Scroll`'s comment.
+
+### The instrument, and the rule that asked for it
+
+The filter field is the one arm of the chrome that **neither existing instrument can reach**:
+`--press` goes through `BoardView.Press`, which is the accelerator table, and a text field is not an
+accelerator; `--click` reaches only what the hit list holds, and the field is a swallow because it is
+always focused. So the one part of this step that it was mostly *for* would have shipped with no way
+to review it — which is exactly *"an exit criterion that only says nothing changed is not one"*, the
+rule the silent tank taught. `--type STRING` is that instrument: characters through the same
+`Key(InputEventKey)` the router calls, and a `type <s> list=True rows=N of=M filtering=B q=Q` line
+for a gate to read. `chrome_check.py` drives five queries through it and asserts the row *count*,
+which is the one number all four filter fields land in — as bounds, not exact counts, because
+`LaserTank.lvl` is corpus data and a gate that pinned 7 would go red the day someone adds a level
+called Sokoban.
+
+**`\b` and `\t` are two characters on that command line, not control codes.** A real backspace does
+not survive the shell, Python's argument quoting and Godot's own command-line split — measured, not
+assumed, and the symptom was a backspace that silently did nothing while the digits beside it went
+green. `BoardView.Unescape` decodes them.
+
+### Two things found on the way, and both were older than this step
+
+**`--click`, `--press` and `--dump-hits` were not on the instrument list.** `Ui`'s own rule is that
+an instrument left to find `LaserTank.ini` on its own gets it **read-only** — *"the test is whether a
+gate could be run eight times in parallel and leave the tree as it found it"* — and step 9's three
+flags were never added to it. The gap never showed because `chrome_check.py` always passes `--ini`,
+and an explicit `--ini` makes the options live anyway. What it cost was an afternoon of driving the
+chrome by hand: each run rewrote the player's INI, and the session ended with `[DATA] RLLFilename`
+pointing at a different collection than the one that had been open. All four flags are on the list
+now.
+
+**And that was why `chrome_check`'s playback screen had been red.** `--panel playback` wants
+`data/demos/<collection>/00001.lpb`; with the INI pointing at a collection that ships no demos, the
+panel never opened and the gate saw the play screen's targets instead. It is green on all twelve
+screens again, which makes the fix above load-bearing rather than tidy: **a gate that reads the
+player's mutable state has a second failure mode nobody can reproduce.**

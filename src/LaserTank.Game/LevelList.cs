@@ -1,5 +1,5 @@
 // Phase 5, step 4: the level picker and the two high-score lists -- one table
-// since step 8.
+// since step 8, and a table you can *search* since step 11.
 //
 // The original has three dialogs here and they are one dialog three times:
 //
@@ -52,9 +52,86 @@
 //     columns of bare numbers is what the global list was, and nothing on
 //     screen said which three were the posted best and which three were yours.
 //
-// What is not here: the Search sub-dialog (SearchBox, LTANK_D.C:394 -- name or
-// author substring, difficulty mask, skip-completed) and TransListKey's
-// type-ahead.  Both are additive and neither changes a row.
+// ---------------------------------------------------------------------------
+// STEP 11: the five things a 2,030-row table needed and did not have
+// ---------------------------------------------------------------------------
+//
+// Step 8 built the table and step 9 gave it a pointer.  What it still was, as a
+// *list*, was one screenful of a two-thousand-row file with no way to narrow it,
+// no way to see at a glance which rows were done, no way down it except holding
+// a key or spinning a wheel, and a habit of closing itself whenever a finger
+// slipped onto a letter.  Five changes, and four of them turn out to be the
+// original's own behaviour rather than an invention:
+//
+//   1. **The columns have gutters.**  The two group hairlines were placed half a
+//      character from the cells either side of them, so a four-character `who`
+//      -- the commonest width in the corpus, `%4s` being the reachable width of
+//      a six-byte field -- ran straight into the rule dividing it from your own
+//      score.  The rules are floats in character units now and sit a character
+//      and a half clear on both sides.  What paid for the width is the `>`
+//      marker, below.
+//
+//   2. **Only Escape closes it.**  This is TransListKey (LTANK_D.C:87), read
+//      rather than guessed: it answers Home / Up / Down / End / PgUp / PgDn and
+//      `VK_ESCAPE`, and returns -2 -- *no action* -- for everything else.  The
+//      port's "any other key closes" was a step-7 convenience that had no
+//      warrant here and that a search field makes impossible anyway, since every
+//      letter now has somewhere to go.  Space went with it: the original's Enter
+//      is `WM_COMMAND` id 1 and space was never a second one.
+//
+//   3. **A filter bar, which is the Search sub-dialog inlined.**  `SearchBox`
+//      (LTANK_D.C:197) is a modal child of the LoadBox behind the `&Filter`
+//      button (ID_LOADLEV_03) with a substring field, a Title/Author radio pair,
+//      a difficulty mask and an "only unsolved" checkbox.  All four are here, in
+//      the panel itself rather than in a dialog over it, for the same reason
+//      step 8 merged three dialogs into one table: a filter you cannot see while
+//      you read the list is a filter you forget is on.  **The rules are the
+//      C's**: the match is a case-insensitive substring of the name *or* the
+//      author and never both (`mode` 1 or 2); the mask is the same five bits;
+//      and an unrated level is promoted to 255 before the mask test
+//      (`if (TempRecData.SDiff == 0) TempRecData.SDiff = 255;`, LTANK_D.C:414),
+//      so it matches whatever is ticked rather than nothing.
+//
+//      Three departures, each deliberate.  **The field is always focused**, so a
+//      letter filters rather than closing the panel -- which is the listbox's
+//      own type-ahead generalised from a prefix to a substring, and it is what
+//      change 2 frees the keyboard for.  **A digit query also matches the level
+//      number**, which is ID_LOADLEV_02, the "or Direct Level Number Entry"
+//      field the original put under its list; folding it into the one field is
+//      cheaper than a second one and is how you reach level 1,840 of Tutor.
+//      And **the filter survives the panel closing** but not the collection
+//      changing: the original rebuilds the list unfiltered in WM_INITDIALOG
+//      every time, which is right for a dialog you open to pick one level and
+//      wrong for the only instrument this port has for traversing a collection.
+//
+//      The original's own bug here is *not* reproduced, and it is worth naming
+//      so nobody re-finds it and thinks it was missed: the search branch never
+//      resets `i` before its loop, so every row it lists is numbered from
+//      wherever the unfiltered pass left the counter.  It is a display fault in
+//      a dialog this port no longer draws, and the table's numbers come from the
+//      level record.
+//
+//   4. **The mark column.**  Three ranks at the row's own left edge: `*` you
+//      have solved it, `**` you matched the posted best exactly, `***` you beat
+//      it.  This replaces the original's `**`-by-the-number and the `>` between
+//      the two score groups, which were one bit of information (BHS,
+//      LTANK_D.C:939) drawn twice.  **The predicate is narrower than BHS on
+//      purpose**: `LevelFile.Beats` counts an *absent* posted best as beaten,
+//      which is right for the original's marker and would put three stars on
+//      every solved row of a collection with no `.ghs` beside it.  So the third
+//      star wants a posted best to exist.  `Beats` itself is untouched --
+//      BuildRows is the transliteration and still calls it.
+//
+//   5. **A scrollbar, and it is the one target in this interface that is
+//      dragged.**  Everything step 9 registered is a click; the thumb follows
+//      the pointer, so BoardView keeps a `_dragList` latch and feeds motion to
+//      DragTo.  It moves `_top` and pulls the cursor into the viewport after it,
+//      which is the mirror image of what Move does -- the panel still has one
+//      position and not two, for the reason in Scroll's comment.
+//
+// What is still not here: `Backspace[]`'s ten-level history (118), and a grab
+// offset on the thumb (it centres on the pointer, which is also what a click on
+// the bare track should do).
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -116,8 +193,16 @@ namespace LaserTank.Game
         private THSREC[] _mine = Array.Empty<THSREC>();
         private THSREC[] _posted = Array.Empty<THSREC>();
         /// The table, and the table without the author column -- see Fit.
+        /// Both are indexed by *level*, not by visible row: the filter is an
+        /// order, not a rebuild.
         private string[] _wide = Array.Empty<string>();
         private string[] _narrow = Array.Empty<string>();
+        /// The mark column's rank per level: 0 none, 1 solved, 2 par, 3 beaten.
+        private int[] _marks = Array.Empty<int>();
+        /// The level indices the filter admits, in file order.  `_sel` and
+        /// `_top` are positions *in here*, which is the whole of what makes a
+        /// filtered list work: everything else stays indexed by level.
+        private int[] _order = Array.Empty<int>();
         private int _sel, _top;
         private string _lvlName = "";
         private int _solved;
@@ -135,7 +220,44 @@ namespace LaserTank.Game
 
         public LevelList(BoardView view) { _view = view; }
 
-        public int Count => _wide.Length;
+        /// How many rows the filter admits, and how many there are in all --
+        /// the pair `--type` logs, because a count means nothing without the
+        /// number it is a fraction of.
+        public int Count => _order.Length;
+        public int Total => _levels.Length;
+        /// The query as it stands, upper-cased, for the same log.
+        public string Query => _q;
+
+        // ---- the filter -----------------------------------------------------
+        //
+        // SearchRec (LTANK.H), which is a global in the original and so survives
+        // the dialog -- the difference being that the original rebuilds its list
+        // unfiltered every time the dialog opens, and this one does not.  See
+        // the header, change 3.
+
+        /// SearchRec.data, upper-cased as `strupr(SearchRec.data)` leaves it.
+        private string _q = "";
+        /// SearchRec.mode: 1 is the title, 2 is the author.  One or the other,
+        /// never both -- the original's two controls are a radio pair.
+        private bool _byAuthor;
+        /// SearchRec.Diff, the five bits 1/2/4/8/16.  All five is the unchecked
+        /// "Filter by Difficulty" box, which the C spells 255.
+        private int _diff = All;
+        /// SearchRec.SkipComp.
+        private bool _unsolvedOnly;
+        private const int All = 1 | 2 | 4 | 8 | 16;
+        /// GetWindowText(..., SearchRec.data, 60).
+        private const int QueryMax = 60;
+
+        /// Which collection the filter was last applied to, so that opening a
+        /// different one starts clean.  A name filter is about the rows in front
+        /// of you and means nothing once they are someone else's rows.
+        private string _forPath = "";
+
+        /// Whether anything is narrowing the list, which is what the caption
+        /// has to say before it prints a count.
+        public bool Filtering =>
+            _q.Length > 0 || _byAuthor || _diff != All || _unsolvedOnly;
 
         /// Read the three files and build the table.  The original does this in
         /// WM_INITDIALOG, once per opening, and so does this: a .hs written by
@@ -149,6 +271,7 @@ namespace LaserTank.Game
             catch (IOException) { _levels = Array.Empty<TLEVELINFO>(); }
             _mine = ReadAll(files.Hs);
             _posted = ReadAll(files.Ghs);
+            _marks = BuildMarks(_levels, _mine, _posted);
             _wide = BuildTable(_levels, _mine, _posted, Wide);
             _narrow = BuildTable(_levels, _mine, _posted, Narrow);
 
@@ -156,11 +279,20 @@ namespace LaserTank.Game
             // the same reason it shows it: it is the only number in this game
             // that answers "where was I".
             _solved = 0;
-            foreach (THSREC r in _mine) if (r.Moves > 0) _solved++;
+            foreach (int m in _marks) if (m > 0) _solved++;
 
-            // LB_SETCURSEL on CurLevel - 1 (LTANK_D.C:359).
-            _sel = Math.Clamp(current - 1, 0, Math.Max(0, _wide.Length - 1));
-            _top = Math.Max(0, _sel - _rowsShown / 2);
+            if (!string.Equals(_forPath, lvlPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _q = "";
+                _byAuthor = false;
+                _diff = All;
+                _unsolvedOnly = false;
+                _forPath = lvlPath;
+            }
+
+            // LB_SETCURSEL on CurLevel - 1 (LTANK_D.C:359) -- through the filter,
+            // because with one on there may be no row for the level you are on.
+            Apply(current);
             Open = true;
         }
 
@@ -197,6 +329,105 @@ namespace LaserTank.Game
 
         private static THSREC At(THSREC[] a, int i) => i < a.Length ? a[i] : null;
 
+        /// The mark column, one rank per level.
+        ///
+        /// **Not `LevelFile.Beats`, and the difference is the point.**  Beats
+        /// answers the original's BHS question -- "is this a high score worth
+        /// posting" -- and a missing or blank posted best counts as beaten,
+        /// because there is nothing there to lose to.  A *rating* cannot say
+        /// that: three stars for beating a par that does not exist would put
+        /// three stars on every solved row of any collection shipped without a
+        /// `.ghs`, which is most of them.  So ranks 2 and 3 both require a
+        /// posted best, and a solved level with nothing to compare against stops
+        /// at one star.
+        private static int[] BuildMarks(TLEVELINFO[] levels, THSREC[] mine,
+                                        THSREC[] posted)
+        {
+            var marks = new int[levels.Length];
+            for (int i = 0; i < levels.Length; i++)
+            {
+                THSREC my = At(mine, i), best = At(posted, i);
+                // The original's own test for "have I solved this" is
+                // `moves > 0` and nothing else.
+                if (my == null || my.Moves == 0) continue;
+                marks[i] = 1;
+                if (best == null || best.Moves == 0) continue;
+                if (my.Moves < best.Moves
+                    || (my.Moves == best.Moves && my.Shots < best.Shots))
+                    marks[i] = 3;
+                else if (my.Moves == best.Moves && my.Shots == best.Shots)
+                    marks[i] = 2;
+            }
+            return marks;
+        }
+
+        /// `*`, `**`, `***` -- and "" for a level with no score record.
+        private static string Stars(int rank) => rank switch
+        {
+            1 => "*", 2 => "**", 3 => "***", _ => "",
+        };
+
+        // ---- the filter, applied --------------------------------------------
+
+        /// Rebuild `_order` from the four filter fields, and keep the cursor on
+        /// the level it was on if that level survived.
+        ///
+        /// `keepLevel` is a *level number* (1-based) when the caller has one --
+        /// Show passes CurLevel -- and 0 when it wants the current cursor kept,
+        /// which is every filter keystroke.
+        private void Apply(int keepLevel = 0)
+        {
+            // Which level the cursor is on now, so a narrowing filter does not
+            // drop the player back at row 0 of a list they were halfway down.
+            int want = keepLevel > 0 ? keepLevel
+                     : _sel < _order.Length ? _levels[_order[_sel]].Number : 0;
+
+            int qnum = 0;
+            bool numeric = !_byAuthor && int.TryParse(_q, out qnum) && qnum > 0;
+
+            var ord = new List<int>(_levels.Length);
+            for (int i = 0; i < _levels.Length; i++)
+            {
+                TLEVELINFO lv = _levels[i];
+                // LTANK_D.C:414: an unrated level is promoted to 255 before the
+                // mask test, so it passes whatever is ticked.  Without this line
+                // every unrated level vanishes the moment any rank is unticked,
+                // which is most of the community corpus.
+                int sdiff = lv.SDiff == 0 ? 255 : lv.SDiff;
+                if ((sdiff & _diff) == 0) continue;
+                // SearchRec.SkipComp, which the C tests as `TempHSData.moves == 0`.
+                if (_unsolvedOnly && _marks[i] > 0) continue;
+                if (_q.Length > 0)
+                {
+                    string hay = (_byAuthor ? lv.Author : lv.LName) ?? "";
+                    bool hit = hay.ToUpperInvariant()
+                                  .Contains(_q, StringComparison.Ordinal);
+                    // ID_LOADLEV_02, the direct level-number entry, folded into
+                    // the one field: a query that is only digits also matches
+                    // the number itself.
+                    if (!hit && numeric && lv.Number == qnum) hit = true;
+                    if (!hit) continue;
+                }
+                ord.Add(i);
+            }
+            _order = ord.ToArray();
+            SelectLevel(want);
+        }
+
+        /// Put the cursor on level `number`, or on the nearest row the filter
+        /// still admits -- the list is in file order, so "nearest" is the first
+        /// row at or past it, and the last row when there is none.
+        private void SelectLevel(int number)
+        {
+            _sel = 0;
+            for (int i = 0; i < _order.Length; i++)
+            {
+                _sel = i;
+                if (_levels[_order[i]].Number >= number) break;
+            }
+            _top = Math.Max(0, _sel - _rowsShown / 2);
+        }
+
         // ---- the table ------------------------------------------------------
         //
         // One row per level, in character columns, because the rows are drawn in
@@ -209,8 +440,15 @@ namespace LaserTank.Game
         /// the narrow layout, which is the whole of the difference.
         private sealed class Cells
         {
-            public int Num, Flag, Name, Author, BMoves, BShots, BWho, Gt,
+            public int Mark, Num, Name, Author, BMoves, BShots, BWho,
                        MMoves, MShots, MWho, Width;
+            /// Where the two group hairlines go, in character units -- **floats,
+            /// because a rule that divides two columns belongs between two
+            /// character cells and not inside one.**  They used to be derived as
+            /// `cell - 1` and drawn at `+ 0.5`, which put them half a glyph from
+            /// the cells either side: the commonest `who` in the corpus is four
+            /// characters wide and it touched the rule.
+            public float Rule1, Rule2;
         }
 
         /// **Every width here is the original's.**  `%4d` on the number, the
@@ -225,18 +463,23 @@ namespace LaserTank.Game
         /// nothing after it.  Here it has two score groups after it, so it is
         /// cut at 20 -- which is past the last character of all but a handful of
         /// the corpus's authors.
+        ///
+        /// **The three characters at the far left are the mark column**, and
+        /// what paid for the gutters is the original's `**` beside the number
+        /// and its `>` between the score groups: one bit drawn twice, now three
+        /// ranks drawn once.  See the header, change 4.
         private static readonly Cells Wide = new()
         {
-            Num = 0, Flag = 5, Name = 8, Author = 39,
-            BMoves = 60, BShots = 66, BWho = 72, Gt = 77,
-            MMoves = 79, MShots = 85, MWho = 91, Width = 95,
+            Mark = 0, Num = 4, Name = 9, Author = 40,
+            Rule1 = 61.5f, BMoves = 63, BShots = 69, BWho = 75,
+            Rule2 = 80.5f, MMoves = 82, MShots = 88, MWho = 94, Width = 98,
         };
 
         private static readonly Cells Narrow = new()
         {
-            Num = 0, Flag = 5, Name = 8, Author = -1,
-            BMoves = 39, BShots = 45, BWho = 51, Gt = 56,
-            MMoves = 58, MShots = 64, MWho = 70, Width = 74,
+            Mark = 0, Num = 4, Name = 9, Author = -1,
+            Rule1 = 40.5f, BMoves = 42, BShots = 48, BWho = 54,
+            Rule2 = 59.5f, MMoves = 61, MShots = 67, MWho = 73, Width = 77,
         };
 
         /// Text at given character columns, space-filled between.  A cell that
@@ -261,6 +504,11 @@ namespace LaserTank.Game
         /// a later level -- leaves its three cells blank.  Blank is the honest
         /// rendering: the original's own test for "have I solved this" is
         /// `moves > 0` and nothing else.
+        ///
+        /// **The mark column is left blank here and drawn separately**, because
+        /// it is not in the row's colour: the row is tinted by difficulty and
+        /// the marks are a second channel, so setting them in the rank's colour
+        /// would be two meanings in one hue.
         private static string[] BuildTable(TLEVELINFO[] levels, THSREC[] mine,
                                            THSREC[] posted, Cells c)
         {
@@ -271,23 +519,14 @@ namespace LaserTank.Game
                 THSREC my = At(mine, i), best = At(posted, i);
                 bool solved = my != null && my.Moves > 0;
                 bool haveBest = best != null && best.Moves > 0;
-                // BHS (LTANK_D.C:939): I have solved it and I am better than the
-                // posted best -- and a best that is absent or blank counts as
-                // beaten, which is LevelFile.Beats' own first clause.
-                bool bhs = solved && LevelFile.Beats(my.Moves, my.Shots, best);
 
                 string s = Cols(
                     (c.Num, $"{lv.Number,4}"),
-                    // The original's own two markers, in the original's own
-                    // places: `**` by the number and `>` between the posted best
-                    // and yours, pointing at yours.
-                    (c.Flag, bhs ? "**" : null),
                     (c.Name, Pad(lv.LName, 30)),
                     (c.Author, c.Author < 0 ? null : Pad(lv.Author, 20)),
                     (c.BMoves, haveBest ? $"{best.Moves,5}" : null),
                     (c.BShots, haveBest ? $"{best.Shots,5}" : null),
                     (c.BWho, haveBest ? best.Name : null),
-                    (c.Gt, bhs ? ">" : null),
                     (c.MMoves, solved ? $"{my.Moves,5}" : null),
                     (c.MShots, solved ? $"{my.Shots,5}" : null),
                     (c.MWho, solved ? my.Name : null));
@@ -335,7 +574,9 @@ namespace LaserTank.Game
         ///
         /// **Step 8 stopped drawing these** -- the panel draws BuildTable -- and
         /// they stay because the gate is the reason they were written down.  The
-        /// widths they carry are the widths the table uses.
+        /// widths they carry are the widths the table uses, and **`Beats` is
+        /// still the BHS predicate here**: step 11's mark column wants a
+        /// narrower one (see BuildMarks) and did not get it by changing this.
         public static string[] BuildRows(ListMode mode, TLEVELINFO[] levels,
                                          THSREC[] mine, THSREC[] posted)
         {
@@ -400,44 +641,131 @@ namespace LaserTank.Game
         /// frame, which cannot happen -- Show is called from the key handler.
         private int _rowsShown = 20;
 
-        public bool Key(Key k)
+        /// **TransListKey (LTANK_D.C:87), read rather than guessed.**  Home, Up,
+        /// Down, End, PgUp, PgDn and Escape are the keys the original's listbox
+        /// answers; everything else returns -2, which is *no action*.  So a
+        /// letter does not close this panel, which is what leaves the alphabet
+        /// free for the filter field -- and that is the trade: the port's step-7
+        /// "any other key closes" was a convenience with no warrant in the C,
+        /// and a panel with a text field in it cannot have both.
+        ///
+        /// PgUp and PgDn move by a screenful rather than by the original's flat
+        /// ten, because the panel measures its own height and a page that is not
+        /// the visible page is worse than no page key at all.
+        public bool Key(InputEventKey k)
         {
-            switch (k)
+            Key code = k.Keycode;
+
+            // The filter's own chords.  Ctrl, because every unmodified printable
+            // key is the field now -- and digits are exactly what a player types
+            // to reach a level number.
+            if (k.CtrlPressed)
             {
+                switch (code)
+                {
+                    case Godot.Key.Key0: _diff = All; Apply(); break;
+                    case Godot.Key.Key1: Rank(1); break;
+                    case Godot.Key.Key2: Rank(2); break;
+                    case Godot.Key.Key3: Rank(4); break;
+                    case Godot.Key.Key4: Rank(8); break;
+                    case Godot.Key.Key5: Rank(16); break;
+                    case Godot.Key.U: _unsolvedOnly = !_unsolvedOnly; Apply(); break;
+                }
+                // A chord this panel does not use is still eaten: it is modal.
+                return true;
+            }
+
+            switch (code)
+            {
+                case Godot.Key.Escape: Close(); break;
                 case Godot.Key.Up: Move(-1); break;
                 case Godot.Key.Down: Move(1); break;
                 case Godot.Key.Pageup: Move(-_rowsShown); break;
                 case Godot.Key.Pagedown: Move(_rowsShown); break;
-                case Godot.Key.Home: Move(-_wide.Length); break;
-                case Godot.Key.End: Move(_wide.Length); break;
+                case Godot.Key.Home: Move(-_order.Length); break;
+                case Godot.Key.End: Move(_order.Length); break;
+                // SearchRec.mode, the original's Title/Author radio pair.  Tab
+                // because it is the one navigation key the field does not want,
+                // and because the editor's three fields already spend Tab on
+                // moving between controls.
+                case Godot.Key.Tab: _byAuthor = !_byAuthor; Apply(); break;
+                case Godot.Key.Backspace:
+                    if (_q.Length > 0) { _q = _q.Substring(0, _q.Length - 1); Apply(); }
+                    break;
                 case Godot.Key.Enter:
                 case Godot.Key.KpEnter:
-                case Godot.Key.Space:
-                    if (_wide.Length > 0 && _sel < _levels.Length)
-                        Chosen = _levels[_sel].Number;
-                    Close();
+                    Commit();
                     break;
                 default:
-                    // Cancel (id 2) or the key that opened it.  A dialog eats
-                    // everything else.
-                    Close();
+                    // The field.  This is the listbox's own type-ahead widened
+                    // from a prefix to a substring -- and `strupr` is why the
+                    // query is stored upper-cased.
+                    long u = k.Unicode;
+                    if (u >= 32 && u != 127 && _q.Length < QueryMax)
+                    {
+                        _q += char.ToUpperInvariant((char)u);
+                        Apply();
+                    }
                     break;
             }
             return true;
         }
 
+        /// Toggle one bit of SearchRec.Diff, and read "none of them" as "all of
+        /// them" -- an empty mask is a list with nothing in it, which is never
+        /// what the keystroke meant.
+        private void Rank(int bit)
+        {
+            _diff ^= bit;
+            if (_diff == 0) _diff = All;
+            Apply();
+        }
+
+        private void Commit()
+        {
+            if (_sel < _order.Length) Chosen = _levels[_order[_sel]].Number;
+            Close();
+        }
+
         private void Move(int d)
         {
-            if (_wide.Length == 0) return;
-            _sel = Math.Clamp(_sel + d, 0, _wide.Length - 1);
+            if (_order.Length == 0) return;
+            _sel = Math.Clamp(_sel + d, 0, _order.Length - 1);
             _top = Math.Clamp(_top, _sel - _rowsShown + 1, _sel);
-            _top = Math.Clamp(_top, 0, Math.Max(0, _wide.Length - _rowsShown));
+            _top = Math.Clamp(_top, 0, Math.Max(0, _order.Length - _rowsShown));
         }
 
         /// The wheel.  It moves the *selection*, not a second scroll position:
         /// Draw clamps the viewport to the cursor, so a list that scrolled away
         /// from its own cursor would snap back on the next arrow key.
         public void Scroll(int d) => Move(d);
+
+        /// The scrollbar, which is the same argument run the other way: it sets
+        /// the viewport and then pulls the cursor into it, so there is still one
+        /// position and not two.
+        private void ScrollTo(int top)
+        {
+            if (_order.Length == 0) return;
+            _top = Math.Clamp(top, 0, Math.Max(0, _order.Length - _rowsShown));
+            _sel = Math.Clamp(_sel, _top,
+                              Math.Min(_order.Length - 1, _top + _rowsShown - 1));
+        }
+
+        /// A pointer at window y, on the track.  **The one target in this
+        /// interface that is dragged** -- BoardView latches the press and feeds
+        /// every motion here until the button comes up.  The thumb centres on
+        /// the pointer rather than keeping a grab offset, which makes a click on
+        /// the bare track a jump to that place and a press-and-move a drag, out
+        /// of one rule.
+        public void DragTo(float y)
+        {
+            int n = _order.Length;
+            if (_trackH <= 0f || n <= _rowsShown) return;
+            float span = _trackH - _thumbH;
+            if (span <= 0f) return;
+            float f = Mathf.Clamp((y - _thumbH / 2f - _trackY) / span, 0f, 1f);
+            ScrollTo(Mathf.RoundToInt(f * (n - _rowsShown)));
+        }
 
         /// A click on a row.  **The first lands on it and the second loads it**
         /// -- a double-click that does not have to be fast.  Godot's own
@@ -447,14 +775,9 @@ namespace LaserTank.Game
         /// table is not a place to load something on the first tap.
         private void Pick(int i)
         {
-            if (_wide.Length == 0) return;
-            if (i == _sel)
-            {
-                if (i < _levels.Length) Chosen = _levels[i].Number;
-                Close();
-                return;
-            }
-            _sel = Math.Clamp(i, 0, _wide.Length - 1);
+            if (_order.Length == 0) return;
+            if (i == _sel) { Commit(); return; }
+            _sel = Math.Clamp(i, 0, _order.Length - 1);
         }
 
         // ---- drawing --------------------------------------------------------
@@ -463,6 +786,16 @@ namespace LaserTank.Game
         /// window really does page by a bigger screenful rather than scrolling
         /// the same fifteen rows faster.
         private static int Line => Ui.Px(16);
+
+        /// The scrollbar's column, taken out of the table's width rather than
+        /// laid over it: a track that overlapped the rows would steal the right
+        /// end of every one of them from the pointer.
+        private static int Gutter => Ui.Px(20);
+
+        /// The track, remembered from the last Draw so that DragTo can map a
+        /// window y back to a row -- the same one-rectangle rule the hit list is
+        /// built on, applied to a thing that is dragged instead of clicked.
+        private float _trackY, _trackH, _thumbH;
 
         /// Which layout and which type size the window can actually hold.
         ///
@@ -491,8 +824,8 @@ namespace LaserTank.Game
         /// answers with that glyph's own measured width, which is not the
         /// advance the next glyph would be placed at -- here it came back 0.15
         /// px wide, and 0.15 px times the 77 characters from the left edge to
-        /// the `>` column is a drifting column rule that crosses the text it is
-        /// supposed to divide. Dividing a long run by its length is the advance
+        /// the last column is a drifting column rule that crosses the text it is
+        /// supposed to divide.  Dividing a long run by its length is the advance
         /// itself, bearings and all.
         private const string Ruler = "00000000000000000000000000000000";
 
@@ -509,16 +842,19 @@ namespace LaserTank.Game
             // the window bigger than the board, and a list that filled the
             // *board* on a wide one sat off to the left of everything else.
             Ui.Scrim(n, host);
-            // "Any other key closes", for a pointer.  Registered before the
-            // panel because the hit list is walked backwards -- see Hits.
+            // A click outside closes, which is the pointer's form of Escape --
+            // and since step 11 it is the *only* form of "not this one" the
+            // mouse has, because every letter belongs to the filter now.
+            // Registered before the panel because the hit list is walked
+            // backwards -- see Hits.
             _view.Chrome.Add(host, "scrim", Close);
 
             float pad = Ui.Px(18);
-            (Cells c, float size, float table) = Fit(host.Size.X - Ui.Px(40) - 2 * pad,
-                                                     mono);
-            float w = Mathf.Min(Mathf.Max(Ui.Px(420), table + 2 * pad),
+            (Cells c, float size, float table) = Fit(
+                host.Size.X - Ui.Px(40) - 2 * pad - Gutter, mono);
+            float w = Mathf.Min(Mathf.Max(Ui.Px(460), table + 2 * pad + Gutter),
                                 host.Size.X - Ui.Px(40));
-            float h = Mathf.Min(Ui.Px(620), host.Size.Y - Ui.Px(40));
+            float h = Mathf.Min(Ui.Px(700), host.Size.Y - Ui.Px(40));
             var panel = new Rect2(
                 Mathf.Round(host.Position.X + (host.Size.X - w) / 2f),
                 Mathf.Round(host.Position.Y + (host.Size.Y - h) / 2f), w, h);
@@ -547,18 +883,28 @@ namespace LaserTank.Game
             // than the line between the title and the close button.
             float capL = x + Ui.CapsWidth(_view.Strings[TitleKey], 12) + Ui.Px(20);
             float capR = close.Position.X - Ui.Px(10);
-            string cap = $"{_lvlName}  ·  {_wide.Length} levels  ·  {_solved} solved";
+            // With a filter on, the first number is what you can see and the
+            // second is what is in the file: a bare `12 levels` under a filter
+            // would be a lie about the collection.
+            string count = Filtering
+                ? $"{_order.Length} of {_levels.Length} levels"
+                : $"{_levels.Length} levels";
+            string cap = $"{_lvlName}  ·  {count}  ·  {_solved} solved";
             if (Ui.Width(cap, 11) > capR - capL)
-                cap = $"{_wide.Length} levels  ·  {_solved} solved";
+                cap = $"{count}  ·  {_solved} solved";
             if (Ui.Width(cap, 11) > capR - capL)
-                cap = $"{_solved}/{_wide.Length}";
+                cap = $"{_solved}/{_levels.Length}";
             Ui.Write(n, new Vector2(capL, y), cap, 11, Ui.Faint, capR - capL,
                      HorizontalAlignment.Right);
             y += Ui.Px(12);
             Ui.Rule(n, x, y, w);
-            y += Ui.Px(16);
+            y += Ui.Px(20);
 
-            if (_wide.Length == 0)
+            y = FilterBar(n, x, y, w);
+            Ui.Rule(n, x, y, w);
+            y += Ui.Px(18);
+
+            if (_levels.Length == 0)
             {
                 Ui.Write(n, new Vector2(x, y + Ui.Px(10)),
                          "the level file could not be read", 12, Ui.Bad, w);
@@ -567,6 +913,7 @@ namespace LaserTank.Game
             }
 
             // ---- the two header lines, at the table's own columns.
+            float tw = w - Gutter;
             float chw = Advance(mono, size);
             float headTop = y - Line + 4;
             // **At the rows' own size, not a size down.**  The header cells are
@@ -577,10 +924,10 @@ namespace LaserTank.Game
             // reads as broken.  Faint rather than small is what makes them
             // headers.
             n.DrawString(mono, new Vector2(x, y), GroupLine(c), HorizontalAlignment.Left,
-                         w, Ui.Px(size), Ui.Faint * new Color(1, 1, 1, 0.7f));
+                         tw, Ui.Px(size), Ui.Faint * new Color(1, 1, 1, 0.7f));
             y += Line;
             n.DrawString(mono, new Vector2(x, y), HeaderLine(c),
-                         HorizontalAlignment.Left, w, Ui.Px(size), Ui.Faint);
+                         HorizontalAlignment.Left, tw, Ui.Px(size), Ui.Faint);
             y += Ui.Px(6);
             Ui.Rule(n, x, y, w);
             y += Line;
@@ -589,14 +936,28 @@ namespace LaserTank.Game
             // page-up moves by exactly one screenful at every board size.
             int rows = Math.Max(1, (int)((panel.End.Y - y - Ui.Px(30)) / Line));
             _rowsShown = rows;
-            int top = Math.Clamp(_top, 0, Math.Max(0, _wide.Length - rows));
+            float rowsTop = y - Line + 4;
+
+            if (_order.Length == 0)
+            {
+                // A filter that matches nothing has to say so: an empty panel
+                // under a bar full of switches reads as a broken collection.
+                Ui.Write(n, new Vector2(x, y + Ui.Px(4)),
+                         "no level matches the filter", 12, Ui.Dim, tw);
+                Scrollbar(n, panel.End.X - pad - Gutter + Ui.Px(6), rowsTop,
+                          rows * Line + 3, rows);
+                Footer(n, panel, x, w);
+                return;
+            }
+
+            int top = Math.Clamp(_top, 0, Math.Max(0, _order.Length - rows));
             top = Math.Clamp(top, _sel - rows + 1, _sel);
             // Written back, not just used: Show() has to guess a page size
             // before the first frame, and a `_top` that disagrees with what was
             // drawn makes the next arrow key jump.
             _top = top = Math.Max(0, top);
             string[] table_ = c.Author < 0 ? _narrow : _wide;
-            int shown = Math.Min(rows, table_.Length - top);
+            int shown = Math.Min(rows, _order.Length - top);
 
             // **Two hairlines, and they are what make it a table.**  Without
             // them the six score cells are one run of numbers -- `103 46 Duck
@@ -606,21 +967,24 @@ namespace LaserTank.Game
             // them rather than being cut by them, and they stop at the last row
             // rather than running to the panel's floor, because a rule below
             // the last row is a rule around nothing.
-            float bottom = y - Line + 4 + shown * Line + 3;
-            foreach (int at in new[] { c.BMoves - 1, c.Gt - 1 })
-                n.DrawRect(new Rect2(Mathf.Round(x + chw * (at + 0.5f)), headTop,
+            float bottom = rowsTop + shown * Line + 3;
+            foreach (float at in new[] { c.Rule1, c.Rule2 })
+                n.DrawRect(new Rect2(Mathf.Round(x + chw * at), headTop,
                                      Mathf.Max(1, Ui.Px(1)), bottom - headTop),
                            Ui.Border);
 
-            for (int i = top; i < Math.Min(table_.Length, top + rows); i++)
+            for (int i = top; i < Math.Min(_order.Length, top + rows); i++)
             {
-                string row = table_[i];
+                int lvi = _order[i];
+                string row = table_[lvi];
                 Color tint = DifCList[row[0] - '0'];
                 // The band the selection is drawn in *is* the hit box -- one
                 // rectangle, passed to the draw call and to Add in the same
                 // breath, which is the property the whole hit list is for.
+                // It stops at the gutter so the scrollbar has the right-hand
+                // end of the panel to itself.
                 var band = new Rect2(x - Ui.Px(7), y - Line + 4,
-                                     w + 2 * Ui.Px(7), Line + 3);
+                                     tw + Ui.Px(7), Line + 3);
                 int at = i;
                 if (_view.Chrome.Add(band, "row:" + i, () => Pick(at)) && i != _sel)
                     Ui.Hot(n, band, 5f);
@@ -630,43 +994,235 @@ namespace LaserTank.Game
                     // a rounded band plus a rule down its left edge in the row's
                     // own difficulty colour -- which says *which* row is
                     // selected and keeps saying what rank it is.
-                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.BorderLit, 5f, 1f),
-                                   new Rect2(x - Ui.Px(7), y - Line + 4,
-                                             w + 2 * Ui.Px(7), Line + 3));
-                    n.DrawRect(new Rect2(x - Ui.Px(7), y - Line + 4,
-                                         Mathf.Max(2, Ui.Px(2)), Line + 3), tint);
+                    n.DrawStyleBox(Ui.Box(Ui.Raised, Ui.BorderLit, 5f, 1f), band);
+                    n.DrawRect(new Rect2(band.Position.X, band.Position.Y,
+                                         Mathf.Max(2, Ui.Px(2)), band.Size.Y), tint);
                 }
                 // temps + 1: the digit is the colour key, not text.
                 n.DrawString(mono, new Vector2(x, y), row.Substring(1),
-                             HorizontalAlignment.Left, w, Ui.Px(size),
+                             HorizontalAlignment.Left, tw, Ui.Px(size),
                              i == _sel ? tint : tint * new Color(1, 1, 1, 0.78f));
+                // The mark column, in the chrome's own accent rather than in the
+                // row's difficulty tint: the rank is one channel and the marks
+                // are another, and three stars that changed colour with the rank
+                // would read as a sixth rank.  A star is worth more the more of
+                // them there are, so the alpha climbs with the count.
+                if (_marks[lvi] > 0)
+                    n.DrawString(mono, new Vector2(x + chw * c.Mark, y),
+                                 Stars(_marks[lvi]), HorizontalAlignment.Left,
+                                 chw * 4, Ui.Px(size),
+                                 Ui.Accent with { A = 0.45f + 0.185f * _marks[lvi] });
                 y += Line;
             }
 
+            Scrollbar(n, panel.End.X - pad - Gutter + Ui.Px(6), rowsTop,
+                      rows * Line + 3, rows);
             Footer(n, panel, x, w);
+        }
+
+        // ---- the filter bar -------------------------------------------------
+
+        /// The Search dialog's four controls, on two lines inside the panel.
+        /// -> the y its closing rule belongs at.
+        ///
+        /// **The labels are the original's**, which is nine more of the 155 keys
+        /// per language file that had no widget reading them: ID_SEARCH_01, _03,
+        /// _04, _08 and _10 through _14.  That is next-steps item 1 working the
+        /// way round it was meant to -- a key is read by a widget or it goes,
+        /// and these got a widget.
+        ///
+        /// The other six of the Search dialog's keys are still unread, and each
+        /// is a finding for that audit rather than an oversight: _00 is the
+        /// dialog's caption and there is no dialog, _02 is a group box, _05 and
+        /// _06 are Cancel and Ok and this bar commits as you type, _09 is the
+        /// "Filter by Difficulty" master checkbox that greys the five rank
+        /// buttons -- which a row of chips you can simply click does not need --
+        /// and ID_LOADLEV_03 is the button that opened the dialog.
+        private float FilterBar(Node2D n, float x, float y, float w)
+        {
+            Language L = _view.Strings;
+            string byTitle = Language.StripAmpersand(L["ID_SEARCH_03"]);
+            string byAuthor = Language.StripAmpersand(L["ID_SEARCH_04"]);
+
+            // The two mode chips sit on the field's own line, hard right.
+            float tgW = ChipWidth(byTitle) + ChipWidth(byAuthor) + Ui.Px(6);
+            float fieldH = Ui.Px(26);
+            var field = new Rect2(x, y, Mathf.Max(Ui.Px(120), w - tgW - Ui.Px(10)),
+                                  fieldH);
+            // A swallow, not a button: the field is always focused, so there is
+            // nothing for a click on it to do -- and a live target here would be
+            // a box that has to clear the touch floor for no behaviour.
+            _view.Chrome.Swallow(field, "search");
+            n.DrawStyleBox(Ui.Box(Ui.Bg, _q.Length > 0 ? Ui.Accent : Ui.Border, 6f, 1f),
+                           field);
+
+            // ID_SEARCH_01 is "Enter Search String :" -- a label in the original,
+            // a placeholder here, which is the same words doing the same job in
+            // a layout that has no room for a label beside the box.
+            float tx = x + Ui.Px(9);
+            float baseline = y + fieldH / 2f + Ui.Px(4);
+            bool empty = _q.Length == 0;
+            // The placeholder starts *past* the caret rather than under it:
+            // the caret sits where the next character will land, which with an
+            // empty field is the first column, and a block caret over the first
+            // glyph of "Enter Search String :" reads as a rendering fault.
+            Ui.Write(n, new Vector2(empty ? tx + Ui.Px(10) : tx, baseline),
+                     empty ? L["ID_SEARCH_01"] : _q,
+                     empty ? 11f : 11.5f, empty ? Ui.Faint : Ui.Text,
+                     field.Size.X - Ui.Px(20));
+            // The caret, a block for the reason EditMode's is: at this size a
+            // one-pixel bar after a string is easy to miss, and this field has
+            // the keyboard whether or not anyone clicked it.
+            float cw = empty ? 0 : Ui.Width(_q, 11.5f);
+            n.DrawRect(new Rect2(Mathf.Min(tx + cw + 2, field.End.X - Ui.Px(9)),
+                                 y + Ui.Px(6), Mathf.Max(2, Ui.Px(2)),
+                                 fieldH - Ui.Px(12)),
+                       Ui.Accent with { A = 0.85f });
+
+            float cx = field.End.X + Ui.Px(10);
+            float chipY = y + (fieldH - ChipHeight()) / 2f;
+            cx = Chip(n, cx, chipY, byTitle, !_byAuthor, Ui.Cyan, "by:title",
+                      () => { _byAuthor = false; Apply(); });
+            Chip(n, cx, chipY, byAuthor, _byAuthor, Ui.Cyan, "by:author",
+                 () => { _byAuthor = true; Apply(); });
+
+            // ---- line two: the mask and the skip.
+            //
+            // **Shed to initials rather than clipped**, the same rule the
+            // caption and the footer follow: six localised labels are six
+            // strings whose width nobody here decides, and a row of chips that
+            // runs off the panel is worse than a row of letters that does not.
+            y += Ui.Px(42);
+            string[] ranks =
+            {
+                Language.StripAmpersand(L["ID_SEARCH_10"]),
+                Language.StripAmpersand(L["ID_SEARCH_11"]),
+                Language.StripAmpersand(L["ID_SEARCH_12"]),
+                Language.StripAmpersand(L["ID_SEARCH_13"]),
+                Language.StripAmpersand(L["ID_SEARCH_14"]),
+            };
+            string skip = Language.StripAmpersand(L["ID_SEARCH_08"]);
+            float need = ChipWidth(skip) + Ui.Px(16);
+            foreach (string r in ranks) need += ChipWidth(r) + Ui.Px(6);
+            if (need > w)
+            {
+                for (int i = 0; i < ranks.Length; i++) ranks[i] = First(ranks[i]);
+                skip = First(skip);
+            }
+
+            cx = x;
+            for (int i = 0; i < 5; i++)
+            {
+                int bit = 1 << i;
+                // Ui.Diff is indexed by the difficulty *digit*, and the digit is
+                // the bit's position plus one -- 1/2/4/8/16 -> 1..5.
+                cx = Chip(n, cx, y, ranks[i], (_diff & bit) != 0, Ui.Diff[i + 1],
+                          "diff:" + (i + 1), () => Rank(bit));
+            }
+            cx += Ui.Px(10);
+            Chip(n, cx, y, skip, _unsolvedOnly, Ui.Good, "unsolved",
+                 () => { _unsolvedOnly = !_unsolvedOnly; Apply(); });
+
+            return y + ChipHeight() + Ui.Px(12);
+        }
+
+        /// The first character of a label, for the compact row.  Upper-cased by
+        /// Ui.Caps anyway; taken here so the width measurement sees what will be
+        /// drawn.
+        private static string First(string s)
+            => string.IsNullOrEmpty(s) ? "?" : s.Substring(0, 1).ToUpperInvariant();
+
+        private const float ChipSize = 10f;
+
+        private static float ChipWidth(string text)
+            => Ui.CapsWidth(text, ChipSize) + 2 * Ui.Px(7);
+
+        private static float ChipHeight() => Ui.Px(ChipSize) + Ui.Px(8);
+
+        /// One switch in the filter bar: a square outlined tag, lit when it is
+        /// on, in the colour of the thing it names.  Drawn as Ui.Pill is drawn
+        /// -- the chrome has one tag shape and this is it -- but registered as a
+        /// button, which is what Pill has no way to be.
+        ///
+        /// -> the x past its right edge, so a row of them is a fold.
+        private float Chip(Node2D n, float x, float y, string text, bool on,
+                           Color c, string name, Action act)
+        {
+            float h = ChipHeight();
+            var r = new Rect2(x, y, ChipWidth(text), h);
+            // **The hit box is grown and the drawing is not** -- an 18 px tag is
+            // a tag a thumb misses.  See Ui.Touch.
+            bool hot = _view.Chrome.Add(Ui.Touch(r), name, act);
+            n.DrawStyleBox(Ui.Box(on ? c with { A = 0.15f }
+                                     : hot ? Ui.Raised : new Color(0, 0, 0, 0),
+                                  on ? c with { A = 0.70f }
+                                     : hot ? Ui.BorderLit : Ui.Border, 2f, 1f), r);
+            Ui.Caps(n, new Vector2(x + Ui.Px(7),
+                                   y + h - Ui.Px(ChipSize) * 0.30f - Ui.Px(3)),
+                    text, on ? c : Ui.Faint, ChipSize);
+            return r.End.X + Ui.Px(6);
+        }
+
+        // ---- the scrollbar --------------------------------------------------
+
+        /// A track and a thumb down the gutter the table left for them.
+        ///
+        /// **It is always drawn, even when everything fits**, because a bar that
+        /// appears and disappears moves the table under the pointer; when there
+        /// is nothing to scroll the thumb simply fills the track, which says so.
+        private void Scrollbar(Node2D n, float x, float y, float h, int rows)
+        {
+            _trackY = y;
+            _trackH = h;
+            int total = Math.Max(1, _order.Length);
+            _thumbH = Mathf.Max(Ui.Px(26),
+                                h * Mathf.Clamp(rows / (float)total, 0f, 1f));
+            _thumbH = Mathf.Min(_thumbH, h);
+            float span = Mathf.Max(0f, h - _thumbH);
+            float at = total <= rows ? 0f : _top / (float)(total - rows);
+            float ty = y + span * Mathf.Clamp(at, 0f, 1f);
+
+            float wTrack = Ui.Px(8);
+            var track = new Rect2(x, y, wTrack, h);
+            // One target for the whole track: the press positions the thumb and
+            // latches the drag, and both go through DragTo, so there is a single
+            // rule for "the thumb is where the pointer is".  The action is empty
+            // because the pointer's *position* is what matters and Hits carries
+            // only the fact of the click -- BoardView calls DragTo on the press
+            // and on every motion after it.  It has to be live all the same, or
+            // the press would fall through to the scrim and close the panel.
+            bool hot = _view.Chrome.Add(Ui.Touch(track), "scroll", () => { });
+            n.DrawStyleBox(Ui.Box(Ui.Bg, Ui.Border, 4f, 1f), track);
+            // The thumb is filled a step brighter than a raised surface would
+            // be: it is the only thing in this panel that has to be findable
+            // *before* the pointer is on it, and Raised on Bg was a difference
+            // a screenshot could not show.
+            n.DrawStyleBox(Ui.Box(hot ? Ui.BorderLit : Ui.Border,
+                                  hot ? Ui.Accent with { A = 0.6f } : Ui.BorderLit,
+                                  4f, 1f),
+                           new Rect2(x, ty, wTrack, _thumbH));
         }
 
         /// The footer legend, **shed a clause at a time rather than clipped**.
         ///
         /// Same cause as the caption above: in the monospace the full line is
-        /// wider than a 420 px panel's inside, and Godot's `DrawString` answers
-        /// an overrun by cutting mid-word -- which lost the `> beat the posted
-        /// best` that is the only thing on screen explaining the two markers in
-        /// the rows.  So the clauses are ranked instead.  The marker legend is
-        /// last to go because nothing else documents it; `any other key closes`
-        /// goes first because F1 documents it and because a click outside is
-        /// what a player tries anyway.
+        /// wider than the panel's inside, and Godot's `DrawString` answers an
+        /// overrun by cutting mid-word -- which lost the marker legend that is
+        /// the only thing on screen explaining the stars in the rows.  So the
+        /// clauses are ranked instead.  The marker legend is last to go because
+        /// nothing else documents it; the chords go first because the chips they
+        /// name are on screen and clickable.
         private static void Footer(Node2D n, Rect2 panel, float x, float w)
         {
+            const string marks = "·  * solved  ** par  *** beat par";
             string[] forms =
             {
-                "↑↓ or wheel picks · Enter or a second click loads · "
-                    + "any other key or a click outside closes "
-                    + "·  ** and > beat the posted best",
-                "↑↓ picks · Enter loads · any other key closes "
-                    + "·  ** and > beat the posted best",
-                "↑↓ picks · Enter loads ·  ** and > beat the posted best",
-                "** and > beat the posted best",
+                "↑↓ or wheel picks · Enter loads · type to filter · Tab title/author"
+                    + " · Ctrl+1-5 ranks · Ctrl+U unsolved · Esc closes  " + marks,
+                "↑↓ picks · Enter loads · type to filter · Tab title/author"
+                    + " · Esc closes  " + marks,
+                "type to filter · Enter loads · Esc closes  " + marks,
+                marks,
             };
             string s = forms[^1];
             foreach (string f in forms)
