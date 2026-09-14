@@ -248,8 +248,20 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 | # | order | what it is | cost |
 |---|---|---|---|
 | **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Started 2026-09-10, interrupted in session 46, restarted 2026-09-13 and live**: as of session 47 `l8fire` is at **3,260/3,691, 772 solved (23.7%)**, 22 h 31 m wall at 13.1x, `layer7` and `enables` not started. Resumable from its own report — `bash tools/l5_pass.sh`, `... status` for the table | **~3 h 26 m to finish arm 1**, then two arms not started. Arm 1 is running to ~25 h against the rehearsal's ~18 h, so read the ~54 h as ~75 h |
-| **7** | **2nd** | the solved-vs-budget curve, three budgets over the 687 short-record failures. **Closed item 19 handed it a second question**: two push arms that tie at 40M differ **1.6x in nodes** on the levels they share, so where they separate is a rung of this curve and the five banked reports price it without a new control | comparable to one arm per budget |
-| 10 | last | wall clock: **instrumented in session 49 and the premise holds** — `--push-time` prices `PushH` at **41% of the expansion on the shipped rung and 48% on `l8fire`**, of which **90% is board-only**, against a within-expansion duplicate factor of **27x** (`l8fire`) to **232x** (width 8). The memo is not built. Its ceiling is **~1.8x**, not the 2-4x the item guessed: `ApplyKey` (15-20%), the read (12-14%) and the expansion's own book-keeping (25%) are untouched | code; the profiling is done |
+| **7** | **2nd** | the solved-vs-budget curve, three budgets over every level the chain fails. **`tools/curve_pass.sh` is the recipe and session 50 priced it with its own `price`**: **45 h of job time, ~7 h wall at 16 jobs** for the 1-in-15 stride's 253 levels, and 36.5 h of that is the 50M rung alone. The macro beam is **free** at every rung — 0 of 30 priced levels reached the node cap. **Closed item 19 handed it a second question**: two push arms that tie at 40M differ **1.6x in nodes** on the levels they share, so where they separate is a rung of this curve | **~7 h wall** at SAMPLE=15; SAMPLE=1 is ~15x that |
+| 10 | last | wall clock: **instrumented in session 49, built and gated in session 50**. `--push-memo` memoises `PushH` on `(playfield, tank cell, and PF2 under --push-stop)` and is **1.67x on the arm the fourth pass runs**, 1.40x on the shipped rung, 1.42x on `layer7` — **`IDENTICAL` on all three**, reports field for field and every `.lpb` byte for byte (`bash tools/push_memo.sh`). Off by default. What is left is the **default flip** and a second, board-keyed layer underneath it worth a further **~1.12x** | done and measured; ~12 min to re-run the gate |
+
+**Item 10 closed its build in session 50, and the key it memoises is not the one the item named.**
+`PushH` is a pure function of the playfield, the tank's cell and — only under `--push-stop`, whose
+`StopPrice` is the one thing in the heuristic that reads what is beneath a block — `PF2`. Keyed on that
+*pose*, a direct-mapped 4,096-slot table with a 128-bit content hash hits **84.6-98.3%** and takes the
+expansion on `LaserTank.lvl` 10 from **53.50 s to 31.31 s** at width 128. The item had specified a
+**board**-keyed memo of the board-only terms at the census's 27.3x; the pose key is 6.5x over
+*everything*, which is the same saving and a far cheaper build — the Dijkstra's early exit and the six
+`Route*` side effects that a shared table would have had to reproduce simply do not arise. The ceiling
+the instrument named held: **~1.8x**, and the remaining board-keyed layer is worth ~1.12x more on top.
+**`BUDGET_MS` is the trap in measuring it** — at a 4-second budget the memo arm does not finish sooner,
+it searches 1.70x further, and the two arms then walk different boards.
 
 **Item 10's first half ran in session 49, and the instrument it asked for is the one thing it got
 wrong.** `dotnet-trace`'s sampled stacks are taken where a suspended thread can be walked, so on this
@@ -259,9 +271,9 @@ prices that check at **0.4%** — so the profile was an artefact, and `--push-ti
 timestamps, off by default, 1-3% overhead) replaced it. It says `PushH` is **41-48%** of the expansion,
 `ApplyKey` **15-20%**, the read **12-14%**. The item's mechanism survives its own instrument; its size
 estimate does not. **`BuildAlive` is the find nobody had listed** — 16% of the whole expansion on the
-arm the pass is running, and the purest board function in the file. **The flag is unstaged and is not
-in `build/lasertank-solve.exe`** — the pass holds that file open, so it lives only in the project's own
-`bin/`; the item has the rebuild line.
+arm the pass is running, and the purest board function in the file. **Neither flag is in
+`build/lasertank-solve.exe`** — the pass holds that file open, so `--push-time` and `--push-memo` live
+only in the project's own `bin/`; the item has the rebuild line.
 [Item 10](docs/solver/next-actions.md#10-last--wall-clock-on-the-push-rungs).
 
 **Item 14 closed in session 46, negative on a clean sweep.** Three arms at the calibration's own

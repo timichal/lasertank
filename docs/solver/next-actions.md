@@ -138,8 +138,15 @@ one job against the pass's sixteen. **Session 46 is the exception and it is wort
 third arm was run with the pass *stopped* rather than beside it, so its wall clock is the only one in
 these files measured on an idle machine. No measured number moves — the arms are node-governed — but
 the four hours of arm 1 that are outstanding are four hours that were not spent. **What is left after
-it is machine time and no build**, and
-`LaserTank.lvl` 6 is no longer an item — closed item 5 measured that its line comes apart into six short
+it is machine time and one default flip.** Session 50 spent items 7 and 10 beside the pass the same way
+and both came back with the thing they were missing: item 7 has `tools/curve_pass.sh` and, from the
+script's own `price`, **45 h of job time / ~7 h wall** instead of an estimate, and item 10's memo is
+**built, gated `IDENTICAL` on three rungs and 1.67x on the arm the pass is running** — `--push-memo`,
+off by default, `bash tools/push_memo.sh`. The one thing session 50 changed about the *list* is that
+item 10's remaining work is no longer a build: it is a one-line default flip, plus an optional second
+memo layer worth ~1.12x more.
+
+**`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
 being 3.4x the reach turns out not to be
 short.
@@ -323,7 +330,52 @@ The chain fails 95.9% of its levels on `budget`, and the one accidental 1M run c
 Counted against the 494 chain: **314** of the 3,691 unsolved levels in the sample have a `.ghs` record of
 ≤ 40, **687** of ≤ 60, 1,037 of ≤ 80, and `stop` is `budget` on **3,540** of 3,691 (95.9%) against
 `beam-dead-end` on 151. The ≤ 60 list is committed as **`bench/short-record-failures.txt`** with its rule
-in its header, so this item starts at the loop:
+in its header. **`tools/curve_pass.sh` is the recipe, and it is priced** — session 50 built it and ran
+its own `price` over a 1-in-150 stride, so the cost below is measured rather than guessed:
+
+```bash
+bash tools/curve_pass.sh price        # what the full run costs, measured, ~4 min
+bash tools/curve_pass.sh              # the whole curve, three rungs, resumable
+bash tools/curve_pass.sh status       # the table, from any other shell, any time
+tail -f build/reports/curve-run.log   # everything the run has printed
+
+nohup bash tools/curve_pass.sh > /dev/null 2>&1 &   # to survive a closed terminal
+```
+
+**What it costs, from `price` rather than from an estimate: 45 h of job time, ~7 h of wall clock at 16
+jobs**, for the three rungs over the stride's 253 levels. Per rung: 0.9 h at 1M, 7.4 h at 10M, **36.5 h
+at 50M** — the curve is almost entirely its top rung, which is the shape to expect when an unsolved
+level burns its whole node budget.
+
+| stage | at the node cap | 1M | 10M | 50M |
+|---|---:|---:|---:|---:|
+| `l0` — `--no-ida` | 15 of 32 | 3.0 s | 20.2 s | 96.6 s |
+| `l3` — `--sg-eval coarse` | 28 of 31 | 4.4 s | 41.9 s | 208.5 s |
+| `l4` — `--sg-eval learned` | 28 of 30 | 4.4 s | 42.9 s | 214.2 s |
+| `l1` — `--macro --macro-first` | **0 of 30** | 0.8 s | 0.8 s | 0.8 s |
+
+**The macro beam is free and the price run is why that is known rather than assumed.** Nought of its 30
+priced levels reached the node cap — every one stopped on `macro-dead-end` — so its pass costs the same
+0.1 h at 50M as at 1M, and a projection off its *median* would have invented two and a half hours that
+do not exist. The projection is therefore per level and not per median: a level that reached the cap
+burns the whole of a bigger one, a level that stopped on a dead end does not.
+
+**`SAMPLE=15` is the default and the default is the point.** The stride is the same 1-in-15 item 2's
+arms are measured on, so the two passes are read against each other, and it is the same **253** levels at
+every rung, which is what makes the rungs comparable. `SAMPLE=1` is the whole 3,691 and about **15x** the
+above — call it 105 h of wall clock, which is item 2's commitment again for a question a stride answers.
+
+**`BUDGET_MS` defaults to 30 minutes and that is a guard, not a budget.** This measures *nodes*; a level
+that stops on the clock is a level measured at some budget other than the one its column names. The
+table reports, per stage, how many of its misses reached the node cap — that column is the run's own
+honesty, and the price table above already shows `l0` at 15 of 32.
+
+**One deviation from the recipe below, and it is deliberate:** `--max-keys 5000 --max-keys-record` is
+carried on *every* rung rather than from 10M up. It can only raise a cap, never lower one, so carrying it
+everywhere makes the three rungs the same searcher and a difference between them the budget rather than
+the key cap. `MAXKEYS=` drops it.
+
+The loop the script runs, for the record:
 
 ```bash
 # the chain's own four searchers, in its order, each pass over what the previous one failed
@@ -336,6 +388,14 @@ for N in 1000000 10000000 50000000; do
   python tools/verify_solutions.py build/$S
 done
 ```
+
+What the script adds over the loop, and all four matter at 45 h: it is **resumable** (a finished stage
+leaves a stamp and is skipped; the interrupted one picks up at the levels its own report has not
+attempted, `RESUME=1` to `second_pass.sh`), it **strides the first stage only** (every later stage reads
+a report that is already the stride, and striding it again would take a fifteenth of a fifteenth), it
+**says where it is** (a line every `TICK` seconds to stdout and to `build/reports/curve-run.log`, and
+`status` prints the table from any other shell), and it **gates each rung** through `verify_solutions.py`
+before moving on.
 
 **The `--sg-eval coarse` on the second pass is not optional, and without it this run measures the wrong
 chain.** A bare `--subgoal` means `--sg-eval work`, which is the ranking that pass is *retired* for —
@@ -464,26 +524,82 @@ they are not the same run — the ablation's two arms walked different boards, w
 table already carries — so what stands is the `--push-time` number and what falls is the inference drawn
 from the pair.
 
-### Then memoise — not built yet
+### Then memoise — built and gated in session 50, and the key is not the one this item named ☑
 
-The successors of one expansion are a few boards wearing hundreds of hats. Everything in `PushH` except
-the reach flood is a function of the playfield alone — the Dijkstra runs *from the flag* and reads the
-tank cell off its table (`Heuristic.cs:379-432`) — and it is recomputed for every hat. Memoise the
-table by `BoardKey` within an expansion (by `(BoardKey, tank cell)` for `BuildReach`, whose flood starts
-from the tank) and the per-successor cost collapses to a lookup for every duplicate. Cache the fire map,
-`BuildAlive`, the matching and the `Feat` board terms the same way.
+**`--push-memo` ships off by default, and on the arm the fourth pass runs it is 1.67x.** Three rungs,
+the same level list and the same node budget under both arms, `bash tools/push_memo.sh`:
 
-**Two things the instrument says the build has to handle.** The Dijkstra exits early — it returns the
-moment it settles the tank's cell, or under `--push-reach` the first cell of the reach set — so a
-*shared* table has to be run to completion, which costs more per board and is only worth it at the 27x
-the census measured; and `WorkDistance` publishes `RouteObstacles`, `RouteFerry`, `RouteStop`,
-`RouteDead`, `RouteHoles` and `RouteFire` as side effects the caller reads immediately, so a memo has to
-restore those per successor rather than skip them.
+| rung | job time, memo off | on | speedup | nodes/s off → on | memo hit rate |
+|---|---:|---:|---:|---|---:|
+| `rung8` — the shipped rung, width 8 | 16.8 s | 12.0 s | **1.40x** | 166,627 → 232,698 | 98.3% |
+| `l8fire` — the pass's arm, width 128 | 177.4 s | 106.5 s | **1.67x** | 103,594 → 172,647 | 84.8% |
+| `layer7` — the one arm with `--push-stop` | 111.4 s | 78.5 s | **1.42x** | 152,744 → 216,604 | 84.6% |
 
-**Measure in seconds, never nodes** — the node count is identical by construction, so every bench in
-these files will report no change. The acceptance test is that it is *byte*-identical: same nodes, same
-solutions, same reports, fewer seconds. **~1.8x on the push rung is the plausible size**, and the
-machine has to be idle for the final number: every reading above was taken beside item 2's pass.
+50 levels of `bench/deep-levels.txt` at 400k nodes, four jobs beside item 2's pass. The `166,627` is
+this item's own opening number reproduced to three figures, which is the cheapest evidence that the two
+measurements are of the same thing. On `LaserTank.lvl` 10 at 6M nodes and one thread the expansion goes
+**53.50 s → 31.31 s** on `l8fire` (1.71x), **34.18 s → 24.20 s** at width 8 (1.41x) and **41.46 s →
+27.16 s** on `layer7` (1.53x) — so the bench and the single level agree, and the item's predicted
+"**~1.8x** on the push rung" and "capped below 2x" were both right.
+
+**The key is the pose, not the board, and that is the one thing this item had wrong.** The census prices
+a board-keyed memo of the *board-only* terms at 27.3x and a pose-keyed memo of *everything* at 6.5x, and
+the second is the larger saving: 90% of `PushH` at 27.3x saves 87% of it, 100% of it at 6.5x saves 85% —
+near enough the same number — and the pose key also collects `Rank`, the reach flood and the ferry
+matching, which the board key cannot. It is also a far cheaper build. The two complications this item
+listed for a board-keyed memo — the Dijkstra's early exit, which forces a shared table to be run to
+completion, and the six `Route*` side effects `WorkDistance` publishes — **both disappear**, because the
+pose memo never splits `WorkDistance` open at all: it caches what `PushH` returns and the seven fields it
+publishes, and calls the whole thing when it misses.
+
+`PushH` is a pure function of `Game.PF`, the tank's cell, and `Game.PF2` — **only** under `--push-stop`,
+whose `StopPrice` is the single thing in the heuristic that reads what is underneath a block. So PF2 is
+hashed only for that one arm, and `layer7` is in the gate above for exactly that reason: it is the one
+configuration whose key has that branch in it.
+
+Direct-mapped, 4,096 slots, a 128-bit content hash (two independent FNV-1a chains over the same bytes)
+and no stored copy to verify against — a 200,000-pose level collides at about 1e-28, and a slot that
+holds some other board simply misses. The table is cleared per *level*, not per expansion: the census
+counts distinct boards **within** one expansion, so its ratios are a floor on the reuse rather than the
+whole of it, and a table that outlives the expansion collects the next depth's revisits and a restart's
+whole re-run too. At width 8 that is the difference between the census's 10.9x ceiling and the **60.6x**
+the memo actually collected. 4,096 slots is 229 KB a worker and was measured, not chosen: 1,024 slots hit
+83.7% and 16,384 hit 86.6% against this table's 84.8% on `l8fire`, and neither moved the expansion outside
+the noise.
+
+**The gate is the acceptance test this item set itself, and it is in the script.** Each rung runs twice
+over the same levels at the same node budget, and the two runs have to agree on `solved`, `keys`,
+`raw_keys`, `moves`, `shots`, `ratio`, `trimmed`, `polished`, `replanned`, `method`, `stop`, `depth`,
+`restarts` and `nodes`, and on the **bytes of every `.lpb`**. All three rungs: `IDENTICAL`. The table of
+seconds is not printed at all if the gate fails, because a run that changed a number is not a slower or a
+faster run, it is a wrong one.
+
+```bash
+bash tools/push_memo.sh          # the gate and the table, all three rungs, ~12 min
+bash tools/push_memo.sh gate     # equality only
+bash tools/push_memo.sh bench    # seconds only
+bash tools/push_memo.sh time     # the --push-time split, one level a rung
+```
+
+**`BUDGET_MS` in that script is an hour and it has to be.** At the 4-second default the memo arm does not
+finish sooner, it searches *further* — 1.70x the `ApplyKey` calls of the control in the same wall clock —
+and the two arms then walk different boards, so neither the gate nor the seconds mean anything. That is
+the speedup showing up in the one form this measurement cannot read.
+
+**What is left on the table, measured.** On `l8fire` the memo still misses 207,139 of 1,364,613 calls, and
+`PushH` is still 4.67 s of a 31.31 s expansion, of which 80% is board-only. Those misses fall on 50,029
+distinct boards, so a *second* layer — the board-keyed memo this item originally described, underneath the
+pose memo — would divide that 3.73 s by the remaining 27.3 / 6.5 = **4.2x** and save ~2.8 s: the expansion
+goes to ~28.5 s and the rung to **~1.88x**. That is the whole of the remaining headroom, and it is the
+expensive half of the build (the early-exit Dijkstra and the six side effects are still waiting there).
+`ApplyKey`'s 24%, the read's 20% and the expansion's own 41% are untouched by any of it and are what caps
+the item below 2x, exactly as this item said.
+
+**Two things not to read into the numbers above.** They were taken beside item 2's pass, so the seconds
+are a loaded machine's; the ratios are the point and both arms carried the same load. And the memo is
+**off by default** — flipping it on is a one-line change and the gate above is the evidence for it, but
+nothing in these files has been re-measured with it on, and the seconds in every table above it are the
+searcher without it.
 
 **Both alternative explanations for the 166k are already ruled out**, which is why this item is now the
 whole of the wall-clock story rather than one of three guesses at it: `--push-eval none` runs at 171k

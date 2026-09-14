@@ -491,6 +491,11 @@ namespace LaserTank.Solver
 "                         read, the fire tier, and what is left over.  It also\n" +
 "                         prints how many timestamps it took and what one of\n" +
 "                         them costs, so its own share can be subtracted\n" +
+"    --push-memo          item 10's fix: memoise PushH on (playfield, tank\n" +
+"                         cell, and PF2 under --push-stop), which is every\n" +
+"                         input it has.  Byte-identical by construction --\n" +
+"                         same nodes, same keys, same solutions, fewer\n" +
+"                         seconds.  --push-time prints the hit rate\n" +
 "    --push-trace-board   ...and print the best node's playfield each depth.\n" +
 "                         `best=` says a ranking key has gone flat; it does\n" +
 "                         not say what the beam is looking at, and on a flat\n" +
@@ -776,6 +781,7 @@ namespace LaserTank.Solver
                         case "--push-enables-poses": a.Opt.PushEnablesPoses = int.Parse(V()); break;
                         case "--push-trace": a.Opt.PushTrace = true; break;
                         case "--push-time": a.Opt.PushTime = true; break;
+                        case "--push-memo": a.Opt.PushMemo = true; break;
                         case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--goal-board": a.GoalBoard = V(); break;
                         case "--goal-weight": a.Opt.GoalWeight = int.Parse(V()); break;
@@ -1821,6 +1827,7 @@ namespace LaserTank.Solver
             PushHandScale = s.PushHandScale,
             PushTrace = s.PushTrace,
             PushTime = s.PushTime,
+            PushMemo = s.PushMemo,
             PushCloseOnExpand = s.PushCloseOnExpand,
             PushFerry = s.PushFerry,
             GoalWeight = s.GoalWeight,

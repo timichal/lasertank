@@ -126,6 +126,141 @@ namespace LaserTank.Solver
             _ptPoses += _ptSeenP.Count;
         }
 
+        // ---- item 10: the memo the census asked for ------------------------
+        //
+        // --push-time measured the cost and named the key: PushH is paid once
+        // per *emitted successor*, and one expansion emits the same board
+        // hundreds of times over -- 51 boards wearing 1,400 hats on the arm the
+        // fourth pass runs.  Everything PushH reads is (playfield, tank cell):
+        // the priced Dijkstra, the fire map, the frozen-block test, the ferry
+        // matching and Feat.Extract read Game.PF and Game.Tank.X/Y and nothing
+        // else, so two successors that agree on both have the same answer by
+        // construction and the second one need not be computed.
+        //
+        // **The one exception, and it is the reason PF2 is in the key.**
+        // --push-stop's StopPrice reads Game.PF2 (Heuristic.cs) to ask what is
+        // underneath a block parked on the cell the tank has to stop on.  PF2
+        // is hashed only when that flag is on, which is the layer7 arm; every
+        // other configuration keys on the playfield alone and pays half the
+        // hash.
+        //
+        // **Why the key is the pose and not the board**, which is not what the
+        // item predicted.  The census prices a board-keyed memo of the
+        // board-only terms at 27.3x and a pose-keyed memo of *everything* at
+        // 6.5x, and the second is the larger saving: 90% of PushH at 27.3x
+        // saves 96% of 90%, and 100% of it at 6.5x saves 85% of 100%.  It is
+        // also the cheaper build by a wide margin -- the board-keyed version
+        // has to run the Dijkstra to completion (it exits the moment it settles
+        // the tank's cell) and to restore the six Route* side effects
+        // WorkDistance publishes, and this one does neither, because it never
+        // splits WorkDistance open at all.  What is left on the table is the
+        // remaining 27.3 / 6.5 = 4.2x on the board terms of the calls that
+        // still miss; --push-time's two ratios are what would price it.
+        //
+        // Direct-mapped, 4,096 slots, keyed by a 128-bit content hash of the
+        // board and the tank cell.  No verification against a stored copy: two
+        // independent FNV-1a chains over the same bytes are 128 bits, and a
+        // 200,000-pose level collides at about 1e-28.  A stale slot is not a
+        // hazard either -- the key is the content, so a board that is not the
+        // one stored simply misses.
+        // 4,096 slots is 229 KB a worker and was picked by measurement rather
+        // than by taste: on `LaserTank.lvl` 10 at width 128, 1,024 slots hit
+        // 83.7% and 16,384 hit 86.6% against this table's 84.8%, and neither
+        // moved the expansion outside the noise band.  Sixteen workers share a
+        // cache, so the 918 KB the big table costs is not free and the 1.8
+        // points it buys do not pay for it.
+        private const int MemoSlots = 4096;
+
+        private struct MemoCell
+        {
+            public ulong K1, K2;                // 0,0 is "empty"
+            public int H;
+            public int Obs, Ferry, Stop, Fire, Dead, Holes, Shield;
+            public bool Frozen;                 // Solver._lastDead
+        }
+
+        private MemoCell[] _memo;
+        private readonly byte[] _memoBuf = new byte[512];
+        private long _memoHit, _memoMiss;
+
+        /// Cleared once per level, not once per expansion.
+        ///
+        /// The census counts distinct boards *within* one expansion, so it is a
+        /// floor on the reuse rather than the whole of it: the beam revisits
+        /// the same playfield at the next depth and across a restart, and a
+        /// table that survives the expansion collects those too.  Clearing per
+        /// level is what keeps --goal-board honest -- PushH reads the goal
+        /// metric, which is a different function on the next level -- and it is
+        /// the only thing in this file a level boundary has to reset.
+        private void MemoReset()
+        {
+            if (!_opt.PushMemo) return;
+            if (_memo == null) _memo = new MemoCell[MemoSlots];
+            else Array.Clear(_memo, 0, MemoSlots);
+        }
+
+        /// The slot this engine state hashes to, with the key it hashed to.
+        private int MemoProbe(out ulong k1, out ulong k2)
+        {
+            Buffer.BlockCopy(_e.Game.PF, 0, _memoBuf, 0, 256);
+            int n = 256;
+            if (_opt.PushStop > 0)
+            {
+                Buffer.BlockCopy(_e.Game.PF2, 0, _memoBuf, 256, 256);
+                n = 512;
+            }
+            ulong a = 0xcbf29ce484222325UL, b = 0x84222325cbf29ce4UL;
+            byte[] buf = _memoBuf;
+            for (int i = 0; i < n; i++)
+            {
+                ulong v = buf[i];
+                a = (a ^ v) * 0x100000001b3UL;
+                b = (b ^ v) * 0xc2b2ae3d27d4eb4fUL;
+            }
+            ulong t = (ulong)(_e.Game.Tank.X * 16 + _e.Game.Tank.Y);
+            k1 = (a ^ t) * 0x100000001b3UL;
+            k2 = (b ^ t) * 0xc2b2ae3d27d4eb4fUL;
+            return (int)((k1 ^ (k1 >> 32)) & (MemoSlots - 1));
+        }
+
+        /// PushH, memoised.  Restores every field PushH publishes and not only
+        /// the number it returns: _lastDead is read by the Node initializer one
+        /// line later, and Profile.cs reads RouteFerry and RouteHoles off the
+        /// heuristic after scoring the human's board.  A hit that restored the
+        /// score alone would be right in the beam and wrong everywhere else.
+        private int MemoH()
+        {
+            // Allocated here as well as in MemoReset: --profile scores a board
+            // through this path without ever entering PushSearch.
+            if (_memo == null) _memo = new MemoCell[MemoSlots];
+            int slot = MemoProbe(out ulong k1, out ulong k2);
+            MemoCell c = _memo[slot];
+            if (c.K1 == k1 && c.K2 == k2)
+            {
+                _memoHit++;
+                _h.RouteObstacles = c.Obs;
+                _h.RouteFerry = c.Ferry;
+                _h.RouteStop = c.Stop;
+                _h.RouteFire = c.Fire;
+                _h.RouteDead = c.Dead;
+                _h.RouteHoles = c.Holes;
+                _h.RouteShield = c.Shield;
+                _lastDead = c.Frozen;
+                return c.H;
+            }
+            _memoMiss++;
+            int h = PushH();
+            _memo[slot] = new MemoCell
+            {
+                K1 = k1, K2 = k2, H = h,
+                Obs = _h.RouteObstacles, Ferry = _h.RouteFerry,
+                Stop = _h.RouteStop, Fire = _h.RouteFire,
+                Dead = _h.RouteDead, Holes = _h.RouteHoles,
+                Shield = _h.RouteShield, Frozen = _lastDead,
+            };
+            return h;
+        }
+
         private static long Tick() => Stopwatch.GetTimestamp();
 
         /// ApplyKey, charged.  One node is one call, so this is the engine's
@@ -187,6 +322,21 @@ namespace LaserTank.Solver
                 _ptSucc, _ptBoards, _ptBoards > 0 ? _ptSucc / (double)_ptBoards : 0,
                 _ptPoses, _ptPoses > 0 ? _ptSucc / (double)_ptPoses : 0);
 
+            // What the memo actually collected, against that ceiling.  It can
+            // beat the pose ratio and usually does: the census counts distinct
+            // poses *within* one expansion and the table lives for the level,
+            // so the next depth's revisits and a restart's whole re-run are
+            // hits the ceiling does not count.
+            if (_opt.PushMemo)
+            {
+                long calls = _memoHit + _memoMiss;
+                Console.Error.WriteLine(
+                    "  push-time  memo {0} of {1} pushH calls hit ({2:P1}),"
+                    + " {3} computed -- {4:F1}x",
+                    _memoHit, calls, calls > 0 ? _memoHit / (double)calls : 0,
+                    _memoMiss, _memoMiss > 0 ? calls / (double)_memoMiss : 0);
+            }
+
             // Inside pushH, sorted by the key each part would memoise under.
             // `reach` is the only one that starts from the tank; fire, alive
             // and route are the playfield's alone, and `route` includes the
@@ -214,9 +364,9 @@ namespace LaserTank.Solver
         /// re-derived for every hat the same four boards wear.
         private int TimedH()
         {
-            if (!_opt.PushTime) return PushH();
+            if (!_opt.PushTime) return _opt.PushMemo ? MemoH() : PushH();
             long t = Tick();
-            int h = PushH();
+            int h = _opt.PushMemo ? MemoH() : PushH();
             _ptPushH += Tick() - t; _ptPushHN++;
             return h;
         }
@@ -440,6 +590,7 @@ namespace LaserTank.Solver
         /// the share the portfolio gave the searcher.
         private SolveResult PushSearch(EngineSnapshot root)
         {
+            MemoReset();
             _pushWidth = RecordWidth(root, out int sized);
             _pushPerBoard = _opt.PushPerBoard;
             // Once per level, not once per expansion: the census is of the

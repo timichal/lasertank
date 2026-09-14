@@ -414,6 +414,14 @@ namespace LaserTank.Solver
         public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs
         public bool PushTrace = false;     // per-depth diagnostics to stderr
         public bool PushTime = false;      // --push-time: item 10's seconds
+        // --push-memo: item 10's fix.  PushH is a pure function of the
+        // playfield, the tank's cell and -- only when --push-stop is on, which
+        // is the one term that reads PF2 -- what is underneath, so the hats one
+        // board wears re-derive an answer already computed.  Memoised on that
+        // key the run is byte-identical and the expansion is shorter; the
+        // instrument that priced it is --push-time, whose census puts the
+        // ceiling at the distinct (board, tank cell) ratio it prints.
+        public bool PushMemo = false;
         public double PushShare = 1.0;
 
         public bool SgReuse = false;       // restart from discarded nodes
