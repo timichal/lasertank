@@ -184,6 +184,17 @@ def main():
         failures += bad
 
     print("\n%d/%d solutions verified" % (total_ok, total))
+    if total == 0:
+        # **Nothing checked is not a pass, and this one bit.**  Item 4's stage
+        # `acc` pointed the gate at the output of a run that solved nothing; the
+        # solver had made the collection directory, so the "no .lpb under" guard
+        # above did not fire, and the gate printed "0/0 solutions verified /
+        # every solution wins" and exited 0.  The campaign's `|| say "GATE
+        # FAILED"` therefore said nothing, and the log read like a pass for a
+        # run that had produced no solution at all.
+        print("no .lpb anywhere under %s -- NOTHING WAS VERIFIED, and nothing"
+              " checked is not a pass" % root)
+        return 1
     if failures:
         print("%d FAILED -- these .lpb do not win, or the two engines disagree on them"
               % len(failures))

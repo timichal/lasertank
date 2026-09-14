@@ -629,6 +629,13 @@ namespace LaserTank.Solver
                                 : " to round " + a.MaxRound,
                               plan.Count == to - from + 1 ? ""
                                 : "  (" + plan.Count + " selected)");
+            // **The banner says what the run was, because a log that does not
+            // is how a result becomes unreproducible.**  `bench/recovered/`
+            // holds two solutions whose own run logs carry their budget and
+            // nothing else -- the flags had to be guessed from a directory
+            // name.  A driver log is the first place somebody looks.
+            if (a.Config.Length > 0)
+                Console.WriteLine(Ansi.Dim("  flags: " + a.Config));
             Console.WriteLine(Ansi.Dim(!Interactive
                 ? "  stdin is not a console, so there is no key to press here: "
                   + "Ctrl+C is the way out\n"
@@ -929,7 +936,15 @@ namespace LaserTank.Solver
                 o.NodeBudget = nodes;
                 o.TimeBudgetMs = ms;
                 o.Cancel = flags[i];
+                // **What this rung is, recorded before it runs.**  A driver's
+                // argv says nothing about `--push-beam 2048` or six restarts a
+                // round: those come from Ladder, and they are exactly what was
+                // missing when `LaserTank.lvl` 8's 308-key route survived only
+                // as the string "2048" in a directory name.  See
+                // Program.ConfigString.
+                SolveOptions before = Program.Clone(o);
                 Ladder[i].Tune(o, r);
+                string tuned = Tuned(before, o);
 
                 Program.Job job = new Program.Job
                 {
@@ -959,7 +974,12 @@ namespace LaserTank.Solver
                     // node, because its stop bit was set while it queued.
                     ctx.Slots.Wait();
                     running[rung] = true;
-                    try { return Program.SolveOne(a, job, o); }
+                    try
+                    {
+                        Program.Outcome res = Program.SolveOne(a, job, o);
+                        res.Rung = tuned;
+                        return res;
+                    }
                     finally { running[rung] = false; ctx.Slots.Release(); }
                 });
             }
@@ -1095,6 +1115,40 @@ namespace LaserTank.Solver
             return win;
         }
 
+        /// What a rung's `Tune` changed, as `Field=Value` pairs.
+        ///
+        /// **The driver's argv cannot express a rung.** `--push-beam 2048` and
+        /// "six more restarts each round" come from `Ladder`, not from the
+        /// command line, so a report row carrying only the run's flags would
+        /// say nothing about the searcher that actually won -- which is the
+        /// hole `LaserTank.lvl` 8's 308-key route fell through, surviving as
+        /// the string "2048" in a gitignored directory name and nothing else
+        /// (`bench/recovered/README.md`).
+        ///
+        /// Read off the object rather than written out beside each rung, so a
+        /// rung that gains a knob says so without anybody remembering to update
+        /// a string.  Field names rather than flag names on purpose: they are
+        /// what `SolveOptions` calls them, so the row stays true across a flag
+        /// rename, and `Program.Usage` is where the mapping lives.  Reflection
+        /// costs one pass over ~80 fields per rung per round, against a round
+        /// that spends millions of nodes.
+        private static string Tuned(SolveOptions before, SolveOptions after)
+        {
+            List<string> parts = new List<string>();
+            foreach (System.Reflection.FieldInfo f in typeof(SolveOptions).GetFields())
+            {
+                // Not a setting -- and the skip is load-bearing rather than
+                // tidy: `Program.Clone` does not copy `Cancel`, and the
+                // caller sets it *before* taking the `before` snapshot, so
+                // every rung would otherwise report a change to it.
+                if (f.FieldType == typeof(CancelFlag)) continue;
+                object x = f.GetValue(before), y = f.GetValue(after);
+                if (!Equals(x, y))
+                    parts.Add(f.Name + "=" + Convert.ToString(y, CultureInfo.InvariantCulture));
+            }
+            return string.Join(" ", parts);
+        }
+
         /// One `--report` row for a level the driver has finished with.
         ///
         /// **The driver could not be measured before this.**  A campaign of
@@ -1118,7 +1172,8 @@ namespace LaserTank.Solver
         {
             StreamWriter w = ctx.Report;
             if (w == null) return;
-            Program.Outcome o = won ?? new Program.Outcome { Stop = how };
+            Program.Outcome o = won
+                ?? new Program.Outcome { Stop = how, Config = ctx.A.Config };
             o.J ??= new Program.Job
             {
                 Level = lv, Name = info.LName, Author = info.Author,
@@ -1188,6 +1243,13 @@ namespace LaserTank.Solver
         /// 1.79x, so 3.0 closes nearly all of them).  A level with no record
         /// keeps the round open under either rule, which is the case the flag
         /// exists for.
+        ///
+        /// **Both of these now ship on, and the shot test is the one that
+        /// runs** -- item 4's campaign measured them against a control on two
+        /// populations and the shot rule won both (95 keys against 53 on the
+        /// 494 the chain solves, 71 against 65 on the 90 deep ones, and never
+        /// longer where either fired).  `--no-best-of-round` is the opt-out;
+        /// a bare `--best-of-round` asks for the ratio rule on its own.
         private static bool KeepOpen(Program.Args a, Program.Outcome best)
         {
             if (!a.BestOfRound) return false;
@@ -1570,9 +1632,6 @@ namespace LaserTank.Solver
 
         // ---- odds and ends --------------------------------------------------
 
-        /// The repo root, from the executable rather than the working
-        /// directory: build/lasertank-solve.exe is one level down, and the
-        /// point of this tool is that it can be run from anywhere.
         /// The repository the exe was built into, found by walking up from it
         /// until the gate is in sight.
         ///

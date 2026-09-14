@@ -81,7 +81,7 @@ post-processing is a substitute for finding a better one"*). `--best-of-round RA
 the round on although their shot count says the strategy is wrong, and 17 it keeps the round open on
 although the shot count says the strategy is already right, so those rounds can only buy polish. The
 column is shipped (closed item 13) and the rule inside `--best-of-round` is
-[item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default)'s.
+[item 4](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)'s.
 
 ---
 

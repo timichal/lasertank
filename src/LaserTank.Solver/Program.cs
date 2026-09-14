@@ -46,9 +46,10 @@ namespace LaserTank.Solver
 "  searcher that ships runs side by side on its own thread and the node budget\n" +
 "  quadruples each round, until the level falls or you press a key to give up\n" +
 "  on it (q quits) -- or --max-round N rounds have gone by, which is how it is\n" +
-"  run unattended.  The first win ends the round unless --best-of-round says\n" +
-"  otherwise, and a round that came back worse than the .lpb already on disk is\n" +
-"  refused by default (--no-beat-banked).  A solution is kept once\n" +
+"  run unattended.  A win does not end the round when the shot test says the\n" +
+"  route is the wrong plan, which is the default (--no-best-of-round), and a\n" +
+"  round that came back worse than the .lpb already on disk is refused, which\n" +
+"  is also the default (--no-beat-banked).  A solution is kept once\n" +
 "  has replayed it through both engines.  --out/--force/--author/--trim-ratio/\n" +
 "  --jobs apply, the selection flags below all apply (level order, always), and\n" +
 "  --report writes the same jsonl the batch harness does, one row per level,\n" +
@@ -106,7 +107,9 @@ namespace LaserTank.Solver
 "    --jobs N             parallel workers, default = processor count\n" +
 "    --lanes N            interactive only: levels to work on at once,\n" +
 "                         default 1; every lane draws on the --jobs slots\n" +
-"    --best-of-round [R]  interactive only: a win does not end the round -- every\n" +
+"    --best-of-round [R]  interactive only: the RATIO rule on its own, instead\n" +
+"                         of the shot rule that now ships on.  A win does not\n" +
+"                         end the round -- every\n" +
 "                         rung runs out the budget the round gave it and the\n" +
 "                         SHORTEST of however many win is banked.  The first\n" +
 "                         rung to finish is not the one with the best route:\n" +
@@ -119,15 +122,24 @@ namespace LaserTank.Solver
 "                         round as before, so the cost is only paid where the\n" +
 "                         route looks bad.  A level with no .ghs record always\n" +
 "                         keeps the round open\n" +
-"    --best-of-shots [R]  interactive only: implies --best-of-round and swaps\n" +
-"                         its rule for the shot test.  Shots are the strategy\n" +
+"    --best-of-shots [R]  interactive only: THE DEFAULT, and this spelling only\n" +
+"                         changes R.  Shots are the strategy\n" +
 "                         and moves the execution, so a win that spends MORE\n" +
 "                         shots than the record is a worse route whatever its\n" +
 "                         keystream ratio (median 1.85x against 1.41x for one\n" +
 "                         that matches the record) and the round stays open;\n" +
 "                         otherwise the ratio decides against a looser bound,\n" +
 "                         R, default 3.0.  The two tests disagree on 58 of 452\n" +
-"                         solved rows\n" +
+"                         solved rows, and item 4's campaign measured the shot\n" +
+"                         rule ahead on both its populations: 95 keys against\n" +
+"                         53 over the 494 the chain solves, 71 against 65 over\n" +
+"                         the 90 deep ones, and never longer where it fired\n" +
+"    --no-best-of-round   interactive only: turn the round rule OFF, so the\n" +
+"                         first win ends the round as it did before item 4.\n" +
+"                         This is what a campaign's control arm wants, and the\n" +
+"                         report row says which rule ran: config carries\n" +
+"                         [round-rule shots 3|ratio 2|off], from the default as\n" +
+"                         well as from a flag\n" +
 "    --no-beat-banked     interactive only: turn OFF the default, which is that\n" +
 "                         a round whose best route is LONGER than the .lpb\n" +
 "                         already banked is not accepted -- the candidate is\n" +
@@ -532,12 +544,27 @@ namespace LaserTank.Solver
         {
             public string Levels, Out = "solutions", Report;
             public string Author = "LTSolver";
+            /// The run's own flags, minus the paths -- see ConfigString.  Goes
+            /// into every report row and into the driver's banner.
+            public string Config = "";
             public int From = 1, To = int.MaxValue, Limit = int.MaxValue;
             public int Jobs = Environment.ProcessorCount;
             public int Lanes = 1;
             public int MaxRound = int.MaxValue;
             public bool MaxKeysRecord;
-            public bool BestOfRound;
+            // ON by default, and the rule is the shot test -- item 4's campaign
+            // measured both against a control on two populations and the shot
+            // rule won each of them: on the 494 levels the chain solves it
+            // fires on 28 against the ratio rule's 14 and saves 95 keys against
+            // 53, for 1.15x the nodes and 1.06x the wall; on the 90 deep ones
+            // it fires on 32 against 27 and saves 71 against 65, for 1.22x the
+            // nodes.  Neither arm came back LONGER on a single level where the
+            // rule fired -- 0 of 60 across both stages -- which is the property
+            // that makes it safe as a default rather than merely profitable.
+            // --no-best-of-round is the opt-out; a bare --best-of-round is the
+            // ratio rule on its own, which is how the campaign's arms are told
+            // apart.
+            public bool BestOfRound = true;
             // ON by default: a re-solve that comes back worse than the .lpb
             // already banked has not finished the level.  It can only bite
             // under --force, because without it an already-solved level is
@@ -548,7 +575,7 @@ namespace LaserTank.Solver
             // The looser bound is 3.0 because the shot test has already said
             // the plan is right when this is consulted, and the rows whose
             // shots match the record are p90 1.79x -- see Auto.KeepOpen.
-            public bool BestOfShots;
+            public bool BestOfShots = true;
             public double ShotRatio = 3.0;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber;
@@ -577,9 +604,61 @@ namespace LaserTank.Solver
             public readonly SolveOptions Opt = new SolveOptions();
         }
 
+        /// The flags a report row records, so that a solution can be traced
+        /// back to the search that produced it.
+        ///
+        /// **This exists because two of this project's best results survived
+        /// only as directory names.**  `LaserTank.lvl` 8 in 308 keys and 9 in
+        /// 114 sat in a gitignored `build/w/w8-2048/` and `build/w/b9-b/`, and
+        /// when that directory went, all that was left of *how* was the "2048"
+        /// in a path -- the report rows beside them carried `keys`, `nodes`,
+        /// `ms`, `method`, `stop` and nothing whatever about configuration.
+        /// Both files were recovered in session 48 (`bench/recovered/`), which
+        /// is luck rather than a process; this is the process.
+        /// `bench/README.md`'s rule is that an output carries the command that
+        /// produced it, and until now the solver's own output could not obey it.
+        ///
+        /// **Paths are dropped and everything else is kept.**  A path is
+        /// machine-specific and is the one part of a command line that does not
+        /// reproduce anywhere else; every other flag either changes what the
+        /// search does or changes what it cost.  A path-valued flag keeps its
+        /// name and gets `<path>` for a value, so the row says the flag was
+        /// there and the line reads as elided rather than as broken.
+        ///
+        /// It does not capture what a *driver rung* configures on top of it --
+        /// `--push-beam 2048` never appears in the driver's argv, it comes from
+        /// `Auto.Ladder` -- which is what `Outcome.Rung` is for.
+        private static string ConfigString(string[] argv)
+        {
+            // The flags whose value is a path.  --polish and --push-seed name
+            // files the run read; --levels-list is a list this process wrote in
+            // a temp directory half the time.  The *fact* of them matters, so
+            // the flag is kept and its value replaced.
+            HashSet<string> paths = new HashSet<string>
+            {
+                "--levels", "--out", "--report", "--levels-list", "--goal-board",
+                "--push-seed", "--polish", "--profile", "--rank-dump",
+                "--read-dump", "--analyze-tsv", "--push-line", "--lpb-list",
+            };
+            List<string> parts = new List<string>();
+            for (int i = 0; i < argv.Length; i++)
+            {
+                string k = argv[i];
+                if (paths.Contains(k)) { parts.Add(k); parts.Add("<path>"); i++; continue; }
+                // A bare FILE.lvl -- the driver's whole command line -- is a
+                // path too, and it is the one token here with no flag in front
+                // of it to say so.
+                if (k.Length > 0 && k[0] != '-'
+                    && k.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) continue;
+                parts.Add(k);
+            }
+            return string.Join(" ", parts);
+        }
+
         public static int Main(string[] argv)
         {
             Args a = new Args();
+            a.Config = ConfigString(argv);
             if (argv.Length == 0) { Usage(); return 2; }
             try
             {
@@ -615,8 +694,13 @@ namespace LaserTank.Solver
                         case "--beam": a.Opt.BeamWidth = int.Parse(V()); break;
                         case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); break;
                         case "--max-keys-record": a.MaxKeysRecord = true; break;
+                        // Spelling it out asks for the ratio rule *on its own*,
+                        // which is not the default any more: it is how the
+                        // campaign's `bor` arm is told apart from its `shots`
+                        // arm now that the shot test is what a bare run gets.
                         case "--best-of-round":
                             a.BestOfRound = true;
+                            a.BestOfShots = false;
                             // The ratio is optional, so it is only consumed
                             // when the next token parses as one -- otherwise a
                             // bare --best-of-round would eat the flag after it.
@@ -637,6 +721,9 @@ namespace LaserTank.Solver
                                                    CultureInfo.InvariantCulture,
                                                    out double sr))
                             { a.ShotRatio = sr; i++; }
+                            break;
+                        case "--no-best-of-round":
+                            a.BestOfRound = a.BestOfShots = false;
                             break;
                         case "--beat-banked": a.BeatBanked = true; break;
                         case "--no-beat-banked": a.BeatBanked = false; break;
@@ -766,6 +853,21 @@ namespace LaserTank.Solver
                 Console.Error.WriteLine("lasertank-solve: need an existing --levels FILE.lvl");
                 return 2;
             }
+
+            // **A default has no token in argv, and `config` is read off argv.**
+            // That was harmless while every round rule had to be asked for; it
+            // stops being harmless the moment one of them ships on, because two
+            // rows produced by two different rules would then carry the same
+            // empty `config` and nothing on disk would tell them apart -- which
+            // is the exact hole `config` was added to close for --push-beam.
+            // So the *effective* rule is appended, always, whether it came from
+            // a flag or from the default.
+            a.Config = (a.Config + " [round-rule "
+                        + (!a.BestOfRound ? "off"
+                           : a.BestOfShots
+                             ? "shots " + a.ShotRatio.ToString("0.#", CultureInfo.InvariantCulture)
+                             : "ratio " + a.BestRatio.ToString("0.#", CultureInfo.InvariantCulture))
+                        + (a.BeatBanked ? " beat-banked" : "") + "]").Trim();
 
             if (LoadGoals(a) != 0) return 2;
             if (LoadSeed(a) != 0) return 2;
@@ -1116,6 +1218,14 @@ namespace LaserTank.Solver
             public int Rounds, Wins, Longest;
             public long TotalNodes;
             public double TotalMs;
+
+            /// The run's flags (`Args.Config`) and, in the driver, what the
+            /// winning rung set on top of them.  **The reason both are here is
+            /// in ConfigString**: a row that does not say how the search was
+            /// configured cannot be traced back to a command, and this project
+            /// has lost two of its best routes to exactly that.  `Rung` is null
+            /// in batch, where the argv is the whole configuration.
+            public string Config, Rung;
             public string Method = "-", Stop = "-";
 
             /// Non-null when this level was solved with something the solver
@@ -1190,6 +1300,8 @@ namespace LaserTank.Solver
                     if (Longest > 0) w.WriteNumber("longest", Longest);
                     if (TotalNodes > 0) w.WriteNumber("total_nodes", TotalNodes);
                     if (TotalMs > 0) w.WriteNumber("total_ms", Math.Round(TotalMs, 1));
+                    if (!string.IsNullOrEmpty(Config)) w.WriteString("config", Config);
+                    if (!string.IsNullOrEmpty(Rung)) w.WriteString("rung", Rung);
                     w.WriteNumber("nodes", Nodes);
                     w.WriteNumber("ms", Math.Round(Ms, 1));
                     if (Hint != null) w.WriteString("hint", Hint);
@@ -1205,7 +1317,7 @@ namespace LaserTank.Solver
             // The caller owns the SolveOptions and must not share one between
             // workers: Solve() clamps IdaMaxDepth in place, and two threads
             // sharing an options object would race.
-            Outcome o = new Outcome { J = job };
+            Outcome o = new Outcome { J = job, Config = a.Config };
             if (a.MaxKeysRecord) opt.MaxKeys = KeyCap(opt.MaxKeys, job);
             // Item 14: the same shape as the cap above -- a per-level
             // number the SolveOptions is the only channel for, and the

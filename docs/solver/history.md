@@ -58,6 +58,305 @@ directory rather than from a report — worth one line because two sessions each
 statistics layer 5 rests on and really are what layer 4 is fit on — the point is that the solver already
 emits them that way, so the debt was paid at the source rather than owed.)*
 
+### 4. The campaign that decided that `--best-of-round` is a default — and the shot rule won it.
+
+> **RUN AND DECIDED, 2026-09-14. The shot rule is the default.** All three stages are in — A, B and the
+> acceptance bars — and `--best-of-shots` won both populations. The driver now ships with the round rule
+> **on** and the shot test as the rule; `--no-best-of-round` is the opt-out and a bare `--best-of-round`
+> is the ratio rule on its own, which is how the campaign's arms are told apart. Every report row's
+> `config` ends in `[round-rule shots 3|ratio 2|off …]`, from the default as well as from a flag, because
+> a default has no token in argv and two rules would otherwise produce indistinguishable rows.
+>
+> | stage | arm | fired | keys saved where it fired | net | nodes | wall | shots over the record |
+> |---|---|---:|---:|---:|---:|---:|---:|
+> | **A** (494) | `bor` 2.0 | 14 (2.8%) | 53 | 35 | 1.05x | 0.99x | 28 → 24 |
+> | **A** | `shots` 3.0 | **28** (5.7%) | **95** | 95 | 1.15x | 1.06x | 28 → **21** |
+> | **B** (90 of 121) | `bor` | 27 (30.0%) | 65 | 49 | 1.16x | 1.31x | 31 → 32 |
+> | **B** | `shots` | **32** (35.6%) | **71** | 57 | 1.22x | 1.34x | 31 → 31 |
+>
+> **What makes it safe as a default rather than merely profitable: neither rule came back longer on a
+> single level where it fired — 0 of 60 across both stages.** Every regression in either table is on a
+> level the rule was never consulted on, which is the instrument's own noise floor (below), and the
+> signal is larger than the floor in both stages. The price is real and is the thing to watch: **1.34x
+> the wall on the deep population.**
+>
+> **Nothing is left** — the three threads the first run left open are closed in
+> [*What is left*](#what-was-left-after-the-decision) at the end of the item, two of them instrument
+> defects worth not rebuilding. **The item is ready to move to
+> [`history.md`](history.md#closed-items--the-measurements-including-the-negative-ones).**
+
+The mechanism, the transcript and the 115-keys-against-294 result are in
+[`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked), along with
+the acceptance stage's two results.
+
+`bash tools/bor_campaign.sh` is the campaign; `bash tools/bor_campaign.sh report` prints
+its table again for free from the banked reports. The measurement is a campaign with `--best-of-round`
+against one without it, read as *keys* rather than as solved count — the solved set should be identical
+and the routes shorter, and how much shorter is what decides whether this becomes a default. **Every ratio
+quoted in these files was measured under first-win-cancels, so that campaign rebases them.**
+
+**And it inherits closed item 13's second half, which is a rule rather than a number.** The flag judges a
+win by `keys / record ≤ 2.0`; the shot test says a win that spends *more shots* than the record is a
+different and worse route, and the two disagree on **58 of the 452 rows** — 41 wins the ratio test closes
+the round on although their shot count says the strategy is wrong, and 17 it keeps open although the
+shot count says the strategy is already right, so those rounds can only buy polish. The change to make
+with the campaign: *keep the round open when `shots > ghs_shots` whatever the ratio; close it when
+`shots == ghs_shots` and the ratio is inside a looser bound*, and **a level with no record keeps the
+round open, as it does today.** The measurement is already run and the column is in `report_stats.py` —
+what is not decided is whether the rule pays for the rounds it keeps open, which is this campaign's
+question and not a separate item's. **It is now a flag, `--best-of-shots [R]`**, and it is the campaign's
+third arm: more shots than the record keeps the round open whatever the ratio, otherwise the ratio decides
+against a looser `R`, default **3.0** — looser because the shot test has already said the plan is right,
+and the rows whose shots match the record are p90 1.79x, so 3.0 closes nearly all of them.
+
+Note what level 9 says about its price: **44m46s for one level**, against the 16m36s of the hand-run it
+beat, because a round nobody cancels is a round every rung spends in full.
+
+#### Stage A is run, and the shot rule wins it
+
+**494 levels, three arms, 2026-09-13.** Every level fell in round 0, so this is the flag's behaviour on
+the population a default would apply to on nearly every run.
+
+| arm | the rule fired on | shorter | longer | **keys saved where it fired** | nodes | shots over the record |
+|---|---:|---:|---:|---:|---:|---:|
+| `bor` — ratio 2.0 | 14 of 494 (2.8%) | 7 | **0** | **53** | 1.05x | 28 → 24 |
+| `shots` — the shot test at 3.0 | **28** of 494 (5.7%) | 9 | **0** | **95** | 1.15x | 28 → **21** |
+
+**Closed item 13's rule is the better one and it is not close.** It fires on twice as many levels, saves
+**1.8x the keys** for 2.3x the extra nodes, and it moves the population it was designed to move — the
+levels solved with the wrong strategy — from 28 to 21 where the ratio rule manages 24. Its worst case is
+`Sokoban-II` 46, **40 keys → 23 at 2.0x → 1.1x**, a round the ratio rule closes on the nose.
+
+**The finding that decides how every number here is read, and it came out of a contradiction.** Nine
+stage-A levels came back **longer** under `--best-of-round`, which the mechanism forbids: a round kept
+open sees every route the cancelled round saw and banks the shortest. Split the levels by whether the
+rule could fire at all and the contradiction dissolves — **all nine are levels where the flag was never
+consulted**, and on those the arm and the control are *the same configuration run twice*. Where either
+rule actually fired, **neither arm came back longer on a single level, 0 of 14 and 0 of 28.**
+
+So **a driver round is not node-governed even though every rung in it is.** The stop bit is polled every
+120 ms, and which rungs have crossed the line when a round cancels is a race with the thread scheduler.
+The noise floor that puts on stage A is **5-9 levels and ~20 keys a run** — which is larger than the
+ratio rule's whole 35-key headline, and is why `round_rules.py` leads with the levels the rule fired on
+and prints the rest as the floor. `bash tools/bor_campaign.sh floor a` measures it directly by running
+the control a second time; the free version is same-population and in every table already.
+
+#### Stage B agrees with stage A, on a population that is nothing like it
+
+**121 levels, 90 of which the control solved, 2026-09-14.** This is the deep end — a stride over the
+short-record failures, to round 3 — and the control spends **5.1G nodes and 2h03m** there, **3.4G of it
+on the 31 levels nobody solves**, which is the same bill in every arm and is why the arms run only over
+the control's solved set.
+
+The rules fire an order of magnitude more often here than on stage A — **30% and 36% of levels against
+2.8% and 5.7%** — which is the population difference doing exactly what the two-stage split was built to
+show, and the shot rule stays ahead: **71 keys against 65 where it fired, 57 net against 49.** What it
+costs is where the two stages differ, and it is the number that decides how the default reads: on stage A
+the round rule is nearly free (1.05x / 1.15x nodes, wall inside the noise), on stage B it is **1.22x the
+nodes and 1.34x the wall**. A rule that fires on a third of a collection costs a third of a collection,
+which is what the item said to watch for, and it does.
+
+Both arms' biggest wins are the same two levels, and they are worth naming because they are the case the
+flag exists for rather than polish: `Sokoban-II` 76 *Day B* **106 → 70 keys**, `push-stop` → `push-ferry`,
+2.2x → 1.4x; and `Challenge-I` 1576 *Waterbound* **121 → 93**, `learned` → `push-ferry`, 3.4x → 2.6x. In
+both the rung that wins is a different rung, not the same rung polishing — the round stayed open and a
+slower specialist arrived with a better plan.
+
+#### What was left after the decision
+
+**Nothing.** All three of the threads the first run left open were closed the same day; they are kept
+here because two of them are the instrument, and an instrument defect that is deleted gets rebuilt.
+
+1. **The lost control row — fixed, and the stage re-run.** Stage `acc`'s level-8 control arm had been
+   **given up on by a keypress after 0s** — `stop: skipped`, 30,769 nodes — because the driver's
+   any-key-gives-up-on-the-level path was armed during an unattended run and one stray byte reached its
+   stdin. The campaign now runs every driver invocation with `< /dev/null`, which is what the banner's
+   "stdin is not a console, so there is no key to press here" line reports, and `round_rules.py` prints an
+   **INSTRUMENT WARNING** naming any level whose row says `skipped` or `stopped`, so a lost arm can never
+   again read as an unsolved level. `MAXACC=5 bash tools/bor_campaign.sh acc` re-ran the stage clean, and
+   **the control's answer is the same 305 keys the three arms got**, at 380M nodes against their 418M and
+   431M — so the round rules buy nothing on level 8 and cost 1.10x and 1.13x to buy it, which is what the
+   item predicted from the shot counts and is the prediction landing rather than a new result.
+   **All four arms' `00008.lpb` are byte-identical** (`d371e931a857`), which is worth more than any of
+   them alone: the 305 is one route the driver derived four independent times, where the 308 is a file.
+2. **The candidate recipe does not reproduce the 308 — closed, negative.** The falsifier was re-run
+   without the three flags the script had added that are not in the surviving banner (`--no-ida
+   --max-keys 5000 --max-keys-record`), leaving exactly what the banner says: 1 worker, 60M nodes,
+   5,400,000 ms, beam 600, `--push --push-read --push-beam 2048 --push-eval work`. **Unsolved at budget
+   in 3m37s**, against 3m47s with the three flags — so they were never the difference.
+   **And the node rate is what actually settles it.** 60M nodes in 3m37s is ~276k/s; at that rate the
+   original's 5m51s would be ~97M nodes, which is more than the 60M its own banner caps it at. So the run
+   that produced the 308 was searching *slower per node* than this one — a heavier configuration — and
+   **the banner does not describe it.** That is the honest end of the question: not "we mis-ran it" but
+   **what was recorded was never enough to re-run**, which is the exact hole the `config` and `rung`
+   columns were added to close. It costs nothing now, because the level has a better route with a command
+   behind it.
+3. **The gate passed on an empty directory and said so in green — fixed.** `verify_solutions.py` pointed
+   at the falsifier's output printed `0/0 solutions verified / every solution wins` and exited 0, so the
+   campaign's `|| say "GATE FAILED"` never fired. It now returns 1 on `total == 0` — *nothing checked is
+   not a pass* was already the rule one branch above, for a collection whose `.lvl` could not be found;
+   it simply did not cover finding no solutions at all.
+
+Two smaller things fixed in passing, both of which made a table lie rather than a run go wrong:
+`bash tools/bor_campaign.sh floor a` had been advertised in this file and in the script's own header
+since session 47 and **the function was never written** — the dispatch hit `floor: command not found`,
+then ran the gate and printed the table, so it looked like it had worked. And the acceptance table
+rendered an unsolved level as `beat   rounds after 6 rounds`, printing the driver's `stop` enum where the
+driver's own line says `unsolved in 6 rounds`.
+
+**Stage A and stage B need no re-run**, and neither does stage `acc`'s `bor`, `shots` or `beat` arm. Note
+that a *future* control arm must now pass `--no-best-of-round` — the script does — or it is a second
+`shots` arm wearing the control's name; `round_rules.py` reads the control's own rows and warns if it is.
+
+#### The run
+
+```bash
+bash tools/bor_campaign.sh report          # START HERE -- every stage below is already run
+bash tools/bor_campaign.sh                 # everything again, three arms each, ~6-7 h at JOBS=4
+bash tools/bor_campaign.sh acc             # the acceptance bars, ~2 h
+bash tools/bor_campaign.sh b               # the deep stage, ~5 h
+bash tools/bor_campaign.sh floor a         # the null arm, ~10 min -- written in session 49, never run
+bash tools/bor_campaign.sh report          # the tables again, free, from the banked reports
+tail -f build/reports/item4-run.log        # from any other shell
+```
+
+Priced from a 13-level rehearsal at `JOBS=4` beside item 2's pass rather than guessed: **the ten rungs get
+through about 1.15M nodes a second between them**, so a level nobody solves costs 31M nodes / ~27 s to
+round 2 and 127M / ~110 s to round 3, and a round held open costs the whole of its own budget — 96M at
+round 3.
+
+Safe beside item 2's pass — `JOBS=4` against its 16 on 20 cores, node-governed round by round — with the
+one caveat this item has that item 19 did not: **wall clock is one of the numbers it wants**, so the
+report prints nodes beside every second it quotes and the seconds are the contended ones. **While the pass
+holds `build/lasertank-solve.exe` open the new driver can only be built into the project's own `bin/`**
+(`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`); the script finds that build
+itself and says so, rather than running a third arm that silently repeats the second.
+
+**Three arms, and the third is the new flag.** `ctrl` is the driver as it ships, `bor` is
+`--best-of-round` at its 2.0, `shots` is `--best-of-shots` at 3.0.
+
+**The arms after the control run only over the levels the control solved, and that is not a shortcut —
+it is what the flags are.** Neither is consulted until a rung has already won, and neither adds budget,
+so **a level the control could not solve costs all three arms exactly the same and has no keys to
+compare**. `tools/round_rules.py` checks the assumption instead of trusting it: a level an arm solves that
+the control did not is printed as an instrument warning, not as a win.
+
+**Two stages, because the flag's cost and its benefit live in different populations.**
+
+| stage | population | rounds | what it answers |
+|---|---|---|---|
+| **A** | the **494** levels the shipped chain solves at 150k | to round 2 (150k / 600k / 2.4M per rung) | what a *default* costs and buys on the levels nearly every run touches |
+| **B** | a stride (`SAMPLE=6`, ~115) over `bench/short-record-failures.txt` | to round 3 (adds 9.6M) | what it buys where the ladder's rungs disagree — **level 9 is a stage-B level**, and it is the whole argument for the flag |
+
+`NODES MAXA MAXB SAMPLE JOBS` are the knobs and the numbers are only comparable at the defaults. Both
+stages resume from their own reports: Ctrl-C, reboot, the same command picks up where it stopped.
+
+**What the table has to say for the item to close**, and `round_rules.py` prints all four: keys saved and
+the percentage, the ratio column rebased (p50 and how many rows are still over 2.0x), the **shots** column
+before and after — a round that comes back with *fewer shots* found a different plan rather than a tidier
+keystream, which is the half the ratio cannot see — and the price in nodes and wall, both over the whole
+population and over the levels the rule actually fired on. A rule that fires on a third of a collection
+and buys nothing on most of them is a rule that costs a third of a collection.
+
+*Two things not to re-derive.* What was tried first and is not the answer: making the gate refuse the
+longer write — it fixes the file and hides the run. And the recipe this item replaces: for six sessions
+these files said *"this is the command to use for level 9, not the driver"* — a hand-run of
+`push-ferry-work` at `--push-beam 2048 --push-restarts 30`, 16m36s, 127 keys / 2.2x — because an
+unattended driver run found the beam's 294-key route instead and cancelled the good one 68.5M nodes early.
+`--best-of-round` is exactly the removal of that cancel, and with it the driver beats the hand-run by
+twelve keys.
+
+**The lost result this item was really for is not lost — session 48 recovered it**, from the *port*
+machine's `build/`, which never took part in the machine move that emptied the solver's. Both files are
+committed at `bench/recovered/LaserTank/` and **both pass the gate** (`python
+tools/verify_solutions.py bench/recovered` → 2/2, both engines, byte-identical traces):
+
+| lvl | the recovered file | keys | ratio | banked when this was written | banked now |
+|---:|---|---:|---:|---|---|
+| 8 | `bench/recovered/LaserTank/00008.lpb` | **308 (262 + 46)** | **1.4x** | 335 / 1.5x | **305 / 1.37x** |
+| 9 | `bench/recovered/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **115 / 1.9x** | 115 / 1.9x |
+
+**The last column is how the item ended.** Stage `acc` re-derived level 8 at **305 keys** from an empty
+directory — three keys under the recovered file and thirty under the 335 — in all four arms
+byte-identically, and a driver run then banked it. Neither recovered file was copied anywhere: the
+reasoning below about re-banking being a decision held, and what settled it was the ladder producing a
+better route on its own.
+
+Level 9's 114 stays retired: the acceptance run comes back at 115, one key longer, at the same ratio,
+from the driver with no flags aimed at the level. **Level 8's 308 is the one that matters** — 27 keys
+and a tenth of a ratio point better than what is banked, never re-derived, and now a *file* rather than
+a memory. Neither is banked into `data/solutions/`, deliberately: session 42's move of level 9 was
+"re-derived rather than restored", and a shorter route with no recipe behind it is exactly what that
+preference is about. **The recovery changes what can be asked, not what is banked.**
+
+**What the recovery makes actionable, cheapest first.** All three were taken up in session 48; **1 and 3
+came back changed and 2 is now a scripted stage.** **All three then ran on 2026-09-14** — what they
+returned is in [*What is left*](#what-was-left-after-the-decision) and in
+[`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked); the design
+reasoning below is kept because it is what the stage was built from and two of its predictions were
+wrong in instructive ways. **The one that was right and matters most: `--beat-banked`'s refusal path
+fired for the first time outside unit tests, in both directions, and behaved.**
+
+**Stage `acc` is priced from the driver's own round budgets and it is not a coffee break.** Round *r*
+hands each of ten rungs `4^r x --nodes`, so at the default 150k a rung sees 9.6M at round 3 and **153.6M
+at round 5** — and the recovered level-8 run spent **60M in a single searcher**. So `MAXACC=5` is the
+only setting at which the stage is an acceptance test at all, and driver.md prices that at **44m46s for
+one level, one arm**. `MAXACC=3` makes it a ~20-minute smoke that cannot reach the 308 and will report
+"refused every round" having measured nothing. **Measured, not assumed: at round 2 (6.4M a rung) neither
+level 8 nor level 9 falls at all**, in any arm. The stage therefore runs **cheapest-and-most-decisive
+first**, the way `l5_pass.sh` orders its arms: the six-minute recipe falsifier, then the round arms, then
+the `--beat-banked` arm that needs round 5.
+
+1. **Level 8's 308 is an acceptance bar for `--beat-banked`, not for `--best-of-round` — and it is not
+   free.** Two corrections, both measured:
+   * **Neither round rule fires on level 8.** Read the shot counts off the two files and the recovered
+     308 and the banked 335 spend **exactly the record's 46 shots**, at 1.39x and 1.51x. So the ratio
+     rule closes the round (under 2.0) and the shot rule closes it too — a route matching the record's
+     shot count is, by that rule's own definition, the right plan. **Level 8's 27 keys are execution
+     slack, not a different strategy**, which is closed item 13's distinction doing exactly what it was
+     built for, and it means running level 8 under the round rules measures nothing.
+   * **The campaign does not pass through it.** `chain.jsonl` is a `STRIDE=5` sample — levels 1, 6, 11,
+     16 — so `LaserTank` 8 and 9 are in neither stage A nor stage B, and stage B's list is derived from
+     chain failures so they are not there either.
+
+   What the 308 *does* test is the other flag. **`--beat-banked` refuses a round that comes back longer
+   than the `.lpb` on disk and holds every later round open chasing it** — and
+   [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked) says that
+   refusal path "is unit tests and nothing more", because in the level-9 acceptance run it never had to
+   fire. Seed a scratch output directory with the recovered 308 and the driver must beat it or report
+   `unsolved in N rounds`. **That is the first real exercise of a shipped default**, and it is what
+   stage `acc` does. `data/solutions/` is never written, so re-banking the 308 stays Michal's call as
+   `bench/recovered/README.md` asks.
+
+   **Level 9 is the better acceptance level and it is the opposite case**: both its routes spend 33
+   shots against the record's 22, at 1.93x and 1.95x — *inside* the ratio rule's 2.0 and *outside* the
+   shot rule's test. It is the two rules disagreeing in one level, which is why stage `acc` runs it
+   under all three arms.
+2. **The candidate recipe is stage `acc`'s last step.** The run logs came back with the solutions and
+   they carry the budget, which is more than the directory names item 4 was written around:
+   `w8-2048.log` is *1 worker, 5,400,000 ms + 60,000,000 nodes, beam 600*, **solved in 5m51s**, and the
+   directory name says width 2048. The banner is the *batch* harness's, so the scripted falsifier is a
+   batch run rather than a driver one: `--level 8 --jobs 1 --nodes 60000000 --push --push-read
+   --push-beam 2048 --push-eval work`. If 308 comes back, "not reproducible as a recipe" closes and the
+   level-8 route has a command; if it does not, that is the more interesting answer, because it says the
+   308 came from a flag set nobody wrote down and the banked 335 is the best *reproducible* route.
+3. **Done — and it paid the same session it shipped.** Every report row now carries **`config`**, the
+   run's own flags with the paths elided (`--nodes 60000000 --push-beam 2048 --levels <path>`), and the
+   driver's rows also carry **`rung`**, which is what the winning rung's `Tune` set on top —
+   `RunPush=True PushRead=True PushBeamWidth=48 PushRestarts=18`. **The second field is the one that
+   closes the actual hole**: `--push-beam 2048` never appears in a driver's argv at all, it comes from
+   `Auto.Ladder`, so the run that produced level 8's 308 could not have recorded it even if the row had
+   carried the command line. It is read off the options object by reflection rather than written out
+   beside each rung, so a rung that gains a knob says so without anybody remembering to update a string.
+   The driver's banner prints the flags too. **It paid within the hour**: stage `acc` runs its three
+   round arms into one report and tells them apart by reading `--best-of-shots` out of their own
+   `config` — a thing no report in this tree could do the day before.
+
+One loose end closed while checking, worth having because it re-attributes a banked file:
+**`build/w/d8-w512w/…/00008.lpb` was byte-identical to the banked `data/solutions/LaserTank/00008.lpb`**,
+so the banked level-8 route came from that run — 400M nodes, beam 600, width 512 — and not from an
+unknown one. The 335 and the 308 are the same searcher at two widths.
+
 ### 5. Level 6's decomposition — built, and refused by the falsifier it set itself.
 
 **The item asked for layer 2's decomposition one level out: commit to a phase, search only for that,
@@ -1124,9 +1423,13 @@ the wrong strategy*, which is where the ratio tail lives and the one population 
 provably cannot help.
 
 **What it does not close is the rule inside `--best-of-round`**, and that belongs to
-[item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default) rather
+[item 4](#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it) rather
 than to a fifth item: the shot test and the ratio test disagree on 58 of the 452 rows, and whether
 keeping those rounds open pays is a campaign question.
+
+*(Item 4 ran it on 2026-09-14 and **this rule won**, on both populations — 95 keys against the ratio
+rule's 53 over the 494 levels the chain solves, 71 against 65 over the 90 deep ones. It is the driver's
+default now, as `--best-of-shots`. A column that cost minutes decided a shipped default.)*
 
 ### 14. Per-level width from the record — built, swept, and beaten by the global width.
 
@@ -1483,7 +1786,7 @@ nodes**: when narrow works it works at roughly a twelfth of the budget. Routes a
 
 **So the follow-up is a budget question, not a width question.** Two arms that tie at 40M and separate
 by 1.6x in nodes on the levels they share are two arms that do **not** tie at 4M or 10M, and that curve
-is [item 7](next-actions.md#7-3rd--the-solved-vs-budget-curve) rather than a new item. The five reports
+is [item 7](next-actions.md#7-2nd--the-solved-vs-budget-curve) rather than a new item. The five reports
 are banked, so any budget rung can be read against them without re-running a control.
 
 **What it leaves.** `--push-beam 32` is not a new default — 84 is not 85. It is a **second arm** on a
@@ -2237,7 +2540,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-3rd--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-2nd--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

@@ -37,16 +37,36 @@ report WIN with byte-identical traces. A solution that fails is deleted and the 
 loudly, because after Phase 3 that can only mean an engine divergence. Missing engines or no python is a
 startup error, not a discovery made six levels in.
 
+**A round is not node-governed, even though every rung in it is** — and stage A of closed item 4 is where that
+was measured. The stop bit is polled every 120 ms and a rung already inside `Clean()` never sees it, so
+**which rungs have crossed the line when a round cancels is a race with the thread scheduler**: two runs
+of the *same* configuration over the 494 levels the chain solves disagree on **5-9 levels and about 20
+keys**. Nothing is wrong — every rung spends its node budget exactly — but a campaign of driver runs has
+a noise floor that a batch campaign does not, and any difference smaller than it is not a result.
+[Item 4](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it) reports
+against it rather than around it.
+
 **The driver can be measured now, which it could not before session 48.** It takes the batch harness's
 `--report FILE.jsonl` — one row per level, the same `Outcome.Json` every other report in the tree is made
 of, so `report_stats.py`, its `--diff` and `arms_union.py` all read it — plus five numbers only the driver
 has: `rounds`, `wins` (how many rungs solved the round that ended the level), `longest` (the longest of
 those routes, which is what a first-win-cancels run could have banked instead), and `total_nodes` /
 `total_ms`, **the level's whole bill against the winning rung's own**. A level nobody solved gets a row
-too, with `stop` saying which of the three ways it ended. It also takes the selection flags the batch path
+too, with `stop` saying which of the three ways it ended.
+
+**And every row says how the search was configured**, which no report in this tree did before: `config`
+is the run's own flags with the paths elided, and — driver rows only — `rung` is what the winning rung's
+`Tune` set on top of them (`RunPush=True PushRead=True PushBeamWidth=48 PushRestarts=18`). The second is
+the one that matters here, because **a driver's argv cannot express a rung**: `--push-beam 2048` comes
+from `Ladder`, not from the command line, which is exactly how `LaserTank.lvl` 8's 308-key route came to
+survive as the string "2048" in a gitignored directory name and nothing else
+(`bench/recovered/README.md`). It is read off the options object by reflection, so a rung that gains a
+knob says so without anybody remembering to update a string.
+
+It also takes the selection flags the batch path
 has always had — `--stride`, `--levels-list`, `--difficulty`, `--limit` — in level order, which is the one
 thing the driver does differently on purpose. Together those are what makes a *campaign of driver runs*
-comparable, which is what [item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default)
+comparable, which is what [item 4](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)
 needs and what nothing in the tree could express before.
 
 **The driver writes to `data/solutions`, not `build/`.** A campaign's output is disposable (regenerated
@@ -64,13 +84,16 @@ better route before it exists.
 The property the driver is supposed to have is that **one run reproduces the best route the project has
 ever found for a level.** Two flags:
 
-* **`--best-of-round [RATIO]`** (off by default) — a win no longer ends the round. Every rung spends the
-  budget the round already gave it and the **shortest** of however many win is banked. **The cost is
-  bounded by a round nobody wins** — the rungs are already sized to spend `nodes` each and a failed
-  round spends exactly that — which is the argument for it being affordable at all. `RATIO` (default
-  2.0) spends it only where it can pay: a win already inside 2.0x the record is a good route and the
-  round ends on it as before, so a collection of easy levels costs nothing. A level with no `.ghs`
-  record always keeps the round open, because an unjudgeable route is the case the flag exists for.
+* **Keeping the round open is now the default**, and the rule it uses is the shot test below —
+  `--no-best-of-round` is the opt-out, and a bare **`--best-of-round [RATIO]`** asks for the *ratio* rule
+  on its own, which is how a campaign's arms are told apart. Under either: a win no longer ends the
+  round. Every rung spends the budget the round already gave it and the **shortest** of however many win
+  is banked. **The cost is bounded by a round nobody wins** — the rungs are already sized to spend
+  `nodes` each and a failed round spends exactly that — which is the argument for it being affordable at
+  all. `RATIO` (default 2.0) spends it only where it can pay: a win already inside 2.0x the record is a
+  good route and the round ends on it as before, so a collection of easy levels costs nothing. A level
+  with no `.ghs` record always keeps the round open, because an unjudgeable route is the case the flag
+  exists for.
 * **`--beat-banked`**, **ON by default** (`--no-beat-banked` opts out) — a round whose best route is
   longer than the `.lpb` already on disk is *not accepted*: the candidate is dropped and the budget
   quadruples instead. So a re-solve converges on the best route ever banked rather than on whatever this
@@ -89,16 +112,22 @@ ever found for a level.** Two flags:
   path has to run the round out because it never knows whether a shorter route exists; the target path
   knows exactly what it is chasing. Without that, a refused round 5 would hold round 6 open across its
   whole 1.6-billion-node budget long after the win that was the point of opening it.
-* **`--best-of-shots [R]`** (off by default, implies `--best-of-round`) — the same flag with closed item
+* **`--best-of-shots [R]`** — **the rule that ships on**; spelling it out only changes `R`. Closed item
   13's test in place of the ratio. Shots are the strategy and moves the execution, so **a win that spends
   more shots than the record is a worse route whatever its keystream ratio** — median 1.85x against 1.41x
   for one that matches the record — and it keeps the round open; otherwise the ratio decides against a
   looser bound, `R`, default 3.0, because the shot test has already said the plan is right and what is
   left to buy is polish. The two tests disagree on **58 of 452 solved rows**: 41 wins the ratio closes the
   round on although the shot count says the strategy is wrong, 17 it holds open although the shot count
-  says it is already right. Which rule pays is
-  [item 4](next-actions.md#4-2nd--the-campaign-that-decides-whether---best-of-round-is-a-default)'s
-  campaign and it is built but not yet run.
+  says it is already right. **Item 4's campaign ran on 2026-09-14 and this rule won both its
+  populations** — 95 keys against the ratio rule's 53 over the 494 levels the chain solves, 71 against 65
+  over the 90 deep ones, and **never longer on a single level where either rule fired, 0 of 60** — which
+  is why it is the default rather than merely the better flag. It is not free: 1.15x the nodes on stage
+  A and 1.22x on stage B, and 1.34x the wall there.
+* **Which rule ran is on every report row**, whether it came from a flag or from the default: `config`
+  ends in `[round-rule shots 3 beat-banked]`, `[round-rule ratio 2 …]` or `[round-rule off …]`. A
+  default has no token in argv, so without this two rows produced by two different rules would carry the
+  same `config` — the same hole `config` was added to close for `--push-beam`.
 
 **The mechanism is demonstrated, not only argued for.** The level-9 acceptance run —
 `--from 9 --to 9 --force --best-of-round --max-round 5`, unattended, 44m46s, 258.8M nodes:
@@ -122,12 +151,31 @@ lost with `build/w/b9-b/` (recovered in session 48 and gated —
 mechanism, and that is a result rather than a technicality:** what was broken was the cancel, not the
 ranking key.
 
-`--beat-banked` never had to fire — the first round that solved anything already beat the banked file —
-so **the default is exercised but not yet tested in anger.** Its refusal path is unit tests and nothing
-more. What is left is the campaign that decides whether `--best-of-round` becomes a default, and note the
-price this level puts on it: **44m46s for one level** against the 16m36s of the hand-run it beat, because
-a round nobody cancels is a round every rung spends in full. See
-[`next-actions.md`](next-actions.md) item 4.
+In that run `--beat-banked` never had to fire — the first round that solved anything already beat the
+banked file — so its refusal path was unit tests and nothing more. **Item 4's stage `acc` fired it, on
+2026-09-14, in both directions, and it behaved.** Seeded with the two recovered routes and run
+`--force --max-round 5`:
+
+* **Level 8, seeded with the recovered 308:** the ladder came back with **305 keys at 1.37x**,
+  `push-fire`, round 4, gated through both engines. The refusal path let a shorter route through and the
+  file was replaced — and the 305 is *re-derived*, which is the distinction session 42 set and the one
+  that matters here. It was 30 keys under the 335 then banked. **All four arms of the stage returned it
+  byte-identically** (`d371e931a857`), the control included, so it is one route the driver reaches four
+  times over rather than a lucky round — and **`data/solutions/LaserTank/00008.lpb` now holds it**,
+  written by a driver run of its own rather than copied from the stage's output, which is the only way
+  anything gets into that directory.
+* **Level 9, seeded with the 114:** every round was refused — `round 5: 294 keys, longer than the banked
+  114 -- not accepted, escalating; holding the round open now` — and the level ended **`unsolved in 6
+  rounds` with the seeded file untouched.** That is the refusal path saying "not yet" rather than
+  "solved", which is exactly what it promises and had never been watched doing.
+
+Note the price this level puts on the other flag: **44m46s for one level** against the 16m36s of the
+hand-run it beat, because a round nobody cancels is a round every rung spends in full. Stage `acc`
+measured the worst case of that too — on level 9 at round 5 the two round arms spent **1.39G nodes
+against the control's 603M, 2.31x, to return a byte-identical 294-key route.** Holding a round open pays
+when a slower rung has a better answer *inside that round's budget*; at round 5 `push-ferry-work` needs
+162.8M in one searcher and the round hands each rung 153.6M, so it was about 6% short and the spending
+bought nothing. See [closed item 4](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it).
 
 ### When a round *is* accepted, `--force` overwrites unconditionally
 

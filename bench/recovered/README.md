@@ -22,7 +22,7 @@ been two verified solutions and three measurement populations, permanently.
 
 | file | what it is | the doc that calls it lost |
 |---|---|---|
-| `LaserTank/00008.lpb` | `LaserTank.lvl` 8 in **308 keys (262 + 46), 1.4x** | `docs/solver/next-actions.md` item 4 |
+| `LaserTank/00008.lpb` | `LaserTank.lvl` 8 in **308 keys (262 + 46), 1.4x** | `docs/solver/history.md` closed item 4 |
 | `LaserTank/00009.lpb` | `LaserTank.lvl` 9 in **114 keys (81 + 33), 1.9x** | item 4; `docs/solver/driver.md:98`; `SOLVER.md:188` |
 | `bench-levels.txt` | the original bench 1 — 60 `Beginner-I` levels layer 0 failed | `bench/bench-levels.txt` header, `bench/README.md` |
 | `deep-levels.txt` | the original deep bench — 50 levels, `.ghs` total 40-150 | `bench/deep-levels.txt` header |
@@ -33,7 +33,7 @@ its header, which is this directory's parent's rule and the thing whose absence 
 
 ## The two solutions, and what they are worth
 
-`docs/solver/next-actions.md` item 4 banks these two as *"A lost result worth knowing about"*:
+`docs/solver/history.md` closed item 4 banks these two as *"A lost result worth knowing about"*:
 
 > The shortest verified files for levels 8 and 9 once lived in a gitignored `build/w/` and went with
 > it. […] Which configuration produced either is not recorded — the widths in the directory names
@@ -47,14 +47,23 @@ reporting WIN with byte-identical traces. They are solutions in the only sense t
 - **Level 9's 114** is the smaller of the two results, and item 4 is right that it is nearly retired:
   the driver re-derives **115** at the same 1.9x with no flags aimed at the level, so this file is
   worth one key and the confirmation that the 114 was real.
-- **Level 8's 308 / 1.4x is the find.** It is **27 keys shorter than the 335 / 1.5x banked in
-  `data/solutions/LaserTank/00008.lpb`**, it had not been re-derived, and it is the shortest verified
-  level-8 route this project has.
+- **Level 8's 308 / 1.4x was the find.** It was **27 keys shorter than the 335 / 1.5x** banked in
+  `data/solutions/LaserTank/00008.lpb` at the time, it had not been re-derived, and it was the shortest
+  verified level-8 route this project had.
 
 **It is not banked into `data/solutions/` here, and that is deliberate** — re-banking is Michal's
 call, and the docs record a preference worth honouring: session 42 moved level 9 from 127 to 115 and
 noted it was *"re-derived rather than restored"*. A shorter route with no recipe behind it is exactly
 the thing that preference is about. The file is preserved; the decision is not pre-empted.
+
+> **2026-09-14 — and the preference is what paid.** Item 4's stage `acc` used this file as an
+> acceptance bar rather than as a source: seeded with the 308, the driver was made to beat it or report
+> `unsolved`. It beat it, at **305 keys / 1.37x**, in all four arms byte-identically
+> (`d371e931a857`), and a driver run of its own then wrote that into
+> `data/solutions/LaserTank/00008.lpb`. So level 8's banked route is **re-derived, not restored**, and
+> the 308 kept its value by never being copied. Level 9's 114 is unchanged and still retired at 115.
+> Nothing here was copied into `data/solutions/` — see
+> [closed item 4](../../docs/solver/history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it).
 
 ## What the recovery adds to item 4's "not reproducible as a recipe"
 

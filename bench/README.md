@@ -13,7 +13,7 @@ in git.
 **Some of what that move took was not actually gone, and `bench/recovered/` is what came back.**
 Session 48 found the *port* machine's own `build/` still holding its pre-move copies — the originals
 of all three level lists below, and the two shortest verified `LaserTank.lvl` 8 and 9 routes that
-`docs/solver/next-actions.md` item 4 writes off as lost (level 8's **308 / 1.4x** is 27 keys shorter
+`docs/solver/history.md` closed item 4 writes off as lost (level 8's **308 / 1.4x** is 27 keys shorter
 than what is banked, and had never been re-derived). Both solutions pass the gate. See
 [`recovered/README.md`](recovered/README.md) — including the one doc guess the recovery retires, and
 the reasons **none of it rebases anything**: the lists are back, the solver that measured them is not.
@@ -42,7 +42,7 @@ regenerates in ~3 minutes, so it stays in `build/reports/`; `trace10.err` is one
 `--jobs 1` and is the evidence behind this project's diagnosis of `LaserTank.lvl` 10, so it is here.
 An output that lands here carries **the command that produced it in its header**, which is the same
 rule the level lists follow and the exact thing whose absence lost the level-8 and level-9 routes
-(`docs/solver/next-actions.md`, item 4: the flags survived only as directory names, so neither is
+(`docs/solver/history.md`, closed item 4: the flags survived only as directory names, so neither is
 reproducible).
 
 | file | kind | what it is |

@@ -1,12 +1,18 @@
 # Next actions — the open items in full
 
-Four items are open. The order and the reasoning behind it are in
+Three items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 4, 7, 10**. **Items 14 and 19 both closed on the same 138 levels, and between them they
+Order: **2, 7, 10**. **[Item 4 closed on 2026-09-14](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)**
+— the shot rule ships as the driver's default, all three stages are in, and the two instrument defects
+the campaign turned up (an unattended run's stdin could give up on a level; a gate that passed on an
+empty directory) are fixed. It also re-derived `LaserTank` 8 at **305 keys / 1.37x**, which is now what
+`data/solutions/` holds.
+
+**Items 14 and 19 both closed on the same 138 levels, and between them they
 retire per-level width from both sides.** Item 14 swept the beam *wider* (raise-only is what the flag
 allows) at the calibration's own p25 / p50 / p75 and lost every arm — **76 / 78 / 78 against a banked
 control's 85 of 138**, at median chosen widths of 854 to 6,820 against the global 128. Item 19 then ran
@@ -21,7 +27,7 @@ level between width 32 and 128, **it is not the length of the record**, and
 to size width in either direction. What *is* real is **cost**: on the 76 levels both widths solve, 32 is
 cheaper on 46 at a median of **1.03M nodes against 1.61M**, and four of its exclusive wins land in 1.8M
 to 3.4M on levels the control burned the whole 40M and failed. Two arms that tie at 40M and differ 1.6x
-in nodes **do not tie at 4M**, so the follow-up is [item 7](#7-3rd--the-solved-vs-budget-curve)'s budget
+in nodes **do not tie at 4M**, so the follow-up is [item 7](#7-2nd--the-solved-vs-budget-curve)'s budget
 curve rather than any new width item, and the five banked reports mean any rung of that curve can be read
 without re-running a control. Five-arm union **101 of 138 (73.2%)**.
 [Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width),
@@ -307,142 +313,7 @@ different 253 levels and would have been comparable with nothing), and the `l5-s
 
 ---
 
-## 4 (2nd) — the campaign that decides whether `--best-of-round` is a default
-
-**The acceptance half is done and it passed better than its bar.** The mechanism, the transcript and the
-115-keys-against-294 result are in [`driver.md`](driver.md#not-settling-for-the-first-win----best-of-round-and---beat-banked).
-
-**What is left is a number, and the instrument for it is built (session 48) — what is left of *that* is
-machine time.** `bash tools/bor_campaign.sh` is the campaign; `bash tools/bor_campaign.sh report` prints
-its table again for free from the banked reports. The measurement is a campaign with `--best-of-round`
-against one without it, read as *keys* rather than as solved count — the solved set should be identical
-and the routes shorter, and how much shorter is what decides whether this becomes a default. **Every ratio
-quoted in these files was measured under first-win-cancels, so that campaign rebases them.**
-
-**And it inherits closed item 13's second half, which is a rule rather than a number.** The flag judges a
-win by `keys / record ≤ 2.0`; the shot test says a win that spends *more shots* than the record is a
-different and worse route, and the two disagree on **58 of the 452 rows** — 41 wins the ratio test closes
-the round on although their shot count says the strategy is wrong, and 17 it keeps open although the
-shot count says the strategy is already right, so those rounds can only buy polish. The change to make
-with the campaign: *keep the round open when `shots > ghs_shots` whatever the ratio; close it when
-`shots == ghs_shots` and the ratio is inside a looser bound*, and **a level with no record keeps the
-round open, as it does today.** The measurement is already run and the column is in `report_stats.py` —
-what is not decided is whether the rule pays for the rounds it keeps open, which is this campaign's
-question and not a separate item's. **It is now a flag, `--best-of-shots [R]`**, and it is the campaign's
-third arm: more shots than the record keeps the round open whatever the ratio, otherwise the ratio decides
-against a looser `R`, default **3.0** — looser because the shot test has already said the plan is right,
-and the rows whose shots match the record are p90 1.79x, so 3.0 closes nearly all of them.
-
-Note what level 9 says about its price: **44m46s for one level**, against the 16m36s of the hand-run it
-beat, because a round nobody cancels is a round every rung spends in full.
-
-### The run
-
-```bash
-bash tools/bor_campaign.sh                 # both stages, three arms each, ~6-7 h at JOBS=4
-bash tools/bor_campaign.sh a               # the dense stage only, ~1.5 h
-bash tools/bor_campaign.sh b               # the deep stage only, ~5 h
-bash tools/bor_campaign.sh report          # the table again, free, from the banked reports
-tail -f build/reports/item4-run.log        # from any other shell
-```
-
-Priced from a 13-level rehearsal at `JOBS=4` beside item 2's pass rather than guessed: **the ten rungs get
-through about 1.15M nodes a second between them**, so a level nobody solves costs 31M nodes / ~27 s to
-round 2 and 127M / ~110 s to round 3, and a round held open costs the whole of its own budget — 96M at
-round 3.
-
-Safe beside item 2's pass — `JOBS=4` against its 16 on 20 cores, node-governed round by round — with the
-one caveat this item has that item 19 did not: **wall clock is one of the numbers it wants**, so the
-report prints nodes beside every second it quotes and the seconds are the contended ones. **While the pass
-holds `build/lasertank-solve.exe` open the new driver can only be built into the project's own `bin/`**
-(`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`); the script finds that build
-itself and says so, rather than running a third arm that silently repeats the second.
-
-**Three arms, and the third is the new flag.** `ctrl` is the driver as it ships, `bor` is
-`--best-of-round` at its 2.0, `shots` is `--best-of-shots` at 3.0.
-
-**The arms after the control run only over the levels the control solved, and that is not a shortcut —
-it is what the flags are.** Neither is consulted until a rung has already won, and neither adds budget,
-so **a level the control could not solve costs all three arms exactly the same and has no keys to
-compare**. `tools/round_rules.py` checks the assumption instead of trusting it: a level an arm solves that
-the control did not is printed as an instrument warning, not as a win.
-
-**Two stages, because the flag's cost and its benefit live in different populations.**
-
-| stage | population | rounds | what it answers |
-|---|---|---|---|
-| **A** | the **494** levels the shipped chain solves at 150k | to round 2 (150k / 600k / 2.4M per rung) | what a *default* costs and buys on the levels nearly every run touches |
-| **B** | a stride (`SAMPLE=6`, ~115) over `bench/short-record-failures.txt` | to round 3 (adds 9.6M) | what it buys where the ladder's rungs disagree — **level 9 is a stage-B level**, and it is the whole argument for the flag |
-
-`NODES MAXA MAXB SAMPLE JOBS` are the knobs and the numbers are only comparable at the defaults. Both
-stages resume from their own reports: Ctrl-C, reboot, the same command picks up where it stopped.
-
-**What the table has to say for the item to close**, and `round_rules.py` prints all four: keys saved and
-the percentage, the ratio column rebased (p50 and how many rows are still over 2.0x), the **shots** column
-before and after — a round that comes back with *fewer shots* found a different plan rather than a tidier
-keystream, which is the half the ratio cannot see — and the price in nodes and wall, both over the whole
-population and over the levels the rule actually fired on. A rule that fires on a third of a collection
-and buys nothing on most of them is a rule that costs a third of a collection.
-
-*Two things not to re-derive.* What was tried first and is not the answer: making the gate refuse the
-longer write — it fixes the file and hides the run. And the recipe this item replaces: for six sessions
-these files said *"this is the command to use for level 9, not the driver"* — a hand-run of
-`push-ferry-work` at `--push-beam 2048 --push-restarts 30`, 16m36s, 127 keys / 2.2x — because an
-unattended driver run found the beam's 294-key route instead and cancelled the good one 68.5M nodes early.
-`--best-of-round` is exactly the removal of that cancel, and with it the driver beats the hand-run by
-twelve keys.
-
-**The lost result this item was really for is not lost — session 48 recovered it**, from the *port*
-machine's `build/`, which never took part in the machine move that emptied the solver's. Both files are
-committed at `bench/recovered/LaserTank/` and **both pass the gate** (`python
-tools/verify_solutions.py bench/recovered` → 2/2, both engines, byte-identical traces):
-
-| lvl | the recovered file | keys | ratio | banked now |
-|---:|---|---:|---:|---|
-| 8 | `bench/recovered/LaserTank/00008.lpb` | **308 (262 + 46)** | **1.4x** | 335 / 1.5x |
-| 9 | `bench/recovered/LaserTank/00009.lpb` | 114 (81 + 33) | 1.9x | **115 / 1.9x** |
-
-Level 9's 114 stays retired: the acceptance run comes back at 115, one key longer, at the same ratio,
-from the driver with no flags aimed at the level. **Level 8's 308 is the one that matters** — 27 keys
-and a tenth of a ratio point better than what is banked, never re-derived, and now a *file* rather than
-a memory. Neither is banked into `data/solutions/`, deliberately: session 42's move of level 9 was
-"re-derived rather than restored", and a shorter route with no recipe behind it is exactly what that
-preference is about. **The recovery changes what can be asked, not what is banked.**
-
-**What the recovery makes actionable, cheapest first.**
-
-1. **Level 8's 308 is now this item's second acceptance bar, for free.** Item 4's whole question is
-   whether an unattended `--best-of-round` round matches what a hand-run found, and until now it had
-   exactly one data point — level 9's 114 against the driver's 115. Level 8 gives it a second, on a
-   level whose record is nearly four times longer (176 + 46 against 37 + 22), and the target is a
-   verified file the run can be diffed against rather than
-   a number in a table. **Add level 8 to the acceptance run and read the keys.** No new machine time:
-   the campaign this item already specifies passes through it.
-2. **Try the candidate recipe — it is under six minutes.** The run logs came back with the solutions and
-   they carry the budget, which is more than the directory names item 4 was written around:
-   `w8-2048.log` is *1 worker, 5,400,000 ms + 60,000,000 nodes, beam 600*, **solved in 5m51s**, and the
-   directory name says width 2048. So the residue is a real candidate — **driver at `--lanes 1`,
-   `--push-beam 2048`, ~60M nodes** — and the falsifier costs one coffee. If 308 comes back, "not
-   reproducible as a recipe" closes and the level-8 route has a command; if it does not, that is the
-   more interesting answer, because it says the 308 came from a flag set nobody wrote down and the
-   banked 335 is the best *reproducible* route.
-3. **Fix the thing that caused this, at the source: `--report` rows do not record the configuration.**
-   A row carries `keys`, `raw_keys`, `moves`, `shots`, `ratio`, `nodes`, `ms`, `method`, `stop`, `depth`,
-   `restarts` — and nothing about how the search was set up. That is why two of this project's best
-   results survived only as directory names, and why `bench/README.md`'s rule ("an output carries the
-   command that produced it in its header") cannot be obeyed by the driver's own output. **Write the
-   flag set into each report row, and into the driver's log header.** It is a few lines, it is the root
-   cause of item 4's lost recipe, and every run after it is self-documenting. This is the one item on
-   this page that pays whether or not any level is solved.
-
-One loose end closed while checking, worth having because it re-attributes a banked file:
-**`build/w/d8-w512w/…/00008.lpb` was byte-identical to the banked `data/solutions/LaserTank/00008.lpb`**,
-so the banked level-8 route came from that run — 400M nodes, beam 600, width 512 — and not from an
-unknown one. The 335 and the 308 are the same searcher at two widths.
-
----
-
-## 7 (3rd) — the solved-vs-budget curve
+## 7 (2nd) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;
