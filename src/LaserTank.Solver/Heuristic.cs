@@ -399,9 +399,24 @@ namespace LaserTank.Solver
             // inside the Dijkstra below, so they are built before it and not
             // per relaxation.  Off unless the searcher asked, which is what
             // keeps every measurement taken before them reproducible.
+            if (Time)
+            {
+                long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (WantFire || WantReach) BuildFire(e);
+                long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (WantReach) BuildReach(e);
+                long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (WantDead) BuildAlive(e);
+                TFire += t1 - t0; TReach += t2 - t1;
+                TAlive += System.Diagnostics.Stopwatch.GetTimestamp() - t2;
+            }
+            else
+            {
             if (WantFire || WantReach) BuildFire(e);   // BuildReach reads _fire
             if (WantReach) BuildReach(e);
             if (WantDead) BuildAlive(e);
+            }
+            long tR = Time ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
             int[] cost = _cost;
             for (int i = 0; i < 256; i++) { cost[i] = int.MaxValue; _pred[i] = -1; }
@@ -430,7 +445,11 @@ namespace LaserTank.Solver
                 // already walk to safely, which is the same cell layer 2's
                 // FrontierObstacles settles on and for the same reason.
                 if (WantReach ? _reach[c] : c == tx * 16 + ty)
-                { RouteObstacles = CountOnRoute(e, c); return d; }
+                {
+                    RouteObstacles = CountOnRoute(e, c);
+                    if (Time) TRoute += System.Diagnostics.Stopwatch.GetTimestamp() - tR;
+                    return d;
+                }
 
                 int cx = c >> 4, cy = c & 15;
                 for (int k = 0; k < 4; k++)
@@ -448,6 +467,7 @@ namespace LaserTank.Solver
                     if (t != c) Relax(ref n, d, c, t, 0, cost);
             }
 
+            if (Time) TRoute += System.Diagnostics.Stopwatch.GetTimestamp() - tR;
             int man = (tx > fx ? tx - fx : fx - tx) + (ty > fy ? ty - fy : fy - ty);
             return Unreachable + man;
         }
@@ -818,6 +838,14 @@ namespace LaserTank.Solver
         /// unless the searcher using it says otherwise -- which also keeps
         /// every measurement taken before it byte-for-byte reproducible.
         public bool WantStop;
+
+        // --push-time only: item 10's sub-split of WorkDistance, in Stopwatch
+        // ticks.  The point of it is the *key* each part would memoise under:
+        // the fire map, the frozen-block test and the priced Dijkstra are
+        // functions of the playfield alone, and only the reach flood starts
+        // from the tank.  Set by the caller; nothing reads them unless it does.
+        public bool Time;
+        public long TFire, TReach, TAlive, TRoute;
 
         /// Whether the fire scan is wanted, and what a swept cell costs on top
         /// of its terrain.  Off unless the searcher says otherwise, for

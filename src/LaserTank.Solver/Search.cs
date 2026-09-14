@@ -413,6 +413,7 @@ namespace LaserTank.Solver
         public int RecordShots = 0;
         public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs
         public bool PushTrace = false;     // per-depth diagnostics to stderr
+        public bool PushTime = false;      // --push-time: item 10's seconds
         public double PushShare = 1.0;
 
         public bool SgReuse = false;       // restart from discarded nodes

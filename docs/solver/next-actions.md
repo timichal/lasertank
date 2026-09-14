@@ -373,23 +373,123 @@ successor — a Dijkstra from the flag, the fire map, the reach flood, the ferry
 closure ~466 against ~1,022, so the split between key cost and board cost needs a profiler, not this
 table.)
 
-**Where it is recoverable.** The successors of one expansion are four boards wearing thirty-nine hats.
-Everything in that list except the tank's own cell is a function of the playfield alone — the Dijkstra
-runs *from the flag* and reads the tank cell off its table (`Heuristic.cs:379-432`) — and it is
-recomputed for every hat. Memoise the table by `BoardKey` within an expansion (by `(BoardKey, tank cell)`
-under `--push-reach`, whose flood starts from the tank) and the per-successor cost collapses to a lookup
-for every duplicate. Also cache the fire map, the matching and the `Feat` board terms the same way.
+### Instrumented in session 49 — and the profiler the item asked for was the wrong one ☑
 
-**Instrument first:** `dotnet-trace` one `--push --push-read --push-beam 8 --nodes 6000000 --jobs 1` run
-on `LaserTank.lvl` 10 to see the split, then memoise. **Measure in seconds, never nodes** — the node
-count is identical by construction, so every bench in these files will report no change. Two to four
-times on the rungs that solve the hard levels is the plausible size.
+**Where this sits: in the working tree, unstaged.** `--push-time` is `Push.cs`, `Heuristic.cs`,
+`Search.cs` and `Program.cs`, built and checked but not committed, and `build/lasertank-solve.exe` does
+*not* have it — item 2's pass holds that file open, so the only build of the flag is the project's own
+`src/LaserTank.Solver/bin/Release/net8.0/lasertank-solve.exe` (`LT_SOLVE`, the same route
+`bor_campaign.sh` takes). Rebuild it with
+`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`. Nothing below is banked in a
+report: these are single runs kept in this file, and every one of them was taken beside the pass.
+
+**`dotnet-trace` cannot measure this loop, and the way it fails is worth keeping.** It was installed
+for this (`dotnet tool install --global dotnet-trace`) and the answer it gave was an artefact — do not
+reach for it again on the search loop; `--push-time` is what replaced it. Its sampled stacks
+are taken where a suspended thread can be walked, so on a tight search loop they cluster at safepoints:
+over one 6M-node run of the shipped rung it attributed **64% of the time to the budget check**
+(`Solver.get_OutOfBudget` to `Stopwatch.ElapsedMilliseconds`) and put `PushH` at **5.9%**. Both are
+wrong, and cheaply shown to be: a build with the clock read deleted outright runs **no faster** (33.8 /
+32.4 s against 33.0 / 31.6 s with it, the same 6M nodes), and `Stopwatch.ElapsedMilliseconds` measures
+**21.8 ns** a call on this machine, which prices the whole per-node check at **0.4%**. Disabling
+inlining (`DOTNET_JitNoInline=1`) moved the same 64% off `ExpandPush`'s self time and onto
+`get_OutOfBudget` by name, which is what made the artefact legible rather than merely large.
+
+**`--push-time` is the instrument instead**, and it is the run's own timestamps rather than a sampler's
+guess at them: one line per level, the buckets nested the way the code is, plus the count of timestamps
+taken and what one costs so its own share can be subtracted. Off by default, like every other instrument
+in `Push.cs`. A timestamp is ~20 ns against ~5 us an expansion, and the flag costs **1-3%**, inside the
+noise band of an unmeasured run (33.25 / 32.27 s without it, 34.16 s with). **Inert when off, checked
+rather than asserted**: 30 `LaserTank.lvl` levels (20 solved) through the build before it and the build
+after, same nodes, same keys, same stops, and the 20 `.lpb` files **byte-identical**.
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10 \
+    --jobs 1 --nodes 6000000 --no-ida --no-beam --push --push-read --push-beam 8 \
+    --out build/pt --report build/reports/pt.jsonl --force --quiet --push-time
+```
+
+**Where the seconds go.** `LaserTank.lvl` 10, 6M nodes, one thread, beside the running pass — the loads
+match within each column, and the split is node-identical by construction:
+
+| bucket | shipped rung, width 8 | `l8fire`, width 128 (the pass's arm) |
+|---|---:|---:|
+| the whole expansion | 33.01 s | 47.90 s |
+| `ApplyKey` — the engine, all 6M nodes | 6.50 s (20%) | 7.18 s (15%) |
+| **`PushH` — per emitted successor** | **13.67 s (41%)** | **22.81 s (48%)** |
+| `ReadTier` to `Opens` to `TankRegion` | 4.55 s (14%) | 5.73 s (12%) |
+| the fire tier | — | 0.03 s (0%) |
+| the expansion's own book-keeping | 8.29 s (25%) | 12.15 s (25%) |
+| the width trim, outside the expansion | 0.24 s | 0.16 s |
+
+**So the item's premise is right and the sampler's answer was noise: `PushH` is the largest bucket in
+both configurations, and on the arm the pass is actually running it is nearly half the clock.** The
+engine is 15-20% and is not the problem; the read is 12-14%.
+
+**Inside `PushH`, sorted by the key each part would memoise under** — the number that decides the design:
+
+| part of `PushH` | shipped rung | `l8fire` | memo key |
+|---|---:|---:|---|
+| the priced Dijkstra from the flag | 8.45 s | 9.15 s | board |
+| `BuildAlive`, the frozen-block test (`--push-dead`) | 0.02 s | **7.87 s** | board |
+| `BuildFire`, the fire map | 0.01 s | 3.41 s | board |
+| `BuildReach`, the safe flood | 0.01 s | 2.00 s | **board + tank cell** |
+| `Rank` — `Feat.Extract` and `FlagDistance` | 4.89 s | 0.02 s | board (+ tank cell) |
+| **board-only, as a share of `PushH`** | **62%** (8.48 s) | **90%** (20.44 s) | |
+| from the tank, as a share of `PushH` | 0% | 9% (2.00 s) | |
+
+**And the multiplier the memo would buy, measured rather than guessed.** Per expansion, over the same
+runs: **1,115,019 successors on 4,797 distinct boards — 232x** at width 8, and **1,364,612 on 50,029 —
+27.3x** on `l8fire`. Keyed by `(board, tank cell)` instead it is **10.9x** and **6.5x**. The item's
+"four boards wearing thirty-nine hats" is right about the boards and an order of magnitude low about the
+hats: on `l8fire` it is **51 boards wearing 1,400 hats**, every one of them re-deriving the same fire
+map, the same frozen-block test and the same Dijkstra table.
+
+**What that prices the fix at, and it is not two to four times.** On `l8fire`, memoising the board-only
+terms saves 20.44 x (1 - 1/27.3) = **19.7 s of 47.90** and the reach flood a further 1.7 s, so the
+expansion goes to ~26.5 s: **~1.8x**. At width 8 the board-only 8.48 s at 232x is worth 8.44 s of 33.01
+and `Rank`'s 4.89 s is mostly board-only too, so **~1.3x to 1.7x** depending on how much of `Feat` is
+lifted. `ApplyKey`'s 15-20%, the read's 12-14% and the expansion's own 25% are untouched by any of it,
+and they are what caps the whole item **below 2x**. The 8.4x gap to layer 0 does not close here.
+
+**`BuildAlive` is the surprise and the first thing to memoise.** It was not in the item's list at all,
+and on the arm the pass runs it is **7.87 s — 16% of the whole expansion**, second only to the Dijkstra
+inside `PushH` and the purest board function of the lot: `--push-dead` re-derives which blocks are
+frozen for all 1,400 hats of each of 51 boards.
+
+**One measurement that does not match the table above it.** The table says `--push-eval none` runs at
+171k against `coarse`'s 163k and concludes the ranking is not the cost; `--push-time` prices `coarse`'s
+`Rank` at **4.89 s of 33.01 — 15%** on the same level, where `work` costs 0.02 s. Both were measured;
+they are not the same run — the ablation's two arms walked different boards, which is the caveat the
+table already carries — so what stands is the `--push-time` number and what falls is the inference drawn
+from the pair.
+
+### Then memoise — not built yet
+
+The successors of one expansion are a few boards wearing hundreds of hats. Everything in `PushH` except
+the reach flood is a function of the playfield alone — the Dijkstra runs *from the flag* and reads the
+tank cell off its table (`Heuristic.cs:379-432`) — and it is recomputed for every hat. Memoise the
+table by `BoardKey` within an expansion (by `(BoardKey, tank cell)` for `BuildReach`, whose flood starts
+from the tank) and the per-successor cost collapses to a lookup for every duplicate. Cache the fire map,
+`BuildAlive`, the matching and the `Feat` board terms the same way.
+
+**Two things the instrument says the build has to handle.** The Dijkstra exits early — it returns the
+moment it settles the tank's cell, or under `--push-reach` the first cell of the reach set — so a
+*shared* table has to be run to completion, which costs more per board and is only worth it at the 27x
+the census measured; and `WorkDistance` publishes `RouteObstacles`, `RouteFerry`, `RouteStop`,
+`RouteDead`, `RouteHoles` and `RouteFire` as side effects the caller reads immediately, so a memo has to
+restore those per successor rather than skip them.
+
+**Measure in seconds, never nodes** — the node count is identical by construction, so every bench in
+these files will report no change. The acceptance test is that it is *byte*-identical: same nodes, same
+solutions, same reports, fewer seconds. **~1.8x on the push rung is the plausible size**, and the
+machine has to be idle for the final number: every reading above was taken beside item 2's pass.
 
 **Both alternative explanations for the 166k are already ruled out**, which is why this item is now the
 whole of the wall-clock story rather than one of three guesses at it: `--push-eval none` runs at 171k
-against `coarse`'s 163k, so the *ranking* is not the cost (the tiers still need everything `PushH`
-derives); and `sterile=` is 0.05%, so wasted expansions are not the cost either. **The 8.4x gap to layer
-0 is `PushH` itself.**
+against `coarse`'s 163k (but see the mismatch above); and `sterile=` is 0.05%, so wasted expansions are
+not the cost either. **The 8.4x gap to layer 0 is `PushH` itself** — measured at 41-48% of the
+expansion, which is most of what separates the two rungs but not all of it.
 
 ---
 

@@ -486,6 +486,11 @@ namespace LaserTank.Solver
 "    --push-trace         per-depth diagnostics to stderr.  Read `boards=`\n" +
 "                         against `front=`: they are equal when the width is\n" +
 "                         being spent on positions rather than on tank poses\n" +
+"    --push-time          item 10's instrument: one line per level saying where\n" +
+"                         the rung's *seconds* went -- ApplyKey, PushH, the\n" +
+"                         read, the fire tier, and what is left over.  It also\n" +
+"                         prints how many timestamps it took and what one of\n" +
+"                         them costs, so its own share can be subtracted\n" +
 "    --push-trace-board   ...and print the best node's playfield each depth.\n" +
 "                         `best=` says a ranking key has gone flat; it does\n" +
 "                         not say what the beam is looking at, and on a flat\n" +
@@ -770,6 +775,7 @@ namespace LaserTank.Solver
                         case "--push-enables": a.Opt.PushEnables = int.Parse(V()); break;
                         case "--push-enables-poses": a.Opt.PushEnablesPoses = int.Parse(V()); break;
                         case "--push-trace": a.Opt.PushTrace = true; break;
+                        case "--push-time": a.Opt.PushTime = true; break;
                         case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--goal-board": a.GoalBoard = V(); break;
                         case "--goal-weight": a.Opt.GoalWeight = int.Parse(V()); break;
@@ -1814,6 +1820,7 @@ namespace LaserTank.Solver
             PushEval = s.PushEval,
             PushHandScale = s.PushHandScale,
             PushTrace = s.PushTrace,
+            PushTime = s.PushTime,
             PushCloseOnExpand = s.PushCloseOnExpand,
             PushFerry = s.PushFerry,
             GoalWeight = s.GoalWeight,

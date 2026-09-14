@@ -59,6 +59,7 @@
 // the closure is one the engine actually produced.
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using LaserTank.Core;
 
 namespace LaserTank.Solver
@@ -83,6 +84,142 @@ namespace LaserTank.Solver
         private readonly int[] _workAt = new int[256];
         private int _workEpoch;
         private readonly int[] _workStamp = new int[256];
+
+        // --push-time only: where the rung's *seconds* go.  Item 10 asked for
+        // a profiler first and dotnet-trace was the wrong one: its sampled
+        // stacks are taken where a suspended thread can be walked, so on this
+        // loop it put 64% of the run in the budget check -- and a build with
+        // the clock read deleted ran no faster, which prices that check at
+        // 0.4%.  These are the run's own timestamps instead.  A timestamp is
+        // ~22 ns here against ~5 us an expansion; the print reports the number
+        // of them it took so the overhead can be subtracted rather than
+        // trusted.  Off by default, like every other instrument in this file.
+        private long _ptExpand, _ptApply, _ptPushH, _ptRead, _ptFire, _ptCut;
+        private long _ptExpandN, _ptApplyN, _ptPushHN, _ptReadN, _ptCutN;
+
+        // --push-time only: what a memo would save.  PushH is paid per
+        // emitted successor, and everything it derives except the reach
+        // flood is a function of the playfield alone -- so the successors
+        // of one expansion that share a board are re-deriving the same
+        // answer.  `_ptSucc` counts them, `_ptBoards` the distinct boards
+        // among them and `_ptPoses` the distinct (board, tank cell) pairs,
+        // which is the key the reach flood needs.  The ratio of the first
+        // to each of the others is the ceiling on the memo, per expansion.
+        private long _ptSucc, _ptBoards, _ptPoses;
+        private long _ptWork, _ptRank;
+        private readonly HashSet<ulong> _ptSeenB = new HashSet<ulong>();
+        private readonly HashSet<ulong> _ptSeenP = new HashSet<ulong>();
+
+        /// The census above, over the successors one expansion emitted.
+        private void TimeCensus(List<Node> next, int first)
+        {
+            if (!_opt.PushTime) return;
+            _ptSeenB.Clear(); _ptSeenP.Clear();
+            for (int i = first; i < next.Count; i++)
+            {
+                ulong b = BoardKey(next[i].S.PF);
+                _ptSeenB.Add(b);
+                _ptSeenP.Add(b * 257UL + (ulong)(next[i].S.Tank.X * 16 + next[i].S.Tank.Y));
+            }
+            _ptSucc += next.Count - first;
+            _ptBoards += _ptSeenB.Count;
+            _ptPoses += _ptSeenP.Count;
+        }
+
+        private static long Tick() => Stopwatch.GetTimestamp();
+
+        /// ApplyKey, charged.  One node is one call, so this is the engine's
+        /// whole share of the expansion -- Tick, the laser, the anti-tanks and
+        /// the undo record TGAMEREC.Clone builds for each of them.
+        private StepResult TimedApply(byte key)
+        {
+            if (!_opt.PushTime) return _e.ApplyKey(key, _opt.TickCap);
+            long t = Tick();
+            StepResult r = _e.ApplyKey(key, _opt.TickCap);
+            _ptApply += Tick() - t; _ptApplyN++;
+            return r;
+        }
+
+        /// PushCut, charged.  The width trim: a sort of the layer, and the
+        /// per-board cap over it.
+        private void TimedCut(List<Node> next, int width)
+        {
+            if (!_opt.PushTime) { PushCut(next, width); return; }
+            long t = Tick();
+            PushCut(next, width);
+            _ptCut += Tick() - t; _ptCutN++;
+        }
+
+        /// What --push-time prints, once per level, to stderr.
+        ///
+        /// The buckets are nested the way the code is: `expand` is the whole of
+        /// ExpandPush and `apply`, `pushH`, `read` and `fire` are shares of it,
+        /// so what is left over is the expansion's own book-keeping -- Restore,
+        /// StateHash, Snapshot, the board compare and the two hash sets.  `cut`
+        /// is outside it.  `stamps` is the number of timestamps taken and
+        /// `stamp` what one of them costs, measured here rather than assumed,
+        /// so the reader can price this instrument's own share and subtract it.
+        private void TimeReport()
+        {
+            if (!_opt.PushTime) return;
+            double f = Stopwatch.Frequency;
+            long stamps = 2 * (_ptExpandN + _ptApplyN + _ptPushHN + _ptCutN) + 4 * _ptReadN;
+            long c0 = Tick();
+            long acc = 0;
+            for (int i = 0; i < 200000; i++) acc += Tick();
+            double stampNs = (Tick() - c0) * 1e9 / f / 200000;
+            double ex = _ptExpand / f;
+            double rest = ex - (_ptApply + _ptPushH + _ptRead + _ptFire) / f;
+            Console.Error.WriteLine(
+                "  push-time  expand {0,7:F2}s  = apply {1,6:F2}s ({2,4:P0})"
+                + "  pushH {3,6:F2}s ({4,4:P0})  read {5,6:F2}s ({6,4:P0})"
+                + "  fire {7,6:F2}s ({8,4:P0})  rest {9,6:F2}s ({10,4:P0})"
+                + " | cut {11,5:F2}s | calls: expand {12} apply {13} pushH {14}"
+                + " | stamps {15} at {16:F1} ns = {17:F2}s{18}"
+                + "\n  push-time  successors {19}, over {20} distinct boards"
+                + " ({21:F1}x) and {22} distinct (board, tank cell) ({23:F1}x)"
+                + " -- the ceiling on a memo of the board terms, and of the"
+                + " reach flood",
+                ex, _ptApply / f, _ptApply / f / ex, _ptPushH / f, _ptPushH / f / ex,
+                _ptRead / f, _ptRead / f / ex, _ptFire / f, _ptFire / f / ex,
+                rest, rest / ex, _ptCut / f, _ptExpandN, _ptApplyN, _ptPushHN,
+                stamps, stampNs, stamps * stampNs / 1e9, acc == 0 ? "" : "",
+                _ptSucc, _ptBoards, _ptBoards > 0 ? _ptSucc / (double)_ptBoards : 0,
+                _ptPoses, _ptPoses > 0 ? _ptSucc / (double)_ptPoses : 0);
+
+            // Inside pushH, sorted by the key each part would memoise under.
+            // `reach` is the only one that starts from the tank; fire, alive
+            // and route are the playfield's alone, and `route` includes the
+            // priced Dijkstra whose table is board-only even though its
+            // stopping cell is not.  Everything left of `rank` is
+            // WorkDistance; `rank` is Feat.Extract and the learned score.
+            double ph = _ptPushH / f;
+            double work = _ptWork / f;
+            double sub = (_h.TFire + _h.TReach + _h.TAlive + _h.TRoute) / f;
+            Console.Error.WriteLine(
+                "  push-time  pushH {0,6:F2}s = work {1,6:F2}s (fire {2,5:F2}s"
+                + " reach {3,5:F2}s alive {4,5:F2}s route {5,5:F2}s, else"
+                + " {6,5:F2}s)  rank {7,5:F2}s  else {8,5:F2}s"
+                + " | board-only {9,5:F2}s ({10:P0} of pushH), from the tank"
+                + " {11,5:F2}s ({12:P0})",
+                ph, work, _h.TFire / f, _h.TReach / f, _h.TAlive / f, _h.TRoute / f,
+                work - sub, _ptRank / f, ph - work - _ptRank / f,
+                (_h.TFire + _h.TAlive + _h.TRoute) / f,
+                ph > 0 ? (_h.TFire + _h.TAlive + _h.TRoute) / f / ph : 0,
+                _h.TReach / f, ph > 0 ? _h.TReach / f / ph : 0);
+        }
+
+        /// PushH, charged.  One call per *emitted successor*, which is the
+        /// quantity item 10 is about: the read, the floods and Feat.Extract
+        /// re-derived for every hat the same four boards wear.
+        private int TimedH()
+        {
+            if (!_opt.PushTime) return PushH();
+            long t = Tick();
+            int h = PushH();
+            _ptPushH += Tick() - t; _ptPushHN++;
+            return h;
+        }
 
         // --push-trace only: what one depth cost and what it bought.  Closure
         // size is the number to watch -- this layer's whole bet is that a
@@ -192,6 +329,7 @@ namespace LaserTank.Solver
             _h.WantMaze = _opt.PushFerryMaze;
             _h.WantStage = _opt.PushFerryStage;
             _h.WantMatch = _opt.PushFerryMatch || _opt.PushFerryStage;
+            _h.Time = _opt.PushTime;
         }
 
         /// The ranking key.
@@ -205,7 +343,9 @@ namespace LaserTank.Solver
         private int PushH()
         {
             WantsFromOptions();
+            long tw = _opt.PushTime ? Tick() : 0;
             int work = _h.WorkDistance(_e);
+            if (_opt.PushTime) _ptWork += Tick() - tw;
             int ferry = _opt.PushFerry > 0 && _h.RouteFerry > 0
                       ? _opt.PushFerry * _h.RouteFerry : 0;
             int stop = _opt.PushStop > 0 && _h.RouteStop > 0
@@ -238,7 +378,12 @@ namespace LaserTank.Solver
             // for it.
             int goal = _goal != null && _opt.GoalWeight > 0
                      ? _opt.GoalWeight * _goal.Distance(_e) : 0;
-            return Rank(work, _opt.PushEval) + hand * (ferry + stop + dead + shield + goal);
+            if (!_opt.PushTime) return Rank(work, _opt.PushEval)
+                                     + hand * (ferry + stop + dead + shield + goal);
+            long tk = Tick();
+            int rank = Rank(work, _opt.PushEval);
+            _ptRank += Tick() - tk;
+            return rank + hand * (ferry + stop + dead + shield + goal);
         }
 
         /// The fire map of the board the engine is standing on *right now*,
@@ -324,6 +469,7 @@ namespace LaserTank.Solver
 
             r.Restarts = attempts;
             r.Width = sized;
+            TimeReport();
             return r;
         }
 
@@ -400,7 +546,7 @@ namespace LaserTank.Solver
 
             List<Node> frontier = new List<Node>
             {
-                new Node { S = CopyOf(root), G = 0, H = PushH() },
+                new Node { S = CopyOf(root), G = 0, H = TimedH() },
             };
             List<Node> next = new List<Node>();
             HashSet<ulong> layer = new HashSet<ulong>();
@@ -412,7 +558,10 @@ namespace LaserTank.Solver
                 foreach (Node parent in frontier)
                 {
                     if (OutOfBudget) { r.Stop = "budget"; Recycle(frontier, next); return r; }
-                    if (ExpandPush(parent.S, seen, layer, next))
+                    long tx = _opt.PushTime ? Tick() : 0;
+                    bool won = ExpandPush(parent.S, seen, layer, next);
+                    if (_opt.PushTime) { _ptExpand += Tick() - tx; _ptExpandN++; }
+                    if (won)
                     {
                         Recycle(frontier, next);
                         return Won(r);
@@ -422,11 +571,11 @@ namespace LaserTank.Solver
                     // once.  Trim as we go, exactly as layer 1 does: later
                     // parents still compete against the survivors and the live
                     // set stays O(width).
-                    if (next.Count > 4 * _pushWidth) PushCut(next, _pushWidth);
+                    if (next.Count > 4 * _pushWidth) TimedCut(next, _pushWidth);
                 }
 
                 LineBefore(depth, next, _pushWidth);
-                PushCut(next, _pushWidth);
+                TimedCut(next, _pushWidth);
                 LineAfter(depth, next);
                 if (_opt.PushTrace)
                 {
@@ -536,7 +685,7 @@ namespace LaserTank.Solver
                     if (OutOfBudget) { Drain(closure); return false; }
                     _e.Restore(s);
                     _nodes++;
-                    StepResult step = _e.ApplyKey(key, _opt.TickCap);
+                    StepResult step = TimedApply(key);
                     if (step == StepResult.Win) { Drain(closure); return true; }
                     if (step != StepResult.Ok) continue;       // dead or spinning
                     if (_e.Game.RecP >= (uint)_opt.MaxKeys) continue;
@@ -567,7 +716,7 @@ namespace LaserTank.Solver
                 _e.Restore(c);
                 ulong before = _e.StateHash();
                 _nodes++;
-                StepResult step = _e.ApplyKey(Fire, _opt.TickCap);
+                StepResult step = TimedApply(Fire);
                 if (step == StepResult.Win) { Drain(closure); return true; }
                 if (step != StepResult.Ok) continue;
                 if (_e.Game.RecP >= (uint)_opt.MaxKeys) continue;
@@ -587,14 +736,18 @@ namespace LaserTank.Solver
                 if (!PushFresh(after, seen, layer)) continue;
                 next.Add(new Node
                 {
-                    S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = after,
+                    S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = TimedH(), Hash = after,
                     Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                 });
             }
 
             if (truncated) KeepBestPoses(closure, seen, layer, next);
+            long tr = _opt.PushTime ? Tick() : 0;
             if (_opt.PushRead) ReadTier(at, closure, next, first);
+            if (_opt.PushTime) { _ptRead += Tick() - tr; _ptReadN++; tr = Tick(); }
             if (_opt.PushFireTier) FireTier(at, next, first);
+            if (_opt.PushTime) _ptFire += Tick() - tr;
+            TimeCensus(next, first);
             // Item 5, and last on purpose: a milestone is recorded with the
             // Tier every derivation above has finished assigning, so the
             // chain's choice between two milestones is the beam's own order
@@ -741,7 +894,7 @@ namespace LaserTank.Solver
                 if (PushFresh(h, seen, layer))
                     next.Add(new Node
                     {
-                        S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
+                        S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = TimedH(), Hash = h,
                         Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                     });
 
@@ -749,7 +902,7 @@ namespace LaserTank.Solver
                 if (OutOfBudget) return false;
 
                 _nodes++;
-                StepResult step = _e.ApplyKey(key, _opt.TickCap);
+                StepResult step = TimedApply(key);
                 if (step == StepResult.Win) return true;
                 if (step != StepResult.Ok) return false;
                 if (_e.Game.RecP >= (uint)_opt.MaxKeys) return false;
@@ -790,7 +943,7 @@ namespace LaserTank.Solver
                 if (PushFresh(h, seen, layer))
                     next.Add(new Node
                     {
-                        S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = PushH(), Hash = h,
+                        S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = TimedH(), Hash = h,
                         Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
                     });
 
@@ -798,7 +951,7 @@ namespace LaserTank.Solver
                 if (OutOfBudget) return false;
 
                 _nodes++;
-                StepResult step = _e.ApplyKey(Fire, _opt.TickCap);
+                StepResult step = TimedApply(Fire);
                 if (step == StepResult.Win) return true;
                 if (step != StepResult.Ok) return false;
                 if (_e.Game.RecP >= (uint)_opt.MaxKeys) return false;
@@ -862,7 +1015,7 @@ namespace LaserTank.Solver
                 if (!PushFresh(h, seen, layer)) continue;
                 next.Add(new Node
                 {
-                    S = _e.Snapshot(Take()), G = s.KeyLen, H = PushH(), Hash = h,
+                    S = _e.Snapshot(Take()), G = s.KeyLen, H = TimedH(), Hash = h,
                     Tier = TierPose,
                 });
             }

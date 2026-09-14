@@ -249,7 +249,20 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 |---|---|---|---|
 | **2** | **1st** | the fourth pass. **Rehearsed; the fourth arm turned out to replace the first** — `--push-fire-tier` retires `l8work`, so the run is three arms for 84 (32.9%) and still ~54 h. **Started 2026-09-10, interrupted in session 46, restarted 2026-09-13 and live**: as of session 47 `l8fire` is at **3,260/3,691, 772 solved (23.7%)**, 22 h 31 m wall at 13.1x, `layer7` and `enables` not started. Resumable from its own report — `bash tools/l5_pass.sh`, `... status` for the table | **~3 h 26 m to finish arm 1**, then two arms not started. Arm 1 is running to ~25 h against the rehearsal's ~18 h, so read the ~54 h as ~75 h |
 | **7** | **2nd** | the solved-vs-budget curve, three budgets over the 687 short-record failures. **Closed item 19 handed it a second question**: two push arms that tie at 40M differ **1.6x in nodes** on the levels they share, so where they separate is a rung of this curve and the five banked reports price it without a new control | comparable to one arm per budget |
-| 10 | last | wall clock: profile, then memoise `PushH` per board (166k nodes/s against layer 0's 1.4M) | code, instrument first |
+| 10 | last | wall clock: **instrumented in session 49 and the premise holds** — `--push-time` prices `PushH` at **41% of the expansion on the shipped rung and 48% on `l8fire`**, of which **90% is board-only**, against a within-expansion duplicate factor of **27x** (`l8fire`) to **232x** (width 8). The memo is not built. Its ceiling is **~1.8x**, not the 2-4x the item guessed: `ApplyKey` (15-20%), the read (12-14%) and the expansion's own book-keeping (25%) are untouched | code; the profiling is done |
+
+**Item 10's first half ran in session 49, and the instrument it asked for is the one thing it got
+wrong.** `dotnet-trace`'s sampled stacks are taken where a suspended thread can be walked, so on this
+search loop they pile up at safepoints: it put **64% of a 6M-node run in the budget check** and `PushH`
+at **5.9%**. A build with the clock read deleted runs no faster and the call measures 21.8 ns, which
+prices that check at **0.4%** — so the profile was an artefact, and `--push-time` (the run's own
+timestamps, off by default, 1-3% overhead) replaced it. It says `PushH` is **41-48%** of the expansion,
+`ApplyKey` **15-20%**, the read **12-14%**. The item's mechanism survives its own instrument; its size
+estimate does not. **`BuildAlive` is the find nobody had listed** — 16% of the whole expansion on the
+arm the pass is running, and the purest board function in the file. **The flag is unstaged and is not
+in `build/lasertank-solve.exe`** — the pass holds that file open, so it lives only in the project's own
+`bin/`; the item has the rebuild line.
+[Item 10](docs/solver/next-actions.md#10-last--wall-clock-on-the-push-rungs).
 
 **Item 14 closed in session 46, negative on a clean sweep.** Three arms at the calibration's own
 p25 / p50 / p75 over the 138-level GAUNTLET tail at 40M — **76 / 78 / 78 against a banked control's 85**,
