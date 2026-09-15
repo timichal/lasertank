@@ -63,9 +63,10 @@ Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101
 `H` hint (301), `F1` the key list (907, and 903 in the editor),
 `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
 (123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented),
-`Ctrl+N` your name (invented — see below), `Z`
+`Ctrl+N` your name (invented — see below),
+`Ctrl+O` the game options (116 + 225 — see below), `Z`
 board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit — **which asks first**.
-`[` and `]` are ours.
+`[` and `]` are ours, and since step 15 they mean something `S`/`P` do not: one level, unfiltered.
 
 **`V` and `G` are unbound and free**, which is the one thing the merge was *for*: ACC1 has no spare
 letters, every future command needs one, and 113 and 906 were two keys spent on two renderings of
@@ -294,6 +295,50 @@ saves, `Esc` and a click outside leave it as it was, and nothing is written when
 change — pressing `Ctrl+N` to see what the name is must not add a line to a file shared with the
 2010 binary. `--panel name` reviews it and `--name STRING` is the command line's way in, persisted
 by `--save-options` exactly as `--sound` and `--zoom` are.
+
+**`Ctrl+O` is Skip Completed Levels and the Difficulty dialog, which are a menu item and a modal
+in the original.** `SkipCL` is `ToggleOpt(116, MMenu, &SkipCL, psSCL)` (`LTANK.C:996`) — a checkmark
+on the Options menu over `[OPT] SkipComLev`. The five-bit mask is `DiffBox` (225, `LTANK_D.C:258`)
+over `[DATA] Diff_Setting`: 1 Kids, 2 Easy, 4 Medium, 8 Hard, 16 Deadly. Both are settings about
+where the *next* level comes from and neither has anything to do with the level on screen, so they
+are one panel rather than a checkmark and a box. It applies immediately and has no OK, which is
+226's rule (`LTANK_D.C:1247`) and the constraint item 14's merged dialog will inherit; `S` toggles
+the skip, `1`–`5` toggle ranks and `0` restores all five, and `--panel options` reviews it.
+
+**Its five chips are not the level list's five chips, and that is deliberate.** `SearchRec.Diff`
+filters the *table* you are reading and resets when you open a different collection;
+`Options.Difficulty` is the `Difficulty` global and decides where `S`, `P` and a win take you, and
+it persists. Same five bits, two jobs. Making them one value was the obvious move and was turned
+down: filtering a list to look something up is not a statement about how you want to play, and a
+browse that silently changed where the next level came from is a change nobody would connect to the
+chip that did it.
+
+**What reads them is the other half of `LoadNextLevel`** (`LTANK2.C:1010`), which `Session.Advance`
+is. `Engine.LoadLevel` was always the `DirectLoad = TRUE` half — read the record, copy the
+playfield, reset — and the filter is the do/while around it, in the driver rather than in Core for
+the reason every menu-derived guard is. Three things in that loop are load-bearing and all three are
+kept: a level whose own `SDiff` is **0 is unfilterable** whatever the mask says, so a collection of
+unranked levels cannot be filtered into nothing; **128 is a sentinel and not a rank** — skip-completed
+works by replacing a solved level's `SDiff` with a bit no five-bit mask can hold, which is also why
+`Diff_Setting` is masked to `0x1F` on the way in; and the walk **stops at the end rather than
+wrapping**, because a wrap through a filter that matches nothing is an infinite loop. `S` (107), `P`
+(119) and a win all go through it; `[` and `]` do not, and are the escape hatch for a mask that has
+hidden the level you actually wanted.
+
+**The 225 popup is dropped and the default is all five ranks.** `if (Difficulty == 0)
+SendMessage(WM_COMMAND, 225, 0)` is the first line of `LoadNextLevel`'s body, so a fresh install
+answers a modal before it sees a level — and zero is not a mask there either, it is a "never asked"
+sentinel, and the dialog is the asking. This port answers it with all five at the point it would
+have been asked, which is what the shipped `LaserTank.ini` (`Diff_Setting=31`) does anyway. A `0`
+left by the 2010 binary reads the same way, because there is nothing here to post.
+
+**`--check-advance` is the walk's instrument**, and it exists for the reason the sound's did: what
+the chips change is a *sequence of level numbers*, which no frame contains and which `--press`
+cannot reach headlessly. It prints one `advance stop=N sdiff=D` per landing and ends `eof` or
+`filtered` — two different facts, and the status line keeps them apart for the same reason, because
+only one of them is about the file. `options_check.py` recomputes every sequence in Python from the
+same `.lvl` and `.hs` bytes. `--skip-completed yes|no` and `--difficulty N` steer it and persist
+with `--save-options`, as `--sound` and `--name` do.
 
 **Every text field in the port is one widget** (`TextField` + `Ui.Field`), which step 14 factored
 out of the three that had grown separately: the level list's filter, the editor's three level

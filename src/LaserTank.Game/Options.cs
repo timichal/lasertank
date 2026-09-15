@@ -205,6 +205,8 @@ namespace LaserTank.Game
         public const string PsRllL = "RLLLevel";
         public const string PsUser = "Player";                  // the initials
         public const string PsPBA = "Record Author";            // the same person
+        public const string PsSCL = "SkipComLev";               // Yes / No
+        public const string PsDiff = "Diff_Setting";            // the five-bit mask
         public const string PsYes = "Yes";
 
         /// `[DATA] Language` -- the one key in this class the original does not
@@ -286,6 +288,36 @@ namespace LaserTank.Game
             // sense, so a missing key means off rather than on.
             AutoRecord = YesNo(PsARec, false);
 
+            // LTANK.C:418 -- Skip Completed Levels, `SkipCL`, command 116.  The
+            // same one-sided test as Auto_Record and the same default: a
+            // missing key means off.
+            SkipCompleted = YesNo(PsSCL, false);
+
+            // LTANK.C:439 -- the five-bit difficulty mask, and **the one place
+            // in this class where the default is deliberately not the
+            // original's.**
+            //
+            // `GetPrivateProfileInt("DATA", psDiff, 0, ...)` defaults to *zero*
+            // there, and zero is not a mask -- it is a sentinel meaning "never
+            // asked", which LoadNextLevel answers by posting command 225 and
+            // putting the Difficulty dialog in your way before the first level
+            // loads (LTANK2.C:990).  That is a 1996 first-run wizard, and the
+            // shipped LaserTank.ini answers it with 31 before anybody sees it.
+            // This port has no such dialog -- 225 is the options panel's five
+            // chips, opened when the player wants them -- so there is nothing
+            // to post, and a game that filtered *every* level out on a fresh
+            // install would simply look broken.  **An absent key is all five
+            // ranks, and so is an explicit 0**, because a file the 2010 binary
+            // left at zero is one whose owner never answered the question
+            // either.
+            //
+            // Masked to the five bits that exist.  128 is `SDiff`'s own
+            // "completed" sentinel (LTANK2.C:1016) and nothing else may collide
+            // with it: a hand-edited `Diff_Setting=255` that kept its high bits
+            // would match every skipped level and quietly undo SkipComLev.
+            Difficulty = _ini.GetInt(SecData, PsDiff, AllRanks) & AllRanks;
+            if (Difficulty == 0) Difficulty = AllRanks;
+
             // **[DATA] Player and [DATA] Record Author are one value here.**
             // See `Name` for the whole argument; the read is the half worth
             // stating: the long key wins when it has anything in it, because
@@ -335,6 +367,40 @@ namespace LaserTank.Game
         public int LastLevel { get; private set; }
         /// [OPT] Auto_Record, command 115.
         public bool AutoRecord { get; private set; }
+
+        /// **[OPT] SkipComLev, `SkipCL`, command 116** -- walk past levels this
+        /// player has already beaten when advancing.
+        ///
+        /// The test is `TempHSData.moves > 0` against the collection's own
+        /// `.hs` (LTANK2.C:961, :1010), which is the only definition of
+        /// *solved* anywhere in the C and the one HighScores.FirstUnsolved
+        /// already borrows.  What it governs here is Session.Advance, not the
+        /// level list -- the list's own "only unsolved" chip is
+        /// `SearchRec.SkipComp`, a different control over a different thing,
+        /// and the two are separate in the original too.
+        public bool SkipCompleted { get; private set; }
+
+        /// **[DATA] Diff_Setting, the `Difficulty` global** -- which ranks the
+        /// game advances *to*: 1 Kids, 2 Easy, 4 Medium, 8 Hard, 16 Deadly
+        /// (LTANK.C:1268's five `EditDiffSet` calls).
+        ///
+        /// **Not the level list's five chips**, which are `SearchRec.Diff` and
+        /// filter the table in front of you.  Same five bits, two jobs: one
+        /// says which rows you are reading, this one says where `S`, `P` and a
+        /// win take you.  They were very nearly made one value -- and were not,
+        /// because filtering a table to look something up is not a statement
+        /// about how you want to play, and a browse that silently changed the
+        /// game is the kind of thing nobody would connect to the chip they
+        /// clicked a minute earlier.
+        ///
+        /// A level's own `SDiff` of 0 is unfilterable whatever this holds --
+        /// see Session.Advance, where the original's `CurRecData.SDiff > 0`
+        /// guard is.
+        public int Difficulty { get; private set; }
+
+        /// All five ranks: the mask the Difficulty dialog writes with every box
+        /// ticked, and what `original/bin/LaserTank.ini` ships with.
+        public const int AllRanks = 1 | 2 | 4 | 8 | 16;
         /// **Who is playing -- one value, where the original has two.**
         ///
         /// The 2007 program asks twice.  `HSBox` (LTANK_D.C:634) wants
@@ -438,6 +504,42 @@ namespace LaserTank.Game
             _ini.Set(SecOpt, PsARec, on ? PsYes : "No");
             return on;
         }
+
+        /// ToggleOpt for command 116, "Skip Completed Levels" (LTANK.C:996).
+        /// The same shape as the sound and the animation, which is what that
+        /// function being one function for five menu items means.
+        ///
+        /// `persist: false` is the run-only form `--skip-completed` and
+        /// `--name` share: the value applies to this session and the file is
+        /// not touched unless `--save-options` says so.
+        public bool SetSkipCompleted(bool on, bool persist = true)
+        {
+            SkipCompleted = on;
+            if (persist) _ini.Set(SecOpt, PsSCL, on ? PsYes : "No");
+            return on;
+        }
+
+        /// DiffBox's Close (LTANK_D.C:286): rebuild the mask out of the five
+        /// boxes and `WritePrivateProfileString` it.
+        ///
+        /// **What is not carried is the `if (Difficulty > 0) EndDialog(...)`
+        /// under it** -- the original refuses to close a dialog with nothing
+        /// ticked, which is how it guarantees the mask it hands LoadNextLevel
+        /// can match something.  There is no dialog to refuse to close here, so
+        /// the guarantee is made in the value instead: an empty mask reads as a
+        /// full one, exactly as the level list's own `Rank` reads it, because a
+        /// mask with nothing in it is never what the click meant.
+        public int SetDifficulty(int mask, bool persist = true)
+        {
+            mask &= AllRanks;
+            if (mask == 0) mask = AllRanks;
+            Difficulty = mask;
+            if (persist) _ini.SetInt(SecData, PsDiff, Difficulty);
+            return Difficulty;
+        }
+
+        /// One rank on or off, which is what a chip click is.
+        public int ToggleRank(int bit) => SetDifficulty(Difficulty ^ (bit & AllRanks));
 
         /// **The one name, into both of the original's keys.**  HSBox's write
         /// (LTANK_D.C:830) and RecordBox's (LTANK_D.C:990) at once: the whole

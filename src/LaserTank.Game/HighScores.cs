@@ -109,6 +109,23 @@ namespace LaserTank.Game
 
     public static class HighScores
     {
+        /// A `.hs` read whole, or empty -- which is what a collection nobody
+        /// has played has, and what an unreadable one is treated as.
+        ///
+        /// **Not being able to read the file is not an error to report**: the
+        /// original opens it with `CreateFile` and tests only for
+        /// INVALID_HANDLE_VALUE, whereupon the skip is simply not applied
+        /// (LTANK2.C:1010) and the score check pads and writes a new one.  Both
+        /// callers here want exactly that, so the two exceptions land on the
+        /// same empty array the missing file does.
+        public static byte[] Raw(string hsPath)
+        {
+            if (!File.Exists(hsPath)) return Array.Empty<byte>();
+            try { return File.ReadAllBytes(hsPath); }
+            catch (IOException) { return Array.Empty<byte>(); }
+            catch (UnauthorizedAccessException) { return Array.Empty<byte>(); }
+        }
+
         /// The level a freshly opened collection starts on: **the first one
         /// this player has not beaten.**
         ///
@@ -137,13 +154,7 @@ namespace LaserTank.Game
         public static int FirstUnsolved(string hsPath, int levelCount)
         {
             if (levelCount < 1) return 1;
-            byte[] data = Array.Empty<byte>();
-            if (File.Exists(hsPath))
-            {
-                try { data = File.ReadAllBytes(hsPath); }
-                catch (IOException) { return 1; }
-                catch (UnauthorizedAccessException) { return 1; }
-            }
+            byte[] data = Raw(hsPath);
             int have = data.Length / THSREC.Size;
             for (int i = 0; i < levelCount; i++)
             {

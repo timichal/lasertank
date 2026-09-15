@@ -7,49 +7,9 @@ waiting on and what it would cost.
 **Open items only.** What is done, and what was deliberately decided against, is in
 [`history.md`](history.md) and is not repeated here. **Items keep their numbers** because the other
 files refer to them by number, so a number retires when its item closes rather than being reused —
-which is why this file starts at 3.
+which is why this file starts at 4.
 
 ---
-
-## 3. `SkipComLev` and `Diff_Setting`, and the `LoadNextLevel` port they want
-
-**What this item used to be** was *the rest of the original that is still missing* — a list of
-everything named as left out at the time rather than forgotten. That list is gone: it was read
-through on 2026-09-15 and every entry on it either closed, was declined, or became an item of its
-own, and what is left is two INI keys and one function. **The editor's share was always item 8**,
-and still is.
-
-Where the list went, so that nothing has to be re-derived from the fact that it is no longer here:
-
-| what it was | where it is now |
-|---|---|
-| `Backspace[]`'s ten-level history (118) | **item 9**, and unbounded rather than ten |
-| Resume Recording (125) | **item 10**, with the two file dialogs it shares a problem with |
-| "View Opening Screen" (`ID_GRAPHBOX_08`) | **item 11** — a new screen, not `Opening.bmp` |
-| `LaserTank.hlp` / WinHelp (902–905) | **item 12** — the old help's content, rewritten |
-| Print (126) | [*Finished*](history.md), decided against |
-| "Change Directory" (`ID_GRAPHBOX_09`) | [*Finished*](history.md), decided against — `--gfx-dir` |
-| per-language `Control.bmp` / `Opening.bmp` | [*Finished*](history.md), decided against — and this closes item 4's bullet too |
-
-**And there is no modal work left in it**, which is what four separate entries used to claim.
-The DeadBox is the status line and the Difficulty dialog (225) is the rank chips, both
-[*Finished*](history.md); the `RecordBox` and `HSBox` name prompts turned out to be *one* settings
-row about one person, which step 14 built on `Ctrl+N`. The one box still worth building is the
-editor's, and it is item 8's.
-
-**Both of these want a `LoadNextLevel` port rather than a menu.** `[OPT] SkipComLev` and
-`[DATA] Diff_Setting` are read into `Options` as comments only. **`Diff_Setting` has no UI work
-left in it at all**: the five-bit mask the Difficulty dialog would have written is the mask the
-level list's rank chips already toggle (`Ctrl+1`..`Ctrl+5`, `Ctrl+0` to clear), so what remains is
-persisting that mask and having `LoadNextLevel` read it — engine and settings, no dialog.
-
-**Neither wants a key, which is what is unusual about them.** Everything else in this port that
-was a menu item became a row in `PlayKeys` or `EditorKeys`, where the row is both the documentation
-and the click target — that is the route item 2 was declined in favour of. These two are settings
-that `LoadNextLevel` *reads*, and the surface they want is item 14's options dialog, not a keycap.
-
-**And this is the item that blocks item 7.** The typed settings store cannot be written until these
-two land, because doing it first means writing the migration twice.
 
 ## 4. The UI redesign, third pass
 
@@ -100,10 +60,11 @@ last-known value. See `SOLVER.md`.
 
 ## 7. Settings: `user://`, a typed store, and the INI demoted to an importer
 
-**Waiting on item 3** for the *store*. `[OPT] SkipComLev` and
-`[DATA] Diff_Setting` are still to land — both are read into `Options` as comments today — so the
-original's keyspace is not finished being filled in, and splitting the store before they arrive
-means writing the migration mapping twice.
+**Nothing is waiting any more.** This item spent its life blocked on item 3 for the *store* — the
+original's keyspace was not finished being filled in, and splitting it first meant writing the
+migration mapping twice. Step 15 filled it: `[OPT] SkipComLev` and `[DATA] Diff_Setting` are read,
+written and gated ([*Finished*](history.md)), and `Options` now holds every key the 2010 binary
+keeps that this port has any business holding. The mapping can be written once.
 
 **The panel half is no longer waiting on anything, because step 14 built it.** Item 3's two name
 prompts became one settings row (`NameMenu`, `Ctrl+N`), written against `Options` as it stands, and
@@ -166,15 +127,15 @@ round trip is rewritten against the typed record.
 The editor's commands are ported and gated — `--edit` scripts against the oracle's own `ChangeGO`,
 and `editor_check.py`'s 3,000 of them plus the `.lvl` writer's byte-for-byte round trip. **What is
 missing is the chrome around them** — four commands, none of which touches the game's own window,
-which is why they are an item rather than four more bullets in item 3. **One of the four is the
-port's last modal prompt** — item 3 used to share that dependency and no longer does, so it lands
-here or not at all.
+which is why they are an item rather than four more bullets in the list item 3 used to be
+([*Finished*](history.md)). **One of the four is the port's last modal prompt** — item 3 used to
+share that dependency and did not need it in the end, so it lands here or not at all.
 
 **Blocked on a file dialog:** Load Level (602) and Save As (606). 108 was the third of these and is
 done — and the way it was done is the model for both: a list of what is *in the repo* rather than a
 native file dialog. See [*Finished*](history.md), the collection picker. 602 wants exactly that
 list plus a level inside the chosen collection, which is `LevelList` and already built; 606 wants
-somewhere to type a name, and **that name is the one item 3's two could not be**: a filename is
+somewhere to type a name, and **that name is the one the `Ctrl+N` row's two could not be**: a filename is
 chosen at the moment of the act, so it cannot move to a settings row. It is still not a bare box —
 per the 108 model it is a name row on the same picker 602 builds.
 
@@ -222,7 +183,7 @@ list is one keystroke away. It is cheap either way; that is not the same as bein
 
 ## 10. Recording: Resume Recording, and the two file dialogs
 
-Split out of item 3 because it was never one command. **Command 125, Resume Recording**
+Split out of item 3 ([*Finished*](history.md)) because it was never one command. **Command 125, Resume Recording**
 (`LTANK.C:1058`) opens a `.lpb`, replays the whole keystream with no panel on screen, and then
 starts recording from the end of it — `VHSPlayback()` followed by a posted 123. It is how you
 recover a run you stopped halfway through.
@@ -377,12 +338,15 @@ graphics, a list with a live preview for language (the labels behind the panel c
 moves, which is the only honest way to pick one), and a text field for the name. Three shapes in one
 frame, which is what a settings panel is.
 
-**This is the surface item 3 and item 7 have been waiting for.** `SkipComLev` and `Diff_Setting` are
-settings with no key and nowhere to live (item 3); item 7's typed `user://settings.json` is the
-store with no panel. This item is the panel. The three want doing in the order 3 → 14 → 7, or 3 and
-14 together, so that the migration is written once.
+**This is the surface item 7 has been waiting for**, and it is now a merge of *four* panels rather
+than three: step 15 built the game options on `Ctrl+O` ([*Finished*](history.md)) and it is the
+fourth. Item 7's typed `user://settings.json` is the store with no panel; this item is the panel.
+The two want doing in the order 14 → 7, so that the migration is written once.
 
-**One key survives and it should be `Ctrl+G`** — the only one of the three with an original command
-id behind it — unless item 13 finds something better. `Ctrl+O` is free (`O` bare is Open
-Collections) and reads as *options* to a modern hand; that is item 13's call, not this one's. Two
-`Ctrl` keys come back either way.
+**And step 15 settled the key, in the direction this item did not expect.** `Ctrl+O` was listed here
+as free and as reading like *options* to a modern hand — it is both, and it is spent: it is the game
+options panel now, which is the one of the four with original command ids behind it (116 and 225).
+So the merge's key is `Ctrl+O` and the three that fold into it are `Ctrl+G`, `Ctrl+L` and `Ctrl+N`;
+three `Ctrl` keys come back rather than two. What step 15 also settled is that the merge cannot be
+a tabbed dialog with a commit: the game options apply as they are touched, the way 226 does, so the
+two halves already agree on the constraint below.

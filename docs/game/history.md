@@ -1236,7 +1236,8 @@ Item 3 of [*Next steps*](next-steps.md) carried a paragraph headed *Additive, no
 seven things named as left out of the original at the time rather than forgotten. It was never
 worked through, only carried, and reading it out loud on 2026-09-15 turned out to be most of the
 work — **three of the seven were items in their own right, three were declined, and one was not
-what the list said it was.** What is left of item 3 is two INI keys.
+what the list said it was.** What was left of item 3 was two INI keys, and step 15 below is those
+two keys, so the item is closed entirely.
 
 | what it was | outcome |
 |---|---|
@@ -1307,3 +1308,116 @@ the *materials*** — the sheet's own tiles as a texture — **and not the 1996 
 
 `Opening.bmp` goes the same way and for the same reason, and item 11 is what replaces it: an opening
 screen this port designs rather than one it reproduces.
+
+
+---
+
+## ~~Step 15: `SkipComLev`, `Diff_Setting`, and the other half of `LoadNextLevel`~~ — **done 2026-09-15**
+
+The last of next-steps item 3, and with it the item: two INI keys that were read into `Options` as
+comments, the loop in the original that reads them, and one panel over both. `Ctrl+O`.
+
+**What the two keys are.** `[OPT] SkipComLev` is `SkipCL`, command 116, a checkmark on the Options
+menu (`ToggleOpt`, `LTANK.C:996`) — *walk past levels I have already beaten*. `[DATA] Diff_Setting`
+is the `Difficulty` global, five bits (1 Kids, 2 Easy, 4 Medium, 8 Hard, 16 Deadly), written by
+`DiffBox` (command 225, `LTANK_D.C:258`) — *only take me to these ranks*. Both are consumed in one
+place, the do/while in `LoadNextLevel` (`LTANK2.C:1010`).
+
+**`Engine.LoadLevel` was already half of that function and said so**, which is what made this small:
+its header has read *"the logic-carrying part of LoadNextLevel with DirectLoad = TRUE"* since Phase
+2. The filter is the other half, and it went in the **driver** (`Session.Advance`) rather than in
+Core — the same rule `Engine.CanRestore` and `Session.AcceptsInput` are: transliterate the function
+literally, put the menu's own condition in the driver named after the thing it stands for. It reads
+two settings and two files Core has no business knowing about, and keeping it out of `Engine` keeps
+`LoadLevel` the literal transliteration every differential is established against.
+
+**Three things in that loop are load-bearing and all three are kept.**
+
+* **`CurRecData.SDiff > 0` makes an unranked level unfilterable.** Plenty of community collections
+  are entirely zero-SDiff, and in the original those are unaffected by the mask rather than hidden
+  by it. It reads like a missing case until you notice it is the only thing standing between a
+  five-bit mask and a `.lvl` it knows nothing about.
+* **128 is a sentinel, not a rank.** Skip-completed is implemented *as a difficulty mismatch*: a
+  solved level has its `SDiff` replaced with `128`, which no five-bit mask can hold, so one
+  condition walks past it. Kept as the C spells it — and it is the reason `Diff_Setting` is masked
+  to `0x1F` on the way in, because a hand-edited `255` would match the sentinel and silently undo
+  the skip. `options_check.py` pins that.
+* **The walk stops at the end rather than wrapping.** `Session.Load` wraps at both ends; this does
+  not. A wrap through a filter that matches nothing is an infinite loop, and *"you have finished what
+  you asked for"* is a different answer from *"here is level 1 again"* — so `Advance` reports
+  `filtered` separately from `eof` and the status line says which. The original says neither, and
+  can afford to: it cannot reach the second case without having answered the Difficulty dialog on
+  the way in.
+
+**Which calls are filtered is not a choice — it is in the C.** `DirectLoad = FALSE` appears exactly
+three times: the flag case (`LTANK.C:655`), command 107 (`:923`) and the `.lvl` on the command line
+(`:1439`). Everything else — command 108, the level picker, the RLL start — is a direct load.
+`LoadLastLevel` (119) is the same walk backwards, so one `dir` covers both. `S`, `P` and Enter-on-win
+go through it here; **`[` and `]` deliberately do not**, and that is what they are now for: a mask
+that has hidden the level you actually wanted is otherwise a setting you must go and change before
+you can look at it. Both got a row in the `F1` list, because an escape hatch nobody can find is not
+one.
+
+### Two masks, not one — the decision worth re-reading
+
+The [*DeadBox and Difficulty dialog*](#the-deadbox-and-the-difficulty-dialog-as-dialogs) entry above
+filed 225 as *already built*: the level list's rank chips toggle the same five bits, so what was
+left was "persisting that mask and having `LoadNextLevel` read it". **That was one step too far, and
+step 15 did not do it.**
+
+`LevelList._diff` is `SearchRec.Diff` — which rows the table shows — and it resets when you open a
+different collection, because a filter is about the rows in front of you. `Options.Difficulty` is the
+`Difficulty` global — where `S`, `P` and a win take you — and it persists, because it is how someone
+wants to play. Same five bits, two jobs, and the original keeps them apart too (the search box's mask
+and `[DATA] Diff_Setting` are different values in different structs). Unifying them would mean that
+filtering a list to look something up silently changes where the next level comes from — a
+consequence nobody would connect to the chip they clicked a minute earlier. The chips look alike
+because they *are* alike; the labels are what say which is which, and `OptionsMenu`'s header carries
+the argument so the merge is not made later by tidiness.
+
+The related decision: **`LevelList.Chip` is copied into `OptionsMenu` rather than shared.** Fifteen
+lines, duplicated on purpose — a shared helper is exactly where somebody would later unify the two
+masks by accident. If a third panel wants chips, that is when it moves to `Ui`.
+
+### The 225 popup, dropped
+
+`if (Difficulty == 0) SendMessage(MainH, WM_COMMAND, 225, 0)` is the first line of
+`LoadNextLevel`'s body: a fresh install answers a modal before it sees a level. **Zero is not a mask
+there either** — it is a "never asked" sentinel and the dialog is the asking — so this port answers
+it where it would have been asked, with all five ranks, which is what the shipped `LaserTank.ini`
+(`Diff_Setting=31`) does anyway. A `0` left by the 2010 binary reads the same way. The panel is then
+somewhere you go rather than somewhere you are sent, which is the rule the DeadBox entry above wrote
+down: *a 1996 dialog is not evidence that a question was being asked.*
+
+### The panel
+
+`Ctrl+O` — free in both accelerator tables, `O` bare being 108 — and it takes **226's three
+properties**: applies immediately, no OK, the game keeps ticking underneath. That is the opposite of
+step 14's name row, which has a Save and a Cancel, and the difference is real rather than an
+inconsistency: a name is typed and a toggle is flipped, and the thing you cannot undo by flipping it
+back is the one that needs a Cancel. `S` toggles the skip, `1`–`5` toggle ranks, `0` restores all
+five — the level list's own `Ctrl+1`..`Ctrl+5` / `Ctrl+0` over its own mask, and the editor's `1 - 5`
+over the level's.
+
+**It also settles item 14's key, in the direction that item did not expect.** `Ctrl+O` was listed
+there as free and as reading like *options*; it is both, and it is now spent on the one of the four
+panels with original command ids behind it. So the merge is `Ctrl+G`, `Ctrl+L` and `Ctrl+N` folding
+into `Ctrl+O`, and three `Ctrl` keys come back rather than two.
+
+### The instrument, and why there is one
+
+**What the chips change is a sequence of level numbers**, which no frame contains — and `--press`
+needs a window, so the keyboard could not reach it from a gate either. `--check-advance` prints one
+`advance stop=N sdiff=D` per landing and ends `eof` or `filtered`; `--advance-dir -1` is 119's walk;
+`--skip-completed` and `--difficulty` steer it and persist under `--save-options`. It forces the INI
+read-only for the duration, because **an instrument must not write the player's state** and every
+stop is a `Load`, which remembers the level when RLL is on — `options_check.py` asserts that too,
+after one warm-up run, because `Options`' constructor fills an empty `Graphics_Dir` in on first
+launch and that write is not the walk's.
+
+`options_check.py` grew a fifth section: the defaults, `Diff_Setting=0` and `=255`, the round trip
+through both keys, seven walks compared against **sequences recomputed in Python from the same
+`.lvl` and `.hs` bytes**, and a record whose `SDiff` is zeroed on purpose so the unfilterable case is
+built rather than looked for. `chrome_check.py` gained the panel's eight targets — all six chips
+named separately, because a row of tags that answers to one rectangle is exactly what that gate is
+for. Eleven catalogue keys, eleven languages.

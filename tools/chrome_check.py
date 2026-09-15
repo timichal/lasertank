@@ -81,6 +81,7 @@ SCREENS = [
     ("graphics",    ["--level", "1", "--menu"]),
     ("language",    ["--level", "1", "--open-lang"]),
     ("name",        ["--level", "1", "--panel", "name"]),
+    ("options",     ["--level", "1", "--panel", "options"]),
     ("playback",    ["--level", "1", "--panel", "playback"]),
     ("quit",        ["--level", "1", "--panel", "quit"]),
     ("editor",      ["--level", "1", "--editor"]),
@@ -120,6 +121,13 @@ MUST = {
     # name.  The field itself is a swallow -- it always has the caret -- so it
     # is not here and cannot be: there is nothing for a click on it to do.
     "name":        ["scrim", "close", "name:save", "name:cancel"],
+    # Item 3's panel is all targets and no text: six chips, a close and the
+    # scrim.  All six chips are named because each one is a *different* bit of
+    # one mask plus the skip, and a row of tags that answer to one rectangle is
+    # exactly the failure Ui.Touch and this list exist to catch.
+    "options":     ["scrim", "close", "opt:skip",
+                    "opt:rank:1", "opt:rank:2", "opt:rank:3",
+                    "opt:rank:4", "opt:rank:5"],
     "playback":    ["pb:space", "pb:R", "pb:Esc"],
     "quit":        ["scrim", "quit:yes", "quit:no"],
     "editor":      ["field:1", "field:2", "field:3", "diff", "key:F1"],

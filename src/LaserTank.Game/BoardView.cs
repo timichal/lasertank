@@ -332,6 +332,7 @@ namespace LaserTank.Game
         private Strings _lang;
         private LanguageMenu _langMenu;
         private NameMenu _nameMenu;
+        private OptionsMenu _optMenu;
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
         private GraphicsMenu _menu;
@@ -553,6 +554,20 @@ namespace LaserTank.Game
             // is the S key, which is command 102.
             bool? soundArg = ParseYesNo(ArgStr(args, "--sound"));
 
+            // --skip-completed yes|no and --difficulty N, on exactly those
+            // terms.  The player's way in is Ctrl+O; these are here because a
+            // gate cannot press it, and because the filtered walk is the one
+            // thing in item 3 that has to be measured rather than looked at.
+            bool? skipArg = ParseYesNo(ArgStr(args, "--skip-completed"));
+            string diffArg = ArgStr(args, "--difficulty");
+            // Applied here rather than where --sound is, because --sound's
+            // run-only half lands on the *sink* (Sfx.SoundOn) and these two
+            // land on Options: Session.Advance reads them off it, and the
+            // Session does not exist yet.  `persist: false` is what keeps the
+            // file out of it until --save-options asks.
+            if (skipArg.HasValue) _opt.SetSkipCompleted(skipArg.Value, persist: false);
+            if (diffArg != null) _opt.SetDifficulty(Ini.Atoi(diffArg), persist: false);
+
             // The language before anything that could want a label.  --lang
             // overrides the INI for this run only, the way --pack and --zoom do;
             // the player's way in is Ctrl+L, which has no command id in the
@@ -560,6 +575,7 @@ namespace LaserTank.Game
             _lang = LoadLanguage(ArgStr(args, "--lang") ?? _opt.LanguageCode);
             _langMenu = new LanguageMenu(this);
             _nameMenu = new NameMenu(this);
+            _optMenu = new OptionsMenu(this);
 
             // --name STRING, this run only unless --save-options is given --
             // the same arrangement --sound, --pack and --zoom have.  The
@@ -599,6 +615,8 @@ namespace LaserTank.Game
                 _opt.Ini.ReadOnly = false;
                 _opt.SetSize(_size);
                 if (soundArg.HasValue) _opt.SetSound(soundArg.Value);
+                if (skipArg.HasValue) _opt.SetSkipCompleted(skipArg.Value);
+                if (diffArg != null) _opt.SetDifficulty(Ini.Atoi(diffArg));
                 // The persisting half of --name, which is why the run-only
                 // half above stands down when this flag is present: SetName is
                 // a no-op once the text matches, so setting it twice would
@@ -653,6 +671,20 @@ namespace LaserTank.Game
                 _driving = false;
                 GetTree().Quit(PlayMode.CheckDeadBox(
                     levels, level, ArgStr(args, "--route") ?? "llllllluurrrrrrr"));
+                return;
+            }
+
+            // --check-advance: the filtered walk as a sequence of level
+            // numbers.  Here, with --check-deadbox, because it wants the same
+            // two things that one does -- a collection and a level -- and
+            // because it must run after the option overrides above have landed
+            // on Options: the mask it walks is the one the game would walk.
+            if (Array.IndexOf(args, "--check-advance") >= 0)
+            {
+                _driving = false;
+                GetTree().Quit(Step15Check.CheckAdvance(
+                    levels, level, Arg(args, "--advance-dir", 1),
+                    Arg(args, "--advance-steps", 4096), _opt));
                 return;
             }
 
@@ -796,10 +828,13 @@ namespace LaserTank.Game
                 // spelling; this one is a panel like the rest and goes on the
                 // flag the rest are on.
                 case "name": _nameMenu.Show(_opt.Name); break;
+                // Item 3's, on the same terms as step 14's above.
+                case "options": _optMenu.Show(); break;
                 case null: break;
                 default:
                     GD.PrintErr("--panel wants "
-                                + "levels|scores|global|collections|playback|help|hint|quit|name");
+                                + "levels|scores|global|collections|playback|help|hint|quit|"
+                                + "name|options");
                     GetTree().Quit(2);
                     return;
             }
@@ -1134,6 +1169,7 @@ namespace LaserTank.Game
             $"shots={_s?.E?.Game.ScoreShot} help={_help} quit={_quitAsk} " +
             $"hint={_hint} list={_list?.Open} coll={_collections?.Open} " +
             $"gfx={_menu?.Open} lang={_langMenu?.Open} name={_nameMenu?.Open} " +
+            $"gameopt={_optMenu?.Open} " +
             $"editor={_edit?.Open} " +
             $"pb={_s?.Pb.PanelUp} rec={_s?.Rec2.Recording} sound={_opt?.SoundOn} " +
             $"ani={_opt?.AnimationOn} cell={Cell} pack={_atlas?.Label} " +
@@ -1393,6 +1429,7 @@ namespace LaserTank.Game
                 "options pack={7} label={8} sha256={9}\n" +
                 "options rll={10} rll_file={11} rll_level={12}\n" +
                 "options sound={13} animation={14} auto_record={15}\n" +
+                "options skip_completed={18} difficulty={19}\n" +
                 // **name= is last on its line** because a name has spaces
                 // in it, and every reader of these lines splits on
                 // whitespace -- the same arrangement `pack ... label=`
@@ -1419,7 +1456,12 @@ namespace LaserTank.Game
                 // is what a .hs will carry and it is derived rather than typed.
                 _opt.AnimationOn ? "Yes" : "No", _opt.AutoRecord ? "Yes" : "No",
                 _opt.Name.Length > 0 ? _opt.Name : "-",
-                _opt.Initials.Length > 0 ? _opt.Initials : "-"));
+                _opt.Initials.Length > 0 ? _opt.Initials : "-",
+                // Item 3's two.  The mask is printed as the number the INI
+                // carries rather than as five names, because what the gate is
+                // checking is the *key* -- that a 2010 binary's Diff_Setting
+                // round-trips, and that the 0 it can hold reads as all five.
+                _opt.SkipCompleted ? "Yes" : "No", _opt.Difficulty));
             // What the level resolution above settled on -- the collection and
             // the number this run would have opened.
             GD.PrintRaw(string.Format(inv, "options start_file={0} start_level={1}\n",
@@ -1566,6 +1608,17 @@ namespace LaserTank.Game
                 return;
             }
 
+            // The game options panel, on the graphics picker's terms rather
+            // than the name panel's: it takes every key because it is a dialog,
+            // but it wants the keycode and not the event -- there is no field
+            // in it, so nothing needs the unicode.
+            if (_optMenu != null && _optMenu.Open)
+            {
+                _optMenu.Key(k.Keycode);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
             // Same for the level picker and the two score lists.  On Enter they
             // hand back a level number, which is `EndDialog(Dialog, i + 100)`
             // and the `if (i > 100)` that meets it (LTANK.C:910).
@@ -1697,16 +1750,33 @@ namespace LaserTank.Game
                 // restore position) and Ctrl+G (226, graphics) are untouched --
                 // they are different accelerators, and both are still below.
                 case Key.L when !ctrl: OpenList(); break;              // 106
-                case Key.O: OpenCollections(); break;                 // 108
-                case Key.S: _s?.Load(_s.Level + 1); break;            // 107
-                case Key.P: _s?.Load(_s.Level - 1); break;            // 119
-                case Key.Bracketright: _s?.Load(_s.Level + 1); break; // ours
-                case Key.Bracketleft: _s?.Load(_s.Level - 1); break;  // ours
+                case Key.O when !ctrl: OpenCollections(); break;       // 108
+
+                // **107 and 119, and they are the two filtered ones.**
+                // `LoadNextLevel(FALSE, FALSE)` is command 107's whole body
+                // (LTANK.C:923) and `LoadLastLevel` is 119's, and both walk the
+                // collection through [DATA] Diff_Setting and [OPT] SkipComLev
+                // rather than stepping one record -- see Session.Advance.
+                case Key.S: Advance(+1); break;                       // 107
+                case Key.P: Advance(-1); break;                       // 119
+
+                // **Ours, and deliberately *not* filtered.**  The original has
+                // no such pair, so nothing is being deviated from; what they
+                // are for is the case the filter creates -- a mask that hides
+                // the level you actually wanted is a setting you now have to go
+                // and change before you can look at it.  One bracket is one
+                // record, always, which is also what makes them the pair to
+                // reach for when something looks wrong with the walk itself.
+                case Key.Bracketright: _s?.Load(_s.Level + 1); break;
+                case Key.Bracketleft: _s?.Load(_s.Level - 1); break;
                 case Key.Enter:
                     // The original's flag case calls LoadNextLevel straight
                     // away (LTANK.C:655); a Godot win waits, so the recording
-                    // is still there to save.
-                    if (_s != null && _s.Now == Session.State.Won) _s.Load(_s.Level + 1);
+                    // is still there to save.  It is the same filtered call the
+                    // original makes there -- `LoadNextLevel(FALSE, FALSE)` --
+                    // so winning the last Deadly level in a Kids-only mask ends
+                    // the collection rather than dropping you on level 2.
+                    if (_s != null && _s.Now == Session.State.Won) Advance(+1);
                     break;
                 case Key.R: _s?.Restart(); break;                     // 105
                 case Key.F2: NewGame(); break;                        // 101
@@ -1756,6 +1826,13 @@ namespace LaserTank.Game
                 // Ctrl+N is free in both accelerator tables -- ACC1 binds VK_N
                 // bare (102, Sound) and ACC2 does not bind it at all.
                 case Key.N when ctrl: _nameMenu.Show(_opt.Name); break;
+                // Next-steps item 3's two settings, and no command id between
+                // them: the original has 116 on the Options menu and 225 as a
+                // modal it opens *at* you, and neither is a key in ACC1.
+                // **Ctrl+O is free in both accelerator tables** -- ACC1 binds
+                // VK_O bare (108, Open Data File, which is why the `when !ctrl`
+                // above arrived with this) and ACC2 does not bind it at all.
+                case Key.O when ctrl: _optMenu.Show(); break;         // 116, 225
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
@@ -1904,6 +1981,7 @@ namespace LaserTank.Game
             && !(_menu != null && _menu.Open)
             && !(_langMenu != null && _langMenu.Open)
             && !(_nameMenu != null && _nameMenu.Open)
+            && !(_optMenu != null && _optMenu.Open)
             && !(_list != null && _list.Open)
             && !(_collections != null && _collections.Open)
             && !(_s != null && _s.Pb.PanelUp);
@@ -1989,6 +2067,7 @@ namespace LaserTank.Game
             if (_quitAsk) return false;
             if (_menu != null && _menu.Open) return false;
             if (_langMenu != null && _langMenu.Open) return false;
+            if (_optMenu != null && _optMenu.Open) return false;
             if (_list != null && _list.Open) return false;
             if (_collections != null && _collections.Open) return false;
             if (_s != null && _s.Pb.PanelUp) return false;
@@ -2170,6 +2249,34 @@ namespace LaserTank.Game
             _list.Show(_s.LevelPath, _s.Level);
         }
 
+        /// Commands 107 and 119 -- Skip Level and Previous Level -- which are
+        /// `LoadNextLevel(FALSE, FALSE)` and `LoadLastLevel` and therefore the
+        /// two filtered ones.  Session.Advance is the walk; this is what it
+        /// looks like when the walk finds nothing.
+        ///
+        /// **The end of the collection and the end of the filter are two
+        /// different sentences**, and that is the whole reason `filtered` comes
+        /// back out of Advance.  The original says neither -- it puts up
+        /// WM_GameOver's box and leaves you on the level you were on -- but the
+        /// original also cannot reach the second case without having answered
+        /// the Difficulty dialog on the way in, so the mask is never a surprise
+        /// there.  Here it is a setting two keystrokes away that somebody set
+        /// last week, so when it is the mask that stopped the walk the status
+        /// line names the mask.  Nothing moves in either case, which is
+        /// `CurLevel = SavedLevelNum`.
+        private void Advance(int dir)
+        {
+            if (_s == null) return;
+            if (_s.Advance(dir, out bool filtered)) return;
+            // A level that will not load is the third way this comes back
+            // false, and it is the only one with something to say -- Advance
+            // clears `Error` so a non-null one here is this walk's own.
+            _error = _s.Error
+                     ?? Strings[filtered ? "status.noneMatch"
+                                         : dir > 0 ? "status.lastLevel"
+                                                   : "status.firstLevel"];
+        }
+
         /// Command 108's `GetOpenFileName` half -- the picker.  The other half,
         /// what happens once a file comes back, is Session.OpenDataFile.
         private void OpenCollections()
@@ -2270,6 +2377,7 @@ namespace LaserTank.Game
             if (_menu.Open) _menu.Draw(this, font, host);
             if (_langMenu.Open) _langMenu.Draw(this, font, host, Strings);
             if (_nameMenu.Open) _nameMenu.Draw(this, font, host, Strings);
+            if (_optMenu.Open) _optMenu.Draw(this, font, host, Strings);
             if (_list.Open) _list.Draw(this, font, _mono, host);
             if (_collections.Open) _collections.Draw(this, font, _mono, host);
             // The stacked layout has no column to hold the hint card, so command
@@ -3583,6 +3691,11 @@ namespace LaserTank.Game
                 new("O", "keys.collections", Key.O),            // 108
                 new("S", "keys.nextLevel", Key.S),              // 107
                 new("P", "keys.prevLevel", Key.P),              // 119
+                // Ours, and here because item 3 gave them a job of their own:
+                // S and P walk the difficulty mask and the skip, these two step
+                // one record whatever those say.  A row each, because an escape
+                // hatch nobody can find is not one.
+                new("[ ]", "keys.stepLevel"),
                 new("F2", "keys.newGame", Key.F2),              // 101
             }),
             ("help.groupRecording", new Binding[]
@@ -3606,6 +3719,7 @@ namespace LaserTank.Game
                 new("ctrl G", "keys.graphics", Key.G, true),    // 226
                 new("ctrl L", "keys.language", Key.L, true),    // ours
                 new("ctrl N", "keys.name", Key.N, true),        // ours
+                new("ctrl O", "keys.options", Key.O, true),     // 116, 225
             }),
             ("help.groupSession", new Binding[]
             {

@@ -47,7 +47,9 @@ the editor's brush, **answers that mouse in its own chrome as well — every key
 card is a button, and a tap is a click**, edits and saves a `.lvl` byte-faithfully, labels the
 board A1–P16 on all four sides the way `WM_PAINT` does, shows its UI in any of the original's ten
 translations, remembers its settings in a `LaserTank.ini` with the original's own section and
-key names, and takes the player's name **once** where the original asks for it in two dialogs.
+key names, takes the player's name **once** where the original asks for it in two dialogs, and
+walks the collection the way `LoadNextLevel` does — past the ranks you did not ask for and past the
+levels you have already beaten.
 
 **It now also looks like something.** Step 7 — the redesign the faithful port was the prelude to —
 replaced the text strip under the board with a designed interface: a resizable, aspect-locked board
@@ -163,7 +165,7 @@ when the look changes on purpose:
 ```bash
 python tools/atlas_check.py      # 2,347 levels' BMF inside the grid + 4 sheets, ~35 s
 python tools/tick_check.py       # 208/208 recordings vs the oracle + the 20 Hz rate, ~20 s
-python tools/options_check.py    # the INI, the packs, the laser's width, ~50 s
+python tools/options_check.py    # the INI, the packs, the filtered walk, the laser, ~60 s
 python tools/sound_check.py      # 208 SoundPlay streams + 16 WAVs, ~60 s
 python tools/undo_check.py       # undo + save/restore vs the oracle, 400 scripts, ~60 s
 python tools/list_check.py       # list rows + .hs bytes vs Python, ~25 s
@@ -183,7 +185,7 @@ first**, because `godot --path` does not — see
 `build/lasertank-solve.exe`, so all are safe beside a live solver. `options_check` opens three brief
 windows for its pixel measurements; `--no-window` skips that half.
 **`chrome_check` is windows all the way down and cannot be otherwise** — the hit list is built by
-`_Draw` and by nothing else, so a headless run has an empty one; `--no-diff` cuts it to the twelve
+`_Draw` and by nothing else, so a headless run has an empty one; `--no-diff` cuts it to the fourteen
 dumps, ~15 s. Since step 11 it also drives `--type` into the level list's filter field and asserts
 the row count, because that field is the one arm of the chrome neither `--press` nor `--click` can
 reach.
@@ -215,22 +217,23 @@ run on — *a key is read by a widget or it goes* — answered *go* for the 2007
 `data/language/` is eleven catalogues of the port's own text with `tools/strings_check.py` failing
 both ways over them. **2** was a menu bar and it is [*Finished*](docs/game/history.md), decided
 against — `F1` and step 9 had already taken both halves of what it was for, and the route it still
-claimed to add is a route to commands items 3 and 8 have not written yet.
+claimed to add is a route to commands item 8 has not written yet. **3** was `SkipComLev` and
+`Diff_Setting` and it is [*Finished*](docs/game/history.md), step 15: the two INI keys are read and
+written, `LoadNextLevel`'s filter is `Session.Advance`, and `Ctrl+O` is the panel over both.
 
 | # | what it is | the short of it |
 |---|---|---|
-| **3** | **`SkipComLev` and `Diff_Setting`** | what is left of *the rest of the original that is still missing*, which was read through on 2026-09-15 and emptied: three entries became items **9**–**12**, three were declined ([*Finished*](docs/game/history.md)), and **the modal work is gone entirely** — the DeadBox is the status line, the Difficulty dialog (225) is the rank chips, and the two name prompts were one settings row, which step 14 built. What remains is two INI keys read into `Options` as comments, a `LoadNextLevel` port to read them, and **the dependency item 7 is waiting on** |
 | **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's. **The packs' own `Control.bmp`/`Opening.bmp` is closed** — declined a second time and for good on 2026-09-15, with item **11** taking its place |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
-| **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Waiting on item 3** for the store — `SkipComLev` and `Diff_Setting` are still to land, and doing it first means writing the migration twice. **The panel half is no longer waiting**: step 14's name row is the first settings surface and it will migrate with everything else. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
-| **8** | **The editor** | the commands are ported and gated (`--edit`, `editor_check.py`); what is missing is the chrome. Two blocked on a file dialog — Load Level (602) and Save As (606), both of which the collection picker is the model for — and one modal prompt, which is now the port's only one rather than a dependency shared with item 3: the *save changes?* question on leaving, `DrawQuitAsk` plus a third button. `LoadTID` *as* a dialog stays argued against — a prompt per painted cell is worse than the `T` mode it is here |
+| **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Nothing is waiting any more**: step 14's name row and step 15's options panel are the settings surfaces, and step 15 finished filling the original's keyspace, so the migration mapping can be written once. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
+| **8** | **The editor** | the commands are ported and gated (`--edit`, `editor_check.py`); what is missing is the chrome. Two blocked on a file dialog — Load Level (602) and Save As (606), both of which the collection picker is the model for — and one modal prompt, which is now the port's only one: the *save changes?* question on leaving, `DrawQuitAsk` plus a third button. `LoadTID` *as* a dialog stays argued against — a prompt per painted cell is worse than the `T` mode it is here |
 | **9** | **The level history, unbounded** | `Backspace[]` (118) — **not undo**, which is 110 and ported: a stack of level *numbers*, "back to the level I was just on". Ten slots because 1996 fixed arrays, so unbounded here. Free of every gate (letters never reach `AddKBuff`). `Session.cs:261` already holds the one line that must survive: command 108 clears it |
 | **10** | **Recording: 125 and two file dialogs** | Resume Recording (125) replays a `.lpb` with no panel and records on from its end — and `Recorder.cs:127` split `PanelUp` from `Open` *for this*. The missing piece is a picker, shared with 114 (`F7`, which guesses three paths) and 117 (`F6`, which writes where step 1 happened to write). Model is the collection picker, same as item 8's two. **`F8` is a conflict**: the original's 125 key, spent here on 115 |
 | **11** | **The opening screen** | `ID_GRAPHBOX_08` / `QHELP`, which is also what command 907 and `CurLevel == 0` paint. **A new screen, not `Opening.bmp`** — the per-language bitmaps are declined and that closes item 4's bullet. **Route undecided and the obvious one is taken**: `F1` went to the key list, so the current thinking is `Esc` growing from one modal into a screen |
 | **12** | **The help dialog** | **WinHelp is 902–905, not 907** — this file had it the other way round until 2026-09-15. Base it on the old `.hlp` and rewrite to a mature style. **It must not displace the key list**, which is the right answer to `F1` and stays; the help is a surface that links into it. Inherits one open question from step 13: eleven catalogues, and help *text* is a different order of volume from help *labels* |
 | **13** | **Hotkeys a player would expect** | asked for: next level on `N`, mute on `M`. Feasible — `M` is free everywhere, `N` is Sound today, so it chains `M`←102, `N`←107, `S` kept as a silent alias, `P` unchanged. **No gate can see it**: `LTANK.C:573` drops every VK outside 32–40 before `AddKBuff`, so letters are accelerators only. Four more on the list, worst first: `Ctrl+C`/`Ctrl+V` for save/restore position, no `Ctrl+Z` for undo, `F8`, and `Z` for zoom |
-| **14** | **One options dialog** | `Ctrl+G` (graphics, 226), `Ctrl+L` (language) and `Ctrl+N` (name) are the same panel three times — step 6 copied 226's shape on purpose. A merge, not a rewrite, and 226's three properties are the design constraint: **applies immediately, no Cancel, the game keeps ticking**, so it gets no OK button. **This is the surface items 3 and 7 are waiting for** — order is 3 → 14 → 7, or 3 and 14 together |
+| **14** | **One options dialog** | `Ctrl+G` (graphics, 226), `Ctrl+L` (language), `Ctrl+N` (name) and now `Ctrl+O` (the game options) are the same panel four times — step 6 copied 226's shape on purpose and step 15 copied its *rule*. A merge, not a rewrite, and 226's three properties are the design constraint: **applies immediately, no Cancel, the game keeps ticking**, so it gets no OK button. **This is the surface item 7 is waiting for**, and step 15 settled its key: `Ctrl+O`, the one of the four with command ids behind it |
 
 ---
 

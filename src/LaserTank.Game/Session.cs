@@ -229,6 +229,116 @@ namespace LaserTank.Game
             return true;
         }
 
+        // ---- LTANK2.C:974  LoadNextLevel, the half that is not a level load --
+        //
+        // **The filter, which is the whole of what `DirectLoad = FALSE` buys.**
+        // `Engine.LoadLevel` is the same function's other half and is labelled
+        // there as the `DirectLoad = TRUE` one: read the record, copy the
+        // playfield, reset.  What is here is the do/while around it --
+        //
+        //     do {
+        //         read record at CurLevel;
+        //         if (SkipCL && hs-open && !DirectLoad) {
+        //             read .hs at CurLevel;
+        //             if (TempHSData.moves > 0) CurRecData.SDiff = 128;
+        //         }
+        //         CurLevel++;
+        //     } while (!DirectLoad && CurRecData.SDiff > 0
+        //              && (Difficulty & CurRecData.SDiff) == 0);
+        //
+        // -- and it is in the *driver* rather than in Engine for the reason
+        // every such guard is (PROGRESS.md, "A guard the original gets from
+        // Windows"): it reads two settings and two files that Core has no
+        // business knowing about, and putting it here keeps `LoadLevel` the
+        // literal transliteration every differential is established against.
+        //
+        // **Three things in that loop are easy to lose and all three are kept.**
+        //
+        //  * `CurRecData.SDiff > 0` stops the walk on an *unranked* level
+        //    whatever the mask says.  A `.lvl` full of zero-SDiff records --
+        //    which plenty of community collections are -- is therefore
+        //    unfilterable, and that is the original's behaviour, not an
+        //    oversight to route around.
+        //  * **128 is not a rank.**  Skip-completed is implemented as a
+        //    difficulty *mismatch*: a solved level has its SDiff replaced by a
+        //    bit no five-bit mask can hold, so the same one condition walks past
+        //    it.  Kept as the original spells it, because it is also why
+        //    `Options.Difficulty` is masked to 0x1F on the way in -- a mask with
+        //    bit 7 set would match the sentinel and undo the skip.
+        //  * The walk **stops at the end rather than wrapping**, and answers a
+        //    short read the way the original does: `CurLevel = SavedLevelNum`,
+        //    WM_GameOver, nothing moves.  `Load` wraps; this does not, and the
+        //    difference is the point -- a wrap through a filter that matches
+        //    nothing is an infinite loop, and "you have finished what you asked
+        //    for" is a different answer from "here is level 1 again".
+        //
+        // `LoadLastLevel` (command 119, LTANK2.C:935) is the same walk
+        // backwards: it decrements twice to step off the level it is on, runs
+        // the identical test, and hands the result to LoadNextLevel for the
+        // real load.  One `dir` covers both, because the only thing that
+        // differs is the sign.
+
+        /// Walk to the next level in `dir` that the difficulty mask and the
+        /// skip-completed setting admit, and load it.
+        ///
+        /// -> false when there is none, and then **nothing has moved**: the
+        /// level on screen and its state are exactly as they were, which is
+        /// `CurLevel = SavedLevelNum` plus WM_GameOver's own do-nothing.
+        /// `filtered` says whether the walk stepped over anything on its way to
+        /// the end, so a caller can tell "the collection ends here" from "the
+        /// filter left nothing" -- two sentences on the status line, and the
+        /// second one is the one a player needs, because it names a setting
+        /// they can change rather than a fact about the file.
+        public bool Advance(int dir, out bool filtered)
+        {
+            filtered = false;
+            // **Cleared so that a non-null `Error` afterwards means this walk's
+            // own load failed** and nothing older.  Every reader of `Error` in
+            // the tree reads it immediately after the call that could set it,
+            // and this is the one call that can return false in three different
+            // ways -- no level left, the filter ate them, or the file went away
+            // between the keypress and the seek.  Without this the third one
+            // would be reported as the first.
+            Error = null;
+            if (_levelCount < 1) return false;
+            int mask = _opt != null ? _opt.Difficulty : Options.AllRanks;
+            bool skip = _opt != null && _opt.SkipCompleted;
+
+            // Both files read once, where the original re-seeks a held handle
+            // per candidate.  Same bytes, same order, one open: a walk past 400
+            // solved levels is one keystroke and should not be 800 of them.
+            TLEVELINFO[] levels;
+            try { levels = LevelFile.ReadLevelList(_lvlPath); }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+            // `F2 == INVALID_HANDLE_VALUE` is not an error in the original --
+            // the skip is simply not applied when there is no .hs to apply it
+            // from, which is every collection nobody has played yet.
+            byte[] hs = skip ? HighScores.Raw(Files.Hs) : null;
+
+            for (int n = Level + dir; n >= 1 && n <= _levelCount; n += dir)
+            {
+                if (n > levels.Length) break;             // the short-read arm
+                int sdiff = levels[n - 1].SDiff;
+                if (skip && Solved(hs, n)) sdiff = 128;   // "Error SDiff"
+                if (sdiff > 0 && (mask & sdiff) == 0) { filtered = true; continue; }
+                return Load(n);
+            }
+            return false;
+        }
+
+        /// `TempHSData.moves > 0` against a `.hs` read whole -- the only
+        /// definition of *solved* in the C, and the one FirstUnsolved uses.  A
+        /// record past the end of the file is a level that was never beaten,
+        /// which is how the original's own unchecked `ReadFile` reads it.
+        private static bool Solved(byte[] hs, int level)
+        {
+            if (hs == null) return false;
+            int at = (level - 1) * THSREC.Size;
+            if (at < 0 || at + 2 > hs.Length) return false;
+            return (hs[at] | (hs[at + 1] << 8)) > 0;
+        }
+
         /// Command 108, "Open Data File" (LTANK.C:924).  Its whole body is five
         /// lines and three of them are the parts that are easy to forget:
         ///

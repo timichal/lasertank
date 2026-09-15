@@ -38,6 +38,16 @@ they knew what to look for:
           longer true of a window the player can drag.  The board's own
           geometry is, and that is what the laser check below needs.
 
+  advance the two settings next-steps item 3 landed -- [OPT] SkipComLev and
+          [DATA] Diff_Setting -- and the walk that reads them.  The keys go
+          through the INI half above; what is checked here is `LoadNextLevel`'s
+          own do/while: which levels `S` and `P` stop on with a given mask, that
+          a solved level is stepped over when the skip is on, that a level whose
+          own SDiff is 0 is unfilterable whatever the mask says, and that the
+          walk ends rather than wrapping.  **The expected sequence is built in
+          Python out of the same .lvl and .hs bytes**, so the two sides are two
+          readers of one file rather than the game agreeing with itself.
+
   laser   **the laser bar is `cell - 2 * LaserOffset` wide -- 4, 6 and 6 px.**
           LaserOffset is a per-size constant (LTANK2.C:1747/:1756/:1765), not a
           fraction of the cell, and reading it as 10-of-32 -- which step 1
@@ -47,7 +57,7 @@ they knew what to look for:
           coordinates come from the trace side and the pixels from the renderer,
           which is what makes it a check rather than a tautology.
 
-    python tools/options_check.py               # all four, ~40 s
+    python tools/options_check.py               # all five, ~50 s
     python tools/options_check.py --no-window   # skip size + laser (no display)
 
 The laser and size checks open a real window (three, briefly): --shot needs a
@@ -350,6 +360,222 @@ def check_ini(tmp):
 
 
 # ---------------------------------------------------------------------------
+# next-steps item 3: the filtered walk
+#
+# LTANK2.C:1010.  The port of that loop is Session.Advance and the instrument is
+# `--check-advance`, which prints one `advance stop=N sdiff=D` per landing.
+# Everything this function asserts is recomputed here from the bytes.
+TLEVEL_SIZE = 576
+THSREC_SIZE = 10
+ALL_RANKS = 31
+SOLVED_SDIFF = 128          # "Error SDiff", LTANK2.C:1016
+
+
+def sdiffs(lvl):
+    """The SDiff word of every record in a .lvl, 1-based."""
+    data = lvl.read_bytes()
+    n = len(data) // TLEVEL_SIZE
+    return [struct.unpack_from("<H", data, i * TLEVEL_SIZE + 574)[0]
+            for i in range(n)]
+
+
+def make_hs(path, solved, count):
+    """A .hs the length of the collection, with `solved` levels scored."""
+    out = b""
+    for i in range(1, count + 1):
+        hit = i in solved
+        out += struct.pack("<HH6s", 10 if hit else 0, 3 if hit else 0, b"MZ\0\0\0\0")
+    path.write_bytes(out)
+
+
+def walk(ranks, mask, solved, skip, start, direction):
+    """LoadNextLevel's do/while, in Python.  -> (stops, how it ended)."""
+    stops = []
+    n = start + direction
+    while 1 <= n <= len(ranks):
+        sdiff = ranks[n - 1]
+        if skip and n in solved:
+            sdiff = SOLVED_SDIFF
+        if sdiff > 0 and (mask & sdiff) == 0:
+            n += direction
+            continue
+        stops.append((n, ranks[n - 1]))
+        n += direction
+    # The instrument walks until it cannot, so the ending is decided by what
+    # stopped the *last* attempt: nothing left at all, or everything left
+    # filtered out.
+    last = stops[-1][0] if stops else start
+    tail = range(last + direction, len(ranks) + 1) if direction > 0 \
+        else range(last + direction, 0, -1)
+    return stops, ("filtered" if any(True for _ in tail) else "eof")
+
+
+def advance(out):
+    """The `advance` lines -> (header dict, [(level, sdiff)], ending)."""
+    head, stops, end = {}, [], None
+    for line in out.splitlines():
+        line = line.strip()
+        if not line.startswith("advance "):
+            continue
+        d = dict(re.findall(r"(\w+)=(\S*)", line[8:]))
+        if "stop" in d:
+            stops.append((int(d["stop"]), int(d["sdiff"])))
+        elif "end" in d:
+            end = d["end"]
+        else:
+            head = d
+    return head, stops, end
+
+
+def check_advance(tmp):
+    """[OPT] SkipComLev, [DATA] Diff_Setting, and LoadNextLevel's own loop."""
+    good = True
+    src = ROOT / "data" / "levels" / "LaserTank.lvl"
+    if not src.exists():
+        print("  %-34s SKIP %s is not there" % ("the filtered walk", src.name))
+        return good
+
+    # A small collection of its own, so nothing here reads or writes the
+    # corpus: 40 records is enough to hold several of each rank.
+    coll = tmp / "walk"
+    coll.mkdir(exist_ok=True)
+    lvl = coll / "Walk.lvl"
+    count = 40
+    lvl.write_bytes(src.read_bytes()[:TLEVEL_SIZE * count])
+    ranks = sdiffs(lvl)
+
+    # -- the defaults, which are the one place this port deliberately differs
+    # from the original: Diff_Setting is absent and reads as all five rather
+    # than as the 0 that would have posted command 225.
+    ini = tmp / "walk.ini"
+    ini.write_bytes(b"")
+    rc, out = run(["--ini", ini, "--check-options"])
+    o = options(out)
+    if rc != 0 or o.get("difficulty") != str(ALL_RANKS) or o.get("skip_completed") != "No":
+        good = fail("defaults: all five ranks, no skip",
+                    "rc=%d difficulty=%s skip=%s"
+                    % (rc, o.get("difficulty"), o.get("skip_completed")))
+    else:
+        good &= ok("defaults: all five ranks, no skip", "Diff_Setting absent -> 31")
+
+    # -- and the 2010 binary's own "never asked" value reads the same way,
+    # because there is no dialog here to post.
+    zero = tmp / "walk_zero.ini"
+    zero.write_bytes(b"[DATA]\r\nDiff_Setting=0\r\n")
+    rc, out = run(["--ini", zero, "--check-options"])
+    if rc != 0 or options(out).get("difficulty") != str(ALL_RANKS):
+        good = fail("Diff_Setting=0 is all five", "got %s"
+                    % options(out).get("difficulty"))
+    else:
+        good &= ok("Diff_Setting=0 is all five", "the 225 sentinel, answered")
+
+    # -- the high bits are masked off.  128 is SDiff's own "completed"
+    # sentinel, so a mask that kept bit 7 would match every skipped level and
+    # quietly undo SkipComLev.
+    wide = tmp / "walk_wide.ini"
+    wide.write_bytes(b"[DATA]\r\nDiff_Setting=255\r\n")
+    rc, out = run(["--ini", wide, "--check-options"])
+    if rc != 0 or options(out).get("difficulty") != str(ALL_RANKS):
+        good = fail("Diff_Setting=255 is masked to 31", "got %s"
+                    % options(out).get("difficulty"))
+    else:
+        good &= ok("Diff_Setting=255 is masked to 31", "128 cannot collide")
+
+    # -- the round trip, through the same flags the panel's two chips use.
+    rc, _ = run(["--ini", ini, "--difficulty", "13", "--skip-completed", "yes",
+                 "--save-options", "--check-options"])
+    rc2, out = run(["--ini", ini, "--check-options"])
+    o = options(out)
+    text = ini.read_text("latin-1")
+    if rc or rc2 or o.get("difficulty") != "13" or o.get("skip_completed") != "Yes":
+        good = fail("both keys survive a restart", "difficulty=%s skip=%s"
+                    % (o.get("difficulty"), o.get("skip_completed")))
+    elif "Diff_Setting=13" not in text or "SkipComLev=Yes" not in text:
+        good = fail("both keys survive a restart",
+                    "written under the wrong names")
+    else:
+        good &= ok("both keys survive a restart",
+                   "[DATA] Diff_Setting=13, [OPT] SkipComLev=Yes")
+
+    # ---- the walk itself.
+    solved = {2, 3, 5, 8, 13}
+    make_hs(coll / "Walk.hs", solved, count)
+
+    cases = [
+        # (label, mask, skip, start, direction)
+        ("every rank, forwards", ALL_RANKS, False, 1, 1),
+        ("every rank, backwards", ALL_RANKS, False, count, -1),
+        ("one rank only", 1, False, 1, 1),
+        ("two ranks", 1 | 2, False, 1, 1),
+        ("skip completed", ALL_RANKS, True, 1, 1),
+        ("skip completed, backwards", ALL_RANKS, True, count, -1),
+        ("a mask and a skip", 1 | 2, True, 1, 1),
+    ]
+    for label, mask, skip, start, direction in cases:
+        args = ["--ini", ini, "--levels", lvl, "--level", start,
+                "--difficulty", mask,
+                "--skip-completed", "yes" if skip else "no",
+                "--advance-dir", direction, "--check-advance"]
+        rc, out = run(args)
+        head, stops, end = advance(out)
+        want, want_end = walk(ranks, mask, solved, skip, start, direction)
+        if rc != 0:
+            good = fail(label, "rc=%d" % rc)
+        elif stops != want:
+            good = fail(label, "%d stops, want %d (first difference %s)"
+                        % (len(stops), len(want),
+                           next((str((a, b)) for a, b in
+                                 zip(stops + [None], want + [None]) if a != b),
+                                "-")))
+        elif end != want_end:
+            good = fail(label, "ended %s, want %s" % (end, want_end))
+        else:
+            good &= ok(label, "%d stops, ends %s" % (len(stops), end))
+
+    # -- **an unranked level is unfilterable**, which is the `CurRecData.SDiff
+    # > 0` guard and the one arm of the loop that looks like a bug until you
+    # read it.  Built rather than looked for: the fourth record's SDiff word is
+    # zeroed, and a mask matching nothing then has to stop on it and nowhere
+    # else.
+    raw = bytearray(lvl.read_bytes())
+    struct.pack_into("<H", raw, 3 * TLEVEL_SIZE + 574, 0)
+    zeroed = coll / "Zeroed.lvl"
+    zeroed.write_bytes(bytes(raw))
+    rc, out = run(["--ini", ini, "--levels", zeroed, "--level", 1,
+                   "--difficulty", 16, "--skip-completed", "no",
+                   "--check-advance"])
+    _head, stops, end = advance(out)
+    want = [(n, s) for n, s in
+            walk(sdiffs(zeroed), 16, set(), False, 1, 1)[0]]
+    if rc != 0 or stops != want:
+        good = fail("SDiff 0 is unfilterable", "got %s want %s" % (stops, want))
+    elif not any(s == 0 for _, s in stops):
+        good = fail("SDiff 0 is unfilterable", "the zeroed record was not one")
+    else:
+        good &= ok("SDiff 0 is unfilterable", "stops on it with mask 16")
+
+    # -- and the walk must not write the player's state.  RLL on, a walk over
+    # 40 levels, and [DATA] RLLLevel is where it was.
+    rll = tmp / "walk_rll.ini"
+    rll.write_bytes(b"[OPT]\r\nRLL=Yes\r\n[DATA]\r\nRLLLevel=7\r\n"
+                    b"RLLFilename=nowhere.lvl\r\n")
+    # One run first, because Options' constructor fills an empty Graphics_Dir
+    # in and writes it back ("we only do this once", LTANK2.C:1785) -- that is
+    # the *first* launch writing, not the walk, and the claim here is about the
+    # walk.  Snapshot after it has happened.
+    run(["--ini", rll, "--check-options"])
+    before = rll.read_bytes()
+    rc, _ = run(["--ini", rll, "--levels", lvl, "--level", 1, "--check-advance"])
+    if rc != 0 or rll.read_bytes() != before:
+        good = fail("the walk writes nothing",
+                    "rc=%d, the ini %s" % (rc, "moved" if rll.read_bytes() != before
+                                           else "is fine"))
+    else:
+        good &= ok("the walk writes nothing", "RLLLevel still 7")
+    return good
+
+
+# ---------------------------------------------------------------------------
 def split_ltg(path, dest):
     """A .ltg *is* a header and two BMPs (LoadLTG, LTANK2.C:688), so unpacking
     it into GFXInit's external pair is a byte copy -- no re-encoding, which is
@@ -617,7 +843,7 @@ def check_window(tmp):
 # ---------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(
-        description="Phase 5 step 2's gate: options, graphics packs, laser width.",
+        description="Phase 5 step 2's gate: options, packs, the walk, laser width.",
         epilog="exit 0 clean, 1 a check failed, 2 environment")
     ap.add_argument("--no-window", action="store_true",
                     help="skip the size and laser checks, which open a window")
@@ -639,6 +865,8 @@ def main():
         good &= check_ini(tmp)
         print("packs:")
         good &= check_packs(tmp)
+        print("advance:")
+        good &= check_advance(tmp)
         if args.no_window:
             print("size + laser: SKIPPED (--no-window)")
         else:
