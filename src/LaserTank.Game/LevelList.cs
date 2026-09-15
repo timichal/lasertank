@@ -129,9 +129,13 @@
 //      which is the mirror image of what Move does -- the panel still has one
 //      position and not two, for the reason in Scroll's comment.
 //
-// What is still not here: `Backspace[]`'s ten-level history (118), and a grab
-// offset on the thumb (it centres on the pointer, which is also what a click on
-// the bare track should do).
+// What is still not here: a grab offset on the thumb (it centres on the
+// pointer, which is also what a click on the bare track should do).
+//
+// `Backspace[]`'s history (118) *was* on that list, and step 17 built it
+// somewhere else on purpose: it is Session's, not this panel's.  A level picked
+// here is a load like any other and pushes like any other -- which is the whole
+// of what this file has to know about it.
 using System;
 using System.Collections.Generic;
 using System.IO;

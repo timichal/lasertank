@@ -1498,3 +1498,64 @@ record. All of it green, plus `atlas`, `tick`, `collections`, `editor`, `roundtr
 **What did not change.** Every atoi/strcmp semantic, every default, `Difficulty`'s deliberate
 departure from the original's zero sentinel, and the read-only-instrument rule — which was never
 about INI, and is as true of a JSON file.
+
+---
+
+## ~~Step 17: the level history, unbounded~~ — **done 2026-09-15**
+
+Next-steps item 9, closed. Command 118, `VK_BACK` in ACC1 — and the first thing the item had to say
+about it is what it is not. **It is not undo.** Undo is 110, it is `U`, it repeats while the key is
+held and it has been ported since Phase 2. 118 is a *navigation* history: a stack of level
+**numbers**, pushed by `LoadNextLevel` whenever the level actually changes (`LTANK2.C:1045`) and
+popped by the key — "take me back to the level I was just on".
+
+**It earns the key, which the item asked to decide before building.** The argument against was step
+11: the level list has a filter bar and direct level-number entry, so a back stack is a thing you
+reach for only when the list is not one keystroke away. The answer is that they are two different
+questions — the list answers *which level* and this answers *the one I was just on*, which is a
+level whose number you looked away from. The case it is for is the one the brackets and the filtered
+walk create: step off to look at something, come back. One row, one key nothing else wants.
+
+**Unbounded, and the ten it replaces is the whole of the deviation.** `int Backspace[10]` with
+`BS_SP` walking it as a ring (`LTANK2.C:94`), and every awkward line of the original's case body is
+that ring showing through: the pop zeroes the slot it leaves (`Backspace[BS_SP] = 0; // this is so
+we dont loop around`, `LTANK.C:1003`) or a full ring walks itself forever, and the menu item greys
+itself by peeking one slot further down to see whether that zero is next. A list has neither
+problem. So: a plain `List<int>`, no sentinel, no wrap, and `Count` is the grey.
+
+**The invariant is the original's and it is what makes the code short.** The level on screen is the
+top of the stack — `if (Backspace[BS_SP] != CurLevel)` is the push, so a load that lands where it
+already is pushes nothing, and the pop's own reload then adds nothing back. One consequence worth
+naming: `ReStart` (105) is not a load, so restarting a level forty times leaves the stack alone.
+
+**The push is in `Session.Load` and nowhere else**, which is the original's shape rather than a
+choice: the C has one loader and every command that changes the level goes through it, so "the level
+actually changed" is a fact one function knows and the six callers do not have to remember. `S`,
+`P`, `[`, `]`, the level list, `F2` and a playback all push by going through it.
+
+**And command 108 clears it** — `Backspace[BS_SP] = 0` plus the grey, two lines in the middle of
+another case body and the easiest thing in it to leave out. A history of level numbers means nothing
+once the collection they index has changed: going "back" from level 3 of one file to level 7 of
+another is not a place anyone has been. `Session.OpenDataFile` had carried a note about it since
+step 4, which is the reason it was not forgotten. A *failed* 108 restores it with everything else,
+because "nothing moved" has to be true of the history too.
+
+**The deviation cannot reach a gate, and that is why it is allowed.** `WM_KEYDOWN` drops every
+virtual-key code outside VK 32–40 before `AddKBuff` ever sees it (`LTANK.C:573`) and `VK_BACK` is 8
+— so the history cannot enter a keystream, a `.lpb`, an `.hs`, a solver result or any fidelity
+harness. It is interface, and the interface is the half this port is allowed to change.
+
+**Gated anyway, because the stack is state no frame draws.** `--check-history` is step 15's
+instrument in the same shape: a script of navigation ops (`+` `-` `<` `r` `o` and a bare level
+number) printed as one line each — the level, the level `Backspace` would go to next, and the whole
+stack. `options_check.py` gained a fifth arm that rebuilds the expected stack in Python from the
+same `.lvl` and `.hs` bytes, walking with the same mask `advance` walks, so the two halves of the
+item are held to one model. Nine cases: the push is one per change, a restart is not a level, back
+past the first is refused rather than wrapped, a direct load pushes once, 108 clears it, a stack
+deeper than the original's ten, the mask decides what is pushed, a failed 108 keeps the history, and
+the instrument writes nothing.
+
+**The label is the original's own.** `Last Level Playe&d` (`lt32l_us.inc:25`), which nine of the ten
+2007 catalogues already translate, so `keys.lastPlayed` agrees with them rather than inventing a
+sentence in eleven languages. The keycap is spelled `backspace` and not the menu's `BkSp`: this port
+writes `space` and `tab` in full and there is no menu column to fit.

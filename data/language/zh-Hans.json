@@ -59,6 +59,7 @@
     "status.noneMatch": "没有符合游戏选项的关卡了 —— Ctrl+O 可以修改",
     "status.lastLevel": "这是本合集的最后一关",
     "status.firstLevel": "这是本合集的第一关",
+    "status.noLastLevel": "没有可以返回的上一关",
 
     "win.solved": "已通关",
     "win.playback": "回放已抵达旗帜",
@@ -103,6 +104,7 @@
     "keys.collections": "选择关卡集",
     "keys.nextLevel": "下一关",
     "keys.prevLevel": "上一关",
+    "keys.lastPlayed": "前一个玩过的关",
     "keys.stepLevel": "前后一关，不过滤",
     "keys.newGame": "重新开始",
     "keys.record": "开始或停止录制",

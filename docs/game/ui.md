@@ -59,7 +59,8 @@ moves in and out of the three text fields, and while one has focus every letter 
 Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101), `U` undo (110),
 `Ctrl+C`/`Ctrl+V` save/restore position (111/112), `L` levels **and both high-score lists**
 (106 + 113 + 906 — see the one table below), `O` collections (108),
-`S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
+`S`/`P` next/previous level (107/119), **`Backspace` the last level played (118)**,
+`N` sound (102), `A` animation (104),
 `H` hint (301), `F1` the key list (907, and 903 in the editor),
 `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
 (123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented),
@@ -67,6 +68,15 @@ Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101
 `Ctrl+O` the game options (116 + 225 — see below), `Z`
 board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit — **which asks first**.
 `[` and `]` are ours, and since step 15 they mean something `S`/`P` do not: one level, unfiltered.
+
+**`Backspace` is a third thing again** (step 17 — see [*Finished*](history.md)), and the one worth
+reading the name of twice: 118 is **not** undo. Undo is 110, it is `U`, and it walks the move buffer.
+118 walks *level numbers* — a stack of the levels this session has been on, pushed by every load and
+popped by the key, which is "take me back to the level I was just on". The original's is
+`int Backspace[10]` walked as a ring; this one is a plain list, unbounded, because the ten was a 1996
+fixed array and every awkward line of the original's case body is that ring showing through. Command
+108 clears it, because a history of level numbers means nothing once the collection they index has
+changed.
 
 **`V` and `G` are unbound and free**, which is the one thing the merge was *for*: ACC1 has no spare
 letters, every future command needs one, and 113 and 906 were two keys spent on two renderings of
@@ -329,7 +339,9 @@ works by replacing a solved level's `SDiff` with a bit no five-bit mask can hold
 `Diff_Setting` is masked to `0x1F` on the way in; and the walk **stops at the end rather than
 wrapping**, because a wrap through a filter that matches nothing is an infinite loop. `S` (107), `P`
 (119) and a win all go through it; `[` and `]` do not, and are the escape hatch for a mask that has
-hidden the level you actually wanted.
+hidden the level you actually wanted. **`Backspace` (118) does not go through it either**, and it
+cannot: it loads a level this session has already been on, and a filter that rejected it would be
+refusing to go back to somewhere you have just been.
 
 **The 225 popup is dropped and the default is all five ranks.** `if (Difficulty == 0)
 SendMessage(WM_COMMAND, 225, 0)` is the first line of `LoadNextLevel`'s body, so a fresh install
@@ -345,6 +357,13 @@ cannot reach headlessly. It prints one `advance stop=N sdiff=D` per landing and 
 only one of them is about the file. `options_check.py` recomputes every sequence in Python from the
 same `.lvl` and `.hs` bytes. `--skip-completed yes|no` and `--difficulty N` steer it and persist
 with `--save-options`, as `--sound` and `--name` do.
+
+**`--check-history` is step 17's, in the same shape and for the same reason** — a stack is state no
+frame draws. It runs a script of navigation ops (`+` and `-` are 107 and 119, `<` is 118, `r` is a
+restart, `o` is 108 on the file `--history-open` names, and a bare number is a direct load) and
+prints the level, the level `Backspace` would go to next, and the whole stack after each. The two
+instruments share one Python model in `options_check.py`, so what `+` pushes here has to be where
+`advance` says it stops.
 
 **Every text field in the port is one widget** (`TextField` + `Ui.Field`), which step 14 factored
 out of the three that had grown separately: the level list's filter, the editor's three level

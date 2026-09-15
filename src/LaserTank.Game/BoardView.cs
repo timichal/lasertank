@@ -699,6 +699,18 @@ namespace LaserTank.Game
                 return;
             }
 
+            // --check-history: command 118's stack as a sequence of level
+            // numbers, and here for --check-advance's reasons exactly -- it
+            // wants a collection, a level and the options the walk reads,
+            // because half the script is `+` and `-`.
+            if (ArgStr(args, "--check-history") is string hist)
+            {
+                _driving = false;
+                GetTree().Quit(Step17Check.CheckHistory(
+                    levels, level, hist, ArgStr(args, "--history-open"), _opt));
+                return;
+            }
+
             // --play: the synthetic playthrough, headless and reproducible.
             // See PlayMode and tools/tick_check.py.
             if (Array.IndexOf(args, "--play") >= 0)
@@ -1802,6 +1814,25 @@ namespace LaserTank.Game
                 // reach for when something looks wrong with the walk itself.
                 case Key.Bracketright: _s?.Load(_s.Level + 1); break;
                 case Key.Bracketleft: _s?.Load(_s.Level - 1); break;
+
+                // **118, and it is the original's own key.**  `VK_BACK` in ACC1
+                // (lt32l_us.inc:134) is free in this port -- it reaches nothing
+                // but a text field, and every text field here is inside a panel
+                // the router has already answered by this line.  It is also
+                // outside VK 32..40, so it is an accelerator and only an
+                // accelerator, the same as every letter below.
+                //
+                // **It earns the key, which next-steps item 9 asked to decide
+                // before building it.**  Step 11 gave the level list a filter
+                // and direct number entry, so the argument against was that a
+                // back stack is redundant when the list is one keystroke away.
+                // It is not the same question: the list answers *which level*
+                // and this answers *the one I was just on*, which is a level
+                // whose number you looked away from.  The case it is actually
+                // for is the one the brackets and the filtered walk create --
+                // step off to look at something, come back -- and it costs one
+                // row and one key nothing else wants.
+                case Key.Backspace: Back(); break;                    // 118
                 case Key.Enter:
                     // The original's flag case calls LoadNextLevel straight
                     // away (LTANK.C:655); a Godot win waits, so the recording
@@ -2316,6 +2347,21 @@ namespace LaserTank.Game
                      ?? Strings[filtered ? "status.noneMatch"
                                          : dir > 0 ? "status.lastLevel"
                                                    : "status.firstLevel"];
+        }
+
+        /// Command 118, Last Level Played -- Session.Back is the stack and this
+        /// is what an empty one looks like.
+        ///
+        /// **The message names the fact and not the key**, the way
+        /// `status.noSavedPosition` does: "there is nowhere back" is a thing
+        /// about this session, and a player who just pressed Backspace does not
+        /// need to be told which key they pressed.  The original says nothing
+        /// at all here -- it greys the menu item, which is a thing a menu bar
+        /// can do and a status line cannot.
+        private void Back()
+        {
+            if (_s == null) return;
+            if (!_s.Back()) _error = _s.Error ?? Strings["status.noLastLevel"];
         }
 
         /// Command 108's `GetOpenFileName` half -- the picker.  The other half,
@@ -3732,6 +3778,13 @@ namespace LaserTank.Game
                 new("O", "keys.collections", Key.O),            // 108
                 new("S", "keys.nextLevel", Key.S),              // 107
                 new("P", "keys.prevLevel", Key.P),              // 119
+                // 118, and the label is the original's own menu text ("Last
+                // Level Playe&d") rather than an invented one, because nine of
+                // the ten 2007 catalogues already translate that sentence and
+                // agreeing with them costs nothing.  The cap is spelled out
+                // rather than the menu's `BkSp`: this port writes `space` and
+                // `tab` in full and there is no menu column to fit.
+                new("backspace", "keys.lastPlayed", Key.Backspace),  // 118
                 // Ours, and here because item 3 gave them a job of their own:
                 // S and P walk the difficulty mask and the skip, these two step
                 // one record whatever those say.  A row each, because an escape

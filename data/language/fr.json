@@ -59,6 +59,7 @@
     "status.noneMatch": "plus aucun niveau n'entre dans vos options de jeu — Ctrl+O les change",
     "status.lastLevel": "c'était le dernier niveau de cette collection",
     "status.firstLevel": "c'est le premier niveau de cette collection",
+    "status.noLastLevel": "aucun niveau précédent où revenir",
 
     "win.solved": "Résolu",
     "win.playback": "la lecture a atteint le drapeau",
@@ -103,6 +104,7 @@
     "keys.collections": "choisir une collection",
     "keys.nextLevel": "niveau suivant",
     "keys.prevLevel": "niveau précédent",
+    "keys.lastPlayed": "dernier niveau joué",
     "keys.stepLevel": "un niveau, sans filtre",
     "keys.newGame": "tout reprendre",
     "keys.record": "démarrer ou arrêter l'enregistrement",

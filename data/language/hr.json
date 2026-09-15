@@ -59,6 +59,7 @@
     "status.noneMatch": "nema više razine koja odgovara postavkama igre — mijenjaju se s Ctrl+O",
     "status.lastLevel": "to je bila zadnja razina u ovoj zbirci",
     "status.firstLevel": "ovo je prva razina u ovoj zbirci",
+    "status.noLastLevel": "nema ranije razine za povratak",
 
     "win.solved": "Riješeno",
     "win.playback": "reprodukcija je stigla do zastave",
@@ -103,6 +104,7 @@
     "keys.collections": "odabrati zbirku",
     "keys.nextLevel": "sljedeća razina",
     "keys.prevLevel": "prethodna razina",
+    "keys.lastPlayed": "zadnja igrana razina",
     "keys.stepLevel": "jedna razina, bez filtra",
     "keys.newGame": "krenuti iznova",
     "keys.record": "pokrenuti ili zaustaviti snimanje",

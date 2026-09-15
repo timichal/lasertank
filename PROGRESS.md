@@ -50,7 +50,8 @@ translations, remembers its settings in a typed `user://settings.json` — impor
 `LaserTank.ini` once if it finds one, and never writing that file — takes the player's name
 **once** where the original asks for it in two dialogs, and
 walks the collection the way `LoadNextLevel` does — past the ranks you did not ask for and past the
-levels you have already beaten.
+levels you have already beaten — and goes **back** the way `Backspace[]` does, to the level you were
+just on.
 
 **It now also looks like something.** Step 7 — the redesign the faithful port was the prelude to —
 replaced the text strip under the board with a designed interface: a resizable, aspect-locked board
@@ -127,6 +128,15 @@ written never, and the atoi/strcmp findings it exists to record are all still th
 pinned. Two false greens and a second gap in the instrument list fell out of it. See
 [*Finished*](docs/game/history.md).
 
+**And since step 17 `Backspace` goes back.** Command 118 is **not** undo — undo is 110, it is `U`
+and it has been ported since Phase 2; 118 is a stack of level *numbers*, pushed by every load and
+popped by the key, which is "take me back to the level I was just on". The original's is a ten-slot
+ring and this one is a plain unbounded list, which is the deviation and a safe one: `VK_BACK` is 8,
+`WM_KEYDOWN` drops everything outside VK 32–40 before `AddKBuff`, so the history cannot reach a
+`.lpb`, an `.hs`, a solver result or any fidelity gate. Command 108 clears it. Gated anyway, because
+a stack is state no frame draws: `--check-history` prints it and `options_check.py` rebuilds the
+expected one in Python. See [*Finished*](docs/game/history.md).
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
@@ -175,7 +185,7 @@ when the look changes on purpose:
 ```bash
 python tools/atlas_check.py      # 2,347 levels' BMF inside the grid + 4 sheets, ~35 s
 python tools/tick_check.py       # 208/208 recordings vs the oracle + the 20 Hz rate, ~20 s
-python tools/options_check.py    # settings, the packs, the filtered walk, the laser, ~60 s
+python tools/options_check.py    # settings, packs, the walk, the history, the laser, ~65 s
 python tools/sound_check.py      # 208 SoundPlay streams + 16 WAVs, ~60 s
 python tools/undo_check.py       # undo + save/restore vs the oracle, 400 scripts, ~60 s
 python tools/list_check.py       # list rows + .hs bytes vs Python, ~25 s
@@ -232,15 +242,17 @@ claimed to add is a route to commands item 8 has not written yet. **3** was `Ski
 written, `LoadNextLevel`'s filter is `Session.Advance`, and `Ctrl+O` is the panel over both.
 **7** was the settings and it is [*Finished*](docs/game/history.md), step 16: the port's settings
 are a typed record at `user://settings.json`, `LaserTank.ini` is a one-way importer that nothing
-writes, and the repo-root write is gone.
+writes, and the repo-root write is gone. **9** was the level history and it is
+[*Finished*](docs/game/history.md), step 17: `Backspace` is command 118, the stack is a plain
+unbounded list rather than the original's ten-slot ring, command 108 clears it, and
+`options_check.py` has a fifth arm over `--check-history`.
 
 | # | what it is | the short of it |
 |---|---|---|
-| **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's. **The packs' own `Control.bmp`/`Opening.bmp` is closed** — declined a second time and for good on 2026-09-15, with item **11** taking its place |
+| **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's, and **the `F1` overlay clipping German at phone width** — found by step 17, not caused by it, and the one bullet here with a measured repro. **The packs' own `Control.bmp`/`Opening.bmp` is closed** — declined a second time and for good on 2026-09-15, with item **11** taking its place |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
 | **8** | **The editor** | the commands are ported and gated (`--edit`, `editor_check.py`); what is missing is the chrome. Two blocked on a file dialog — Load Level (602) and Save As (606), both of which the collection picker is the model for — and one modal prompt, which is now the port's only one: the *save changes?* question on leaving, `DrawQuitAsk` plus a third button. `LoadTID` *as* a dialog stays argued against — a prompt per painted cell is worse than the `T` mode it is here |
-| **9** | **The level history, unbounded** | `Backspace[]` (118) — **not undo**, which is 110 and ported: a stack of level *numbers*, "back to the level I was just on". Ten slots because 1996 fixed arrays, so unbounded here. Free of every gate (letters never reach `AddKBuff`). `Session.cs:261` already holds the one line that must survive: command 108 clears it |
 | **10** | **Recording: 125 and two file dialogs** | Resume Recording (125) replays a `.lpb` with no panel and records on from its end — and `Recorder.cs:127` split `PanelUp` from `Open` *for this*. The missing piece is a picker, shared with 114 (`F7`, which guesses three paths) and 117 (`F6`, which writes where step 1 happened to write). Model is the collection picker, same as item 8's two. **`F8` is a conflict**: the original's 125 key, spent here on 115 |
 | **11** | **The opening screen** | `ID_GRAPHBOX_08` / `QHELP`, which is also what command 907 and `CurLevel == 0` paint. **A new screen, not `Opening.bmp`** — the per-language bitmaps are declined and that closes item 4's bullet. **Route undecided and the obvious one is taken**: `F1` went to the key list, so the current thinking is `Esc` growing from one modal into a screen |
 | **12** | **The help dialog** | **WinHelp is 902–905, not 907** — this file had it the other way round until 2026-09-15. Base it on the old `.hlp` and rewrite to a mature style. **It must not displace the key list**, which is the right answer to `F1` and stays; the help is a surface that links into it. Inherits one open question from step 13: eleven catalogues, and help *text* is a different order of volume from help *labels* |

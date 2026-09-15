@@ -7,7 +7,7 @@ waiting on and what it would cost.
 **Open items only.** What is done, and what was deliberately decided against, is in
 [`history.md`](history.md) and is not repeated here. **Items keep their numbers** because the other
 files refer to them by number, so a number retires when its item closes rather than being reused —
-which is why this file starts at 4 and why **7** is no longer in it.
+which is why this file starts at 4 and why **7** and **9** are no longer in it.
 
 ---
 
@@ -37,6 +37,33 @@ remembering before the bullets below are treated as the whole of what is left.
   step 9, the press itself — a target that highlights on hover but does not move under a click says
   nothing to a finger, which has no hover. The tick is 20 Hz and `_Process` already redraws every
   frame, so a tween has somewhere to live.
+* **The key overlay clips a long language at phone width, and the measure cannot fix it.** Found by
+  step 17 and *not* caused by it — the same shot with the new row taken out clips identically, which
+  is how it was told apart. `--lang de --panel help --window 560x760` cuts three labels in the
+  right-hand column mid-word (`Aufzeichnung starten oder`, `den Panzer weich oder har`,
+  `auf 24 / 32 / 40 px einra`). **Step 13's fix is already doing all it can**: `DrawHelp` measures
+  the widest row and sizes the column from it, but the panel's width is
+  `Mathf.Min(cols * wantCol + …, host.Size.X - Ui.Px(32))` and at 560 px the clamp wins, so there is
+  nothing left to grow into. It has a `squeeze` for **height** — the pitch tightens to 0.66 rather
+  than letting a group fall off the bottom — and no analogue for width, so `Ui.Write` cuts where it
+  runs out, which is the one thing step 7's layout rule says not to do.
+
+  **Three answers, and the ranking is the argument.** One column plus a scroll is the worst: there
+  is nothing else in this interface that scrolls except the level list's 2,030 rows, and a key list
+  you have to scroll is a key list you cannot read at a glance. A width `squeeze` on the label type
+  is the cheapest and is the same trick the height already plays. Dropping to **one** column when
+  two would clip is the most honest — the panel is already willing to be one column, `cols` just
+  never reconsiders once the height test has chosen two. **Check it against the right languages**:
+  German is the widest of the eleven by both measures (its longest `keys.*` label is 38 characters
+  against English's 28, and its whole set is 840 characters against 670), with French at 36 and
+  Croatian at 35 behind it, so `--lang de`, `--lang fr` and `--lang hr` at 560 are the test and
+  English is not. **The editor's list is a second surface with the same measure behind it** — and
+  German's longest label of all, `Umschalt-Klick dreht an Ort und Stelle`, is in `EditorKeys` — but
+  it did not reproduce there: it is 17 rows against the play list's 31 and it fits. Note *why* it
+  could not simply be tried at 560, because it will cost somebody an afternoon otherwise:
+  **`--editor` snaps the window to the `[SCREEN] Size` preset on the way in**, so
+  `--editor --window 560x760` comes back at 699x527 and the narrow case never happens.
+
 * **The graphics packs' own chrome — closed.** `Control.bmp` and `Opening.bmp` were this
   bullet and they are [*Finished*](history.md), decided against a second time and for good on
   2026-09-15. The reasoning is kept there rather than here because it is the kind that gets
@@ -89,37 +116,6 @@ small, local, and the whole of the modal work that is left.
 **And `LoadTID` *as* a dialog is the one to keep arguing against**: the tunnel id is a mode here,
 cycled with `T`, because a modal prompt per painted cell is worse than a mode, and that reasoning
 does not weaken when the panel exists.
-
-## 9. The level history, unbounded
-
-`Backspace[]` (command 118, `VK_BACK` in ACC1) — and the first thing to know about it is what it is
-not. **It is not undo.** Undo is command 110, it is bound to `U`, it repeats while the key is held
-and it has been ported since Phase 2. 118 is a *navigation* history: a stack of level **numbers**,
-pushed by `LoadNextLevel` whenever the level actually changes (`LTANK2.C:1045`) and popped by
-`Backspace` — "take me back to the level I was just on".
-
-**Ten, and why it is ten.** `int Backspace[10]` with `BS_SP` walking it as a ring
-(`LTANK2.C:94`). The bound is not a design decision about how far back a player should get to go;
-it is a 1996 fixed array, and the ring is why the pop has to leave a zero behind it
-(`Backspace[BS_SP] = 0; // this is so we dont loop around`, `LTANK.C:1003`) and why the menu item
-greys itself out by peeking one slot further down. **So: unbounded here**, a plain list, no
-sentinels and no wrap — the behaviour the ten slots were approximating.
-
-**That is a deviation and it is a safe one.** Letters and `VK_BACK` never enter a keystream:
-`WM_KEYDOWN` drops everything outside VK 32–40 before `AddKBuff` ever sees it (`LTANK.C:573`), so
-the history cannot reach a `.lpb`, an `.hs`, a solver result or any fidelity gate. It is interface,
-and the interface is the half this port is allowed to change.
-
-**The one thing that must not be forgotten** is already written down where it will be read:
-`Session.OpenDataFile` (`Session.cs:261`) carries a note that command 108 clears this stack
-(`Backspace[BS_SP] = 0; EnableMenuItem(MMenu, 118, MF_GRAYED)`), because a history of level
-*numbers* means nothing once the collection they index has changed. Unbounded or not, that line is
-the one that has to survive the port.
-
-**Worth deciding first: whether it still earns a key.** Step 11 gave the level list a filter bar and
-direct level-number entry, and `[`/`]` already walk the collection — so the question this item
-should answer before it is built is whether a back stack is a thing a player reaches for when the
-list is one keystroke away. It is cheap either way; that is not the same as being wanted.
 
 ## 10. Recording: Resume Recording, and the two file dialogs
 
@@ -245,7 +241,8 @@ while the labels beside them are catalogue keys and do not move.
    is the modern shape if a key can be spared.
 
 **What this item may not spend:** `Esc`, which item 11 is likely to want, and `F1`, which is the key
-list and stays (item 12).
+list and stays (item 12). **`Backspace` is also gone** — step 17 spent it on 118, which is the key
+the original gave that command, so it is not a letter this item can move.
 
 **And three letters are already free** from step 8's merge — `D`, `G` and `V` bare, released when
 the Difficulty dialog became rank chips and the two high-score lists became one panel. ACC1 had no

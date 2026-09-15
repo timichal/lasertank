@@ -59,6 +59,7 @@
     "status.noneMatch": "kein Level mehr, das zu deinen Spieloptionen passt — Strg+O ändert sie",
     "status.lastLevel": "das war das letzte Level dieser Sammlung",
     "status.firstLevel": "das ist das erste Level dieser Sammlung",
+    "status.noLastLevel": "es gibt kein vorheriges Level",
 
     "win.solved": "Gelöst",
     "win.playback": "die Wiedergabe hat die Flagge erreicht",
@@ -103,6 +104,7 @@
     "keys.collections": "eine Sammlung wählen",
     "keys.nextLevel": "nächstes Level",
     "keys.prevLevel": "vorheriges Level",
+    "keys.lastPlayed": "zuletzt gespieltes Level",
     "keys.stepLevel": "ein Level weiter, ungefiltert",
     "keys.newGame": "von vorn anfangen",
     "keys.record": "Aufzeichnung starten oder beenden",

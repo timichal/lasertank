@@ -2,7 +2,7 @@
 """Phase 5 step 2's gate: the persisted options, the graphics packs, and the
 laser's width.
 
-Four checks, all of them things a human clicking around would notice only if
+Five checks, all of them things a human clicking around would notice only if
 they knew what to look for:
 
   ini     **the importer and the typed store**, which step 16 split apart.
@@ -59,6 +59,18 @@ they knew what to look for:
           Python out of the same .lvl and .hs bytes**, so the two sides are two
           readers of one file rather than the game agreeing with itself.
 
+  history command 118's stack -- next-steps item 9, and here rather than in a
+          gate of its own because it is the *same* subject as `advance`: what
+          `S`, `P`, `[`, `]`, the level list and command 108 do to the sequence
+          of levels a session has been on.  `--check-history` runs a script of
+          those and prints the stack after each; the expected stack is rebuilt
+          in Python from the same bytes, walking with the same mask.  What the
+          cases are for: the push happens once per *change* of level, a restart
+          is not a level change, going back past the first level is refused
+          rather than wrapped (the ring is gone -- this port's list is
+          unbounded), and **108 clears it**, because a history of level numbers
+          means nothing once the collection they index has changed.
+
   laser   **the laser bar is `cell - 2 * LaserOffset` wide -- 4, 6 and 6 px.**
           LaserOffset is a per-size constant (LTANK2.C:1747/:1756/:1765), not a
           fraction of the cell, and reading it as 10-of-32 -- which step 1
@@ -68,7 +80,7 @@ they knew what to look for:
           coordinates come from the trace side and the pixels from the renderer,
           which is what makes it a check rather than a tautology.
 
-    python tools/options_check.py               # all five, ~50 s
+    python tools/options_check.py               # all five, ~60 s
     python tools/options_check.py --no-window   # skip size + laser (no display)
 
 The laser and size checks open a real window (three, briefly): --shot needs a
@@ -682,6 +694,262 @@ def check_advance(tmp):
 
 
 # ---------------------------------------------------------------------------
+# next-steps item 9: the level history, unbounded
+#
+# LTANK2.C:1045 pushes and LTANK.C:1000 pops.  The port is Session's `_history`
+# plus Back(), and the instrument is `--check-history`, which prints one
+# `history op=... stack=...` line per navigation command.  Everything asserted
+# here is recomputed from the same bytes by `replay_history` below.
+def first_unsolved(hs_path, count):
+    """HighScores.FirstUnsolved: the first level with no moves posted, or 1."""
+    if count < 1:
+        return 1
+    data = hs_path.read_bytes() if hs_path.exists() else b""
+    have = len(data) // THSREC_SIZE
+    for i in range(count):
+        if i >= have:
+            return i + 1
+        if struct.unpack_from("<H", data, i * THSREC_SIZE)[0] == 0:
+            return i + 1
+    return 1
+
+
+def replay_history(script, files, start, mask, skip, open_name=None):
+    """The port's own rules for `_history`, in Python.
+
+    `files` is {name: (ranks, solved, hs path)} and the walk is the same one
+    check_advance models -- which is the point of running the two halves of
+    item 9 against one model: `+` and `-` here must land where `advance` says
+    they land, or one of the two readings is wrong.
+
+    -> [(op, ok, file, level, stack)], one per op, in the instrument's order.
+    """
+    name = start[0]
+    level = start[1]
+    stack = [level]
+    out = []
+
+    def push(n):
+        if not stack or stack[-1] != n:
+            stack.append(n)
+
+    for op in script.split(","):
+        ranks, solved, _hs = files[name]
+        ok = True
+        if op in ("+", "-"):
+            step = 1 if op == "+" else -1
+            n, found = level + step, None
+            while 1 <= n <= len(ranks):
+                sdiff = (SOLVED_SDIFF if (skip and n in solved)
+                         else ranks[n - 1])
+                if sdiff > 0 and (mask & sdiff) == 0:
+                    n += step
+                    continue
+                found = n
+                break
+            if found is None:
+                ok = False                      # CurLevel = SavedLevelNum
+            else:
+                level = found
+                push(level)
+        elif op == "<":
+            if len(stack) < 2:
+                ok = False
+            else:
+                stack.pop()
+                level = stack[-1]
+        elif op == "r":
+            pass                                # ReStart is not a load
+        elif op == "o":
+            # The instrument's `o` opens the one file `--history-open` names,
+            # which is why the script has no path in it: see Step17Check.
+            name = open_name
+            ranks, solved, hs = files[name]
+            stack.clear()                       # Backspace[BS_SP] = 0
+            level = first_unsolved(hs, len(ranks))
+            push(level)
+        else:
+            # Load's own wrap, which is this port's and not LoadNextLevel's.
+            n = int(op)
+            if n < 1:
+                n = len(ranks)
+            if n > len(ranks):
+                n = 1
+            level = n
+            push(level)
+        out.append((op, ok, name, level, list(stack)))
+    return out
+
+
+def history(out):
+    """The `history` lines -> (head, [(op, ok, file, level, back, stack)])."""
+    head, rows = {}, []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line.startswith("history "):
+            continue
+        rest = line[8:]
+        if rest == "end":
+            continue
+        d = dict(re.findall(r"(\w+)=(\S*)", rest))
+        if "op" not in d:
+            head = d
+            continue
+        rows.append((d["op"], d["ok"] == "1", d["file"], int(d["level"]),
+                     int(d["back"]),
+                     [] if d["stack"] == "-" else
+                     [int(x) for x in d["stack"].split(";")]))
+    return head, rows
+
+
+def check_history(tmp):
+    """Command 118: the push, the pop, the floor, and 108's clear."""
+    good = True
+    src = ROOT / "data" / "levels" / "LaserTank.lvl"
+    if not src.exists():
+        print("  %-34s SKIP %s is not there" % ("the level history", src.name))
+        return good
+
+    coll = tmp / "hist"
+    coll.mkdir(exist_ok=True)
+    walk_lvl = coll / "Walk.lvl"
+    other_lvl = coll / "Other.lvl"
+    walk_lvl.write_bytes(src.read_bytes()[:TLEVEL_SIZE * 40])
+    other_lvl.write_bytes(src.read_bytes()[:TLEVEL_SIZE * 12])
+    # The second collection is opened by the `o` op, and its .hs is what
+    # decides where it opens: this port lands 108 on the first unsolved level
+    # rather than on level 1, so a file with 1-3 beaten must open at 4 -- which
+    # is also the one thing about `o` that is *not* the original's behaviour.
+    other_hs = coll / "Other.hs"
+    make_hs(other_hs, {1, 2, 3}, 12)
+    files = {
+        "Walk.lvl": (sdiffs(walk_lvl), set(), coll / "Walk.hs"),
+        "Other.lvl": (sdiffs(other_lvl), {1, 2, 3}, other_hs),
+    }
+    ini = tmp / "hist.ini"
+    ini.write_bytes(b"")
+
+    cases = [
+        # (label, start level, script)
+        ("the push is one per change",
+         1, "+,+,+,<,<,<"),
+        ("a restart is not a level",
+         1, "+,r,r,<,r,<"),
+        ("back past the first is refused",
+         1, "<,+,<,<,<"),
+        # `[` and `]` are Load, so a number is what they look like here -- and
+        # a load that lands where it already is must not push, which is the
+        # `Backspace[BS_SP] != CurLevel` test and the second `7` below.
+        ("a direct load pushes once",
+         1, "7,7,20,<,<,<"),
+        # 108 clears it, and the collection it opens is the one the history
+        # would otherwise be about.
+        ("108 clears the stack",
+         5, "+,+,o,<,+,<,<"),
+        # And back through a longer stack than the original's ten slots, which
+        # is the deviation this item is: a ring would have started reusing
+        # entries at the eleventh push.
+        ("deeper than ten",
+         1, "3,5,7,9,11,13,15,17,19,21,23,25,<,<,<,<,<,<,<,<,<,<,<,<"),
+    ]
+    for label, start, script in cases:
+        args = ["--ini", ini, "--levels", walk_lvl, "--level", start,
+                "--history-open", other_lvl, "--check-history", script]
+        rc, out = run(args)
+        head, rows = history(out)
+        want = replay_history(script, files, ("Walk.lvl", start),
+                              ALL_RANKS, False, "Other.lvl")
+        got = [(op, ok, name, level, stack)
+               for op, ok, name, level, _back, stack in rows]
+        if rc != 0:
+            good = fail(label, "rc=%d" % rc)
+        elif head.get("stack") != str(start):
+            good = fail(label, "opens with stack=%s, want %d"
+                        % (head.get("stack"), start))
+        elif got != want:
+            good = fail(label, "first difference %s"
+                        % next((str((a, b)) for a, b in
+                                zip(got + [None], want + [None]) if a != b),
+                               "-"))
+        else:
+            # `back` is the level the key would go to next, and it is derived
+            # from the stack -- so it is checked against the stack rather than
+            # against the model, which would be the same derivation twice.
+            bad = [r for r in rows
+                   if r[4] != (r[5][-2] if len(r[5]) > 1 else 0)]
+            if bad:
+                good = fail(label, "back=%d does not match stack %s"
+                            % (bad[0][4], bad[0][5]))
+            else:
+                good &= ok(label, "%d ops, ends on %d with %d deep"
+                           % (len(rows), rows[-1][3], len(rows[-1][5])))
+
+    # -- the filtered walk and the history are one model, so drive `+` through
+    # a mask and check the stack is the levels `advance` stops on.
+    mask = 1 | 2
+    script = "+,+,+,<,<,<"
+    rc, out = run(["--ini", ini, "--levels", walk_lvl, "--level", 1,
+                   "--difficulty", mask, "--skip-completed", "no",
+                   "--history-open", other_lvl, "--check-history", script])
+    _head, rows = history(out)
+    want = replay_history(script, files, ("Walk.lvl", 1), mask, False,
+                          "Other.lvl")
+    got = [(op, ok, name, level, stack)
+           for op, ok, name, level, _back, stack in rows]
+    if rc != 0 or got != want:
+        good = fail("the mask decides what is pushed",
+                    "rc=%d, %s" % (rc, next((str((a, b)) for a, b in
+                                             zip(got + [None], want + [None])
+                                             if a != b), "-")))
+    else:
+        good &= ok("the mask decides what is pushed",
+                   "stack %s with mask %d"
+                   % (";".join(str(n) for n in rows[0][5]), mask))
+
+    # -- a 108 that fails moves nothing, the history included.  The original
+    # has no such restore; Session.OpenDataFile does, and the stack is the part
+    # of it that is easiest to lose.
+    rc, out = run(["--ini", ini, "--levels", walk_lvl, "--level", 1,
+                   "--history-open", coll / "NoSuchFile.lvl",
+                   "--check-history", "+,+,o,<"])
+    _head, rows = history(out)
+    want_stack = [1, 2, 3]
+    if rc != 0:
+        good = fail("a failed 108 keeps the history", "rc=%d" % rc)
+    elif rows[2][:2] != ("o", False) or rows[2][2] != "Walk.lvl" \
+            or rows[2][5] != want_stack:
+        good = fail("a failed 108 keeps the history",
+                    "o -> ok=%s file=%s stack=%s"
+                    % (rows[2][1], rows[2][2], rows[2][5]))
+    elif rows[3][3] != 2:
+        good = fail("a failed 108 keeps the history",
+                    "back went to %d, want 2" % rows[3][3])
+    else:
+        good &= ok("a failed 108 keeps the history",
+                   "stack %s survives, and back still works"
+                   % ";".join(str(n) for n in want_stack))
+
+    # -- and it must not write the player's state, on the same terms the walk
+    # is held to: every op in that script is a Load.
+    rll = tmp / "hist_rll.ini"
+    rll.write_bytes(b"[OPT]\r\nRLL=Yes\r\n[DATA]\r\nRLLLevel=7\r\n"
+                    b"RLLFilename=nowhere.lvl\r\n")
+    run(["--ini", rll, "--check-options"])
+    before, before_ini = store_of(rll).read_bytes(), rll.read_bytes()
+    rc, _ = run(["--ini", rll, "--levels", walk_lvl, "--level", 1,
+                 "--history-open", other_lvl, "--check-history", "+,+,o,+,<"])
+    after, after_ini = store_of(rll).read_bytes(), rll.read_bytes()
+    if rc != 0 or after != before or after_ini != before_ini:
+        good = fail("the history writes nothing",
+                    "rc=%d, the store %s, the ini %s"
+                    % (rc, "moved" if after != before else "is fine",
+                       "moved" if after_ini != before_ini else "is fine"))
+    else:
+        good &= ok("the history writes nothing", "lastLevel still 7")
+    return good
+
+
+# ---------------------------------------------------------------------------
 def split_ltg(path, dest):
     """A .ltg *is* a header and two BMPs (LoadLTG, LTANK2.C:688), so unpacking
     it into GFXInit's external pair is a byte copy -- no re-encoding, which is
@@ -949,7 +1217,7 @@ def check_window(tmp):
 # ---------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(
-        description="Phase 5 step 2's gate: options, packs, the walk, laser width.",
+        description="Phase 5 step 2's gate: options, packs, the walk, the history, laser width.",
         epilog="exit 0 clean, 1 a check failed, 2 environment")
     ap.add_argument("--no-window", action="store_true",
                     help="skip the size and laser checks, which open a window")
@@ -973,6 +1241,8 @@ def main():
         good &= check_packs(tmp)
         print("advance:")
         good &= check_advance(tmp)
+        print("history:")
+        good &= check_history(tmp)
         if args.no_window:
             print("size + laser: SKIPPED (--no-window)")
         else:

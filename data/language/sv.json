@@ -59,6 +59,7 @@
     "status.noneMatch": "ingen bana kvar som dina spelinställningar släpper fram — Ctrl+O ändrar dem",
     "status.lastLevel": "det var den sista banan i den här samlingen",
     "status.firstLevel": "det här är den första banan i den här samlingen",
+    "status.noLastLevel": "det finns ingen tidigare bana att gå tillbaka till",
 
     "win.solved": "Löst",
     "win.playback": "uppspelningen nådde flaggan",
@@ -103,6 +104,7 @@
     "keys.collections": "välja en samling",
     "keys.nextLevel": "nästa bana",
     "keys.prevLevel": "föregående bana",
+    "keys.lastPlayed": "senast spelade bana",
     "keys.stepLevel": "en bana, ofiltrerat",
     "keys.newGame": "börja om från början",
     "keys.record": "starta eller stoppa inspelningen",

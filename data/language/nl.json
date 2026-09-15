@@ -59,6 +59,7 @@
     "status.noneMatch": "geen level meer dat je spelinstellingen toelaten — Ctrl+O verandert ze",
     "status.lastLevel": "dat was het laatste level in deze verzameling",
     "status.firstLevel": "dit is het eerste level in deze verzameling",
+    "status.noLastLevel": "geen eerder level om naar terug te gaan",
 
     "win.solved": "Opgelost",
     "win.playback": "het afspelen bereikte de vlag",
@@ -103,6 +104,7 @@
     "keys.collections": "een verzameling kiezen",
     "keys.nextLevel": "volgend level",
     "keys.prevLevel": "vorig level",
+    "keys.lastPlayed": "laatst gespeelde level",
     "keys.stepLevel": "één level, ongefilterd",
     "keys.newGame": "opnieuw beginnen",
     "keys.record": "opname starten of stoppen",
