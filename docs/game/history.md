@@ -1421,3 +1421,80 @@ through both keys, seven walks compared against **sequences recomputed in Python
 built rather than looked for. `chrome_check.py` gained the panel's eight targets — all six chips
 named separately, because a row of tags that answers to one rectangle is exactly what that gate is
 for. Eleven catalogue keys, eleven languages.
+
+---
+
+## ~~Step 16: `user://`, a typed store, and the INI demoted to an importer~~ — **done 2026-09-15**
+
+Next-steps item 7, closed. Three jobs had collected in `Options.cs` and only one of them was a
+settings mechanism:
+
+1. **a fidelity artifact** — `atoi`, the case-sensitive `strcmp(temps, psYes)`, *only a missing key
+   gives the default*. Recorded findings about the 2010 binary, and research output rather than
+   plumbing;
+2. **interop** with a live 2010 install, which is what the preserve-every-other-line write rule
+   existed for;
+3. **the port's own settings**, already drifting — `[DATA] Language` is invented and says so.
+
+The split is the one `data/language/` made in step 13, and it is a precedent rather than an analogy:
+the artifact's reader stays complete and re-runnable while the runtime moves on.
+
+**What is where now.** `Settings.cs` holds a typed record and a store that writes it to
+`user://settings.json` through `System.Text.Json` — one class, no parser, a `version` field and a
+`Migrate()` hook with nothing to do yet. `Ini` in `Options.cs` keeps `Get` / `GetInt` / `Atoi` and
+`IniImport` carries the key names and every semantic step 2 learned; `Options` kept its whole public
+surface and changed what is under it. `Options.Open(store, ini, readOnly)` is the first-run rule in
+one place: load the store, and only when there is nothing usable there start from the defaults, fold
+in a `LaserTank.ini` if one is beside the repo or named by `$LT_INI` / `--ini`, and write the store
+out so the next run reads that instead.
+
+**Job 2 retired, deliberately and on the record.** The port no longer writes a `LaserTank.ini` at
+all — not the preserve-every-other-line rule, and not step 14's write of the one name into both
+`[DATA] Record Author` and `[DATA] Player`. Nothing in this tree has ever been pointed at a real
+2010 install, and that possibility was the justification for the most awkward code in the class. The
+*reads* survive intact, which is the half that was ever load-bearing: either key still names the
+player, long one first, and `Initials` is still cut from the same string, because that is what
+reaches a `.hs` record and a `.lpb` header.
+
+**The bug the item carried independently of the format.** `Paths.Ini` wrote to the repo root, which
+is the install directory in an exported build — unwritable in every `Program Files` install, and not
+a filesystem at all in a browser. `user://` is the one place Godot guarantees is writable on every
+target it exports to, and it is per-user rather than per-install. `$LT_SETTINGS` and `--settings`
+override it.
+
+**`--ini` grows a sibling rather than changing meaning.** It names the file to *import*; the store
+is `<name>.settings.json` beside it. Named after the INI rather than fixed per directory because
+`options_check.py` keeps a dozen probe INIs in one scratch directory, and a shared `settings.json`
+would have let one case's write decide the next case's defaults.
+
+**Two things fell out of it that were not on the list, and both were latent before the step.**
+
+- **Two gates were passing on a name collision.** `options_check`'s strict-`Yes` loop derived a
+  probe filename from the value and three of its five cases collided (`yes`/`Yes`, `Yes!`/`Yes `);
+  `sound_check`'s derived one too, and `Yes` and `yes` are one file on a case-insensitive
+  filesystem. That cost nothing while every run re-read the INI it had just been handed. With a
+  store beside it, the second run of a collided pair reads the *first* run's store and reports its
+  answer — two false greens, which is how this was found. Both loops are numbered now.
+- **`--edit` and `--save` were missing from `BoardView.Instrument`**, which is the same gap step 9's
+  four pointer flags were in and it was found the same way: something started writing where it could
+  be seen. `editor_check.py`'s game arm drives the editor with `--editor --edit SCRIPT --save
+  --levels <a copy in /tmp>`, none of which counted as an instrument — so six runs of it left the
+  player's remembered level pointing at a temp file that no longer exists. The game degrades
+  gracefully from that (`Start` checks `File.Exists` before it reopens), which is exactly why nobody
+  noticed. Bare `--editor` is deliberately *not* on the list: opening the editor is something a
+  player might reasonably ask for on a command line, and driving it is not.
+
+**The gates.** `options_check`'s `ini` arm is two halves now. The importer's half keeps every check
+it had, and *"a write keeps every other key"* became the stronger *"the file comes back byte for
+byte after a run that changed five settings"*. The store's half is new: the round trip, that the
+file is JSON with a `version` in it, that a corrupt store re-imports and rewrites rather than taking
+the game down, and — the one a player could otherwise be surprised by — that **the import happens
+once**, checked by editing the INI afterwards and watching nothing happen. `strings_check`'s INI arm
+went the same way, `sound_check`'s `[OPT] Sound` round trip now asserts the INI was never written,
+`chrome_check`'s `fresh()` deletes the store as well as replacing the baseline so every one of its
+forty-odd runs re-imports, and `Step6Check`'s three-`Options` round trip is rewritten against the
+record. All of it green, plus `atlas`, `tick`, `collections`, `editor`, `roundtrip` and `list`.
+
+**What did not change.** Every atoi/strcmp semantic, every default, `Difficulty`'s deliberate
+departure from the original's zero sentinel, and the read-only-instrument rule — which was never
+about INI, and is as true of a JSON file.

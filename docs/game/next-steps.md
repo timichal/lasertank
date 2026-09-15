@@ -7,7 +7,7 @@ waiting on and what it would cost.
 **Open items only.** What is done, and what was deliberately decided against, is in
 [`history.md`](history.md) and is not repeated here. **Items keep their numbers** because the other
 files refer to them by number, so a number retires when its item closes rather than being reused —
-which is why this file starts at 4.
+which is why this file starts at 4 and why **7** is no longer in it.
 
 ---
 
@@ -25,7 +25,11 @@ remembering before the bullets below are treated as the whole of what is left.
   `SystemFont` fell through to Godot's own *proportional* face in a browser, so the level list —
   whose column rules are placed in glyph units off the original's `sprintf` padding — was
   fixed-pitch everywhere except the one target this bullet is about. Both faces are shipped now.
-  `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing. **Step 13 left
+  **Step 16 did half of what this bullet asked for**: the settings are a typed record at
+  `user://settings.json` now, which is the one place Godot guarantees is writable on a web
+  export, and nothing writes the repo root any more. What is left is `Paths` itself — `Root`
+  walks up looking for `data/levels` and an export has no such tree — and the `.hs` writes,
+  not the drawing. **Step 13 left
   one thing to watch here**: the eleven column heads `strings_check.WIDTHS` caps are capped in
   *characters*, which is only a width at all while the face is fixed-pitch.
 * **Motion.** There is none, and three places want it now: the status line, which replaces its
@@ -57,70 +61,6 @@ same kind against the same oracle. All four are worth leaving running.
 The larger unfinished half of the project and a goal in its own right: 11.3% of a 4,185-level sample
 against a goal of all 20,914. It runs on the other machine now, so treat that number as a
 last-known value. See `SOLVER.md`.
-
-## 7. Settings: `user://`, a typed store, and the INI demoted to an importer
-
-**Nothing is waiting any more.** This item spent its life blocked on item 3 for the *store* — the
-original's keyspace was not finished being filled in, and splitting it first meant writing the
-migration mapping twice. Step 15 filled it: `[OPT] SkipComLev` and `[DATA] Diff_Setting` are read,
-written and gated ([*Finished*](history.md)), and `Options` now holds every key the 2010 binary
-keeps that this port has any business holding. The mapping can be written once.
-
-**The panel half is no longer waiting on anything, because step 14 built it.** Item 3's two name
-prompts became one settings row (`NameMenu`, `Ctrl+N`), written against `Options` as it stands, and
-it will migrate with everything else. What that settles for this item is the *shape* a second
-setting takes — a panel over the board, a `TextField` for anything typed, a Save and a Cancel — and
-the one property worth keeping when the store lands: **the panel writes on Save and not before**, so
-opening it changes no file. It is one row rather than a settings screen; the day there are three,
-whether they stay one panel per setting or become a list is a question this item can answer with
-something already on screen.
-
-Three separate jobs are tangled in `Ini` (`src/LaserTank.Game/Options.cs`), and only one of them is
-a settings mechanism:
-
-1. **A fidelity artifact.** `Atoi`, the case-sensitive `strcmp(temps, psYes)` test, *only a missing
-   key gives the default* — these are recorded findings about the 2010 binary, pinned by
-   `options_check.py`'s `ini` arm and six checks in `strings_check.py` — five of them the INI
-   checks `lang_check.py` used to carry, which step 13 moved across intact before deleting it.
-   Research output, not plumbing, and worth keeping whatever happens to the rest.
-2. **Interop with the 2010 binary.** The preserve-every-other-line rule is load-bearing only
-   because the port can share one file with the original and must not reset the dozen keys it knows
-   nothing about (`PosX`, `Diff_Setting`, `Player`). This is the one job that *requires* the
-   on-disk format to be INI, and it is worth asking out loud whether anyone will ever point this at
-   a real 2010 install — it is the justification for the most awkward code in the class.
-3. **The port's own settings**, which are already drifting away from the other two. `[DATA]
-   Language` is invented and says so at `PsLang`; steps 7, 10 and 11 added window geometry, a
-   theme and a filter state that will never have an original key name.
-
-**There is also a real bug here, and it is independent of the format.** `Paths.Ini` writes to the
-repo root, and there is no `user://` anywhere in the tree. That is fine for a dev checkout and
-breaks the moment an exported build lands somewhere unwritable — which is every `Program Files`
-install and the web export item 4 is circling. `user://` is where this belongs regardless of what
-is decided below.
-
-**The shape, which is the language files' shape** — and step 13 has now built it, so this is a
-precedent rather than an analogy. `data/language/` is the port's own catalogue and
-`tools/convert_language.py` is a decoder that writes nothing and refuses to write there: the
-artifact's reader stays complete and re-runnable while the runtime moves on. Same split here:
-
-- `Ini` stays, demoted to a **one-way importer**: on first run, read a `LaserTank.ini` if one is
-  beside the repo or named by `$LT_INI`, fold it into the settings object, and never write it
-  again. Every atoi/strcmp semantic and the gate that pins it survive untouched.
-- The port's own settings become a typed record at `user://settings.json` through
-  `System.Text.Json`, with a `version` field. One class, no parser, and room for the chrome
-  settings the original never had.
-- **The read-only-instrument rule survives unchanged**, because it was never about INI: an
-  instrument must not write the player's state (`PROGRESS.md`, *Rules learned the hard way*), and
-  that is as true of a JSON file. `--ini` either points at the new file or grows a sibling.
-
-**Not Godot's `ConfigFile`**: it is INI-shaped anyway, so the trade is 150 gate-pinned lines we own
-for an engine class, and it does not preserve foreign lines. **Not a `Resource`/`.tres`**: it binds
-the save format to engine classes and is miserable to diff.
-
-**What it costs:** `options_check.py`'s `ini` arm and `strings_check.py`'s INI arm both need a
-second half for the new store (the existing halves stay, pointed at the importer),
-`chrome_check.py`'s self-written baseline moves with it, and `Step6Check`'s three-`Options`
-round trip is rewritten against the typed record.
 
 ## 8. The editor
 
@@ -338,10 +278,18 @@ graphics, a list with a live preview for language (the labels behind the panel c
 moves, which is the only honest way to pick one), and a text field for the name. Three shapes in one
 frame, which is what a settings panel is.
 
-**This is the surface item 7 has been waiting for**, and it is now a merge of *four* panels rather
-than three: step 15 built the game options on `Ctrl+O` ([*Finished*](history.md)) and it is the
-fourth. Item 7's typed `user://settings.json` is the store with no panel; this item is the panel.
-The two want doing in the order 14 → 7, so that the migration is written once.
+**This is the surface item 7 was waiting for, and item 7 is [*Finished*](history.md)** — step 16
+moved the settings to a typed `user://settings.json` and demoted `LaserTank.ini` to a one-way
+importer. The order was going to be 14 → 7 so that the migration was written once; it went 7 → 14
+instead, and that cost nothing, because the migration is written against the *record* and not
+against any panel. **What it leaves for this item is easier than what it was**: four panels over
+one typed object rather than four panels over a key-value file, so a merged panel is now a
+question of layout and nothing else. It is a merge of *four* rather than three: step 15 built the
+game options on `Ctrl+O` ([*Finished*](history.md)) and it is the fourth.
+
+**And step 16 settled one property of it, with something already on screen.** Step 14's name row
+writes on Save and not before, so opening it changes no file; the store makes that cheap to keep,
+because a panel now holds a copy of a record rather than a handle on a file.
 
 **And step 15 settled the key, in the direction this item did not expect.** `Ctrl+O` was listed here
 as free and as reading like *options* to a modern hand — it is both, and it is spent: it is the game

@@ -45,11 +45,12 @@ options_check does for its pixel measurements.
     python tools/chrome_check.py --no-diff  # aim and reach only, ~15 s
 
 It rebuilds the Godot project's C# first, because `godot --path` does not.  It
-neither writes nor reads the player's LaserTank.ini: the baseline is an INI this
-gate *writes* (see write_baseline) and every run gets a throwaway copy of it, so
-a `key:N` that toggles the sound persists into the copy and not into anyone's
-settings -- and, because the baseline cannot move under a pair of runs, a second
-gate, a game left open elsewhere, or a session that happened to end on a
+neither writes nor reads the player's settings: the baseline is an INI this gate
+*writes* (see write_baseline), and every case starts from a fresh copy of it
+with no settings store beside it -- so each run *imports* the baseline and a
+`key:N` that toggles the sound persists into the throwaway store and not into
+anyone's settings.  Because the baseline cannot move under a pair of runs, a
+second gate, a game left open elsewhere, or a session that happened to end on a
 different collection cannot turn this red.
 
 Exit: 0 clean, 1 a mismatch, 2 environment.
@@ -136,8 +137,8 @@ MUST = {
 # Targets left out of the click-vs-press differential, each for a reason:
 #
 #   key:F6      saves a recording -- the one binding that writes a file outside
-#               the throwaway INI, and a gate that writes into out/ is a gate
-#               that passes differently the second time.
+#               the throwaway settings, and a gate that writes into out/ is a
+#               gate that passes differently the second time.
 #   key:F1      on the help overlay a row closes the panel and does *not* press
 #               its key, which is deliberate (see DrawHelp): pressing F1 there
 #               would shut the overlay and open it again.
@@ -243,6 +244,15 @@ Sound=No
 # Each of those is a red screen nobody had touched, which reads as someone
 # else's regression rather than as the environment, and none of them reproduces
 # on another machine.  So the values are written here instead of inherited.
+#
+# **Step 16 left this an INI on purpose.**  The port's settings live in a typed
+# `settings.json` now and the INI is a one-way importer, read only when there is
+# no store beside it -- so `fresh()` deletes the store as well as replacing the
+# INI, and every one of the forty-odd runs below re-imports this baseline from
+# scratch.  Writing the baseline as JSON instead would have been a second copy
+# of the record's field names living in a gate; this way the gate states the
+# starting position in the 2010 binary's own vocabulary, which is what it was
+# already doing, and exercises the importer on the way past.
 # `Graphics_Dir` is the one field taken from the tree rather than invented,
 # because it is a path and this is the only place that knows it; `Graphics_Mode`
 # is 0, the internal sheet, so the gate does not depend on a .ltg being present.
@@ -283,11 +293,15 @@ def main():
     # and animation and the pair "disagreed" about a key that does neither.
     snapshot = tmp / "base.ini"
     write_baseline(snapshot)
+    # What `--ini <path>` makes the game use as its store: Paths.SettingsBeside.
+    store = ini.with_suffix(".settings.json")
 
     def fresh():
-        """Every case starts from the same INI, and none of them writes to the
-        player's -- nor reads it.  See write_baseline."""
+        """Every case starts from the same INI and no store, so every case
+        imports the same baseline.  None of them touches the player's settings
+        -- nor reads them.  See write_baseline."""
         shutil.copy(snapshot, ini)
+        store.unlink(missing_ok=True)
 
     fails = []
     screens = 0

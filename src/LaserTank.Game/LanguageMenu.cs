@@ -7,7 +7,7 @@
 // over your copy.  Ten installers was the 2007 answer to a problem this port
 // does not have -- all ten translations sit in `data/language/` at once -- so
 // the choice becomes an option like any other, stored in `[DATA] Language` and
-// picked here.  Options.PsLang records the same argument from the INI's side.
+// picked here.  IniImport.PsLang records the same argument from the INI's side.
 //
 // It is modelled on GraphicsMenu, and for a reason rather than for symmetry:
 // the graphics dialog *is* the original's own Options-menu entry (command 226,

@@ -350,6 +350,8 @@ def run_options(godot, ini, extra=()):
 
 
 def check_ini(args):
+    """[OPT] Sound: the importer's strict `strcmp(temps, psYes)`, and the round
+    trip through the typed store that replaced the INI's write half."""
     godot = None if args.no_godot else find_godot()
     if godot is None:
         print("  SKIPPED: no Godot found (set LT_GODOT)")
@@ -372,32 +374,36 @@ def check_ini(args):
     # 2. the original's test is `strcmp(temps, "Yes")`, so anything else is off
     #    -- including a lower-case "yes", which really does mute the 2010
     #    binary.  Kept deliberately; see Options.cs.
-    for value, expect in (("Yes", "Yes"), ("No", "No"), ("yes", "No"),
-                          ("", "No"), ("Maybe", "No")):
-        f = tmp / ("v-%s.ini" % (value or "empty"))
+    #
+    # **One numbered probe file per case.**  The stem used to be the value, and
+    # `Yes` and `yes` are one file on a case-insensitive filesystem -- harmless
+    # while each run re-read the INI it had just been handed, and a false green
+    # since step 16, because the store written beside it by the first run
+    # outranks the file on the second.
+    for i, (value, expect) in enumerate((("Yes", "Yes"), ("No", "No"),
+                                         ("yes", "No"), ("", "No"),
+                                         ("Maybe", "No"))):
+        f = tmp / ("v-%d.ini" % i)
         f.write_bytes(("[OPT]\r\nSound=%s\r\n" % value).encode("latin-1"))
         want("[OPT] Sound=%-7r" % value, run_options(godot, f).get("sound"), expect)
 
-    # 3. the round trip: --sound no --save-options writes it, and a plain
-    #    launch afterwards reports what was written.
+    # 3. the round trip: --sound no --save-options stores it, and a plain
+    #    launch afterwards reports what was stored.  Since step 16 the setting
+    #    lands in the typed store and the INI is only ever imported, so the
+    #    third assertion is that this file came back **byte-identical** -- which
+    #    is what replaced "the foreign key survived the rewrite".
     f = tmp / "trip.ini"
-    f.write_bytes(b"[SCREEN]\r\nSize=3\r\n[OPT]\r\nPlayer=Michal\r\n")
+    seed = b"[SCREEN]\r\nSize=3\r\n[OPT]\r\nPlayer=Michal\r\n"
+    f.write_bytes(seed)
     run_options(godot, f, ["--sound", "no", "--save-options"])
     got = run_options(godot, f)
     want("round trip: --sound no, then a plain launch", got.get("sound"), "No")
     want("  ...and Size survived it", got.get("size"), "3")
-    text = f.read_bytes().decode("latin-1")
-    keep = "Player=Michal" in text
+    keep = f.read_bytes() == seed
     ok = ok and keep
-    print("  %-46s %-4s %s" % ("  ...and the foreign key survived it",
+    print("  %-46s %-4s %s" % ("  ...and the ini was never written",
                                "Yes" if keep else "no",
-                               "" if keep else "FAIL [OPT] Player was dropped"))
-    written = [l for l in text.splitlines() if l.lower().startswith("sound=")]
-    good = written == ["Sound=No"]
-    ok = ok and good
-    print("  %-46s %-4s %s" % ("  ...written as the original spells it",
-                               written[0] if written else "-",
-                               "" if good else "FAIL want exactly Sound=No"))
+                               "" if keep else "FAIL the importer wrote to it"))
 
     # 4. and back on again.
     run_options(godot, f, ["--sound", "yes", "--save-options"])

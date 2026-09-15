@@ -279,12 +279,18 @@ asked; it is evidence that a dialog was the only surface there was.**
 the instant a level is beaten and wants *initials* for the score it is about to post; `RecordBox`
 (`:983`) opens on the first recording saved in a session and wants an *author* for the `.lpb`
 header. They are the same question about the same person, asked at two moments because a dialog was
-the only surface there was — so this port asks once, on a panel, and `Options.Name` **writes both of
-the original's keys**: the whole name into `[DATA] Record Author`, its first four characters into
-`[DATA] Player`, which is all a `.hs` record holds (`THSREC.NameEntry`). A `LaserTank.ini` this port
-wrote is one the 2010 binary opens with both of its dialogs already answered. The panel shows those
-four characters as they are typed rather than explaining them, because the one moment the merge can
-surprise somebody is when a long name becomes four letters on a score line.
+the only surface there was — so this port asks once, on a panel, and keeps **one** name. It reads
+either of the original's keys when it imports a `LaserTank.ini` — `[DATA] Record Author` first,
+because it is the one that can hold a name rather than an abbreviation of one, and `[DATA] Player`
+as the fallback, because that is the dialog the 2010 binary opens first. `Options.Initials` is the
+first four characters, which is all a `.hs` record holds (`THSREC.NameEntry`), cut from the same
+string rather than typed a second time. The panel shows those four as they are typed rather than
+explaining them, because the one moment the merge can surprise somebody is when a long name becomes
+four letters on a score line.
+
+Step 14 also **wrote** both keys back, so a `LaserTank.ini` this port had written was one the 2010
+binary opened with both dialogs already answered; step 16 retired that with the rest of the INI's
+write half. See [`rendering.md`](rendering.md).
 
 It is the quit prompt's shape rather than a list panel's — a title, a field, a line of copy and two
 answers drawn as the keys that give them — and **it is the one panel here with a Cancel**. The
@@ -330,7 +336,7 @@ SendMessage(WM_COMMAND, 225, 0)` is the first line of `LoadNextLevel`'s body, so
 answers a modal before it sees a level — and zero is not a mask there either, it is a "never asked"
 sentinel, and the dialog is the asking. This port answers it with all five at the point it would
 have been asked, which is what the shipped `LaserTank.ini` (`Diff_Setting=31`) does anyway. A `0`
-left by the 2010 binary reads the same way, because there is nothing here to post.
+left by the 2010 binary reads the same way on import, because there is nothing here to post.
 
 **`--check-advance` is the walk's instrument**, and it exists for the reason the sound's did: what
 the chips change is a *sequence of level numbers*, which no frame contains and which `--press`
@@ -413,6 +419,8 @@ GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.M
 "$GODOT" --headless --path src/LaserTank.Game -- --editor --edit '<06l22' --save \
          --levels D:/abs/COPY.lvl --level 7
 "$GODOT" --headless --path src/LaserTank.Game -- --ini D:/tmp/x.ini --check-options
+         # --ini names the file to IMPORT; the store is D:/tmp/x.settings.json.
+         # --settings D:/tmp/s.json names the store outright.
 "$GODOT" --headless --path src/LaserTank.Game -- --check-deadbox --level 39 \
          --levels D:/abs/data/levels/LaserTank.lvl        # the DeadBox's modality
 "$GODOT" --headless --path src/LaserTank.Game -- --tick-rate 5         # the clock, timed

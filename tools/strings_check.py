@@ -34,11 +34,14 @@ instead, and it runs **both ways**:
              JSON.  Two readers agreeing proves the data; only the game proves
              that what the screen shows is that data.
 
-  ini        `--check-strings-ini`: the picker's choice survives a restart, an
-             unknown code degrades to the base language, the per-key fallback
-             fills a blank and an absent key without clobbering a translated
-             one, and a foreign INI key comes back untouched.  Runs in a
-             temporary directory, because an instrument must not write the
+  ini        `--check-strings-ini`: the two halves step 16 split `[DATA]
+             Language` into.  The *importer* -- a 2010 `LaserTank.ini` is read
+             once, and that file is never written -- and the *store*: the
+             picker's choice survives a restart, the import happens only once
+             (editing the INI afterwards changes nothing), an unknown code
+             degrades to the base language, and the per-key fallback fills a
+             blank and an absent key without clobbering a translated one.  Runs
+             in a temporary directory, because an instrument must not write the
              player's state.
 
     python tools/strings_check.py                 # all four, ~20 s

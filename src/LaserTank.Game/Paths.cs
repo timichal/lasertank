@@ -99,9 +99,11 @@ namespace LaserTank.Game
             return null;
         }
 
-        /// LaserTank.ini.  The original keeps it beside the .exe (LTANK.C:1411);
-        /// the equivalent here is the repo root, which .gitignore's `/*.ini`
-        /// already expects.  `$LT_INI` overrides it, and so does `--ini`.
+        /// LaserTank.ini -- **the import source, and nothing else since step
+        /// 16.**  The original keeps it beside the .exe (LTANK.C:1411); the
+        /// equivalent here is the repo root, which .gitignore's `/*.ini` already
+        /// expects.  `$LT_INI` overrides it, and so does `--ini`.  Nothing in
+        /// the port writes this file any more -- see Options.Open.
         public static string Ini
         {
             get
@@ -112,6 +114,44 @@ namespace LaserTank.Game
                     : Path.Combine(Root, LaserTank.Game.Ini.FileName);
             }
         }
+
+        /// The file name of the typed store, under `user://`.
+        public const string SettingsFileName = "settings.json";
+
+        /// **Where the player's settings live: `user://settings.json`.**
+        ///
+        /// This is the bug next-steps item 7 carried independently of the
+        /// format.  The INI was written to `Root`, which is the repo in a dev
+        /// checkout and the install directory in an exported build -- read-only
+        /// in every `Program Files` install, and not a filesystem at all in a
+        /// browser.  `user://` is the one place Godot guarantees is writable on
+        /// every target it exports to, and it is per-user rather than
+        /// per-install, which is what a settings file wants anyway.
+        ///
+        /// `$LT_SETTINGS` overrides it, and so does `--settings`; `--ini` moves
+        /// it too, by the sibling rule in `SettingsBeside`.
+        public static string Settings
+        {
+            get
+            {
+                string env = System.Environment.GetEnvironmentVariable("LT_SETTINGS");
+                return !string.IsNullOrEmpty(env)
+                    ? env
+                    : ProjectSettings.GlobalizePath("user://" + SettingsFileName);
+            }
+        }
+
+        /// The store that goes with an explicit `--ini FILE`: `FILE` with its
+        /// extension swapped for `.settings.json`.
+        ///
+        /// **Named after the INI rather than fixed per directory** so that a
+        /// gate which keeps a dozen probe INIs in one scratch directory gets a
+        /// dozen independent stores -- tools/options_check.py does exactly that,
+        /// and a shared `settings.json` would have let one case's write decide
+        /// the next case's defaults.  An instrument that wants to say it
+        /// outright passes `--settings`.
+        public static string SettingsBeside(string iniPath) =>
+            Path.ChangeExtension(iniPath, ".settings.json");
 
         /// original/src/Sounds/ -- the sixteen WAVs Ltank.rc compiles into the
         /// .exe as RCDATA (Phase 5, step 3).  Same arrangement as the internal

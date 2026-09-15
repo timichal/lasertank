@@ -46,8 +46,9 @@ speeds, takes the mouse both as a *move order* through the original's own `Mouse
 the editor's brush, **answers that mouse in its own chrome as well — every keycap, pill, row and
 card is a button, and a tap is a click**, edits and saves a `.lvl` byte-faithfully, labels the
 board A1–P16 on all four sides the way `WM_PAINT` does, shows its UI in any of the original's ten
-translations, remembers its settings in a `LaserTank.ini` with the original's own section and
-key names, takes the player's name **once** where the original asks for it in two dialogs, and
+translations, remembers its settings in a typed `user://settings.json` — importing a
+`LaserTank.ini` once if it finds one, and never writing that file — takes the player's name
+**once** where the original asks for it in two dialogs, and
 walks the collection the way `LoadNextLevel` does — past the ranks you did not ask for and past the
 levels you have already beaten.
 
@@ -117,6 +118,15 @@ one of the two with `data/demos/`), the sound (the `MUTED` pill is a clickable t
 preset (every target scales off the window). The baseline is a file the gate writes now. Both green.
 See [*Finished*](docs/game/history.md).
 
+**And since step 16 the player's settings are the port's own file, in the one place Godot
+guarantees is writable.** They were a `LaserTank.ini` at the repo root — right for step 2, which
+was about reading the 2010 binary's file correctly, and wrong for an exported build, which lands
+somewhere unwritable. Three jobs had collected in that one class; the settings are a typed record
+at `user://settings.json` now, `LaserTank.ini` is a one-way importer read once on a first run and
+written never, and the atoi/strcmp findings it exists to record are all still there and still
+pinned. Two false greens and a second gap in the instrument list fell out of it. See
+[*Finished*](docs/game/history.md).
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
@@ -165,7 +175,7 @@ when the look changes on purpose:
 ```bash
 python tools/atlas_check.py      # 2,347 levels' BMF inside the grid + 4 sheets, ~35 s
 python tools/tick_check.py       # 208/208 recordings vs the oracle + the 20 Hz rate, ~20 s
-python tools/options_check.py    # the INI, the packs, the filtered walk, the laser, ~60 s
+python tools/options_check.py    # settings, the packs, the filtered walk, the laser, ~60 s
 python tools/sound_check.py      # 208 SoundPlay streams + 16 WAVs, ~60 s
 python tools/undo_check.py       # undo + save/restore vs the oracle, 400 scripts, ~60 s
 python tools/list_check.py       # list rows + .hs bytes vs Python, ~25 s
@@ -220,20 +230,22 @@ against — `F1` and step 9 had already taken both halves of what it was for, an
 claimed to add is a route to commands item 8 has not written yet. **3** was `SkipComLev` and
 `Diff_Setting` and it is [*Finished*](docs/game/history.md), step 15: the two INI keys are read and
 written, `LoadNextLevel`'s filter is `Session.Advance`, and `Ctrl+O` is the panel over both.
+**7** was the settings and it is [*Finished*](docs/game/history.md), step 16: the port's settings
+are a typed record at `user://settings.json`, `LaserTank.ini` is a one-way importer that nothing
+writes, and the repo-root write is gone.
 
 | # | what it is | the short of it |
 |---|---|---|
 | **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's. **The packs' own `Control.bmp`/`Opening.bmp` is closed** — declined a second time and for good on 2026-09-15, with item **11** taking its place |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
-| **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Nothing is waiting any more**: step 14's name row and step 15's options panel are the settings surfaces, and step 15 finished filling the original's keyspace, so the migration mapping can be written once. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
 | **8** | **The editor** | the commands are ported and gated (`--edit`, `editor_check.py`); what is missing is the chrome. Two blocked on a file dialog — Load Level (602) and Save As (606), both of which the collection picker is the model for — and one modal prompt, which is now the port's only one: the *save changes?* question on leaving, `DrawQuitAsk` plus a third button. `LoadTID` *as* a dialog stays argued against — a prompt per painted cell is worse than the `T` mode it is here |
 | **9** | **The level history, unbounded** | `Backspace[]` (118) — **not undo**, which is 110 and ported: a stack of level *numbers*, "back to the level I was just on". Ten slots because 1996 fixed arrays, so unbounded here. Free of every gate (letters never reach `AddKBuff`). `Session.cs:261` already holds the one line that must survive: command 108 clears it |
 | **10** | **Recording: 125 and two file dialogs** | Resume Recording (125) replays a `.lpb` with no panel and records on from its end — and `Recorder.cs:127` split `PanelUp` from `Open` *for this*. The missing piece is a picker, shared with 114 (`F7`, which guesses three paths) and 117 (`F6`, which writes where step 1 happened to write). Model is the collection picker, same as item 8's two. **`F8` is a conflict**: the original's 125 key, spent here on 115 |
 | **11** | **The opening screen** | `ID_GRAPHBOX_08` / `QHELP`, which is also what command 907 and `CurLevel == 0` paint. **A new screen, not `Opening.bmp`** — the per-language bitmaps are declined and that closes item 4's bullet. **Route undecided and the obvious one is taken**: `F1` went to the key list, so the current thinking is `Esc` growing from one modal into a screen |
 | **12** | **The help dialog** | **WinHelp is 902–905, not 907** — this file had it the other way round until 2026-09-15. Base it on the old `.hlp` and rewrite to a mature style. **It must not displace the key list**, which is the right answer to `F1` and stays; the help is a surface that links into it. Inherits one open question from step 13: eleven catalogues, and help *text* is a different order of volume from help *labels* |
 | **13** | **Hotkeys a player would expect** | asked for: next level on `N`, mute on `M`. Feasible — `M` is free everywhere, `N` is Sound today, so it chains `M`←102, `N`←107, `S` kept as a silent alias, `P` unchanged. **No gate can see it**: `LTANK.C:573` drops every VK outside 32–40 before `AddKBuff`, so letters are accelerators only. Four more on the list, worst first: `Ctrl+C`/`Ctrl+V` for save/restore position, no `Ctrl+Z` for undo, `F8`, and `Z` for zoom |
-| **14** | **One options dialog** | `Ctrl+G` (graphics, 226), `Ctrl+L` (language), `Ctrl+N` (name) and now `Ctrl+O` (the game options) are the same panel four times — step 6 copied 226's shape on purpose and step 15 copied its *rule*. A merge, not a rewrite, and 226's three properties are the design constraint: **applies immediately, no Cancel, the game keeps ticking**, so it gets no OK button. **This is the surface item 7 is waiting for**, and step 15 settled its key: `Ctrl+O`, the one of the four with command ids behind it |
+| **14** | **One options dialog** | `Ctrl+G` (graphics, 226), `Ctrl+L` (language), `Ctrl+N` (name) and now `Ctrl+O` (the game options) are the same panel four times — step 6 copied 226's shape on purpose and step 15 copied its *rule*. A merge, not a rewrite, and 226's three properties are the design constraint: **applies immediately, no Cancel, the game keeps ticking**, so it gets no OK button. **This is the surface item 7 was waiting for, and item 7 is done** — step 16 landed the typed store first, which cost nothing and leaves this a merge of four panels over one typed object rather than over a key-value file. Step 15 settled its key: `Ctrl+O`, the one of the four with command ids behind it |
 
 ---
 
@@ -303,16 +315,17 @@ These are the ones that cost something. Each is a rule, not a story.
   differential between them can check it any more, which
   is what `--check-deadbox` is for: the same argument as *"an exit criterion that only says nothing
   changed is not one"* three bullets up.
-- **An instrument must not write the player's state**, and that covers three files: the INI, the
-  `.hs`, and anything under `out/recordings/`. `Session` writes a `.hs` only when it was given
-  `Options` whose INI is writable; a `--shot`/`--play`/`--check-*`/`--tick-rate` run left to find
-  `LaserTank.ini` on its own gets it **read-only**. The test is whether a gate could be run eight
+- **An instrument must not write the player's state**, and that covers three files:
+  `user://settings.json`, the `.hs`, and anything under `out/recordings/`. `Session` writes a `.hs`
+  only when it was given `Options` whose store is writable; a
+  `--shot`/`--play`/`--check-*`/`--edit`/`--save`/`--tick-rate` run left to find the settings on
+  its own gets them **read-only**. The test is whether a gate could be run eight
   times in parallel and leave the tree as it found it. `tick_check.py` replaying 208 winning
   recordings wrote `.hs` files into six collections of `data/` before this was noticed, and
   `.gitignore` is why nothing said so.
-  **And the list of what counts as an instrument is part of the rule.** Step 9's `--click`,
-  `--press` and `--dump-hits` were never added to it, so a run of any of them left to find
-  `LaserTank.ini` on its own got it *writable*. The gap hid for two steps because
+  **And the list of what counts as an instrument is part of the rule — it has now been found short
+  twice.** Step 9's `--click`, `--press` and `--dump-hits` were never added to it, so a run of any
+  of them left to find the settings on its own got them *writable*. The gap hid for two steps because
   `chrome_check.py` always passes `--ini` and an explicit `--ini` makes the options live anyway —
   so the only way to meet it was to drive the chrome by hand, which is exactly what reviewing a
   panel means. It cost a session's worth of `[DATA] RLLFilename` walking off onto another
@@ -320,6 +333,12 @@ These are the ones that cost something. Each is a rule, not a story.
   collection that ships no demos, `--panel playback` opened nothing and `chrome_check` reported
   three missing targets that had nothing to do with any code. A gate that reads the player's
   mutable state has a second failure mode nobody can reproduce.
+  **Step 16 found the second pair the same way**: `--edit` and `--save` were missing too, so
+  `editor_check.py`'s game arm — `--editor --edit SCRIPT --save --levels <a copy in /tmp>` — had
+  been leaving the player's remembered level pointing at a temp file that no longer exists. Six
+  runs a gate, and nobody noticed because the game checks `File.Exists` before it reopens. The
+  lesson is the list, not the flags: **every new batch flag has to be put on it as it is added**,
+  because the symptom of forgetting is silence.
 - **A gate that can write into `data/` is a bug in the gate, and so is a *feature* that can.** The
   editor is the first thing a *player* drives that writes a file the corpus is made of. Command 603
   saves in place; here, saving a level that came out of `data/` writes a working copy under
