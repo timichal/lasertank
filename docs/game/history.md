@@ -1559,3 +1559,162 @@ the instrument writes nothing.
 2007 catalogues already translate, so `keys.lastPlayed` agrees with them rather than inventing a
 sentence in eleven languages. The keycap is spelled `backspace` and not the menu's `BkSp`: this port
 writes `space` and `tab` in full and there is no menu column to fit.
+
+---
+
+## ~~Step 18: one options panel, where there were four~~ — **done 2026-09-15**
+
+Next-steps item 14, and it closes. `Ctrl+G` (226, `GraphBox`), `Ctrl+L` (step 6's language picker),
+`Ctrl+N` (step 14's name row) and `Ctrl+O` (step 15's game options) were **the same panel four
+times**, on four modifiers: a scrim, a box centred on the window, a title, a rule, a body and a
+footer, each one measuring its own width. That was not a coincidence to be noticed later — every one
+of the three invented panels was copied from 226 *on purpose*, and step 6 wrote down why ("so
+copying its shape puts the new dialog where a player already expects to find this kind of choice, on
+the same modifier"). Four copies of one shape is one shape with four sections.
+
+It is a **merge and not a rewrite**: the four bodies are the four files they always were, renamed
+and stripped of the frame. `SettingsMenu.cs` is the frame, once.
+
+| was | is |
+|---|---|
+| `OptionsMenu.cs` (step 15) | `GameSection.cs` |
+| `GraphicsMenu.cs` (step 2) | `GraphicsSection.cs` |
+| `LanguageMenu.cs` (step 6) | `LanguageSection.cs` |
+| `NameMenu.cs` (step 14) | `NameSection.cs` |
+
+**The entries above this one keep the old names**, because they are records of what was decided
+when it was decided; this table is the only place the two vocabularies meet.
+
+### The constraint was already written, and it is 226's
+
+Item 14 named it and step 15 had already copied it: **applies immediately, no Cancel, the game keeps
+ticking underneath**. So the merged panel gets **no OK button and cannot grow one** — sections
+rather than tabs-with-a-commit, and every control still commits as it is touched. The chips under
+the title pick a section; `←`/`→` and `Tab` move between them; `↑`/`↓` are the body's, which is why
+the graphics list lost the second axis it used to accept (it moved on Up *or* Left because a six-row
+radio group had nowhere else to go, and now the panel does).
+
+**The bare letters that closed each panel are gone** — `G`, `L` and `O` each shut their own dialog,
+and a bare letter that closes a panel with a text field in it is a letter the field never sees.
+`Esc`, `Enter`, `Ctrl+O`, the close button and a click outside are the five ways out, and they are
+all the same act.
+
+### The name row lost its Cancel, and that is the one behaviour that changed
+
+Step 14's panel was the exception and argued for it: the other two applied their choice live, so an
+`Esc` that undid it would undo what was already on screen; a name is a string and nothing behind the
+panel moves as it is typed, so `Enter` saved and `Esc` did not, both drawn as keys.
+
+**What changed is the surroundings, not the argument.** One control that needs `Enter` inside a
+panel whose whole design constraint is "no Cancel" is the exception that makes the rule unreadable.
+So the field **commits when it is left**: `Esc`, `Enter`, the close button, a click outside, or a
+move to another section. The half of step 14's argument that was load-bearing survives untouched,
+because it was never about Cancel — `Options.SetName` declines a write when the text has not
+changed, so opening the panel to look at the name still writes no file, and a `LaserTank.ini` shared
+with the 2010 binary still does not gain a `Record Author` line because somebody looked.
+
+### Two `Ctrl` keys came back, not three
+
+Item 14 predicted three. It is two: **`Ctrl+L` and `Ctrl+N` are unbound and free** for item 13, both
+of them this port's own invention, so nothing of the original's goes with them.
+
+**`Ctrl+G` stays, unlisted.** It is 226's own accelerator on *both* of the original's tables (ACC1
+and ACC2, `lt32l_us.inc`), and the standing rule in `PROGRESS.md` is that when the original has a
+table you read the table — inventing bindings instead of reading `ACC1`/`ACC2` is on the list of
+mistakes that cost something. So it opens the panel on its Graphics section and is deliberately
+absent from `PlayKeys`: a key list that offers two ways into one panel is a key list saying the
+merge did not happen. That is item 13's own device for `S`, applied one item early.
+
+`PlayKeys`' View group went from four rows to one and `EditorKeys` from `ctrl G` to `ctrl O`, so
+`keys.graphics`, `keys.language` and `keys.name` are dead keys in eleven catalogues and were deleted
+— along with `name.save` and `name.cancel`, which went with the buttons. `strings_check.py` fails
+both ways over that, which is how the deletion was found to be complete rather than remembered.
+**And the one row's own label changed**: `keys.options` read *game options*, which was true of the
+panel `Ctrl+O` used to open and is now one section of four, so it reads *options* — the same word as
+the panel's title, in eleven languages.
+
+**`EditMode` had to be told to decline `Ctrl+O`**, and this is the bug the merge could have shipped:
+the editor's key switch ends in `return true`, so anything it does not name it *swallows*, and the
+router only reaches its own handling for keys the editor declines. `Ctrl+G` was already on that
+list — 226 is in ACC2 as well as ACC1 — and `Ctrl+O` was not, so the key `EditorKeys` now advertises
+would have done nothing in the editor. That is exactly the F1 failure recorded two cases above it in
+the same switch, which is why the comment there now names both.
+
+### One size for four sections, and three labels that stopped deciding the width
+
+The frame is **one width and one height for all four**, taken as the maximum over the sections
+rather than measured per section. A panel that resized as its chips were clicked would move the
+chips out from under the pointer clicking them, and a body is top-aligned in a box that does not
+move. Two sections had to be taught to measure themselves over *everything they can show* rather
+than over what they are showing: the graphics list reserves the author line whether or not the pack
+under the cursor has one, and sizes its description block to the longest of any pack.
+
+**And one line of arithmetic was wrong in the section that could not show it.** The language
+section's `credit` line — *translated by X*, drawn only when a catalogue claims one — was
+written a whole row below the row `Height` reserves for it, which is the footer rule's space.
+All eleven shipped catalogues have an empty `credit`, so nothing drew there and no screenshot
+could have caught it; it was found by checking the two against each other and confirmed by
+putting a credit in `en.json` for one screenshot. The cause is the kind worth naming: after the
+row loop, `b` is already the *next* row's baseline, so adding a `Line` to it double-counts.
+
+**And three lines of copy stopped being measured at all.** `opt.skipAbout`, `opt.ranksAbout` and
+`name.about` were single `Ui.Write` lines whose width the panel asked for — which is why the game
+options dialog was 550 px wide in English and clipped in Czech anyway once the window clamped it.
+They wrap now, so they cost height and not width.
+
+The section chips fold to a second line on the same principle, and **it was worth measuring rather
+than assuming**: this entry said German's four titles fold at 520 px until `--dump-hits` was pointed
+at them, and they do not — not at 520, not at 400, which is as narrow as the instrument goes. The
+panel's width is decided by the section footers and bodies, all of which are wider than four chips,
+so the chips have never had to fold. The code stays, because a chip that shrank or clipped would be
+a button you cannot read and a fifth section is the ordinary way it starts firing; the claim goes.
+That is the shape next-steps item 4 is owed on the `F1` overlay, written out on a four-chip row —
+but the overlay's two columns of thirty-one rows is where it would have to be *proved*.
+
+### The overlapping row bands, found by playing it
+
+Reported from the graphics picker the moment the panel was in front of somebody: with one row
+selected and the pointer on the row below it, the hover's top border sat a few pixels *above* the
+selection's bottom border. `--dump-hits` put a number on it — **rows 22 px tall on a 19 px pitch**,
+so every band overlapped its neighbour by three.
+
+**It is older than this step and it was in all four list panels.** `Line + Px(3)` tall, drawn from
+`Px(4)` above the baseline, on a pitch of exactly `Line` — the level list and the collection picker
+measure 20 on 17, the same three. It stayed invisible because it only shows when two adjacent rows
+are lit at once, and a selection with the pointer on its neighbour is the one ordinary way to do
+that; four screenshots a step, none of them hovering.
+
+The band is `Ui.RowBand` now — **shorter than the pitch**, by `Px(2)`, and centred on the ink rather
+than on the line box. Four call sites, one subtraction, and the gap between neighbours is what makes
+two lit rows read as two. This is the third-caller rule the chip helpers keep declining, applied to
+the case where sharing is right: what was duplicated here was not a *policy* worth restating per
+panel (which is `LevelList.Chip`'s argument for staying copied) but one piece of arithmetic that was
+wrong in the same way four times.
+
+**And the first fix was the wrong half, which is the part worth keeping.** Taking the three pixels
+out of the *band* alone stopped the overlap and left the cap heights sitting on the top border —
+0.6 px of air in the level list, 2.3 in the graphics picker — which is how it was reported back, in
+the same register as the first report and about the same widget. The old band was not merely
+overlapping: it was **the right size for its text on a pitch three pixels too small for it**. So
+`Line` went up by `Px(2)` in all four panels and the band kept its proportions. It costs the level
+list about two rows of a visible page and buys a row that can be read, which is the trade the
+overlap was hiding.
+
+### The instruments, and the flags that were kept pointing somewhere
+
+`--menu`, `--open-lang`, `--panel name` and `--panel options` all opened one of the four dialogs.
+They open the sections those became, for the reason `--panel scores` and `--panel global` are still
+accepted: **a flag that used to open something should not start printing usage**. `--panel` also
+takes `settings`, `game`, `graphics`, `language` and `player` now, which is what the sections are
+called everywhere — the chip's hit name (`sect:game`), `--dump-state`'s `settings=` field and
+`--panel`'s word are one string on `SettingsSection.Id`, so the three cannot drift.
+
+`--dump-state`'s four booleans (`gfx=`, `lang=`, `name=`, `gameopt=`) became one field that says
+which of five things is true rather than four of which at most one could be.
+
+`chrome_check.py` gained the four section chips on every screen the panel is up — they are the only
+way a player without a keyboard reaches the other three sections, which is `close`'s own argument one
+level in — and a fifteenth screen, `options-narrow` at 520x760, because the chip row is the one row
+in this interface that folds and a chip that wrapped out of its own hit box would be invisible in a
+screenshot and fatal to a thumb. The `name:save` / `name:cancel` pair left that list with the
+buttons.

@@ -506,6 +506,49 @@ namespace LaserTank.Game
                         Accent with { A = 0.85f });
         }
 
+        /// **One row's band, and the arithmetic that has to stay a subtraction.**
+        ///
+        /// A list row is written on a baseline and its band -- the hover fill,
+        /// the selected row's border -- hangs around it.  The obvious way to
+        /// write that is "start a line above the baseline and be a line tall",
+        /// and it is wrong by however much the band is taller than the pitch:
+        /// **the four list panels all drew a `Line + Px(3)` band on a `Line`
+        /// pitch, so every band overlapped the next by three pixels.**  It is
+        /// invisible until two adjacent rows are lit at once, which is exactly
+        /// what a selected row with the pointer on the row below it is -- the
+        /// hover's top border then sits a few pixels *above* the selection's
+        /// bottom border rather than below it.  Reported from the graphics
+        /// picker, where a five-row list makes it easy to hit.
+        ///
+        /// So the band is **shorter than the pitch**, by `Px(2)`, which is the
+        /// gap that makes two lit rows read as two.
+        ///
+        /// **And the pitch grew rather than the band shrinking**, which is the
+        /// second half and the half that was got wrong first.  Taking the three
+        /// pixels out of the band alone left the cap heights sitting on the top
+        /// border -- 0.6 px of air in the level list -- because the old band was
+        /// not merely overlapping, it was the *right size for its text* on a
+        /// pitch three pixels too small for it.  So `Line` went up by two in all
+        /// four panels and the band keeps its proportions.
+        ///
+        /// The band is centred on the **ink**, not on the line box: text drawn
+        /// on a baseline puts its cap height about `0.70 em` above and its
+        /// descender about `0.22 em` below, so the middle of what you see is
+        /// roughly `Px(3)` above the baseline, and that is what the band centres
+        /// on.  At the sizes these four lists set (10.5 to 12.5 px) that leaves
+        /// three to four pixels of air above the caps and about three below the
+        /// descenders, measured on screen rather than argued from the metrics,
+        /// and it stays balanced as a caller changes its pitch -- which is the
+        /// reason this is derived from the height rather than another constant.
+        ///
+        /// `x` and `w` are the caller's -- the panels inset their bands by
+        /// different amounts and only the vertical arithmetic was shared.
+        public static Rect2 RowBand(float x, float baseline, float w, int line)
+        {
+            float h = line - Px(2);
+            return new Rect2(x, baseline - Mathf.Round(h / 2f) - Px(3), w, h);
+        }
+
         /// **A finger is not a cursor.**  A target drawn as a 17-pixel keycap
         /// is a target a thumb misses, so the *hit* rectangle is grown to a
         /// floor and the drawing is left alone -- the chrome does not have to

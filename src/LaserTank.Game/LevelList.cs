@@ -805,7 +805,12 @@ namespace LaserTank.Game
         /// the redesign -- and which the paging arithmetic reads, so a bigger
         /// window really does page by a bigger screenful rather than scrolling
         /// the same fifteen rows faster.
-        private static int Line => Ui.Px(16);
+        /// The row pitch.  `Px(16)` until the band overlap was fixed: the
+        /// bands were the right size for their text and the pitch was three
+        /// pixels too small for them, so this is what moved.  It costs about
+        /// one row of the visible page and buys a row you can read.  See
+        /// Ui.RowBand.
+        private static int Line => Ui.Px(18);
 
         /// The scrollbar's column, taken out of the table's width rather than
         /// laid over it: a track that overlapped the rows would steal the right
@@ -1005,8 +1010,7 @@ namespace LaserTank.Game
                 // breath, which is the property the whole hit list is for.
                 // It stops at the gutter so the scrollbar has the right-hand
                 // end of the panel to itself.
-                var band = new Rect2(x - Ui.Px(7), y - Line + 4,
-                                     tw + Ui.Px(7), Line + 3);
+                Rect2 band = Ui.RowBand(x - Ui.Px(7), y, tw + Ui.Px(7), Line);
                 int at = i;
                 if (_view.Chrome.Add(band, "row:" + i, () => Pick(at)) && i != _sel)
                     Ui.Hot(n, band, 5f);

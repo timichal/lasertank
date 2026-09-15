@@ -314,6 +314,14 @@ namespace LaserTank.Game
                 // Ctrl+G, the graphics dialog, is in *both* tables (ACC1 and
                 // ACC2) -- so it stays live in the editor and BoardView keeps
                 // it.  Everything else in ACC1 is not.
+                //
+                // **And Ctrl+O with it since step 18**, which is the key 226
+                // lives behind now: the four settings dialogs are one panel and
+                // Ctrl+G is its unlisted alias, so both spellings of the one
+                // ACC2 share have to fall through here.  `EditorKeys` lists
+                // `ctrl O`, and a key the editor swallowed while its own footer
+                // advertised it is exactly the bug the F1 case below records.
+                case Godot.Key.O when ctrl: return false;
                 case Godot.Key.G when ctrl: return false;
                 // **And F1, which was being swallowed here.**  The router hands
                 // this switch the key first and only acts on the ones it

@@ -137,6 +137,22 @@ ring and this one is a plain unbounded list, which is the deviation and a safe o
 a stack is state no frame draws: `--check-history` prints it and `options_check.py` rebuilds the
 expected one in Python. See [*Finished*](docs/game/history.md).
 
+**And since step 18 there is one options panel where there were four.** `Ctrl+G` (226,
+`GraphBox`), `Ctrl+L` (the language picker), `Ctrl+N` (the name row) and `Ctrl+O` (the game options)
+were the same dialog four times — a scrim, a box, a title, a rule, a body and a footer, each
+measuring its own width — and they were four *on purpose*: every one of the three invented panels
+was copied from 226, which step 6 wrote down at the time. So they are one panel on `Ctrl+O` with
+four sections and **no OK button**, which is 226's own rule (Close and Cancel run the same code,
+`LTANK_D.C:1247`) and the constraint next-steps item 14 named. The one behaviour that changed is
+step 14's Save/Cancel: a field that needs `Enter` inside a panel whose whole design is "no Cancel"
+is the exception that makes the rule unreadable, so the name commits when it is left — and the half
+of step 14's argument that was load-bearing survives, because opening the panel to look at the name
+still writes no file. **Two `Ctrl` keys came back rather than the three item 14 predicted**:
+`Ctrl+L` and `Ctrl+N` are free, and `Ctrl+G` stays as an *unlisted* alias onto the Graphics section
+because it is 226's own accelerator on both of the original's tables. Every gate is green;
+`chrome_check` has a fifteenth screen and four more targets on every screen the panel is up.
+See [*Finished*](docs/game/history.md).
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.
@@ -177,6 +193,15 @@ binary meanwhile gets a spurious red. Observed exactly once and it cost a diagno
 `roundtrip_check` reported `FAILED -- 1 of 60` while `test_fuzz` was running alongside it, and the
 same seed re-run cleanly on its own. The other gates parallelise fine with each other; this one is
 exclusive. A red gate that will not reproduce serially was probably racing this.
+
+**"Any other gate" includes a second copy of `test_fuzz` itself**, which is the reading that was
+missing and cost a diagnosis on 2026-09-15. Two runs overlapped, and the result was not a plain
+red but a *confusing* one: the `antitank-scan-order` injection reported a finding whose signature
+was `[SlT.dx]` at level 1314 — the `movetank-blocked-slidet` repro — and then `movetank` itself
+came back green over 600 cases, because each run was fuzzing the other's patched binary. **The
+tell is the signature naming the wrong injection**, and it is worth knowing: a missed detection on
+its own reads as a gap in the fuzzer's coverage rather than as a race. Serially: 25 passed, 0
+failed.
 
 Twelve more gates cover the presentation. They are listed apart because nothing about the rules
 depends on them, and `options_check.py`'s pixel arithmetic is the one gate *expected* to be edited
@@ -245,7 +270,9 @@ are a typed record at `user://settings.json`, `LaserTank.ini` is a one-way impor
 writes, and the repo-root write is gone. **9** was the level history and it is
 [*Finished*](docs/game/history.md), step 17: `Backspace` is command 118, the stack is a plain
 unbounded list rather than the original's ten-slot ring, command 108 clears it, and
-`options_check.py` has a fifth arm over `--check-history`.
+`options_check.py` has a fifth arm over `--check-history`. **14** was the four options dialogs and
+it is [*Finished*](docs/game/history.md), step 18: they are one panel on `Ctrl+O` with four
+sections, no OK button, and two of the three `Ctrl` keys it expected back.
 
 | # | what it is | the short of it |
 |---|---|---|
@@ -256,8 +283,7 @@ unbounded list rather than the original's ten-slot ring, command 108 clears it, 
 | **10** | **Recording: 125 and two file dialogs** | Resume Recording (125) replays a `.lpb` with no panel and records on from its end — and `Recorder.cs:127` split `PanelUp` from `Open` *for this*. The missing piece is a picker, shared with 114 (`F7`, which guesses three paths) and 117 (`F6`, which writes where step 1 happened to write). Model is the collection picker, same as item 8's two. **`F8` is a conflict**: the original's 125 key, spent here on 115 |
 | **11** | **The opening screen** | `ID_GRAPHBOX_08` / `QHELP`, which is also what command 907 and `CurLevel == 0` paint. **A new screen, not `Opening.bmp`** — the per-language bitmaps are declined and that closes item 4's bullet. **Route undecided and the obvious one is taken**: `F1` went to the key list, so the current thinking is `Esc` growing from one modal into a screen |
 | **12** | **The help dialog** | **WinHelp is 902–905, not 907** — this file had it the other way round until 2026-09-15. Base it on the old `.hlp` and rewrite to a mature style. **It must not displace the key list**, which is the right answer to `F1` and stays; the help is a surface that links into it. Inherits one open question from step 13: eleven catalogues, and help *text* is a different order of volume from help *labels* |
-| **13** | **Hotkeys a player would expect** | asked for: next level on `N`, mute on `M`. Feasible — `M` is free everywhere, `N` is Sound today, so it chains `M`←102, `N`←107, `S` kept as a silent alias, `P` unchanged. **No gate can see it**: `LTANK.C:573` drops every VK outside 32–40 before `AddKBuff`, so letters are accelerators only. Four more on the list, worst first: `Ctrl+C`/`Ctrl+V` for save/restore position, no `Ctrl+Z` for undo, `F8`, and `Z` for zoom |
-| **14** | **One options dialog** | `Ctrl+G` (graphics, 226), `Ctrl+L` (language), `Ctrl+N` (name) and now `Ctrl+O` (the game options) are the same panel four times — step 6 copied 226's shape on purpose and step 15 copied its *rule*. A merge, not a rewrite, and 226's three properties are the design constraint: **applies immediately, no Cancel, the game keeps ticking**, so it gets no OK button. **This is the surface item 7 was waiting for, and item 7 is done** — step 16 landed the typed store first, which cost nothing and leaves this a merge of four panels over one typed object rather than over a key-value file. Step 15 settled its key: `Ctrl+O`, the one of the four with command ids behind it |
+| **13** | **Hotkeys a player would expect** | asked for: next level on `N`, mute on `M`. Feasible — `M` is free everywhere, `N` is Sound today, so it chains `M`←102, `N`←107, `S` kept as a silent alias, `P` unchanged. **No gate can see it**: `LTANK.C:573` drops every VK outside 32–40 before `AddKBuff`, so letters are accelerators only. Four more on the list, worst first: `Ctrl+C`/`Ctrl+V` for save/restore position, no `Ctrl+Z` for undo, `F8`, and `Z` for zoom. **Step 18 freed `Ctrl+L` and `Ctrl+N`** — two of the three modifiers item 14 expected back; `Ctrl+G` stayed as an unlisted alias because it is 226's own accelerator |
 
 ---
 

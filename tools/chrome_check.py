@@ -79,6 +79,12 @@ SCREENS = [
     ("help",        ["--level", "1", "--panel", "help"]),
     ("levels",      ["--level", "1", "--panel", "levels"]),
     ("collections", ["--level", "1", "--panel", "collections"]),
+    # **One panel with four sections since step 18** (next-steps item 14), so
+    # these four screens are four sections of it rather than four dialogs.  The
+    # flags are the ones that opened the four panels before the merge and they
+    # still open the sections those became -- which is worth a screen each,
+    # because a flag quietly opening the wrong section is exactly the kind of
+    # thing only a target list notices.
     ("graphics",    ["--level", "1", "--menu"]),
     ("language",    ["--level", "1", "--open-lang"]),
     ("name",        ["--level", "1", "--panel", "name"]),
@@ -94,7 +100,18 @@ SCREENS = [
     # in the chrome is scaled off the window, so a close button that is a
     # comfortable 28 px at 1100 is 19 at 520 unless Ui.Touch is on it.
     ("levels-narrow", ["--level", "1", "--panel", "levels", "--window", "520x760"]),
+    # The settings panel at the same width, because four section chips plus a
+    # close on one row is the densest thing in this interface below the level
+    # list, and every one of the five is a target a thumb has to hit.  (Its chip
+    # row can also fold, and no shipped language makes it: the panel is wider
+    # than four chips at every width this can ask for.  See SettingsMenu.Fold.)
+    ("options-narrow", ["--level", "1", "--panel", "options", "--window", "520x760"]),
 ]
+
+#: The four section chips, on every screen the settings panel is up: they are
+#: the only way a player without a keyboard reaches the other three sections,
+#: which is `close`'s argument applied one level in.
+SECTIONS = ["sect:game", "sect:graphics", "sect:language", "sect:player"]
 
 # What every screen must offer, so that a panel losing its way out is a red gate
 # rather than something a player discovers on a phone.  A modal panel with no
@@ -115,20 +132,28 @@ MUST = {
                       "by:title", "by:author", "unsolved",
                       "diff:1", "diff:2", "diff:3", "diff:4", "diff:5"],
     "collections": ["scrim", "close", "row:0"],
-    "graphics":    ["scrim", "close", "row:0", "snap:1"],
-    "language":    ["scrim", "close", "row:0"],
-    # The name panel's two answers are on this list for the reason `close` is:
-    # they are the only way a player without a keyboard commits or abandons a
-    # name.  The field itself is a swallow -- it always has the caret -- so it
-    # is not here and cannot be: there is nothing for a click on it to do.
-    "name":        ["scrim", "close", "name:save", "name:cancel"],
-    # Item 3's panel is all targets and no text: six chips, a close and the
-    # scrim.  All six chips are named because each one is a *different* bit of
-    # one mask plus the skip, and a row of tags that answer to one rectangle is
-    # exactly the failure Ui.Touch and this list exist to catch.
+    "graphics":    ["scrim", "close", "row:0", "snap:1"] + SECTIONS,
+    "language":    ["scrim", "close", "row:0"] + SECTIONS,
+    # **The Player section has no answers to list, and that is step 18's
+    # change.**  Step 14's panel had `name:save` and `name:cancel` on this list
+    # because they were the only way a player without a keyboard committed or
+    # abandoned a name; the merged panel has no Cancel by design, so the field
+    # commits when it is left and the buttons are gone.  The field itself is a
+    # swallow -- it always has the caret -- so it is not here and cannot be:
+    # there is nothing for a click on it to do.  What is left is the way out and
+    # the way to the other three sections.
+    "name":        ["scrim", "close"] + SECTIONS,
+    # The Game section is all targets and no text: six chips, a close, the
+    # scrim and the four section chips.  All six are named because each one is a
+    # *different* bit of one mask plus the skip, and a row of tags that answer
+    # to one rectangle is exactly the failure Ui.Touch and this list exist to
+    # catch.
     "options":     ["scrim", "close", "opt:skip",
                     "opt:rank:1", "opt:rank:2", "opt:rank:3",
-                    "opt:rank:4", "opt:rank:5"],
+                    "opt:rank:4", "opt:rank:5"] + SECTIONS,
+    "options-narrow": ["scrim", "close", "opt:skip",
+                       "opt:rank:1", "opt:rank:2", "opt:rank:3",
+                       "opt:rank:4", "opt:rank:5"] + SECTIONS,
     "playback":    ["pb:space", "pb:R", "pb:Esc"],
     "quit":        ["scrim", "quit:yes", "quit:no"],
     "editor":      ["field:1", "field:2", "field:3", "diff", "key:F1"],

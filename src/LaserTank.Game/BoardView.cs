@@ -321,7 +321,7 @@ namespace LaserTank.Game
         private Atlas _atlas;
         private Options _opt;
 
-        /// The options, for the one panel that writes one -- see NameMenu.
+        /// The options, for the one panel that writes one -- see NameSection.
         /// Everything else in this project reaches them through a method here,
         /// and that stays the rule: a panel that needs a *setting* gets a
         /// property on this class, not a second writer of the INI.
@@ -330,12 +330,20 @@ namespace LaserTank.Game
         /// The UI strings -- Core/Strings.cs, one keyed catalogue per language.
         /// Read through the `Strings` property, never directly.
         private Strings _lang;
-        private LanguageMenu _langMenu;
-        private NameMenu _nameMenu;
-        private OptionsMenu _optMenu;
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
-        private GraphicsMenu _menu;
+
+        /// The packs on disk and the one that is drawn, for the graphics
+        /// section: it reads them on the way in rather than being handed them,
+        /// because a section is entered many times in a session.
+        internal System.Collections.Generic.List<Pack> PackList => _packs;
+        internal Pack CurrentPack => _pack;
+
+        /// **One settings panel since step 18** -- next-steps item 14.  It was
+        /// four fields here (`_menu`, `_langMenu`, `_nameMenu`, `_optMenu`) on
+        /// four modifiers, which is four copies of one modality rule; the four
+        /// bodies are sections of this now.
+        private SettingsMenu _settings;
         private LevelList _list;
         private CollectionList _collections;
         private EditMode _edit;
@@ -581,23 +589,21 @@ namespace LaserTank.Game
 
             // The language before anything that could want a label.  --lang
             // overrides the INI for this run only, the way --pack and --zoom do;
-            // the player's way in is Ctrl+L, which has no command id in the
-            // original because the original has no such dialog (IniImport.PsLang).
+            // the player's way in is the options panel's Language section,
+            // which has no command id because the original has no such dialog
+            // (IniImport.PsLang).
             _lang = LoadLanguage(ArgStr(args, "--lang") ?? _opt.LanguageCode);
-            _langMenu = new LanguageMenu(this);
-            _nameMenu = new NameMenu(this);
-            _optMenu = new OptionsMenu(this);
 
             // --name STRING, this run only unless --save-options is given --
             // the same arrangement --sound, --pack and --zoom have.  The
-            // player's way in is Ctrl+N.  It is set before the Session exists
+            // player's way in is Ctrl+O.  It is set before the Session exists
             // because the recorder and the score post both read it.
             string nameArg = ArgStr(args, "--name");
             if (nameArg != null && Array.IndexOf(args, "--save-options") < 0)
                 _opt.SetName(nameArg, persist: false);
 
             _packs = Packs.Scan(_opt.GraphicsDir);
-            _menu = new GraphicsMenu(this);
+            _settings = new SettingsMenu(this);
             _list = new LevelList(this);
             _collections = new CollectionList(this);
             _edit = new EditMode(this);
@@ -821,9 +827,14 @@ namespace LaserTank.Game
             // `--keys`/`--lpb` and `--ticks N` it runs the script for N ticks
             // first, which is how a rendering change to a *moving* board -- a
             // laser in flight, a pushed block -- gets reviewed without a window.
-            // `--menu` opens the graphics dialog on start, which is the only
-            // way to review the panel with --shot rather than by hand.
-            if (Array.IndexOf(args, "--menu") >= 0) _menu.Show(_packs, _pack);
+            // `--menu` opens the options panel on its Graphics section, which
+            // is the only way to review it with --shot rather than by hand.
+            // **The flag is older than the section** -- it opened the graphics
+            // *dialog* until step 18 merged it -- and it is kept pointing at the
+            // same body for the reason the three --panel spellings below are
+            // kept: a flag that used to open something should not start
+            // printing usage.
+            if (Array.IndexOf(args, "--menu") >= 0) _settings.Show("graphics");
 
             // `--panel levels|scores|global|playback` is the same idea for step
             // 4's overlays: with --shot it is the only way to review one without
@@ -847,17 +858,24 @@ namespace LaserTank.Game
                 case "hint": _hint = true; break;
                 // Step 8's, on the same terms.
                 case "quit": _quitAsk = true; break;
-                // Step 14's.  `--open-name` would have been the LanguageMenu
-                // spelling; this one is a panel like the rest and goes on the
-                // flag the rest are on.
-                case "name": _nameMenu.Show(_opt.Name); break;
-                // Item 3's, on the same terms as step 14's above.
-                case "options": _optMenu.Show(); break;
+                // **Step 18's one panel, under six names.**  `settings` is
+                // what it is; `game`, `graphics`, `language` and `player` are
+                // its four sections; and `name` and `options` are what step 14
+                // and item 3 called their own panels before the merge, kept
+                // pointing at the sections those became.  Same rule as the
+                // three spellings of the level list above.
+                case "settings": _settings.Show(); break;
+                case "game":
+                case "options": _settings.Show("game"); break;
+                case "graphics": _settings.Show("graphics"); break;
+                case "language": _settings.Show("language"); break;
+                case "player":
+                case "name": _settings.Show("player"); break;
                 case null: break;
                 default:
                     GD.PrintErr("--panel wants "
                                 + "levels|scores|global|collections|playback|help|hint|quit|"
-                                + "name|options");
+                                + "settings|game|graphics|language|player|name|options");
                     GetTree().Quit(2);
                     return;
             }
@@ -899,9 +917,9 @@ namespace LaserTank.Game
             // so `--shot` can show the panel.  A dialog that only a keystroke
             // can open is otherwise unphotographable, and step 2's lesson --
             // measure pixels, do not look at them -- needs a pixel to measure.
-            if (Array.IndexOf(args, "--open-lang") >= 0)
-                _langMenu.Show(Strings.Available(Paths.Data(Strings.DirName)),
-                               Strings.Code);
+            // It is `--panel language` since step 18 and kept under its own
+            // name, for `--menu`'s reason.
+            if (Array.IndexOf(args, "--open-lang") >= 0) _settings.Show("language");
 
             // `--hover X,Y` parks the pointer before the frame is captured, so
             // a screenshot can show what the chrome looks like under one --
@@ -994,8 +1012,10 @@ namespace LaserTank.Game
                 Unicode = code == Key.None ? ch : 0,
             };
             // The same order the router tests them in, so `--type` cannot
-            // reach a field the keyboard could not have reached.
-            if (_nameMenu != null && _nameMenu.Open) _nameMenu.Key(k);
+            // reach a field the keyboard could not have reached.  `Typing` is
+            // the settings panel's answer to "is the section showing a field",
+            // which is the one thing this has to know about it.
+            if (_settings != null && _settings.Typing) _settings.Key(k);
             else if (_list != null && _list.Open) _list.Key(k);
         }
 
@@ -1013,9 +1033,9 @@ namespace LaserTank.Game
             // **`text=` is last on purpose.**  A name has spaces in it and
             // this line is read by splitting on them, so the one field whose
             // value can contain one has to be the field nothing follows.
-            if (_nameMenu != null && _nameMenu.Open)
-                return $"name=True initials={_nameMenu.Initials} "
-                       + $"text={_nameMenu.Text}";
+            if (_settings != null && _settings.Typing)
+                return $"name=True initials={_settings.NameBody.Initials} "
+                       + $"text={_settings.NameBody.Text}";
             return _list == null || !_list.Open
                 ? "list=False"
                 : $"list=True rows={_list.Count} of={_list.Total} "
@@ -1191,8 +1211,7 @@ namespace LaserTank.Game
             $"level={_s?.Level} moves={_s?.E?.Game.ScoreMove} " +
             $"shots={_s?.E?.Game.ScoreShot} help={_help} quit={_quitAsk} " +
             $"hint={_hint} list={_list?.Open} coll={_collections?.Open} " +
-            $"gfx={_menu?.Open} lang={_langMenu?.Open} name={_nameMenu?.Open} " +
-            $"gameopt={_optMenu?.Open} " +
+            $"settings={_settings?.Section} " +
             $"editor={_edit?.Open} " +
             $"pb={_s?.Pb.PanelUp} rec={_s?.Rec2.Recording} sound={_opt?.SoundOn} " +
             $"ani={_opt?.AnimationOn} cell={Cell} pack={_atlas?.Label} " +
@@ -1537,7 +1556,7 @@ namespace LaserTank.Game
             // Command 106 stops the clock, because the original stops it for
             // that one: `x = Game_On; GameOn(FALSE); DialogBox(...)`
             // (LTANK.C:906).  The graphics dialog (226) does not, so the tank
-            // can die while it is up -- see GraphicsMenu.
+            // can die while it is up -- see GraphicsSection.
             //
             // **The list panel stops it on every tab since step 8**, which is
             // where it stopped matching the original exactly: 113 and 906 did
@@ -1618,46 +1637,19 @@ namespace LaserTank.Game
                 return;
             }
 
-            // The graphics menu is a modal dialog: while it is up the main
-            // window has no focus, so no WM_KEYDOWN fires and nothing reaches
-            // AddKBuff -- not even the arrows and space, which is what makes it
-            // safe for the menu to navigate with them.  The *timer* is not
-            // modal, though: command 226 never calls GameOn(FALSE) and
-            // DialogBox's loop still dispatches WM_TIMER, so the game below
-            // keeps ticking and an exposed tank can die while you pick a pack.
-            if (_menu != null && _menu.Open)
+            // **The settings panel, which was four of these blocks until step
+            // 18.**  It is a modal dialog: while it is up the main window has no
+            // focus, so no WM_KEYDOWN fires and nothing reaches AddKBuff -- not
+            // even the arrows and space, which is what makes it safe for the
+            // panel to navigate with them.  The *timer* is not modal, though:
+            // command 226 never calls GameOn(FALSE) and DialogBox's loop still
+            // dispatches WM_TIMER, so the game below keeps ticking and an
+            // exposed tank can die while you pick a pack.
+            //
+            // It takes the whole event rather than the keycode, because one of
+            // its four sections is a text field and a field needs the unicode.
+            if (_settings != null && _settings.Key(k))
             {
-                _menu.Key(k.Keycode);
-                GetViewport().SetInputAsHandled();
-                return;
-            }
-
-            // The language picker, on exactly the same terms as the graphics
-            // one -- modal for keys, not for the clock.  See LanguageMenu.
-            if (_langMenu != null && _langMenu.Open)
-            {
-                _langMenu.Key(k.Keycode);
-                GetViewport().SetInputAsHandled();
-                return;
-            }
-
-            // The name panel, on the same terms again -- and it is the one
-            // panel here that must take *every* key, because it is a text
-            // field: see NameMenu.Key.
-            if (_nameMenu != null && _nameMenu.Open)
-            {
-                _nameMenu.Key(k);
-                GetViewport().SetInputAsHandled();
-                return;
-            }
-
-            // The game options panel, on the graphics picker's terms rather
-            // than the name panel's: it takes every key because it is a dialog,
-            // but it wants the keycode and not the event -- there is no field
-            // in it, so nothing needs the unicode.
-            if (_optMenu != null && _optMenu.Open)
-            {
-                _optMenu.Key(k.Keycode);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -1706,11 +1698,16 @@ namespace LaserTank.Game
             {
                 if (!_edit.Key(k))
                 {
-                    // The two ACC2 shares with ACC1: Ctrl+G, the graphics
-                    // dialog, and F1 -- which is 903 in the editor's table and
-                    // 907 in the game's, two help ids for the same key.  The
-                    // overlay answers both and swaps its list for the editor's.
-                    if (k.Keycode == Key.G && k.CtrlPressed) _menu.Show(_packs, _pack);
+                    // The ACC2 shares with ACC1.  **Ctrl+O is the options
+                    // panel and Ctrl+G is its unlisted alias** -- 226 is on both
+                    // accelerator tables, so the editor reaches the graphics
+                    // section by the key the original gave it (SettingsMenu's
+                    // header says why that one key stayed).  F1 is 903 in the
+                    // editor's table and 907 in the game's, two help ids for the
+                    // same key; the overlay answers both and swaps its list.
+                    if (k.Keycode == Key.O && k.CtrlPressed) _settings.Show();
+                    else if (k.Keycode == Key.G && k.CtrlPressed)
+                        _settings.Show("graphics");
                     else if (k.Keycode == Key.F1) _help = true;
                 }
                 if (!_edit.Open) Resize();       // it left
@@ -1874,29 +1871,28 @@ namespace LaserTank.Game
                 case Key.F4: _s?.Replay(); break;                     // 124
 
                 // ---- options ------------------------------------------------
-                // Command 226, the Options menu's "Graphics" (LTANK.C:1122).
-                case Key.G when ctrl: _menu.Show(_packs, _pack); break;
-                // Step 6's picker.  No command id: the original has no such
-                // dialog, and Ctrl+L is free in ACC1 -- L alone is Load Level,
-                // and the editor's own Ctrl+L (602) is on ACC2, a different
-                // table that only applies while EditorOn.
-                case Key.L when ctrl:
-                    _langMenu.Show(Strings.Available(Paths.Data(Strings.DirName)),
-                                   Strings.Code);
-                    break;
-                // Step 14's, and no command id either: the original asks for
-                // the name in two dialogs it opens *at* you (HSBox and
-                // RecordBox), and this port asks once, where a setting lives.
-                // Ctrl+N is free in both accelerator tables -- ACC1 binds VK_N
-                // bare (102, Sound) and ACC2 does not bind it at all.
-                case Key.N when ctrl: _nameMenu.Show(_opt.Name); break;
-                // Next-steps item 3's two settings, and no command id between
-                // them: the original has 116 on the Options menu and 225 as a
-                // modal it opens *at* you, and neither is a key in ACC1.
-                // **Ctrl+O is free in both accelerator tables** -- ACC1 binds
-                // VK_O bare (108, Open Data File, which is why the `when !ctrl`
-                // above arrived with this) and ACC2 does not bind it at all.
-                case Key.O when ctrl: _optMenu.Show(); break;         // 116, 225
+                // **One panel since step 18** (next-steps item 14).  It was
+                // four: Ctrl+G (226, GraphBox), Ctrl+L (step 6's language
+                // picker), Ctrl+N (step 14's name row) and Ctrl+O (step 15's
+                // game options, which is 116 and 225).  Four dialogs of one
+                // shape on four modifiers is one dialog with four sections, and
+                // step 15 settled which modifier: `Ctrl+O` is the one of the
+                // four with original command ids behind it, and it is free in
+                // both accelerator tables -- ACC1 binds VK_O bare (108, Open
+                // Data File, which is why the `when !ctrl` above arrived with
+                // this) and ACC2 does not bind it at all.
+                //
+                // **Ctrl+L and Ctrl+N are unbound and free**, both of them this
+                // port's own invention, which is what next-steps item 13 was
+                // promised.
+                case Key.O when ctrl: _settings.Show(); break;        // 116, 225
+                // **Ctrl+G stays, and is not in the F1 list.**  It is the
+                // original's own accelerator for 226 on *both* tables, and the
+                // rule in this project is that when the original has a table
+                // you read the table -- so it survives as an unlisted alias onto
+                // the section 226 became, which is item 13's own device for `S`.
+                // See SettingsMenu's header.
+                case Key.G when ctrl: _settings.Show("graphics"); break;  // 226
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
@@ -2000,8 +1996,9 @@ namespace LaserTank.Game
                 if (!_edit.Key(new InputEventKey
                     { Keycode = code, CtrlPressed = ctrl, Pressed = true }))
                 {
-                    // ACC2's two shares with ACC1, as in the router.
-                    if (code == Key.G && ctrl) _menu.Show(_packs, _pack);
+                    // ACC2's shares with ACC1, as in the router.
+                    if (code == Key.O && ctrl) _settings.Show();
+                    else if (code == Key.G && ctrl) _settings.Show("graphics");
                     else if (code == Key.F1) _help = true;
                 }
                 if (!_edit.Open) Resize();
@@ -2042,10 +2039,7 @@ namespace LaserTank.Game
 
         private bool ChromeLive =>
             !_quitAsk && !_help
-            && !(_menu != null && _menu.Open)
-            && !(_langMenu != null && _langMenu.Open)
-            && !(_nameMenu != null && _nameMenu.Open)
-            && !(_optMenu != null && _optMenu.Open)
+            && !(_settings != null && _settings.Open)
             && !(_list != null && _list.Open)
             && !(_collections != null && _collections.Open)
             && !(_s != null && _s.Pb.PanelUp);
@@ -2058,8 +2052,7 @@ namespace LaserTank.Game
         {
             if (_list != null && _list.Open) { _list.Scroll(d); return true; }
             if (_collections != null && _collections.Open) { _collections.Scroll(d); return true; }
-            if (_menu != null && _menu.Open) { _menu.Scroll(d); return true; }
-            if (_langMenu != null && _langMenu.Open) { _langMenu.Scroll(d); return true; }
+            if (_settings != null && _settings.Open) { _settings.Scroll(d); return true; }
             return false;
         }
 
@@ -2137,9 +2130,7 @@ namespace LaserTank.Game
             // the frame a panel was opened and not yet drawn, and headless,
             // where nothing draws at all and the hit list is always empty.
             if (_quitAsk) return false;
-            if (_menu != null && _menu.Open) return false;
-            if (_langMenu != null && _langMenu.Open) return false;
-            if (_optMenu != null && _optMenu.Open) return false;
+            if (_settings != null && _settings.Open) return false;
             if (_list != null && _list.Open) return false;
             if (_collections != null && _collections.Open) return false;
             if (_s != null && _s.Pb.PanelUp) return false;
@@ -2461,10 +2452,7 @@ namespace LaserTank.Game
             // because on a wide window the board is no longer in the middle of
             // it and a dialog that ignored that sat visibly off to one side.
             Rect2 host = _l.Window;
-            if (_menu.Open) _menu.Draw(this, font, host);
-            if (_langMenu.Open) _langMenu.Draw(this, font, host, Strings);
-            if (_nameMenu.Open) _nameMenu.Draw(this, font, host, Strings);
-            if (_optMenu.Open) _optMenu.Draw(this, font, host, Strings);
+            if (_settings.Open) _settings.Draw(this, font, host);
             if (_list.Open) _list.Draw(this, font, _mono, host);
             if (_collections.Open) _collections.Draw(this, font, _mono, host);
             // The stacked layout has no column to hold the hint card, so command
@@ -3810,10 +3798,14 @@ namespace LaserTank.Game
                 new("I", "keys.interpolate", Key.I),            // ours
                 new("N", "keys.sound", Key.N),                  // 102
                 new("A", "keys.animation", Key.A),              // 104
-                new("ctrl G", "keys.graphics", Key.G, true),    // 226
-                new("ctrl L", "keys.language", Key.L, true),    // ours
-                new("ctrl N", "keys.name", Key.N, true),        // ours
-                new("ctrl O", "keys.options", Key.O, true),     // 116, 225
+                // **One row since step 18**, where four dialogs became four
+                // sections of one (next-steps item 14).  `ctrl G` is still
+                // bound -- it is 226's own accelerator and opens this panel on
+                // the Graphics section -- and is deliberately not listed: an
+                // unlisted alias is what item 13 keeps `S` as, and a key list
+                // that offers two ways into one panel is a key list saying the
+                // merge did not happen.
+                new("ctrl O", "keys.options", Key.O, true),     // 116, 225, 226
             }),
             ("help.groupSession", new Binding[]
             {
@@ -3852,7 +3844,10 @@ namespace LaserTank.Game
             {
                 new("Z", "keys.snap", Key.Z),
                 new("C", "keys.grid", Key.C),
-                new("ctrl G", "keys.graphics", Key.G, true),    // 226
+                // ACC2's own 226, on the key the merge put it behind -- see
+                // PlayKeys above, and the editor reaches Ctrl+G as an alias
+                // there too.
+                new("ctrl O", "keys.options", Key.O, true),     // 226
                 new("F1", "keys.thisList", Key.F1),             // 903
                 new("Esc", "keys.leaveEditor", Key.Escape),
             }),

@@ -62,10 +62,9 @@ Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101
 `S`/`P` next/previous level (107/119), **`Backspace` the last level played (118)**,
 `N` sound (102), `A` animation (104),
 `H` hint (301), `F1` the key list (907, and 903 in the editor),
-`Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
-(123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented),
-`Ctrl+N` your name (invented — see below),
-`Ctrl+O` the game options (116 + 225 — see below), `Z`
+`F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
+(123/117/114/124), `F8` auto-record, `F9` editor (201),
+**`Ctrl+O` the options panel** (116 + 225 + 226 — see below), `Z`
 board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit — **which asks first**.
 `[` and `]` are ours, and since step 15 they mean something `S`/`P` do not: one level, unfiltered.
 
@@ -80,8 +79,16 @@ changed.
 
 **`V` and `G` are unbound and free**, which is the one thing the merge was *for*: ACC1 has no spare
 letters, every future command needs one, and 113 and 906 were two keys spent on two renderings of
-the list `L` already opens. `Ctrl+V` (112) and `Ctrl+G` (226) are untouched — different
-accelerators, still bound, still in the table.
+the list `L` already opens. `Ctrl+V` (112) is untouched — a different accelerator, still bound,
+still in the table.
+
+**`Ctrl+L` and `Ctrl+N` are free too since step 18**, for the same reason and by the same kind of
+merge: they were the language picker and the name row, both of them this port's own invention, and
+both are sections of `Ctrl+O`'s panel now. **`Ctrl+G` is not free** — it is 226's own accelerator on
+*both* of the original's tables, so it survives as an **unlisted alias** that opens the panel on its
+Graphics section. It is deliberately absent from `PlayKeys`: when the original has a table the rule
+is to read the table, and a key list offering two ways into one panel is a key list saying the merge
+did not happen.
 
 **The list is also `PlayKeys` and `EditorKeys` in `BoardView.cs`**, which is what `F1` draws, so
 the overlay and this paragraph are two renderings of one table rather than two lists to keep in
@@ -112,9 +119,42 @@ INI, `LTANK_D.C:1247`), and **the game keeps ticking underneath** — 226 never 
 the way the Difficulty dialog (225) does, and `DialogBox`'s modal loop still dispatches the
 `WM_TIMER` posted to the main window, so an exposed tank can die while you pick a pack. Keys, though,
 go to the dialog and never reach `AddKBuff`, which is the only reason the menu may navigate with the
-arrows at all. The language picker is modelled on it deliberately: 226 *is* the original's own
-Options-menu entry, so copying its properties puts the new dialog where a player already expects
+arrows at all. The language picker was modelled on it deliberately: 226 *is* the original's own
+Options-menu entry, so copying its properties put the new dialog where a player already expects
 this kind of choice.
+
+**And those three properties are now the whole design of one panel.** `Ctrl+G` (226), `Ctrl+L` (the
+language picker), `Ctrl+N` (the name row) and `Ctrl+O` (the game options) were four dialogs of one
+shape on four modifiers — each one copied from 226 — so step 18 merged them into **one options panel
+on `Ctrl+O` with four sections**: *Game options*, *Graphics*, *Language*, *Your name*. It is a merge
+rather than a rewrite: the four bodies are the four files they always were, and what they gave up is
+the frame. The sections are chips under the title, `←`/`→` and `Tab` move between them, `↑`/`↓` are
+the body's, and **there is no OK and no Cancel and cannot be** — that is 226's rule, and it is why
+this is sections rather than tabs-with-a-commit.
+
+The frame is **one width and one height for all four**, measured over the widest and tallest thing
+any section can ever show: a panel that resized as the chips were clicked would move the chips out
+from under the pointer clicking them. The two lines of copy in the Game section and the one in Your
+name **wrap** now, which is a change step 18 made rather than inherited: they used to be measured
+single lines, so one English sentence decided the dialog was 550 px wide and the Czech one clipped
+anyway once the window clamped it. Both footer lines wrap for the same reason.
+
+The chip row **folds to a second line** rather than shrinking when its width will not hold four, and
+**no shipped language reaches that** — the panel's width is set by the section footers and bodies,
+which are all wider than four chips, so at every window size measured (down to 400 px, in German)
+the four sit on one line. It is there because a chip that shrank or clipped would be a button you
+cannot read, and a fifth section or a longer title is the ordinary way it would start firing.
+
+**All four list panels draw their rows through `Ui.RowBand`**, which exists because the arithmetic
+was wrong in the same way in all four: a band `Line + Px(3)` tall on a pitch of exactly `Line`
+overlaps its neighbour by three pixels, which shows the moment one row is selected and the pointer
+is on the row below it — the hover's top border lands above the selection's bottom border. The band
+is shorter than the pitch now, by `Px(2)`, and centred on the ink rather than on the line box — and
+**the pitch grew by `Px(2)` rather than the band shrinking by three**, because the band was the
+right size for its text all along and taking the pixels out of it put the cap heights on the top
+border. It costs the level list about two rows of a visible page. Found by playing the graphics
+picker, both times, and measured with `--dump-hits`; step 18's entry in [*Finished*](history.md) has
+the numbers.
 
 **The three list dialogs are one dialog three times — and one table since step 8.** `LoadBox`
 (106), `HSList` (113) and `GHSList` (906) each build one string per level with a `sprintf` whose
@@ -285,41 +325,45 @@ pending: the DeadBox and the Difficulty dialog (225) were answered without a dia
 that sorted them is written down there — **a 1996 dialog is not evidence that a question was being
 asked; it is evidence that a dialog was the only surface there was.**
 
-**`Ctrl+N` is the port's one name, where the original has two.** `HSBox` (`LTANK_D.C:634`) opens
-the instant a level is beaten and wants *initials* for the score it is about to post; `RecordBox`
-(`:983`) opens on the first recording saved in a session and wants an *author* for the `.lpb`
-header. They are the same question about the same person, asked at two moments because a dialog was
-the only surface there was — so this port asks once, on a panel, and keeps **one** name. It reads
-either of the original's keys when it imports a `LaserTank.ini` — `[DATA] Record Author` first,
-because it is the one that can hold a name rather than an abbreviation of one, and `[DATA] Player`
-as the fallback, because that is the dialog the 2010 binary opens first. `Options.Initials` is the
-first four characters, which is all a `.hs` record holds (`THSREC.NameEntry`), cut from the same
-string rather than typed a second time. The panel shows those four as they are typed rather than
-explaining them, because the one moment the merge can surprise somebody is when a long name becomes
-four letters on a score line.
+**The player's name is the port's one name, where the original has two.** `HSBox` (`LTANK_D.C:634`)
+opens the instant a level is beaten and wants *initials* for the score it is about to post;
+`RecordBox` (`:983`) opens on the first recording saved in a session and wants an *author* for the
+`.lpb` header. They are the same question about the same person, asked at two moments because a
+dialog was the only surface there was — so this port asks once, on a panel, and keeps **one** name.
+It reads either of the original's keys when it imports a `LaserTank.ini` — `[DATA] Record Author`
+first, because it is the one that can hold a name rather than an abbreviation of one, and `[DATA]
+Player` as the fallback, because that is the dialog the 2010 binary opens first. `Options.Initials`
+is the first four characters, which is all a `.hs` record holds (`THSREC.NameEntry`), cut from the
+same string rather than typed a second time. The panel shows those four as they are typed rather
+than explaining them, because the one moment the merge can surprise somebody is when a long name
+becomes four letters on a score line.
 
 Step 14 also **wrote** both keys back, so a `LaserTank.ini` this port had written was one the 2010
 binary opened with both dialogs already answered; step 16 retired that with the rest of the INI's
 write half. See [`rendering.md`](rendering.md).
 
-It is the quit prompt's shape rather than a list panel's — a title, a field, a line of copy and two
-answers drawn as the keys that give them — and **it is the one panel here with a Cancel**. The
-graphics and language pickers deliberately have none, because their choice is applied live and an
-Esc would be undoing what is already on screen; a name is a string and nothing behind the panel
-moves as it is typed, so a field you cannot open to look at would be the worse answer. `Enter`
-saves, `Esc` and a click outside leave it as it was, and nothing is written when the text did not
-change — pressing `Ctrl+N` to see what the name is must not add a line to a file shared with the
-2010 binary. `--panel name` reviews it and `--name STRING` is the command line's way in, persisted
+It was `Ctrl+N`'s own panel from step 14 until step 18 merged it, and it was **the one panel here
+with a Cancel**: the graphics and language pickers deliberately have none, because their choice is
+applied live and an Esc would be undoing what is already on screen, and a name is a string that
+nothing behind the panel reflects. **Step 18 took the Cancel away**, and the argument is the
+surroundings rather than the field: it is one section of a panel whose whole constraint is 226's —
+applies immediately, no Cancel, no OK — and one control that needs `Enter` inside that is the
+exception that makes the rule unreadable. So the field **commits when it is left**: `Esc`, `Enter`,
+the close button, a click outside, or a move to another section. Nothing is written when the text
+did not change, which was the half of step 14's argument that was load-bearing — opening the panel
+to see what the name is must not add a line to a file shared with the 2010 binary.
+`--panel name` (or `player`) reviews it and `--name STRING` is the command line's way in, persisted
 by `--save-options` exactly as `--sound` and `--zoom` are.
 
-**`Ctrl+O` is Skip Completed Levels and the Difficulty dialog, which are a menu item and a modal
-in the original.** `SkipCL` is `ToggleOpt(116, MMenu, &SkipCL, psSCL)` (`LTANK.C:996`) — a checkmark
-on the Options menu over `[OPT] SkipComLev`. The five-bit mask is `DiffBox` (225, `LTANK_D.C:258`)
-over `[DATA] Diff_Setting`: 1 Kids, 2 Easy, 4 Medium, 8 Hard, 16 Deadly. Both are settings about
-where the *next* level comes from and neither has anything to do with the level on screen, so they
-are one panel rather than a checkmark and a box. It applies immediately and has no OK, which is
-226's rule (`LTANK_D.C:1247`) and the constraint item 14's merged dialog will inherit; `S` toggles
-the skip, `1`–`5` toggle ranks and `0` restores all five, and `--panel options` reviews it.
+**The Game section is Skip Completed Levels and the Difficulty dialog, which are a menu item and a
+modal in the original.** `SkipCL` is `ToggleOpt(116, MMenu, &SkipCL, psSCL)` (`LTANK.C:996`) — a
+checkmark on the Options menu over `[OPT] SkipComLev`. The five-bit mask is `DiffBox` (225,
+`LTANK_D.C:258`) over `[DATA] Diff_Setting`: 1 Kids, 2 Easy, 4 Medium, 8 Hard, 16 Deadly. Both are
+settings about where the *next* level comes from and neither has anything to do with the level on
+screen, so they are one panel rather than a checkmark and a box. It applies immediately and has no
+OK, which is 226's rule (`LTANK_D.C:1247`) and the constraint the merged dialog inherited; `S`
+toggles the skip, `1`–`5` toggle ranks and `0` restores all five, and `--panel options` (or `game`)
+reviews it.
 
 **Its five chips are not the level list's five chips, and that is deliberate.** `SearchRec.Diff`
 filters the *table* you are reading and resets when you open a different collection;
@@ -406,8 +450,12 @@ wrong:
   arm). Defined, so it stays; the panel draws the slot as an empty frame so it is at least visible.
 
 **Reviewing UI without a window** is the same trick everywhere: `--shot FILE` draws one frame and
-exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint|quit|name` /
-`--editor` open the thing first. **Step 9 added four more, and they need a window rather than avoiding one**:
+exits, and
+`--panel levels|scores|global|collections|playback|help|hint|quit|settings|game|graphics|language|player`
+/ `--editor` open the thing first. **`--menu`, `--open-lang`, `--panel name` and `--panel options`
+are kept pointing at the sections their panels became** (step 18), for the reason `scores` and
+`global` are kept: a flag that used to open something should not start printing usage.
+**Step 9 added four more, and they need a window rather than avoiding one**:
 `--dump-hits` prints every clickable rectangle this frame registered, with its name; `--click X,Y`
 pushes a synthetic press and release through `MouseButton` — the whole arm, guards included — and
 prints what it landed on and what changed; `--press key:U` does the same through the keyboard's
@@ -453,7 +501,8 @@ GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.M
 ## i18n as built
 
 **Eleven keyed catalogues of this port's own text**, one JSON file per language under
-`data/language/`, plus a picker on `Ctrl+L` and a `[DATA] Language` key. The picker and the key are
+`data/language/`, plus a picker — the options panel's Language section — and a `[DATA] Language`
+key. The picker and the key are
 **invented** — the original has neither: the language is chosen by *which of the ten `Setups/` trees
 you installed* (`LANGFile` is built at `LTANK.C:1421` and never varies).
 

@@ -7,7 +7,7 @@ waiting on and what it would cost.
 **Open items only.** What is done, and what was deliberately decided against, is in
 [`history.md`](history.md) and is not repeated here. **Items keep their numbers** because the other
 files refer to them by number, so a number retires when its item closes rather than being reused —
-which is why this file starts at 4 and why **7** and **9** are no longer in it.
+which is why this file starts at 4 and why **7**, **9** and **14** are no longer in it.
 
 ---
 
@@ -47,6 +47,13 @@ remembering before the bullets below are treated as the whole of what is left.
   nothing left to grow into. It has a `squeeze` for **height** — the pitch tightens to 0.66 rather
   than letting a group fall off the bottom — and no analogue for width, so `Ui.Write` cuts where it
   runs out, which is the one thing step 7's layout rule says not to do.
+
+  **Step 18 wrote the shape down but did not prove it.** The merged options panel's section chips
+  fold to a second line rather than shrinking when their width will not hold four, which is the
+  answer proposed below for the two columns — but **no shipped language makes them fold**, because
+  that panel's width is set by wider things than its chips, so the fold has never run against real
+  content. Thirty-one rows in two measured columns is the harder version of the same problem and the
+  one where it would actually be tested.
 
   **Three answers, and the ranking is the argument.** One column plus a scroll is the worst: there
   is nothing else in this interface that scrolls except the level list's 2,030 rows, and a key list
@@ -172,7 +179,8 @@ better than one modal. Not decided.
 **And `CurLevel == 0` is the other half**, and the easier one: this port always has a level loaded,
 so the state the original drew the screen in does not occur here. Whether a fresh launch should
 land on the opening screen rather than on a board is a genuine question about what the port opens
-into, and item 12's help and item 14's options are both things such a screen would route to.
+into, and item 12's help and the options panel ([*Finished*](history.md), step 18) are both things
+such a screen would route to.
 
 ## 12. The help dialog
 
@@ -248,50 +256,9 @@ the original gave that command, so it is not a letter this item can move.
 the Difficulty dialog became rank chips and the two high-score lists became one panel. ACC1 had no
 spare letters in 1996; this port has several.
 
-## 14. One options dialog
-
-Three panels sit behind three `Ctrl` keys today and they are the same panel three times:
-
-| key | what | id |
-|---|---|---|
-| `Ctrl+G` | graphics packs | 226, `GraphBox` (`LTANK_D.C:1202`) |
-| `Ctrl+L` | language | the port's own (step 6) |
-| `Ctrl+N` | name | the port's own (step 14) |
-
-**They are already one shape**, which is what makes this a merge rather than a rewrite. Step 6 built
-the language picker *modelled on* the graphics dialog deliberately — "so copying its shape puts the
-new dialog where a player already expects to find this kind of choice, on the same modifier" — and
-step 14's name row was built as the first non-modal panel with a field in it. All three keep 226's
-three load-bearing properties: **the choice applies immediately** on cursor move, **there is no
-Cancel** because the thing being cancelled is already on screen, and **the game keeps ticking
-underneath** (226 does not call `GameOn(FALSE)`, unlike 225).
-
-**Those three properties are the whole of the design constraint.** A merged dialog with an OK button
-would break all three at once, so it does not get one: sections rather than tabs-with-a-commit, and
-every control still applying as it is touched.
-
-**What differs between the three is only the control** — a list plus author and description for
-graphics, a list with a live preview for language (the labels behind the panel change as the cursor
-moves, which is the only honest way to pick one), and a text field for the name. Three shapes in one
-frame, which is what a settings panel is.
-
-**This is the surface item 7 was waiting for, and item 7 is [*Finished*](history.md)** — step 16
-moved the settings to a typed `user://settings.json` and demoted `LaserTank.ini` to a one-way
-importer. The order was going to be 14 → 7 so that the migration was written once; it went 7 → 14
-instead, and that cost nothing, because the migration is written against the *record* and not
-against any panel. **What it leaves for this item is easier than what it was**: four panels over
-one typed object rather than four panels over a key-value file, so a merged panel is now a
-question of layout and nothing else. It is a merge of *four* rather than three: step 15 built the
-game options on `Ctrl+O` ([*Finished*](history.md)) and it is the fourth.
-
-**And step 16 settled one property of it, with something already on screen.** Step 14's name row
-writes on Save and not before, so opening it changes no file; the store makes that cheap to keep,
-because a panel now holds a copy of a record rather than a handle on a file.
-
-**And step 15 settled the key, in the direction this item did not expect.** `Ctrl+O` was listed here
-as free and as reading like *options* to a modern hand — it is both, and it is spent: it is the game
-options panel now, which is the one of the four with original command ids behind it (116 and 225).
-So the merge's key is `Ctrl+O` and the three that fold into it are `Ctrl+G`, `Ctrl+L` and `Ctrl+N`;
-three `Ctrl` keys come back rather than two. What step 15 also settled is that the merge cannot be
-a tabbed dialog with a commit: the game options apply as they are touched, the way 226 does, so the
-two halves already agree on the constraint below.
+**Two modifiers came free with step 18** ([*Finished*](history.md)), which closed item 14: `Ctrl+L`
+and `Ctrl+N` are unbound, both of them this port's own invention rather than anything of the
+original's. **`Ctrl+G` did not** — item 14 predicted three and it is two, because `Ctrl+G` is 226's
+own accelerator on both of the original's tables and survives as an unlisted alias onto the merged
+panel's Graphics section. That is this item's own device for `S`, applied one item early, and the
+reason is the rule at the top of `PROGRESS.md`: when the original has a table, read the table.

@@ -411,7 +411,8 @@ namespace LaserTank.Game
 
         // ---- drawing --------------------------------------------------------
         /// The row pitch, on the UI scale -- see LevelList.Line.
-        private static int Line => Ui.Px(16);
+        /// The row pitch -- LevelList's, and see Ui.RowBand.
+        private static int Line => Ui.Px(18);
 
         /// The air above a heading, which is what makes a shelf read as a shelf
         /// rather than as a row in a different colour.  Not applied to the
@@ -607,8 +608,7 @@ namespace LaserTank.Game
                 }
 
                 Color tint = it.Coll == _current ? CurrentTint : PlainTint;
-                var band = new Rect2(x - Ui.Px(7), y - Line + 4,
-                                     w + 2 * Ui.Px(7), Line + 3);
+                Rect2 band = Ui.RowBand(x - Ui.Px(7), y, w + 2 * Ui.Px(7), Line);
                 int at = i;
                 // The hit name stays the collection's index in `_all` and not
                 // the drawn position, so `row:0` is still the first collection

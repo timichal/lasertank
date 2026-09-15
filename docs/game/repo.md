@@ -68,7 +68,11 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                     Options.cs     the one-way LaserTank.ini importer
                     Settings.cs    the typed store at user://settings.json
                     Packs.cs       GFXInit's three modes
-                    GraphicsMenu.cs  GraphBox (226);  LanguageMenu.cs  Ctrl+L (ours)
+                    SettingsMenu.cs  Ctrl+O's one panel, and the four
+                                   sections it merged: GameSection.cs (116 +
+                                   225), GraphicsSection.cs (GraphBox, 226),
+                                   LanguageSection.cs and NameSection.cs (ours)
+                    TextField.cs   one edit control for the four fields
                     LevelList.cs   LoadBox/HSList/GHSList — one class, three modes
                     CollectionList.cs  command 108's picker;  CollectionCheck.cs
                                    its headless dump
