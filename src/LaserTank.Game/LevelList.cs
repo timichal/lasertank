@@ -256,9 +256,12 @@ namespace LaserTank.Game
         private string _forPath = "";
 
         /// Whether anything is narrowing the list, which is what the caption
-        /// has to say before it prints a count.
+        /// has to say before it prints a count.  `_byAuthor` is not in here:
+        /// it picks *which* field an empty query would be matched against and
+        /// admits every row on its own, so tabbing the radio pair over would
+        /// otherwise turn the caption into `2030 of 2030` with nothing filtered.
         public bool Filtering =>
-            !_q.Empty || _byAuthor || _diff != All || _unsolvedOnly;
+            !_q.Empty || _diff != All || _unsolvedOnly;
 
         /// Read the three files and build the table.  The original does this in
         /// WM_INITDIALOG, once per opening, and so does this: a .hs written by
