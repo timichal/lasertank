@@ -300,7 +300,10 @@ can do*.
 
 ## What is open
 
-**One item.** Numbers are kept because these files refer to
+**Six items, and five of them are the old *Further out* bullets written out as items on 2026-09-15** —
+not new work, but each one now with a recipe, a cost and the measurement that would refuse it. The gate
+that section carried (*only after the numbers above have moved*) was met when item 2's fourth pass ran
+and item 10 closed. Numbers are kept because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
@@ -308,6 +311,11 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 | # | order | what it is | cost |
 |---|---|---|---|
 | **7** | **1st** | the solved-vs-budget curve, three budgets over every level the chain fails. **`tools/curve_pass.sh` is the recipe and session 50 priced it with its own `price`**: **45 h of job time, ~7 h wall at 16 jobs** for the 1-in-15 stride's 253 levels, and 36.5 h of that is the 50M rung alone. The macro beam is **free** at every rung — 0 of 30 priced levels reached the node cap. **Closed item 19 handed it a second question**: two push arms that tie at 40M differ **1.6x in nodes** on the levels they share, so where they separate is a rung of this curve | **~7 h wall** at SAMPLE=15; SAMPLE=1 is ~15x that |
+| **20** | 2nd | **`--push-depth` is not a backstop on the `enables` arm.** Closed item 2 turned it up without being asked: `enables` is the only arm that stops on `push-depth` at scale — **177 levels of 3,691** against `l8fire`'s 6 and `layer7`'s 3 — leaving a median **10M of the 40M nodes unspent**. The population is banked (the `push-depth` rows of `l5-enables.jsonl`), the control is **0 of 177**, and the arm is re-run uncapped rather than raised, because *does this cap bind* is binary and *is 4,000 better than 1,200* is not a question | **~2 h wall**, derived off item 2's own rate rather than a `price` run |
+| **21** | 3rd | **The two bench-1 lists through one binary.** Session 48 recovered the original 60-level bench 1 beside the committed reconstruction, and the pair makes possible the one measurement neither could make alone — **the population isolated from the code**, which every bench-1 delta this project has argued about confounds. If they separate at layer 0 that is the answer; the held-out GAUNTLET use is weaker and comes second | **minutes** — 60 levels at 150k, twice |
+| **22** | 4th | **Subgoal chaining over board changes.** The acceptance test is already in `Subgoal.Offer`, and the first step is not a build: run the arithmetic against `--analyze` on levels 6 and 10 — how many subgoals, how deep each is on the hand line — because 20M nodes is the sizing and a deeper read makes it a number the driver does not have. **Closed item 5 is what it has to beat**: level 6's phases are short, the commitment is right, and the beam still cannot walk phase 2 from any board | **free** to refuse; a build to confirm |
+| **23** | 5th | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
+| **24** | parked | **Parent pointers instead of copied keystreams.** `Snapshot` copies the whole key prefix and `Restore` copies it back, which is why 76,800 wide was 1.1 GB. **The trigger is written down**: a run bounded by memory rather than nodes, which has happened once (level 9) and which items 14 and 19 between them argue against wanting again. It is also the one item that changes Core, so it is built and gated on the **game** machine before the solver machine trusts the binary | — |
 
 **Item 2 closed on 2026-09-15 and it is the largest single result in these files.** The fourth pass ran
 its three arms over all 3,691 of the chain's failures at 40M nodes and came back with **1,087 (29.5%)**,
@@ -483,7 +491,7 @@ inferred from a scratch recording),
 Nothing on the list is blocked on any of it and three items inherit from it — `--goal-board`'s
 hint-assisted bootstrap becomes a corpus-scale supply of real recordings on long levels, which is the
 off-distribution sample layer 4 is fit on and `--profile` / `basin.py`'s only input; the per-flag boards
-are a subgoal sequence for *Further out*'s chaining note; and every falsifier items 15-17 were measured
+are a subgoal sequence for item 22's chaining; and every falsifier items 15-17 were measured
 on reads only the 20 hand recordings. **What it does not supply is human routes** — a goal board names the
 destination, not the path.
 
@@ -529,6 +537,7 @@ hazard that pairing actually carries was checked rather than assumed. `BUDGET_MS
 nodes**, so contention can truncate a level and silently spoil an arm; it did not come close — every one
 of the 54 failures stopped on `budget` and the worst level took **501 s of 1,800 s**, in line with the
 542 s and 429 s the two item-14 arms that ran beside the pass had already recorded. **With item 2 closed
-nothing on this list needs the machine to itself**, and the one remaining item can have all sixteen jobs —
+nothing on this list needs the machine to itself**, and item 7 can have all sixteen jobs while items
+20-23 run beside it —
 but the rule the pass proved is the one to reach for next time it does: **a node-governed pass costs a
 cheap item its wall clock and none of its numbers.**

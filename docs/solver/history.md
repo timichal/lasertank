@@ -3037,7 +3037,7 @@ capped below 2x by its own first table. **The rule this session adds is about de
 the run that would have priced the early exit (one level, one thread, a minute of one core) is written
 down in the closed item *as not taken and why*, because a declined measurement that leaves no record
 gets proposed again. `push_memo.sh` also stopped overwriting its own reports, which is what made session
-50's two columns unrecoverable. **The open list is one item: 7.**
+50's two columns unrecoverable. **The open list is six items: 7 and 20-24.**
 
 ## Where session 26's twelve pointers went
 
@@ -3053,10 +3053,10 @@ and this is the map:
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |
 | 5 | level 10: the file's arithmetic and the machine disagree | closed item 8 above — **the pointer was right about the depth and wrong about the key** |
 | 6 | the driver cannot be run unattended | closed item 9 above — `--max-round` |
-| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#further-out-and-only-after-the-numbers-above-have-moved), further out |
-| 8 | subgoal chaining over board changes | [next-actions](next-actions.md#further-out-and-only-after-the-numbers-above-have-moved), further out |
+| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#23-5th--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus) item 23 |
+| 8 | subgoal chaining over board changes | [next-actions](next-actions.md#22-4th--subgoal-chaining-over-board-changes) item 22 |
 | 9 | `MaxKeys` from the record, not from a global | closed item 12 above — `--max-keys-record` |
-| 10 | the width ceiling is memory, and the memory is keystreams | [next-actions](next-actions.md#further-out-and-only-after-the-numbers-above-have-moved), further out |
+| 10 | the width ceiling is memory, and the memory is keystreams | [next-actions](next-actions.md#24-parked--parent-pointers-instead-of-copied-keystreams) item 24, parked |
 | 11-12 | the three *checked, and not opportunities* items | [next-actions](next-actions.md#checked-and-not-opportunities) |
 
 **One pointer is worth re-reading as a lesson rather than as an item.** Pointer 5 read level 10's first
