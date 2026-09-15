@@ -36,122 +36,32 @@ byte-identically to it on the whole recorded corpus (`src/LaserTank.Core/`), a d
 and `src/LaserTank.Game/` — a playable Godot game with the game around it, an editor, and ten
 languages.
 
-It draws any level from `Game.BMF` with any of the four sprite sheets, runs a fixed 20 Hz tick,
-takes the keyboard through the original's own `WM_KEYDOWN` filter and its own accelerator keys,
-plays the original's sixteen WAVs off the sound ids the tick itself computes, undoes, saves and
-restores a position, picks a collection and a level inside it and shows both high-score lists out of
-`.lvl`/`.hs`/`.ghs`, writes
-a `.hs` the 2010 binary would recognise byte for byte, records and plays back `.lpb` at all three
-speeds, takes the mouse both as a *move order* through the original's own `MouseOperation` and as
-the editor's brush, **answers that mouse in its own chrome as well — every keycap, pill, row and
-card is a button, and a tap is a click**, edits and saves a `.lvl` byte-faithfully, labels the
-board A1–P16 on all four sides the way `WM_PAINT` does, shows its UI in any of the original's ten
-translations, remembers its settings in a typed `user://settings.json` — importing a
-`LaserTank.ini` once if it finds one, and never writing that file — takes the player's name
-**once** where the original asks for it in two dialogs, and
-walks the collection the way `LoadNextLevel` does — past the ranks you did not ask for and past the
-levels you have already beaten — and goes **back** the way `Backspace[]` does, to the level you were
-just on.
+**What it does.** It draws any level from `Game.BMF` with any of the four sprite sheets, runs a
+fixed 20 Hz tick, takes the keyboard through the original's own `WM_KEYDOWN` filter and its
+accelerators, plays the original's sixteen WAVs off the sound ids the tick itself computes, undoes,
+saves and restores a position, records and plays back `.lpb` at all three speeds, reads and writes
+`.lvl`/`.hs`/`.ghs` byte-faithfully — a `.hs` the 2010 binary would recognise byte for byte — takes
+the mouse both as a *move order* through the original's own `MouseOperation` and as the editor's
+brush, labels the board A1–P16 on all four sides the way `WM_PAINT` does, and walks the collection
+the way `LoadNextLevel` does — past the ranks you did not ask for and past the levels you have
+already beaten — with `Backspace` going back the way `Backspace[]` does.
 
-**It now also looks like something.** Step 7 — the redesign the faithful port was the prelude to —
-replaced the text strip under the board with a designed interface: a resizable, aspect-locked board
-that takes whatever square the window gives it, a top bar, an info column, a status line, an `F1`
-key overlay in place of the old wall of legend text, and a hint that is finally *behind* a key
-instead of spoiling every level that has one. Nothing mechanical moved and every gate says so. See
-[*Finished*](docs/game/history.md).
+**The chrome is the port's own**, not the text strip under the board it started as: a resizable,
+aspect-locked board that takes whatever square the window gives it, a top bar, an info column laid
+out on a rail, a status line, an `F1` key overlay in place of a wall of legend text, and a hint
+behind a key rather than on the screen. Ember on warm black, hard corners enforced at the
+primitive, two OFL faces shipped rather than named. The level list is usable at the size the corpus
+actually is — a filter bar, a three-rank mark column, a dragged scrollbar — and the collection
+picker is a catalogue on four shelves rather than one alphabetical run. There is **one** options
+panel, on `Ctrl+O`, with four sections and no OK button, which is 226's own rule. The player's name
+is asked once and written to both of the original's keys. Settings are a typed
+`user://settings.json`; `LaserTank.ini` is a one-way importer, read once on a first run and written
+never. Every piece of chrome answers the mouse — every keycap, pill, row and card is a button, and
+a tap is a click.
 
-**And since step 10 it looks like something in particular.** Step 7's chrome was competent and
-generic — a cool slate ground, cards at one radius with one border and one gap, a stat-tile row for
-the two counters, and type asked for by the names `Segoe UI` / `Inter` / `SF Pro` — and a player
-said so, in the one register no instrument in this tree can measure. It is an ember-on-warm-black
-technical readout now: one dominant hue chosen by *measuring* the four packs' grounds rather than by
-assuming they contest the whole wheel (they occupy a third of it), hard corners enforced at the
-primitive so they cannot drift back, two OFL faces shipped rather than named — which also fixed the
-fixed-pitch level list on the one target that had no fixed-pitch face — and an info column laid out
-on a rail with no cards in it, read from both ends. **All nineteen gates are green, `options_check`
-included**, because nothing about the board moved. The full diagnosis, and the one wrong argument in
-`Ui.cs` that produced most of it, is in [*Finished*](docs/game/history.md).
-
-**And since step 11 the one table is a list you can use at the size the corpus actually is.**
-Steps 8 and 9 built it and gave it a pointer; what it still was, at 2,030 rows, was one screenful of
-a file with no way to narrow it, no way to see which rows were done, no way down it but the wheel,
-and a habit of closing itself whenever a finger slipped onto a letter. It has a filter bar — the
-original's Search sub-dialog inlined, substring, title-or-author, difficulty mask and only-unsolved
-— a three-rank mark column, gutters between its column rules, and a scrollbar that is the one thing
-in this interface that is *dragged*. **Four of the five changes turned out to be the original's own
-behaviour**, read out of `LTANK_D.C` rather than invented, which is the finding worth keeping: the
-port had gone past the C in places nobody had gone back and re-read. All nineteen gates are green
-and `chrome_check` has two more things to check. See [*Finished*](docs/game/history.md).
-
-**And since step 12 the collection picker is a catalogue rather than a directory listing.** It
-had 23 rows in one alphabetical run, with `4triang` between `Special-I` and `Game-Objects-in-LT`
-and nothing to say that one of those is 2,030 levels of the actual game and another is five
-positions of a walkthrough for level 149. It has shelves now — **Collections**, **Tutorials**,
-**Walkthroughs**, **Your levels**, this port's naming rather than the website's — a line per
-collection on hover, `LaserTank` first, the tutorials in teaching order and the hint files in level
-order, the ten of them named (`Level 149: The 4 Triangles`, not `4triang`) rather than left as
-whatever the zip called the file, **only `Esc` to close it**
-(which is what the level list has done since step 11 — the two pickers are one panel to use), and
-the column heads `LevelList` has had since step 8 (the rows' own size,
-faint, with a rule under them, which is also what stopped the first row's hover band lighting
-them). **The grouping is a display layer downstream of `Scan` and `BuildRows`**, so
-`collections_check.py` still diffs the same rows against Python; the ten names are the one thing
-that reaches a row, and they are written out again in the gate. The copy
-is laser-tank.com's facts in this port's sentences, with the upstream wording quoted beside each
-group in `CollectionNotes.cs`.
-
-**And since step 14 the player has a name, once.** The original asks twice — `HSBox` wants
-initials the instant a level is beaten, `RecordBox` wants an author the first time a recording is
-saved — and they are the same question about the same person, asked at two moments because a 1996
-dialog was the only surface the program had. `Ctrl+N` is one field on one panel, and `Options.Name`
-**writes both of the original's keys** from it, so a `LaserTank.ini` this port wrote is one the 2010
-binary opens with both of its dialogs already answered. The panel shows the four characters a `.hs`
-record can hold as they are typed, because that is the one thing the merge can surprise anyone with.
-On the way it took the refactor next-steps item 3 had named as the thing to do first — the level
-list's filter, the editor's three fields and this one are `TextField` now — and **that second copy
-made two bugs visible**: the editor's fields had never had the length cap their own comment claimed,
-and the filter accepted characters no `.lvl` can contain. See [*Finished*](docs/game/history.md).
-
-It also turned up **a gate that had been red for a reason nobody could reproduce**, on a screen
-nothing had touched: `chrome_check` took its baseline INI by *copying the player's*, and three
-fields in that file decide what the gate is looking at — the collection (`--panel playback` needs
-one of the two with `data/demos/`), the sound (the `MUTED` pill is a clickable target), and the size
-preset (every target scales off the window). The baseline is a file the gate writes now. Both green.
-See [*Finished*](docs/game/history.md).
-
-**And since step 16 the player's settings are the port's own file, in the one place Godot
-guarantees is writable.** They were a `LaserTank.ini` at the repo root — right for step 2, which
-was about reading the 2010 binary's file correctly, and wrong for an exported build, which lands
-somewhere unwritable. Three jobs had collected in that one class; the settings are a typed record
-at `user://settings.json` now, `LaserTank.ini` is a one-way importer read once on a first run and
-written never, and the atoi/strcmp findings it exists to record are all still there and still
-pinned. Two false greens and a second gap in the instrument list fell out of it. See
-[*Finished*](docs/game/history.md).
-
-**And since step 17 `Backspace` goes back.** Command 118 is **not** undo — undo is 110, it is `U`
-and it has been ported since Phase 2; 118 is a stack of level *numbers*, pushed by every load and
-popped by the key, which is "take me back to the level I was just on". The original's is a ten-slot
-ring and this one is a plain unbounded list, which is the deviation and a safe one: `VK_BACK` is 8,
-`WM_KEYDOWN` drops everything outside VK 32–40 before `AddKBuff`, so the history cannot reach a
-`.lpb`, an `.hs`, a solver result or any fidelity gate. Command 108 clears it. Gated anyway, because
-a stack is state no frame draws: `--check-history` prints it and `options_check.py` rebuilds the
-expected one in Python. See [*Finished*](docs/game/history.md).
-
-**And since step 18 there is one options panel where there were four.** `Ctrl+G` (226,
-`GraphBox`), `Ctrl+L` (the language picker), `Ctrl+N` (the name row) and `Ctrl+O` (the game options)
-were the same dialog four times — a scrim, a box, a title, a rule, a body and a footer, each
-measuring its own width — and they were four *on purpose*: every one of the three invented panels
-was copied from 226, which step 6 wrote down at the time. So they are one panel on `Ctrl+O` with
-four sections and **no OK button**, which is 226's own rule (Close and Cancel run the same code,
-`LTANK_D.C:1247`) and the constraint next-steps item 14 named. The one behaviour that changed is
-step 14's Save/Cancel: a field that needs `Enter` inside a panel whose whole design is "no Cancel"
-is the exception that makes the rule unreadable, so the name commits when it is left — and the half
-of step 14's argument that was load-bearing survives, because opening the panel to look at the name
-still writes no file. **Two `Ctrl` keys came back rather than the three item 14 predicted**:
-`Ctrl+L` and `Ctrl+N` are free, and `Ctrl+G` stays as an *unlisted* alias onto the Graphics section
-because it is 226's own accelerator on both of the original's tables. Every gate is green;
-`chrome_check` has a fifteenth screen and four more targets on every screen the panel is up.
-See [*Finished*](docs/game/history.md).
+**Nothing mechanical has moved for any of it, and every gate says so** — see [*Build, then check
+nothing rotted*](#build-then-check-nothing-rotted). Why each piece is the shape it is, and what was
+declined on the way, is in [*Finished*](docs/game/history.md).
 
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
@@ -256,23 +166,10 @@ waiting on and what it would cost, is in
 sends what closes to [*Finished*](docs/game/history.md).
 
 **Items keep their numbers**, so a number retires with its item rather than being reused and the
-gaps where **1** and **2** were are deliberate. **1** was i18n and it is
-[*Finished*](docs/game/history.md), step 13: the audit it asked for was run, the rule it was to be
-run on — *a key is read by a widget or it goes* — answered *go* for the 2007 strings as a whole, and
-`data/language/` is eleven catalogues of the port's own text with `tools/strings_check.py` failing
-both ways over them. **2** was a menu bar and it is [*Finished*](docs/game/history.md), decided
-against — `F1` and step 9 had already taken both halves of what it was for, and the route it still
-claimed to add is a route to commands item 8 has not written yet. **3** was `SkipComLev` and
-`Diff_Setting` and it is [*Finished*](docs/game/history.md), step 15: the two INI keys are read and
-written, `LoadNextLevel`'s filter is `Session.Advance`, and `Ctrl+O` is the panel over both.
-**7** was the settings and it is [*Finished*](docs/game/history.md), step 16: the port's settings
-are a typed record at `user://settings.json`, `LaserTank.ini` is a one-way importer that nothing
-writes, and the repo-root write is gone. **9** was the level history and it is
-[*Finished*](docs/game/history.md), step 17: `Backspace` is command 118, the stack is a plain
-unbounded list rather than the original's ten-slot ring, command 108 clears it, and
-`options_check.py` has a fifth arm over `--check-history`. **14** was the four options dialogs and
-it is [*Finished*](docs/game/history.md), step 18: they are one panel on `Ctrl+O` with four
-sections, no OK button, and two of the three `Ctrl` keys it expected back.
+gaps in the table are deliberate. Retired: **1** i18n (step 13), **2** a menu bar (decided
+against), **3** `SkipComLev`/`Diff_Setting` (step 15), **7** the settings store (step 16), **9**
+the level history (step 17), **14** the four options dialogs (step 18) — all in
+[*Finished*](docs/game/history.md).
 
 | # | what it is | the short of it |
 |---|---|---|
