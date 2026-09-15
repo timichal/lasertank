@@ -168,8 +168,8 @@ account is in [*Finished*](history.md), step 11; the short form:
 * **Only `Esc` closes it.** `TransListKey` (`LTANK_D.C:87`) answers Home / Up / Down / End / PgUp /
   PgDn and `VK_ESCAPE` and returns **-2 — no action — for everything else**. The port's "any other
   key closes" was a step-7 convenience with no warrant here, and a text field makes it impossible
-  anyway. Space went with it; the original's Enter is `WM_COMMAND` id 1. **Every other panel keeps
-  "any other key"**, because none of them has anywhere for a letter to go.
+  anyway. Space went with it; the original's Enter is `WM_COMMAND` id 1. **The collection picker
+  followed in step 12**; the rest keep "any other key", because none of them is a list you browse.
 * **A filter bar: the Search sub-dialog (`SearchBox`, `LTANK_D.C:197`) inlined.** A substring field,
   a Title/Author pair, the five-bit difficulty mask and "only unsolved" — in the panel rather than in
   a dialog over it, because a filter you cannot see while you read the list is a filter you forget is
@@ -192,6 +192,40 @@ account is in [*Finished*](history.md), step 11; the short form:
   a latch in `BoardView` and `MouseMotion` feeds `LevelList.DragTo`. It moves the viewport and pulls
   the cursor after it: **one position, not two**, which is the same rule the wheel follows from the
   other end.
+
+**The collection picker is that panel's shape one level up, and since step 12 it is a catalogue
+rather than a directory listing.** `O` (108) lists what is *in the repo* — 23 `.lvl` under
+`data/levels/`, `data/quirks/` and `out/levels/` — instead of opening a file dialog; what is lost is
+opening a `.lvl` from anywhere on the disk, which `--levels` still does, and what is gained is the
+solved count out of each `.hs` beside it. Three things step 12 added:
+
+* **Shelves**, and the names are this port's rather than upstream's: **Collections** (the thirteen
+  with a `.ghs`), **Tutorials** (the six teaching packs), **Walkthroughs** (the four hint files —
+  one hard level of the original shown part-solved) and **Your levels** (`out/levels/`, not drawn
+  until the editor saves something). The site's own groupings are *More Levels* — the ones with no
+  high-score page, none of which are here — and *Trainings, Tutorials & Tricks* and *Hint files*, a
+  heading and a filename. **The grouping is a display layer and nothing more**: `Scan` and
+  `BuildRows` are what `collections_check.py` diffs against Python, the shelves are applied
+  downstream of both, and the hit names stay the collection's index in `_all` rather than the drawn
+  position. **`LaserTank` sorts first** — it is the original and the one the other twelve are measured
+  against, and alphabetical order buried it between Gary-II and Sokoban-I — and **Walkthroughs sort
+  by the level they open out**, 40, 149, 173, 179, rather than by filename. Those five entries are
+  the whole of `CollectionNotes.Order`; everything else keeps the scan order.
+* **Only `Esc` closes it**, as in the level list — `TransListKey`'s -2, *no action*, for every other
+  key. This panel kept "any other key closes" one step longer on the argument that it has no filter
+  field; the two pickers being one panel to *use* outranks it.
+* **A line per collection, on hover, falling back to the selection.** A `.lvl` names its levels and
+  cannot name itself, so the copy has nowhere else to live; `CollectionNotes` is the catalogue, the
+  facts are laser-tank.com's, the sentences are not, and the upstream wording is quoted in the file
+  beside each group. A stem nobody wrote a line for shows its path.
+* **The column heads are `LevelList`'s rules at last** — the rows' own size, faint rather than
+  small, and a rule under them. They were a point smaller, which breaks a table placed by character
+  column, and separated by air, so the first row's hover band reached up and lit them.
+
+The panel sizes itself to its contents rather than to a fixed square, the footer sheds a clause
+rather than clipping, and a shelf blurb that will not fit is dropped rather than cut. The wheel
+moves the *cursor* and the viewport follows — there is no scrollbar here, so the head line carries
+a `N more · scroll` count when the window is too short for the list.
 
 **`--type STRING` is the filter field's instrument**, and it exists because neither of the other two
 could reach it: `--press` goes through the accelerator table and a text field is not an accelerator,

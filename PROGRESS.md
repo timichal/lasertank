@@ -79,6 +79,27 @@ behaviour**, read out of `LTANK_D.C` rather than invented, which is the finding 
 port had gone past the C in places nobody had gone back and re-read. All nineteen gates are green
 and `chrome_check` has two more things to check. See [*Finished*](docs/game/history.md).
 
+**And since step 12 the collection picker is a catalogue rather than a directory listing.** It
+had 23 rows in one alphabetical run, with `4triang` between `Special-I` and `Game-Objects-in-LT`
+and nothing to say that one of those is 2,030 levels of the actual game and another is five
+positions of a walkthrough for level 149. It has shelves now — **Collections**, **Tutorials**,
+**Walkthroughs**, **Your levels**, this port's naming rather than the website's — a line per
+collection on hover, `LaserTank` first and the hint files in level order, **only `Esc` to close it**
+(which is what the level list has done since step 11 — the two pickers are one panel to use), and
+the column heads `LevelList` has had since step 8 (the rows' own size,
+faint, with a rule under them, which is also what stopped the first row's hover band lighting
+them). **The grouping is a display layer downstream of `Scan` and `BuildRows`**, so
+`collections_check.py` still diffs the same rows against Python and went green unchanged. The copy
+is laser-tank.com's facts in this port's sentences, with the upstream wording quoted beside each
+group in `CollectionNotes.cs`.
+
+It also turned up **a gate that had been red for a reason nobody could reproduce**, on a screen
+nothing had touched: `chrome_check` took its baseline INI by *copying the player's*, and three
+fields in that file decide what the gate is looking at — the collection (`--panel playback` needs
+one of the two with `data/demos/`), the sound (the `MUTED` pill is a clickable target), and the size
+preset (every target scales off the window). The baseline is a file the gate writes now. Both green.
+See [*Finished*](docs/game/history.md).
+
 **There are no stubs left in the transliteration.** `MouseOperation` was the last one.
 
 **What is deliberately frozen.** `original/` is a read-only historical artifact.

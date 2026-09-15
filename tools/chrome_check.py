@@ -45,11 +45,12 @@ options_check does for its pixel measurements.
     python tools/chrome_check.py --no-diff  # aim and reach only, ~15 s
 
 It rebuilds the Godot project's C# first, because `godot --path` does not.  It
-writes nothing of the player's: LaserTank.ini is snapshotted once and every run
-gets a throwaway copy of that snapshot, so a `key:N` that toggles the sound
-persists into the copy and not into the player's file -- and, because the
-baseline cannot move under a pair of runs, a second gate or a game left open
-elsewhere cannot turn this red.
+neither writes nor reads the player's LaserTank.ini: the baseline is an INI this
+gate *writes* (see write_baseline) and every run gets a throwaway copy of it, so
+a `key:N` that toggles the sound persists into the copy and not into anyone's
+settings -- and, because the baseline cannot move under a pair of runs, a second
+gate, a game left open elsewhere, or a session that happened to end on a
+different collection cannot turn this red.
 
 Exit: 0 clean, 1 a mismatch, 2 environment.
 """
@@ -195,6 +196,51 @@ def pressed_state(lines):
     return None
 
 
+BASELINE = """[SCREEN]
+Graphics_Dir=%s
+Size=3
+Graphics_Mode=0
+[DATA]
+Language=en
+[OPT]
+Animation=Yes
+Sound=No
+"""
+
+
+# **The baseline is a file this gate writes, not a copy of the player's.**
+#
+# It used to be a copy, and the copy carried whatever the last session left in
+# LaserTank.ini -- which is not a detail, because three of those fields decide
+# what this gate is even looking at:
+#
+#   RLLFilename  the collection.  `--panel playback` wants
+#                `data/demos/<collection>/00001.lpb`, which exists for two
+#                collections out of twenty-three, so a tree left on Challenge-IV
+#                failed three playback targets.
+#   Sound        the `MUTED` pill is drawn only when sound is off, and a pill is
+#                a clickable target -- so turning sound on in the game silently
+#                removed one target from `play`, `stacked`, `editor` and `hint`
+#                and four pairs from the differential.
+#   Size         the window preset, and every target's size scales off the
+#                window -- a small enough one puts them under the MIN_PX floor
+#                this gate exists to enforce.
+#
+# Each of those is a red screen nobody had touched, which reads as someone
+# else's regression rather than as the environment, and none of them reproduces
+# on another machine.  So the values are written here instead of inherited.
+# `Graphics_Dir` is the one field taken from the tree rather than invented,
+# because it is a path and this is the only place that knows it; `Graphics_Mode`
+# is 0, the internal sheet, so the gate does not depend on a .ltg being present.
+#
+# The rule, which step 11 got half of: it is not enough that a gate writes
+# nothing of the player's -- **it must not read what the player can change
+# either.**
+def write_baseline(path):
+    path.write_text(BASELINE % (ROOT / "data" / "graphics"),
+                    encoding="latin-1")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -222,15 +268,12 @@ def main():
     # -- another gate, a game left open -- gave them different starting sound
     # and animation and the pair "disagreed" about a key that does neither.
     snapshot = tmp / "base.ini"
-    src_ini = ROOT / "LaserTank.ini"
-    if src_ini.exists():
-        shutil.copy(src_ini, snapshot)
+    write_baseline(snapshot)
 
     def fresh():
         """Every case starts from the same INI, and none of them writes to the
-        player's."""
-        if snapshot.exists():
-            shutil.copy(snapshot, ini)
+        player's -- nor reads it.  See write_baseline."""
+        shutil.copy(snapshot, ini)
 
     fails = []
     screens = 0

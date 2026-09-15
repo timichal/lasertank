@@ -30,6 +30,12 @@ the site's data administrator, not part of the game). This snapshot: **2026-04-1
 The zip was verified byte-identical to these extracted files before being discarded; its three
 index text files are in `meta/`.
 
+Each collection also has a download page at `levels/<name>.html` carrying a one-line description of
+it (`lasertank.html`, `challenge-I.html`, …, reached from the frameset in `levels/levelstop.html`).
+Those lines, and the help page's two groupings, are the source for
+`src/LaserTank.Game/CollectionNotes.cs` — the copy the collection picker shows. Rewritten there
+rather than quoted, with the upstream wording kept in the comments beside each group.
+
 ## `quirks/` — 10 packs, 317 levels, 187 `.lpb` playbacks
 
 From the **Help** section, `https://laser-tank.com/_help/<name>.zip` — re-downloadable with a

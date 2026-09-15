@@ -649,8 +649,9 @@ places nobody had gone back and read.
 Home / Up / Down / End / PgUp / PgDn and `VK_ESCAPE`, returning **-2 — *no action* — for everything
 else**. The port's "any other key closes" was a step-7 convenience with no warrant here, and it is
 what a text field makes impossible anyway. Space went with it: the original's Enter is `WM_COMMAND`
-id 1 and space was never a second one. Every *other* panel keeps "any other key", because none of
-them has anywhere for a letter to go.
+id 1 and space was never a second one. Every *other* panel kept "any other key" at the time, because
+none of them had anywhere for a letter to go — the collection picker followed in step 12, for a
+different reason.
 
 **The filter bar is the Search sub-dialog, inlined.** `SearchBox` (`LTANK_D.C:197`) is a modal child
 of the LoadBox behind a `&Filter` button: a substring field, a Title/Author radio pair, a difficulty
@@ -735,3 +736,143 @@ now.
 panel never opened and the gate saw the play screen's targets instead. It is green on all twelve
 screens again, which makes the fix above load-bearing rather than tidy: **a gate that reads the
 player's mutable state has a second failure mode nobody can reproduce.**
+
+## ~~Step 12: the collection picker becomes a catalogue~~ — **done 2026-09-15**
+
+The picker built in step 8 answered *which file*, and nothing else. Twenty-three rows in one
+alphabetical run, `4triang` between `Special-I` and `Game-Objects-in-LT`, and no way to tell from
+the list that one of those is 2,030 levels of the actual game, one is five positions of a
+walkthrough for level 149, and one is the file whose readme calls its own contents bugs. The
+information was all on laser-tank.com and none of it was in the game. Three changes.
+
+**The column heads were drawn wrong and the first row's hover band lit them.** They were set a
+point smaller than the rows — in a table whose cells are placed by *character column*, which is
+only a position if every line advances by the same glyph — and separated from the rows by air
+rather than by a rule, so the first row's band (`y - Line + 4`, the same rectangle that is its hit
+box) reached up into the head's baseline and highlighted it on hover. Both are `LevelList`'s rules,
+which that panel has had since step 8: **the rows' own size, faint rather than small, and a rule
+under them.** The head string is spaced to `BuildRows`' own fields — `solved/total` set flush from
+column 25 puts its slash on the row's slash and `where` on the row's path.
+
+**The list has shelves, and they are this port's naming rather than upstream's.** The site has
+*More Levels* — which means the ones with no high-score page, none of which are in this repo — and
+*Trainings, Tutorials & Tricks* and *Hint files*, which are a heading and a filename. What actually
+separates the three groups here is what you do with them, so: **Collections** (the thirteen with a
+`.ghs`, the game proper), **Tutorials** (the six teaching packs), **Walkthroughs** (the four hint
+files, one hard level shown part-solved), and **Your levels** for `out/levels/`. A shelf with
+nothing on it is not drawn, which is `out/levels/`'s normal state.
+
+**Only Escape closes it, which is what the level list has done since step 11.** This panel kept
+"any other key closes" for one step longer, on the argument that it has no filter field for a letter
+to fall into — true, and beside the point. `TransListKey` (`LTANK_D.C:87`) answers Home / Up / Down
+/ End / PgUp / PgDn and `VK_ESCAPE` and returns **-2, *no action*, for everything else**, and the
+two pickers are one panel to look at, so they have to be one panel to use: a hand that has learned
+`O`, a glance, `Esc` should not discover that *here* the glance's stray keystroke took the panel
+away. Everything else is swallowed and does nothing — swallowed rather than passed on, because a
+letter reaching the board would move a tank nobody can see.
+
+**`LaserTank` sorts first in Collections.** It is the original file and the one the other twelve are
+measured against — upstream's own description of the Challenge files is *"You're done with the
+LaserTank.lvl file? You can now continue with these"* — and alphabetical order buried it between
+Gary-II and Sokoban-I, reading as the tenth of thirteen peers.
+
+**Walkthroughs sort by the level they open out, not by their filename.** 40, 149, 173, 179 —
+`l40`, `4triang`, `telek-1`, `inchworm` — rather than the alphabetical run the directory walk
+produces, which interleaves them meaninglessly. A hint file is *about* a level of the original, so
+the level is what orders it. Those four and `LaserTank`'s **-1** are the whole of
+`CollectionNotes.Order` — five entries rather than a field on every row, because no other shelf has
+an order of its own: everything else returns 0 and keeps the scan order, with the scan index as the
+tie-break so the result is the same on every filesystem whether or not `List.Sort` is stable. The
+two kinds of entry share one map because they are one thing: a position in a list.
+
+**The grouping is a display layer and deliberately nothing more.** `Scan` and `BuildRows` are what
+`tools/collections_check.py` rebuilds in Python and diffs row by row and by `sha256`, and
+`--check-collections` dumps them in scan order. The shelves are applied downstream of both, so the
+gate still compares the same two things it always did and went green unchanged. Same reasoning as
+step 8's for keeping these rows out of `ListMode`: **a gate means what it says only if what it
+checks did not move under it.** The hit names stay the collection's index in `_all` rather than the
+drawn position, so `chrome_check`'s `row:0` is still the first collection however the shelves are
+ordered.
+
+**And every collection has a line saying what it is, on hover.** A `.lvl` names its levels and
+cannot name itself — `TLEVEL` is 576 bytes of playfield, hint, author and rank, repeated, with no
+header — so the original never needed the copy and this port has nowhere else to put it: its Open
+Data File was comdlg32 listing a directory, and what a player knew about a collection they read on
+the website before downloading it. `CollectionNotes` is that catalogue. **The facts are upstream's
+and the sentences are not** — the download pages are a decade of accreted HTML written by several
+hands in a second language — and the upstream wording is quoted above each group in the file so the
+rewrite can be checked against what it is a rewrite *of*. A stem nobody wrote a line for still
+lists: it lands on the shelf its directory implies and shows its path instead.
+
+**The counts came out of the copy, because the row above it already has them.** Two of the
+walkthrough lines quoted the site's own stage count and two of those contradicted the file: upstream
+calls `telek-1` a *"1 level hint file"* and it ships five, and `l40` a *"2 level hint file"* and it
+ships three. A description that disagrees with the `0/5` a centimetre above it is worse than one
+that says nothing, and the row is the thing with a number in it.
+
+**The strip answers the pointer and falls back to the selection**, because a player on the keyboard
+never moves a pointer and a strip that was blank for them would be a dead third of the panel. It is
+a fixed two lines whether or not the copy fills them — a strip that grew with the sentence would
+move the list under the pointer that is asking about it.
+
+### Three things the shelves broke, and what each one cost
+
+**The panel had to stop being a fixed square.** Step 8's flat 560 was right for 23 rows of one
+kind; with headings between them and prose at the foot it is either too small to show the list or,
+on a big window, a third of a panel of empty floor with the note stranded at the bottom. It is sized
+to its contents now — three fixed bands measured once and used twice, to size the panel and then to
+place what is in it — clamped by the window, with the list scrolling when the clamp bites.
+
+**The footer clipped, which is the step-10 lesson arriving one panel late.** The line as it stood — `↑↓ or wheel picks ·
+Enter or a second click opens · any other key or a click outside closes`, before Escape-only
+shortened its last clause — is wider than the panel's inside in the monospace, and Godot answers an overrun by cutting mid-word: `...or a click o`. It
+sheds a clause at a time now, which is what `LevelList`'s caption and footer have done since step
+10. The shelf blurbs take the same treatment by a different route — **dropped rather than shed**,
+because the blurb is the one thing on its line that is optional and half of one reads as a broken
+string.
+
+**A wheel that moved the viewport was undone by the next frame.** The first attempt had `Scroll`
+move `_top` and leave the selection where it was, on the argument that `Move` skips headings; but
+the draw pulls the selection back into view every frame, so wheeling past it snapped straight back.
+The wheel moves the *cursor*, as it does in `LevelList`, and the viewport follows — **one position,
+not two**, which is the rule step 11 wrote down for the scrollbar from the other end. There is no
+scrollbar here: `LevelList`'s needs a drag latch in `BoardView`, and what the overflow is worth at
+the smallest window is one or two rows. The head line carries a count instead, because **a list that
+is a row short with nothing saying so is a list a player believes.**
+
+### And the gate that had been red for a reason nobody could reproduce
+
+`chrome_check` was failing three `playback` targets before this step started, and the stash test said
+so: the failure was on the untouched tree. The cause is the one its own step-11 entry named and did
+not finish fixing. **The snapshot the gate takes of `LaserTank.ini` carries `[DATA] RLLFilename`**,
+which is the player's "pick up where the last session left off" — and `--ini` makes the options live,
+so it applies. `--panel playback` wants `data/demos/<collection>/00001.lpb`, which exists for two
+collections out of twenty-three. This tree's INI pointed at Challenge-IV, so the panel never opened
+and the gate saw the play screen's targets instead.
+
+Confirmed rather than assumed: pointing the INI at `LaserTank.lvl` turned all twelve screens green,
+and putting it back turned three of them red again.
+
+**The first fix was too small, and the thing that caught it was the player using the game.** It
+stripped `RLLFilename` and `RLLLevel` from the snapshot and left the rest of the copy alone; then the
+next run came back green but with *nine* live targets on `play` instead of ten and 43 pairs instead
+of 47, because someone had turned the sound on in between — and the `MUTED` pill is drawn only while
+sound is off, and a pill is a clickable target. `Size` is a third one: every target scales off the
+window, so a small enough preset puts them under the `MIN_PX` floor this gate exists to enforce.
+
+So the baseline is a file the gate **writes** now — `write_baseline`, seven lines of INI, with
+`Graphics_Dir` the one field taken from the tree because it is a path and nothing else knows it, and
+`Graphics_Mode=0` so the gate does not depend on a `.ltg` being present. Green on all twelve screens
+and back to a stable 10 live / 47 pairs with this tree's INI left exactly as the player left it —
+`LaserTank.lvl`, sound on — which is the check that the inheritance is actually gone rather than
+pointed somewhere else.
+
+**Step 11 made the instruments read-only and stopped one line short, and so did the first attempt
+at this.** *"A gate that reads the
+player's mutable state has a second failure mode nobody can reproduce"* is the sentence that entry
+ends on, and it is exactly right; what it fixed was the gate **writing** the player's file. Reading
+it is the same bug from the other side, and it survived because the symptom was a red screen nobody
+had touched — which reads as someone else's regression rather than as the environment. The rule this
+leaves — written down once and then not implemented, which is why it took two passes: **a gate's
+baseline is a file it wrote, not a file it copied.** A copy with the dangerous fields removed is
+still a copy, and the next dangerous field is the one nobody has thought of yet.
