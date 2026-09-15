@@ -9,7 +9,7 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 ## Closed items — the measurements, including the negative ones
 
 Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 19 is done
-except 7 and 10, and eight of those closed *negative* or half-negative** — which is the ordering rule
+except 7, and nine of those closed *negative* or half-negative** — which is the ordering rule
 paying off rather than failing. The largest of the positives is
 [item 2](#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm),
 which took the corpus from **494 to 1,581 of 4,185** and is the only item here that cost days of machine
@@ -1435,6 +1435,342 @@ emitted came near either number, because it never won.
 Done; the flag and what it touches are in [`driver.md`](driver.md#--max-round-and---lanes). *(The
 unattended overnight run it enables has still not been made.)*
 
+### 10. Wall clock on the push rungs — the memo shipped, and the layer underneath it is declined.
+
+**Closed on 2026-09-15 in session 53 — positive on its build, and negative on what was left over.** The
+item asked why the shipped push rung runs at 166k nodes/s against layer 0's 1.4M. The answer is `PushH`
+at **41-48% of the expansion**, and the fix is `--push-memo`, a pose-keyed memo worth **1.31x** on the
+shipped rung, **1.56x** on the arm the fourth pass runs and **1.33x** on `layer7` — `IDENTICAL` on all
+three, reports field for field and every `.lpb` byte for byte, and **on by default since session 51**.
+What the item did not get is the rest of the 8.4x: it capped itself below 2x on its own arithmetic and it
+was right to. The one piece never built — a second, board-keyed layer underneath the pose memo — is
+**declined rather than deferred**, and the reasons are in
+[*the second layer, declined*](#the-second-layer-declined--priced-off-the-code-and-not-built) at the
+bottom. Everything between here and that section is the record as the three working sessions left it.
+
+**166k nodes/s on the shipped push rung against 1.4M on layer 0**, and the difference is heuristic work
+repeated for every pose of the same playfield.
+
+| configuration, `LaserTank.lvl` 10, width 8, 6M nodes, one thread | seconds | nodes / s |
+|---|---:|---:|
+| layer 0 beam, `Beginner-I` 1581, 4M nodes (process start included) | 2.8 | **~1.4M** |
+| `--push --push-eval work` (no read) | 16.6 | 360k |
+| `--push --push-eval coarse` (no read) | 29.9 | 200k |
+| `--push --push-read` (coarse, the shipped rung) | 36.2 | **166k** |
+
+The same node count costs **2-8x the seconds**, and none of it is the engine: it is `PushH` per emitted
+successor — a Dijkstra from the flag, the fire map, the reach flood, the ferry matching and maze BFS,
+`Feat.Extract`'s seventeen features — plus a `TankRegion` flood per untiered successor in the cheap
+`opens`. (The `work`/`coarse` pair is not a clean ablation: the two beams walked different boards,
+closure ~466 against ~1,022, so the split between key cost and board cost needs a profiler, not this
+table.)
+
+#### Instrumented in session 49 — and the profiler the item asked for was the wrong one ☑
+
+**Where this sits: in the working tree, unstaged.** `--push-time` is `Push.cs`, `Heuristic.cs`,
+`Search.cs` and `Program.cs`, built and checked but not committed, and `build/lasertank-solve.exe` did
+*not* have it — item 2's pass held that file open for six days, so the only build of the flag was the
+project's own `src/LaserTank.Solver/bin/Release/net8.0/lasertank-solve.exe` (`LT_SOLVE`, the same route
+`bor_campaign.sh` takes), rebuilt with
+`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`. **That is no longer the situation:
+the pass finished on 2026-09-15, `build/` was republished, and both flags are in the published binary.**
+The republish was gated against the pass's own banked output rather than against a second binary — five
+levels from five collections at the `l8fire` arm's flags and 40M budget, **node-, key-, depth- and
+`.lpb`-byte-identical** — so the flags are inert when not asked for and every report in `build/reports/`
+still controls the current binary. **Nothing here is blocked on a build any more.** Nothing below is banked in a report: these are single runs kept in
+this file, and every one of them was taken beside the pass.
+
+**`dotnet-trace` cannot measure this loop, and the way it fails is worth keeping.** It was installed
+for this (`dotnet tool install --global dotnet-trace`) and the answer it gave was an artefact — do not
+reach for it again on the search loop; `--push-time` is what replaced it. Its sampled stacks
+are taken where a suspended thread can be walked, so on a tight search loop they cluster at safepoints:
+over one 6M-node run of the shipped rung it attributed **64% of the time to the budget check**
+(`Solver.get_OutOfBudget` to `Stopwatch.ElapsedMilliseconds`) and put `PushH` at **5.9%**. Both are
+wrong, and cheaply shown to be: a build with the clock read deleted outright runs **no faster** (33.8 /
+32.4 s against 33.0 / 31.6 s with it, the same 6M nodes), and `Stopwatch.ElapsedMilliseconds` measures
+**21.8 ns** a call on this machine, which prices the whole per-node check at **0.4%**. Disabling
+inlining (`DOTNET_JitNoInline=1`) moved the same 64% off `ExpandPush`'s self time and onto
+`get_OutOfBudget` by name, which is what made the artefact legible rather than merely large.
+
+**`--push-time` is the instrument instead**, and it is the run's own timestamps rather than a sampler's
+guess at them: one line per level, the buckets nested the way the code is, plus the count of timestamps
+taken and what one costs so its own share can be subtracted. Off by default, like every other instrument
+in `Push.cs`. A timestamp is ~20 ns against ~5 us an expansion, and the flag costs **1-3%**, inside the
+noise band of an unmeasured run (33.25 / 32.27 s without it, 34.16 s with). **Inert when off, checked
+rather than asserted**: 30 `LaserTank.lvl` levels (20 solved) through the build before it and the build
+after, same nodes, same keys, same stops, and the 20 `.lpb` files **byte-identical**.
+
+```bash
+build/lasertank-solve.exe --levels data/levels/LaserTank.lvl --level 10 \
+    --jobs 1 --nodes 6000000 --no-ida --no-beam --push --push-read --push-beam 8 \
+    --out build/pt --report build/reports/pt.jsonl --force --quiet --push-time
+```
+
+**Where the seconds go.** `LaserTank.lvl` 10, 6M nodes, one thread, beside the running pass — the loads
+match within each column, and the split is node-identical by construction:
+
+| bucket | shipped rung, width 8 | `l8fire`, width 128 (the pass's arm) |
+|---|---:|---:|
+| the whole expansion | 33.01 s | 47.90 s |
+| `ApplyKey` — the engine, all 6M nodes | 6.50 s (20%) | 7.18 s (15%) |
+| **`PushH` — per emitted successor** | **13.67 s (41%)** | **22.81 s (48%)** |
+| `ReadTier` to `Opens` to `TankRegion` | 4.55 s (14%) | 5.73 s (12%) |
+| the fire tier | — | 0.03 s (0%) |
+| the expansion's own book-keeping | 8.29 s (25%) | 12.15 s (25%) |
+| the width trim, outside the expansion | 0.24 s | 0.16 s |
+
+**So the item's premise is right and the sampler's answer was noise: `PushH` is the largest bucket in
+both configurations, and on the arm the pass is actually running it is nearly half the clock.** The
+engine is 15-20% and is not the problem; the read is 12-14%.
+
+**Inside `PushH`, sorted by the key each part would memoise under** — the number that decides the design:
+
+| part of `PushH` | shipped rung | `l8fire` | memo key |
+|---|---:|---:|---|
+| the priced Dijkstra from the flag | 8.45 s | 9.15 s | board |
+| `BuildAlive`, the frozen-block test (`--push-dead`) | 0.02 s | **7.87 s** | board |
+| `BuildFire`, the fire map | 0.01 s | 3.41 s | board |
+| `BuildReach`, the safe flood | 0.01 s | 2.00 s | **board + tank cell** |
+| `Rank` — `Feat.Extract` and `FlagDistance` | 4.89 s | 0.02 s | board (+ tank cell) |
+| **board-only, as a share of `PushH`** | **62%** (8.48 s) | **90%** (20.44 s) | |
+| from the tank, as a share of `PushH` | 0% | 9% (2.00 s) | |
+
+**And the multiplier the memo would buy, measured rather than guessed.** Per expansion, over the same
+runs: **1,115,019 successors on 4,797 distinct boards — 232x** at width 8, and **1,364,612 on 50,029 —
+27.3x** on `l8fire`. Keyed by `(board, tank cell)` instead it is **10.9x** and **6.5x**. The item's
+"four boards wearing thirty-nine hats" is right about the boards and an order of magnitude low about the
+hats: on `l8fire` it is **51 boards wearing 1,400 hats**, every one of them re-deriving the same fire
+map, the same frozen-block test and the same Dijkstra table.
+
+**What that prices the fix at, and it is not two to four times.** On `l8fire`, memoising the board-only
+terms saves 20.44 x (1 - 1/27.3) = **19.7 s of 47.90** and the reach flood a further 1.7 s, so the
+expansion goes to ~26.5 s: **~1.8x**. At width 8 the board-only 8.48 s at 232x is worth 8.44 s of 33.01
+and `Rank`'s 4.89 s is mostly board-only too, so **~1.3x to 1.7x** depending on how much of `Feat` is
+lifted. `ApplyKey`'s 15-20%, the read's 12-14% and the expansion's own 25% are untouched by any of it,
+and they are what caps the whole item **below 2x**. The 8.4x gap to layer 0 does not close here.
+
+**`BuildAlive` is the surprise and the first thing to memoise.** It was not in the item's list at all,
+and on the arm the pass runs it is **7.87 s — 16% of the whole expansion**, second only to the Dijkstra
+inside `PushH` and the purest board function of the lot: `--push-dead` re-derives which blocks are
+frozen for all 1,400 hats of each of 51 boards.
+
+**One measurement that does not match the table above it.** The table says `--push-eval none` runs at
+171k against `coarse`'s 163k and concludes the ranking is not the cost; `--push-time` prices `coarse`'s
+`Rank` at **4.89 s of 33.01 — 15%** on the same level, where `work` costs 0.02 s. Both were measured;
+they are not the same run — the ablation's two arms walked different boards, which is the caveat the
+table already carries — so what stands is the `--push-time` number and what falls is the inference drawn
+from the pair.
+
+#### Then memoise — built and gated in session 50, and the key is not the one this item named ☑
+
+**`--push-memo` is on by default as of session 51, and on the arm the fourth pass runs it is 1.67x.**
+Three rungs, the same level list and the same node budget under both arms, `bash tools/push_memo.sh`:
+
+| rung | speedup | memo hit rate |
+|---|---:|---:|
+| `rung8` — the shipped rung, width 8 | **1.40x** | 98.3% |
+| `l8fire` — the pass's arm, width 128 | **1.67x** | 84.8% |
+| `layer7` — the one arm with `--push-stop` | **1.42x** | 84.6% |
+
+**This table had `job time` and `nodes/s` columns and they have been struck rather than corrected** —
+they reconciled against nothing and their run's reports no longer exist. See
+[*the two struck columns*](#the-two-struck-columns-and-why-they-were-not-re-derived) below; the
+speedups and hit rates are unaffected, being ratios and counters within a pair, and the seconds this
+section needs are in the re-gate table that follows it.
+
+50 levels of `bench/deep-levels.txt` at 400k nodes, four jobs beside item 2's pass. On `LaserTank.lvl`
+10 at 6M nodes and one thread the expansion goes
+**53.50 s → 31.31 s** on `l8fire` (1.71x), **34.18 s → 24.20 s** at width 8 (1.41x) and **41.46 s →
+27.16 s** on `layer7` (1.53x) — so the bench and the single level agree, and the item's predicted
+"**~1.8x** on the push rung" and "capped below 2x" were both right.
+
+**The key is the pose, not the board, and that is the one thing this item had wrong.** The census prices
+a board-keyed memo of the *board-only* terms at 27.3x and a pose-keyed memo of *everything* at 6.5x, and
+the second is the larger saving: 90% of `PushH` at 27.3x saves 87% of it, 100% of it at 6.5x saves 85% —
+near enough the same number — and the pose key also collects `Rank`, the reach flood and the ferry
+matching, which the board key cannot. It is also a far cheaper build. The two complications this item
+listed for a board-keyed memo — the Dijkstra's early exit, which forces a shared table to be run to
+completion, and the six `Route*` side effects `WorkDistance` publishes — **both disappear**, because the
+pose memo never splits `WorkDistance` open at all: it caches what `PushH` returns and the seven fields it
+publishes, and calls the whole thing when it misses.
+
+`PushH` is a pure function of `Game.PF`, the tank's cell, and `Game.PF2` — **only** under `--push-stop`,
+whose `StopPrice` is the single thing in the heuristic that reads what is underneath a block. So PF2 is
+hashed only for that one arm, and `layer7` is in the gate above for exactly that reason: it is the one
+configuration whose key has that branch in it.
+
+Direct-mapped, 4,096 slots, a 128-bit content hash (two independent FNV-1a chains over the same bytes)
+and no stored copy to verify against — a 200,000-pose level collides at about 1e-28, and a slot that
+holds some other board simply misses. The table is cleared per *level*, not per expansion: the census
+counts distinct boards **within** one expansion, so its ratios are a floor on the reuse rather than the
+whole of it, and a table that outlives the expansion collects the next depth's revisits and a restart's
+whole re-run too. At width 8 that is the difference between the census's 10.9x ceiling and the **60.6x**
+the memo actually collected. 4,096 slots is 229 KB a worker and was measured, not chosen: 1,024 slots hit
+83.7% and 16,384 hit 86.6% against this table's 84.8% on `l8fire`, and neither moved the expansion outside
+the noise.
+
+**The gate is the acceptance test this item set itself, and it is in the script.** Each rung runs twice
+over the same levels at the same node budget, and the two runs have to agree on `solved`, `keys`,
+`raw_keys`, `moves`, `shots`, `ratio`, `trimmed`, `polished`, `replanned`, `method`, `stop`, `depth`,
+`restarts` and `nodes`, and on the **bytes of every `.lpb`**. All three rungs: `IDENTICAL`. The table of
+seconds is not printed at all if the gate fails, because a run that changed a number is not a slower or a
+faster run, it is a wrong one.
+
+```bash
+bash tools/push_memo.sh          # the gate and the table, all three rungs, ~12 min
+bash tools/push_memo.sh gate     # equality only
+bash tools/push_memo.sh bench    # seconds only
+bash tools/push_memo.sh time     # the --push-time split, one level a rung
+```
+
+**`BUDGET_MS` in that script is an hour and it has to be.** At the 4-second default the memo arm does not
+finish sooner, it searches *further* — 1.70x the `ApplyKey` calls of the control in the same wall clock —
+and the two arms then walk different boards, so neither the gate nor the seconds mean anything. That is
+the speedup showing up in the one form this measurement cannot read.
+
+**What is left on the table, measured.** On `l8fire` the memo still misses 207,139 of 1,364,613 calls, and
+`PushH` is still 4.67 s of a 31.31 s expansion, of which 80% is board-only. Those misses fall on 50,029
+distinct boards, so a *second* layer — the board-keyed memo this item originally described, underneath the
+pose memo — would divide that 3.73 s by the remaining 27.3 / 6.5 = **4.2x** and save ~2.8 s: the expansion
+goes to ~28.5 s and the rung to **~1.88x**. That is the whole of the remaining headroom, and it is the
+expensive half of the build (the early-exit Dijkstra and the six side effects are still waiting there).
+`ApplyKey`'s 24%, the read's 20% and the expansion's own 41% are untouched by any of it and are what caps
+the item below 2x, exactly as this item said.
+
+**Two reasons that ~1.12x is an upper bound rather than an estimate, both read off the code in session 52
+and neither measured.** The 4.2x is 207,139 misses over 50,029 distinct boards — **4.14 misses a board** —
+and that ratio is only collectable where the term has no early exit. `BuildFire` and `BuildAlive` have
+none and would collect all of it. **The Dijkstra does**: `WorkDistance` returns the moment it settles the
+tank's cell, or the first cell of the safe flood under `--push-reach` (`Heuristic.cs:447`), so a table
+shared across a board's 4.14 hats has to run to completion. At only 2x for completion the route term's
+reuse falls to ~2.1x, and the saving falls from ~2.8 s to ~2.4 s — the rung lands nearer **1.08x** than
+1.12x. **And the entry is not a scalar.** The pose cell is 56 bytes; a board entry is `_fire`, `_alive`,
+`_cost[256]` and `_pred[256]`, about **2.5 KB** — 45x — and this file's own sizing note records that
+16,384 pose slots at 918 KB a worker already cost more in shared cache across sixteen workers than the
+1.8 points of hit rate they bought. **So the first thing this build wants is not the build**: one run with
+the early exit removed and `--push-time` on, one level, one thread, prices the completion penalty for a
+minute of one core, and the slot count has to be swept against the cache the way the pose table's was.
+
+**Two things not to read into the numbers above, as this section stood at the end of session 50.** They
+were taken beside item 2's pass, so the seconds are a loaded machine's; the ratios are the point and both
+arms carried the same load. And the memo was then **off by default** — flipping it on is a one-line change
+and the gate above is the evidence for it, but nothing in these files had been re-measured with it on, and
+the seconds in every table above it are the searcher without it. **The next section is that flip**, so the
+second caveat is spent; the first is not, and it is why session 51 re-gated on an idle machine.
+
+#### The default flip — done in session 51, and the gate had to be fixed to stay honest ☑
+
+**`PushMemo = true` in `Search.cs`, and `--no-push-memo` is the way off**, following the `--no-ida` /
+`--no-beam` convention. `--push-memo` is still accepted and is now a no-op, so every recipe in these
+files keeps working unchanged. **`build/lasertank-solve.exe` is republished** and carries the new
+default; nothing else in `tools/` mentions the flag, so no other recipe changes meaning.
+
+**The gate needed a one-line fix before it meant anything, and this is the third instrument defect these
+files have caught the same way.** `push_memo.sh` built its control arm as "pass no flag" — which after
+the flip *is* the memo — so it would have compared the memo against itself and printed `IDENTICAL` while
+measuring nothing, exactly like the gate that once passed on an empty directory. The control now passes
+`--no-push-memo`, and the `--push-time` lines are the evidence it bites: the off arm prints no memo line
+and `pushH` back at **42-47%** of the expansion, the on arm prints the hit rate and **4-17%**.
+
+**Re-gated after the flip, on an idle machine** — the first reading of this bench not taken beside item
+2's pass:
+
+| rung | job time, `--no-push-memo` | default | speedup | nodes | nodes/s off → on | verdict |
+|---|---:|---:|---:|---:|---|---|
+| `rung8` — the shipped rung, width 8 | 48.4 s | 36.9 s | **1.31x** | 16.7M | 345k → 452k | `IDENTICAL` |
+| `l8fire` — the pass's arm, width 128 | 93.0 s | 59.5 s | **1.56x** | 18.4M | 198k → 309k | `IDENTICAL` |
+| `layer7` — the one arm with `--push-stop` | 60.9 s | 45.9 s | **1.33x** | 17.0M | 280k → 371k | `IDENTICAL` |
+
+Same 50 levels, 13 / 6 / 10 solved, every `.lpb` byte-identical, and the node count identical across each
+pair. **Every column of this table is re-derivable from `build/reports/memo-{rung}-{off,on}-best.jsonl`**
+by summing `ms` and `nodes` over the 50 rows — checked in session 52, and it is the only table in this
+item of which that is true. **The ratios are 0.06 to 0.11 below session 50's** (1.40 / 1.67 / 1.42) and
+the ordering is the same, which is the shape to expect when the control is the arm that suffers most from
+a loaded machine: session 50 measured beside sixteen jobs, this one measured alone.
+
+**Both alternative explanations for the 166k are already ruled out**, which is why this item is now the
+whole of the wall-clock story rather than one of three guesses at it: `--push-eval none` runs at 171k
+against `coarse`'s 163k (but see *the two struck columns* below); and `sterile=` is 0.05%, so wasted
+expansions are not the cost either. **The 8.4x gap to layer 0 is `PushH` itself** — measured at 41-48% of
+the expansion, which is most of what separates the two rungs but not all of it.
+
+#### The two struck columns, and why they were not re-derived
+
+**Session 50's bench table carried `job time` and `nodes/s` columns that reconciled against nothing, and
+session 52 struck them instead of recovering them, because they cannot be recovered.** The row said
+`rung8` off was **16.8 s at 166,627 nodes/s**, which implies **2.8M nodes**; the same bench re-gated is
+**16.7M nodes at 345k nodes/s** over the same 50 levels at the same 400k cap, and
+`bench/deep-levels.txt` has not changed since 2026-09-07.
+
+**The explanation this file offered for them is itself wrong, and that is why the columns are struck
+rather than relabelled.** It supposed "most likely the single-level `time` split read into a bench row" —
+but that split is **34.18 → 24.20 s** at width 8, **53.50 → 31.31** on `l8fire` and **41.46 → 27.16** on
+`layer7`, and the struck rows are 16.8 → 12.0, 177.4 → 106.5 and 111.4 → 78.5. Neither the seconds nor
+the ratios (1.41 / 1.71 / 1.53 against 1.40 / 1.67 / 1.42) match. The `166,627` *does* reproduce this
+item's opening single-level number (6M nodes / 36.2 s = 165,746) to three figures — but `16.8 s` matches
+no run in these files, so the two struck columns are not even from the same run **as each other**.
+
+**And the reports that would settle it are gone**: `build/reports/memo-*.jsonl` are overwritten by every
+`push_memo.sh` run, and the session 51 re-gate overwrote them on 2026-09-15. So session 50's absolute
+seconds have no evidence behind them and are not retrievable by re-reading anything; the only way back to
+a number is to re-run the bench, which measures today's binary and not that one.
+
+**Nothing that rests on that table moves.** The speedups and hit rates are ratios and counters within a
+pair, the gate verdict that licensed the flip is untouched, and the seconds the section needs are in the
+re-gate table above, where they now carry their own node counts. **The rule this is the fourth instance
+of: a table of absolute seconds whose reports have been overwritten is a claim, not a measurement** — the
+other three are the unattended run's stdin, the gate that passed on an empty directory, and the control
+arm that became the memo after the flip.
+
+
+#### The second layer, declined — priced off the code, and not built
+
+**This is the one part of item 10 decided by reading rather than by running, and it is labelled that way
+on purpose.** The sections above leave the board-keyed layer at "~1.12x by the census's arithmetic,
+likely nearer 1.08x once the Dijkstra's early exit is paid for", with a build they call the expensive
+half. Three things read off the code in session 53 settle it against building, and **not one of them is a
+measurement**:
+
+**1. The board key would be free — which is the only argument in its favour, and it is new.**
+`MemoProbe` (`Push.cs:203`) already runs both FNV-1a chains over the 256 bytes of `Game.PF`, and the 256
+of `PF2` under `--push-stop`, and mixes the tank cell in only at the last step: `k1 = (a ^ t) * prime`.
+The pair `(a, b)` *before* that mix is a board key, already computed, on every call. A second layer needs
+no second hash pass over the board. Nothing in these files had noticed that, and it is the cheapest part
+of the build.
+
+**2. The early exit costs more than the estimate above charges it.** `WorkDistance` returns at
+`Heuristic.cs:447` the moment it settles the tank's cell — or the first cell of the safe flood under
+`--push-reach` — so a table shared across a board's 4.14 hats has to run to completion, which the
+estimate does say. What it misses is the line after it: `RouteObstacles = CountOnRoute(e, c)`
+(`Heuristic.cs:449`) is keyed on the cell the search *stopped at*, so it stays per-pose even with a
+completed table in hand. The shared table buys the relaxations and not the route walk, which is strictly
+less than the 2x-for-completion the ~1.08x already assumed.
+
+**3. The entry is 45x the pose cell's, in the one dimension already measured and already found not to
+pay.** A pose `MemoCell` (`Push.cs:175`) is 56 bytes. A board entry is `_fire[256]`, `_alive[256]`,
+`_cost[256]` and `_pred[256]` — about **2.5 KB**. The sizing note at `Push.cs:166` is the measurement
+that applies, and it was taken for the pose table: 16,384 slots at **918 KB a worker** cost more in the
+cache sixteen workers share than the **1.8 points** of hit rate they bought. At 2.5 KB an entry, **256
+board slots is already 640 KB a worker** — inside that same band before the layer has returned its first
+hit — and 256 slots against 50,029 distinct boards in an expansion is a thin table.
+
+**So the sum is: ~1.08x, for the expensive half of the build, in the footprint that was already shown not
+to pay.** `ApplyKey`'s 24%, the read's 20% and the expansion's own 41% are untouched by any of it and are
+what cap this item below 2x, exactly as it said of itself from the first table. **The 8.4x gap to layer 0
+does not close here**, and this item is not where the tree's next levels come from —
+[item 7](next-actions.md#7-1st--the-solved-vs-budget-curve) is.
+
+**The measurement this section chose not to take is on the record too**, because declining one is worth
+as much as taking one: one run with the early exit at `Heuristic.cs:447` removed and `--push-time` on,
+one level, one thread, about a minute of one core, prices the completion penalty that point 2 argues
+about. It was not taken because points 1 and 3 decide the item without it — the layer is cheap to key and
+expensive to hold, and **the holding is the half that was already measured**.
+
+**What would reopen this**, so that it is not re-derived from scratch: `PushH` back above ~40% of the
+expansion on an arm that ships, which would mean the pose memo's hit rate had fallen off a configuration
+it has not been gated on. `bash tools/push_memo.sh time` prints that split for one level a rung and is
+the cheap check; `push_memo.sh gate` is the equality half and takes about twelve minutes for all three.
+
 ### 11. The closure-dominance prune — retired on its own acceptance test.
 
 The item set its own bar: add `sterile=` to `--push-trace` (expansions that emitted zero fresh
@@ -2250,8 +2586,9 @@ and `front=1024 boards=1024` throughout, and **a barrier on 0 of 63,454 expansio
 the budget or do not quote it.** `--analyze` had the answer for free in one second, which is where *run
 instrument 2 before instrument 4* comes from. The population that shares the condition is a quarter of
 the corpus and sizing it nearly refuted the design (25.2% against 7.0%, a record-length artifact). Item
-11's prune retired on its own acceptance test on two populations, which leaves item 10 as the whole of the
-wall-clock story. Item 3 a no-op because its premise expired. **The lesson as a ratio: two planned code
+11's prune retired on its own acceptance test on two populations, which left item 10 as the whole of the
+wall-clock story — and item 10 has since closed it, positive on `--push-memo` and negative on the layer
+underneath. Item 3 a no-op because its premise expired. **The lesson as a ratio: two planned code
 changes and one planned batch job retired for ~20 minutes of machine.**
 
 **session 30 — a regression, and the file it happened to.** A `--force` re-solve **banked the beam's
@@ -2684,6 +3021,24 @@ budget come back **node-, key-, depth- and `.lpb`-byte-identical** to the banked
 `build/reports/` bank still stands as a control and item 10's two flags are inert off by default. The
 control is the pass's own output rather than a second binary, which is the better form of this check.
 
+**session 53 — item 10 closed, and the last thing it wanted was declined rather than built.** No solver
+run: the whole session is a read of `Push.cs` and `Heuristic.cs` against the item's own arithmetic. What
+was left of item 10 was a second, **board**-keyed memo underneath the shipped pose memo, written up at
+"~1.12x, likely nearer 1.08x". Three things in the code settle it. **Its key would be free** —
+`MemoProbe` (`Push.cs:203`) already runs both FNV chains over the board and mixes the tank cell in only
+at the last step, so `(a, b)` before that mix *is* a board key, on every call; nothing in these files had
+noticed. **Its early-exit penalty is worse than charged** — `RouteObstacles = CountOnRoute(e, c)`
+(`Heuristic.cs:449`) keys on the cell the Dijkstra stopped at, so it stays per-pose even with a completed
+shared table, and the shared table buys the relaxations only. **And its entry is 2.5 KB against the pose
+cell's 56** — 45x — in the exact dimension the pose table's own sizing measurement already resolved
+against: 918 KB a worker across sixteen workers costs more in shared cache than the 1.8 points of hit
+rate it buys. ~1.08x for the expensive half of the build, in the footprint shown not to pay, on an item
+capped below 2x by its own first table. **The rule this session adds is about declining a measurement**:
+the run that would have priced the early exit (one level, one thread, a minute of one core) is written
+down in the closed item *as not taken and why*, because a declined measurement that leaves no record
+gets proposed again. `push_memo.sh` also stopped overwriting its own reports, which is what made session
+50's two columns unrecoverable. **The open list is one item: 7.**
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -2693,7 +3048,7 @@ and this is the map:
 | # | what it was | where it is now |
 |---|---|---|
 | 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-1st--the-solved-vs-budget-curve) item 7 |
-| 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
+| 2 | the node budget hides most of a push rung's wall clock | closed item 10 above — **half-negative**, 1.31-1.56x |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |
 | 5 | level 10: the file's arithmetic and the machine disagree | closed item 8 above — **the pointer was right about the depth and wrong about the key** |

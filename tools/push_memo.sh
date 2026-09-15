@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Item 10 of docs/solver/next-actions.md, the second half: --push-memo built,
+# Closed item 10 of docs/solver/history.md, the second half: --push-memo built,
 # gated and priced.  One command, two answers -- that the memo changes nothing
-# and that it costs less.
+# and that it costs less.  The item is closed; this script is what re-checks it.
 #
 #   bash tools/push_memo.sh                # the gate and the table, all rungs
 #   bash tools/push_memo.sh gate           # equality only, no seconds reported
@@ -40,6 +40,13 @@
 # this beside it for the gate, and on a quiet machine for the number that goes
 # in the docs.  REPEAT=n runs each arm n times and keeps its best, which is the
 # cheap way to buy back some of that.
+#
+# **Its reports are archived, not clobbered.**  Each run moves the previous
+# build/reports/$PREFIX-*.jsonl aside into build/reports/archive/$PREFIX-<stamp>/
+# before writing the new set at the same names.  Session 50's bench table is why:
+# two columns of absolute seconds, reconciling against nothing, and the reports
+# that could have settled them overwritten by the next run.  A table of seconds
+# whose reports are gone is a claim and not a measurement.
 #
 # Env: LIST LEVELS NODES BUDGET_MS JOBS REPEAT RUNGS PREFIX.  LT_SOLVE points at
 # a different binary, for the reason bench.sh gives -- a running pass holds
@@ -88,6 +95,23 @@ esac
 [ -f "$LEVELS" ] || { echo "no collection at $LEVELS" >&2; exit 1; }
 for r in $RUNGS; do rung_flags "$r" > /dev/null || exit 2; done
 mkdir -p build/reports "build/$PREFIX"
+
+# ---- keep the last set before this one overwrites it ---------------------
+# Every run of this script writes build/reports/$PREFIX-*.jsonl at fixed
+# names, and until session 53 it simply clobbered them.  That is how session
+# 50's bench table ended up with two columns of absolute seconds that
+# reconciled against nothing and could not be recovered from anything: the
+# session 51 re-gate had overwritten the only reports that could have settled
+# them.  A table of seconds whose reports are gone is a claim and not a
+# measurement, so the previous set is moved aside rather than lost.  The
+# current names stay where every doc expects them.
+archive_reports () {
+  set -- build/reports/"$PREFIX"-*.jsonl
+  [ -e "$1" ] || return 0
+  dir="build/reports/archive/$PREFIX-$(date '+%Y%m%d-%H%M%S')"
+  mkdir -p "$dir" && mv "$@" "$dir/"     && echo "  previous reports kept in $dir"
+}
+[ "$what" = time ] || archive_reports
 
 levels=$(grep -c '^[0-9]' "$LIST")
 echo "=================================================================="
