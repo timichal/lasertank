@@ -14,15 +14,38 @@ which is why this file starts at 3.
 ## 3. The rest of the original that is still missing
 
 Everything here was named as left out at the time rather than forgotten. **The editor's share of it
-is item 8** — it is blocked on the same modal prompt as the first paragraph below, plus a file
-dialog, and nothing in it touches the game's own window.
+is item 8** — it holds the one genuine modal prompt the port still wants, plus a file dialog, and
+nothing in it touches the game's own window.
 
-**Blocked on a modal prompt:** the `RecordBox`/`HSBox` name prompts (both INI keys are read and
-written; there is nowhere to type), the Difficulty dialog (225), and the DeadBox itself, which is a
-status line here rather than a box. **Step 7 built the shape all three want** — `Ui.Dialog` plus a
-scrim, a measured panel, keycaps for the buttons — and **step 8 built the first modal prompt in the
-port**: `Esc`'s quit answer (`DrawQuitAsk`), which settles the modality, the clock rule and the
-"every other key is the safe answer". So what is left for the rest is a text field, not a look.
+**Not blocked on a modal prompt — which is what this paragraph used to say.** Four things were
+listed here as waiting on a dialog. **Two of them turned out to be answered already, and two want a
+settings surface rather than a prompt**, which leaves item 3 with no modal work in it at all: the
+one box still worth building is the editor's, and it is item 8's.
+
+*The two that are answered* are [*Finished*](history.md) and were being carried here as deferrals
+they are not: the DeadBox, which is a status line here, and the Difficulty dialog (225), which is
+the level list's rank chips.
+
+*The two that want a field* are the `RecordBox` and `HSBox` name prompts — `[DATA] Record Author`
+and `[DATA] Player`. Both keys are read and written already (`Options.SetRecordAuthor`,
+`Options.SetPlayer:402`), both are legal blank, and **both are identity rather than a decision about
+the level just played**. The original asks mid-action because a 1996 dialog is the only surface it
+has; asking for four characters at the instant the board turns green is the DeadBox's mistake with a
+text field in it, and `WinLine` already carries the whole of HSBox's content without stopping
+anything. So these two want two rows in a small settings panel — the `GraphicsMenu` /
+`LanguageMenu` shape — and **that inverts the dependency item 7 records**: item 7 waits on item 3
+for the *keyspace*, and these two halves of item 3 wait on item 7 for somewhere to put them.
+
+**And "there is nowhere to type" is no longer true.** Text entry exists twice, and neither instance
+is modal: `LevelList.Key`'s filter field (substring, `strupr`, `Backspace`, `QueryMax`) and
+`EditMode.Typing`'s three fields, which walk focus on Tab and clamp to what a `char[31]` in a file
+the 2010 binary reads back can hold. What is missing is those two factored into one `Ui` field with
+a caret — a refactor, not a blocker, and the thing to do before either name row is written.
+
+**Step 7 built the shape** — `Ui.Dialog` plus a scrim, a measured panel, keycaps for the buttons —
+and **step 8 built what now looks like the only modal question the game side needs**: `Esc`'s quit
+answer (`DrawQuitAsk`), which settles the modality, the clock rule and the "every other key is the
+safe answer".
 
 **Additive, nothing blocking:** `Backspace[]`'s ten-level history (118); Resume Recording (125);
 Print (126); "View
@@ -33,9 +56,10 @@ persisted and `--gfx-dir` sets it); and `LoadImageFile`'s per-language `Control.
 original and the key list here, which is the answer the port can actually give.
 
 **Wants a `LoadNextLevel` port rather than a menu:** `[OPT] SkipComLev` and `[DATA] Diff_Setting`.
-Both are read into `Options` as comments only. **`Diff_Setting` is closer than it was**: the
-Difficulty dialog (225) writes the same five-bit mask the level list's rank chips now toggle, so what
-is left is persisting it and having `LoadNextLevel` read it.
+Both are read into `Options` as comments only. **`Diff_Setting` has no UI work left in it**: the
+five-bit mask the Difficulty dialog would have written is the mask the level list's rank chips
+already toggle (`Ctrl+1`..`Ctrl+5`, `Ctrl+0` to clear), so what remains is persisting that mask and
+having `LoadNextLevel` read it — engine and settings, no dialog.
 
 **And the route these want, when they land, is the `F1` list — not a menu bar** (which was item 2,
 and is [*Finished*](history.md), decided against). Each of these is blocked on *being written*; once
@@ -99,9 +123,18 @@ last-known value. See `SOLVER.md`.
 
 ## 7. Settings: `user://`, a typed store, and the INI demoted to an importer
 
-**Waiting on item 3**, and only on it. `[OPT] SkipComLev` and `[DATA] Diff_Setting` are still to
-land — both are read into `Options` as comments today — so the original's keyspace is not finished
-being filled in. Splitting the store before they arrive means writing the migration mapping twice.
+**Waiting on item 3** for the *store*, and **owed to it** for the *panel*. `[OPT] SkipComLev` and
+`[DATA] Diff_Setting` are still to land — both are read into `Options` as comments today — so the
+original's keyspace is not finished being filled in, and splitting the store before they arrive
+means writing the migration mapping twice. That is the half that waits.
+
+**The other half runs the other way, and it is new.** Item 3's two name prompts — `[DATA] Record
+Author` and `[DATA] Player` — stopped being dialog work and became settings rows, so they want a
+surface this item has not built either: there is no settings *panel* in the port at all today, only
+the three list panels (`GraphicsMenu`, `LanguageMenu`, `CollectionList`) and the `F1` key list.
+**Panel and store are separable** — the two rows could be written against `Options` as it stands and
+migrate with everything else — so this is not a cycle, but whoever takes either one should know the
+other is now pointing at it.
 
 Three separate jobs are tangled in `Ini` (`src/LaserTank.Game/Options.cs`), and only one of them is
 a settings mechanism:
@@ -155,17 +188,25 @@ round trip is rewritten against the typed record.
 The editor's commands are ported and gated — `--edit` scripts against the oracle's own `ChangeGO`,
 and `editor_check.py`'s 3,000 of them plus the `.lvl` writer's byte-for-byte round trip. **What is
 missing is the chrome around them** — four commands, none of which touches the game's own window,
-which is why they are an item rather than four more bullets in item 3. The modal prompt two of them
-want is the one item 3 is waiting on, so that half lands for both at once.
+which is why they are an item rather than four more bullets in item 3. **One of the four is the
+port's last modal prompt** — item 3 used to share that dependency and no longer does, so it lands
+here or not at all.
 
 **Blocked on a file dialog:** Load Level (602) and Save As (606). 108 was the third of these and is
 done — and the way it was done is the model for both: a list of what is *in the repo* rather than a
 native file dialog. See [*Finished*](history.md), the collection picker. 602 wants exactly that
 list plus a level inside the chosen collection, which is `LevelList` and already built; 606 wants
-somewhere to type a name, so it is really blocked on the prompt below rather than on a file dialog.
+somewhere to type a name, and **that name is the one item 3's two could not be**: a filename is
+chosen at the moment of the act, so it cannot move to a settings row. It is still not a bare box —
+per the 108 model it is a name row on the same picker 602 builds.
 
-**Blocked on a modal prompt:** the "save changes?" prompt on leaving the editor — `Modified` is
-tracked and shown, there is just no message box — and the `LoadTID` tunnel dialog *as* a dialog.
-**The second of those is worth arguing about before it is built**: the tunnel id is a mode here,
+**The one modal prompt left in the port:** the "save changes?" question on leaving the editor —
+`Modified` is tracked and shown, there is just no box. It is `DrawQuitAsk`'s case exactly, an
+unanswerable-later question in front of an irreversible act, and what it needs past that box is a
+third button, because *Cancel* is a third answer and quitting has only two. **Item 3 was carrying
+this as a shared dependency and no longer is**: nothing else in the port is waiting on it, so it is
+small, local, and the whole of the modal work that is left.
+
+**And `LoadTID` *as* a dialog is the one to keep arguing against**: the tunnel id is a mode here,
 cycled with `T`, because a modal prompt per painted cell is worse than a mode, and that reasoning
-does not weaken when the panel exists. The *save changes?* half wants nothing item 3 does not.
+does not weaken when the panel exists.

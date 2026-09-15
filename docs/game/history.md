@@ -474,8 +474,10 @@ decision in `LevelList`'s header and in *The game's own UI* above — written do
 
 **`Esc` asks before it quits.** `Enter`/`Y` quits, every other key including `Esc` keeps playing, and
 the board freezes while the question is up. Unconditional, because "only when there is something to
-lose" needs the game to know what a player calls a loss. It is also the first of the modal prompts
-the rest of the port is blocked on — see [*Next steps*](next-steps.md), items 3 and 8.
+lose" needs the game to know what a player calls a loss. It was built as the first of four modal prompts the rest of
+the port was said to be blocked on; **it is now the first of two** — the other being the editor's
+*save changes?*, item 8 — because the other two were answered without a dialog at all (see the last
+entry in this file).
 
 `--panel quit` reviews the prompt; `--panel levels|scores|global` are three names for the one table
 now, kept so that no instrument named in these files started printing usage.
@@ -1079,3 +1081,46 @@ three load errors are drawn on the status bar, which makes them interface; `--pl
 line and every `--check-*` dump are parsed by `tools/`, which makes them measurements. The two had
 been one kind of string. They are two now, and the rule is the one `HighScores.Describe` has carried
 since step 6: **a measurement that moves when the player picks a language is not one.**
+
+## ~~The DeadBox and the Difficulty dialog, as dialogs~~ — **decided against, 2026-09-15**
+
+Two of the four things item 3 of [*Next steps*](next-steps.md) listed as *blocked on a modal
+prompt*. Neither is blocked and neither is unbuilt: **both were answered by something that is not a
+dialog — the rank chips in step 11, the status line over the redesign — and the list went on
+calling them deferrals** because nobody re-read the paragraph after the thing that answered them
+landed. They are closed here so that item counts two rather than four.
+
+**The DeadBox is a status line.** `DialogBox(hInst, "DeadBox", ...)` puts "YOU ARE DEAD ! ! !" over
+the board with two buttons under it, Restart and Undo Last Move; here the headline is `status.dead`
+on the line the board already has (`BoardView.cs:1571`) and the two buttons are two rows of legend
+(`:3027`). The argument for the line over the box is the one the whole status line is: **a modal
+over a dead board asks the player to dismiss a fact they can already see**, and it costs a keystroke
+to say so. The player knows the tank is gone — the tank is gone on screen.
+
+**What did not follow it out is the modality**, and that distinction is the reason this entry is
+worth keeping. The DeadBox blocks *inside* `CheckLLoc`'s tick and that is load-bearing: it is why a
+death mid-tick stops the rest of the tick, which is quirk #8 and `--check-deadbox`'s whole subject
+(`PlayMode.CheckDeadBox:202`, and `Session.cs:556`, *The DeadBox's modality, written down*). So the
+box's *look* was dropped and its *timing* was ported exactly, which is the port's usual split and
+not a compromise between the two. **The first-turn guard is a third thing again** and was decided
+against separately — see above, under the level-39 report.
+
+**The Difficulty dialog (225) is the level list's rank chips.** 225 is a five-checkbox box over a
+five-bit mask; `LevelList.Key` toggles the same five bits on `Ctrl+1`..`Ctrl+5`, clears to *all* on
+`Ctrl+0`, and reads an empty mask as a full one because a mask with nothing in it is never what the
+keystroke meant (`Rank`). The master switch is `_09` in the filter bar. **Building 225 now would be
+a second control surface for one mask**, and the worse of the two by the argument step 11 inlined
+`SearchBox` on — which is step 8's: a filter you cannot see while you read the list is a filter you
+forget is on, and a filter behind a modal is that with one more step in front of it.
+
+**What is genuinely left of `Diff_Setting` is not UI**: persisting the mask and having a ported
+`LoadNextLevel` read it, which is where item 3 now files it.
+
+**The rule this leaves, because it is the third time it has been applied and the first time it is
+written down.** The original reaches for a modal in three situations and only one of them survives
+translation: *asking a question whose answer cannot be deferred* (`Esc`'s quit, the editor's *save
+changes?* — these stay modal), *stating a fact the screen already carries* (the DeadBox, and HSBox's
+score summary, which is `WinLine` — these become the status line), and *collecting a setting*
+(225, and the two name prompts — these become a control that is visible while the thing it affects
+is visible). A 1996 dialog is not evidence that a question was being asked; it is evidence that a
+dialog was the only surface there was.

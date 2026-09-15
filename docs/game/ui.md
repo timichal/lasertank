@@ -260,10 +260,13 @@ that costs the session against one keystroke. The prompt freezes the board while
 plainer reason than any dialog above — a tank that dies while the player decides whether to leave
 was killed by the interface. `--panel quit` is how it is reviewed.
 
-**It is also the shape the port's remaining modal prompts want** — the editor's "save changes?",
-the `RecordBox`/`HSBox` name fields, the Difficulty dialog (225), the DeadBox as a dialog. Step 7
-built the look; this is the first one built, and what the rest need past it is a text field and a
-third button.
+**It is also the shape of the one modal prompt the port still wants** — the editor's "save
+changes?", which needs this box plus a third button, because *Cancel* is a third answer. It was
+drawn up as the shape of four, and the other three are [*Finished*](history.md) rather than
+pending: the DeadBox and the Difficulty dialog (225) were answered without a dialog at all, and the
+`RecordBox`/`HSBox` name fields turned out to be settings rather than questions. The rule that
+sorted them is written down there — **a 1996 dialog is not evidence that a question was being
+asked; it is evidence that a dialog was the only surface there was.**
 
 **Playback needed no new rules** — `PBOpen`, `PlayBack`, `PBHold`, `Speed` and `SlowPB` have been
 read by `Engine.Tick` since Phase 2, so the panel is four buttons wired to five fields. One line of
