@@ -49,26 +49,6 @@ scattered through a legend. The port's own strings still have no key in the orig
 back to English by having only an English form — the model set by the legend strip, which step 7
 deleted.
 
-## 2. A menu bar — *or whatever step 7 makes of it*
-
-Step 6 converted all 73 menu items of both trees with their command ids and accelerator labels, so
-`Language.MainMenu` / `Language.EditorMenu` is a ready-made model, and this is still the cheapest
-remaining piece of the original that is *fully specified data* rather than design work.
-
-**But step 7 answered half of what it was for.** The reason a menu bar was worth building was
-discoverability: the port was key-driven and the only way to learn a key was a wall of grey legend
-text under the board. F1 is that now — the original's own help accelerator (907 / 903), showing
-every binding as keycaps, grouped, including the editor's. What a menu bar would still add is a
-*pointing* route to the commands, which a touch or web build would want and which F1 does not give.
-So this is no longer "the cheapest thing left" so much as "the thing to do if the port is going
-somewhere without a keyboard". If it is built, the top bar is where it goes.
-
-**Step 9 answered the other half, and answered it without a menu bar.** Every keycap, pill, row and
-card the redesign drew is now a button, and the F1 overlay is a *command list* rather than a legend:
-the pointing route to thirty-odd commands is the same list that documents them. What a menu bar
-would still add over that is a route to the handful of commands nothing on screen names — the ones
-in *item 3* that are not built yet. So it is worth less than it was, not more.
-
 ## 3. The rest of the original that is still missing
 
 Everything here was named as left out at the time rather than forgotten.
@@ -122,6 +102,13 @@ is left is persisting it and having `LoadNextLevel` read it.
 
 **Not coming:** the `.ln` files under `Setups/Language/` (a 4.0-era format superseded by the
 `.dat`s and not read by the 2007 build).
+
+**And the route these want, when they land, is the `F1` list — not a menu bar.** Item 2 was that
+bar, and it is [*Finished*](history.md), decided against: what it had left to add over `F1` and
+step 9 was a route to exactly the commands above, and a bar cannot route to a command nobody has
+written yet. Each of these is blocked on *being written*; once one is, it gets a row in `PlayKeys`
+or `EditorKeys` like every other command in this port, and that row is both its documentation and
+its click target.
 
 ## 4. The UI redesign, third pass
 
@@ -178,3 +165,54 @@ same kind against the same oracle. All four are worth leaving running.
 The larger unfinished half of the project and a goal in its own right: 11.3% of a 4,185-level sample
 against a goal of all 20,914. It runs on the other machine now, so treat that number as a
 last-known value. See `SOLVER.md`.
+
+## 7. Settings: `user://`, a typed store, and the INI demoted to an importer
+
+**Waiting on item 3**, and only on it. `[OPT] SkipComLev` and `[DATA] Diff_Setting` are still to
+land — both are read into `Options` as comments today — so the original's keyspace is not finished
+being filled in. Splitting the store before they arrive means writing the migration mapping twice.
+
+Three separate jobs are tangled in `Ini` (`src/LaserTank.Game/Options.cs`), and only one of them is
+a settings mechanism:
+
+1. **A fidelity artifact.** `Atoi`, the case-sensitive `strcmp(temps, psYes)` test, *only a missing
+   key gives the default* — these are recorded findings about the 2010 binary, pinned by
+   `options_check.py`'s `ini` arm and five checks in `lang_check.py`. Research output, not
+   plumbing, and worth keeping whatever happens to the rest.
+2. **Interop with the 2010 binary.** The preserve-every-other-line rule is load-bearing only
+   because the port can share one file with the original and must not reset the dozen keys it knows
+   nothing about (`PosX`, `Diff_Setting`, `Player`). This is the one job that *requires* the
+   on-disk format to be INI, and it is worth asking out loud whether anyone will ever point this at
+   a real 2010 install — it is the justification for the most awkward code in the class.
+3. **The port's own settings**, which are already drifting away from the other two. `[DATA]
+   Language` is invented and says so at `PsLang`; steps 7, 10 and 11 added window geometry, a
+   theme and a filter state that will never have an original key name.
+
+**There is also a real bug here, and it is independent of the format.** `Paths.Ini` writes to the
+repo root, and there is no `user://` anywhere in the tree. That is fine for a dev checkout and
+breaks the moment an exported build lands somewhere unwritable — which is every `Program Files`
+install and the web export item 4 is circling. `user://` is where this belongs regardless of what
+is decided below.
+
+**The shape, which is the language files' shape.** Item 1's rule for a deleted key is *whatever the
+audit removes, the converter should keep reading* — the artifact's reader stays complete and
+re-runnable while the runtime moves on. Same split here:
+
+- `Ini` stays, demoted to a **one-way importer**: on first run, read a `LaserTank.ini` if one is
+  beside the repo or named by `$LT_INI`, fold it into the settings object, and never write it
+  again. Every atoi/strcmp semantic and the gate that pins it survive untouched.
+- The port's own settings become a typed record at `user://settings.json` through
+  `System.Text.Json`, with a `version` field. One class, no parser, and room for the chrome
+  settings the original never had.
+- **The read-only-instrument rule survives unchanged**, because it was never about INI: an
+  instrument must not write the player's state (`PROGRESS.md`, *Rules learned the hard way*), and
+  that is as true of a JSON file. `--ini` either points at the new file or grows a sibling.
+
+**Not Godot's `ConfigFile`**: it is INI-shaped anyway, so the trade is 150 gate-pinned lines we own
+for an engine class, and it does not preserve foreign lines. **Not a `Resource`/`.tres`**: it binds
+the save format to engine classes and is miserable to diff.
+
+**What it costs:** `options_check.py`'s `ini` arm and `lang_check.py`'s five INI checks both need a
+second half for the new store (the existing halves stay, pointed at the importer),
+`chrome_check.py`'s self-written baseline moves with it, and `Step6Check`'s three-`Options`
+round trip is rewritten against the typed record.

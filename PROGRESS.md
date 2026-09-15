@@ -190,16 +190,19 @@ python tools/sweep.py                            # everything on engines.py read
 
 Nothing is blocked. Roughly in the order they are worth doing; each one in full, with what it is
 waiting on and what the finished work beside it already answered, is in
-[`docs/game/next-steps.md`](docs/game/next-steps.md).
+[`docs/game/next-steps.md`](docs/game/next-steps.md). **Items keep their numbers**, so the gap where
+**2** was is deliberate: the menu bar is [*Finished*](docs/game/history.md), decided against — `F1`
+and step 9 had already taken both halves of what it was for, and the route it still claimed to add
+is a route to commands item 3 has not written yet.
 
 | # | what it is | the short of it |
 |---|---|---|
 | **1** | **i18n: actually use the translations** | 23 of the 155 keys per file are wired — nine of them new in step 11, which needed the Search dialog's own labels and took them; the rest describe dialogs and a button strip this port does not have. The job is an audit — a key is read by a widget or it goes — and step 7 is what it was waiting for. Deleting one means editing all ten JSON files *and* `lang_check.py`'s expectation |
-| **2** | **A menu bar** | still the cheapest fully-specified piece of the original left (73 items, both trees, already converted). But `F1` answered the discoverability half and step 9 answered the pointing half, so what is left is a route to the handful of commands nothing on screen names |
 | **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: two commands blocked on a file dialog, six on a modal prompt (step 8 built the first of those), the DeadBox's own first-turn guard, and a shrinking list of additive dialogs — step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the level list's filter bar now |
 | **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
+| **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Waiting on item 3** — `SkipComLev` and `Diff_Setting` are still to land, and doing it first means writing the migration twice. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
 
 ---
 

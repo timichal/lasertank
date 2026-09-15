@@ -876,3 +876,40 @@ had touched — which reads as someone else's regression rather than as the envi
 leaves — written down once and then not implemented, which is why it took two passes: **a gate's
 baseline is a file it wrote, not a file it copied.** A copy with the dangerous fields removed is
 still a copy, and the next dangerous field is the one nobody has thought of yet.
+
+## ~~A menu bar~~ — **decided against, 2026-09-15**
+
+Item 2 of [*Next steps*](next-steps.md), and for a long time the cheapest thing on that list: step 6
+converted all 73 menu items of both trees with their command ids and accelerator labels, so
+`Language.MainMenu` / `Language.EditorMenu` is a ready-made model and building the bar would have
+been data entry rather than design. It is not being built. What ended it is that **both halves of
+what it was for were answered by something else**, and the doc had already recorded both without
+drawing the conclusion.
+
+**Discoverability was the first half, and `F1` answered it in step 7.** The port was key-driven and
+the only way to learn a key was a wall of grey legend text under the board. The overlay is the
+original's own help accelerator (907 / 903) and it shows every binding as keycaps, grouped, the
+editor's included.
+
+**Pointing was the second half, and step 9 answered it without a bar.** Every keycap, pill, row and
+card the redesign drew is a button, which turns that overlay into a *command list* rather than a
+legend: the pointing route to thirty-odd commands is the same list that documents them, and the
+overlay itself opens by pointing — the info column's `F1` / *all keys* footer is a click target
+(`BoardView.cs`, `DrawInfoColumn`'s footer). So a keyboardless build can already reach every command
+without one, which was the last argument left for a bar and the one the two steps above were not
+obviously going to cover.
+
+**The residue is not a menu-bar job.** What the item still claimed to add was "a route to the
+handful of commands nothing on screen names" — and those are the *unbuilt* ones in
+[*Next steps*](next-steps.md) item 3: Load Level (602), Save As (606), the name prompts, Print
+(126), the opening screen. **A menu bar cannot route to a command that does not exist**, so every
+one of them is blocked on being written, not on a bar; and the moment one is written, the route it
+wants is a row in `PlayKeys` or `EditorKeys`, where it is documented and clickable in the same
+stroke. The residue therefore moves to item 3, which is where the work actually is.
+
+**What is lost, stated so it is not rediscovered as a surprise.** The original's menus are the only
+converted artifact in the tree that nothing reads — `Language.MainMenu` / `Language.EditorMenu`
+stay converted, gate-pinned and unused, the same standing as the `ID_*` slots item 1 is auditing.
+If the port ever grows a surface where a list of *all* commands grouped by verb beats a list of
+*bound* commands grouped by task, the model is still sitting there and the top bar is where it
+goes.
