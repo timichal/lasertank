@@ -20,7 +20,11 @@
 //                 file and not the score files would post this collection's
 //                 scores into the last one's .hs, and a .hs is positional, so
 //                 it would overwrite a real score rather than append a wrong
-//                 one.  Nothing on screen would say so.
+//                 one.  Nothing on screen would say so.  The level it lands
+//                 on is checked alongside it, because this port's answer is no
+//                 longer the C's constant 1 but the first level with no record
+//                 in the player's .hs -- HighScores.FirstUnsolved -- which is a
+//                 claim about a *file* and so is recomputed in Python too.
 //
 // So this opens **every collection in the list, in order, through one Session**
 // -- which is also the strongest cheap claim available here: all 23 shipped

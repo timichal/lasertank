@@ -222,6 +222,17 @@ solved count out of each `.hs` beside it. Three things step 12 added:
   small, and a rule under them. They were a point smaller, which breaks a table placed by character
   column, and separated by air, so the first row's hover band reached up and lit them.
 
+**Enter opens the collection at the first level the player has not beaten**, which is the one place
+this panel does not do what command 108 does — `CurLevel = 0; LoadNextLevel(TRUE,FALSE)` is level 1
+and nothing else, because the C's picker is a file dialog and a file dialog has never read a `.hs`.
+This one has: the solved count in the middle column comes out of exactly the records
+`HighScores.FirstUnsolved` walks, `moves > 0` being the original's own and only test for *solved*,
+and the original itself walks them the same way when Skip Completed Levels is on (`SkipCL`,
+LTANK2.C:961). A collection nobody has played and a collection that is finished both open at level
+1; everything in between opens where the player stopped, so `LaserTank.lvl` opens at 12 and
+`Tutor.LVL` at 20 rather than at a row of solved levels to page past. Picking a level by hand is
+still `L` away, and `collections_check.py` recomputes the landing level in Python for all 23.
+
 The panel sizes itself to its contents rather than to a fixed square, the footer sheds a clause
 rather than clipping, and a shelf blurb that will not fit is dropped rather than cut. The wheel
 moves the *cursor* and the viewport follows — there is no scrollbar here, so the head line carries

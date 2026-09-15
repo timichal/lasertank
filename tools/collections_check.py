@@ -24,9 +24,10 @@ makes two claims, of two different kinds, and this checks both:
           the score files would post the new collection's scores into the old
           one's .hs -- and a .hs is positional, so it would overwrite a real
           score rather than append a wrong one, with nothing on screen to say
-          so.  It also checks `CurLevel = 0; LoadNextLevel(TRUE,FALSE)`, which
-          is level 1 and not "the level the last collection was on", and the
-          restore after a file that will not open.
+          so.  It also checks which level a freshly opened collection lands on
+          -- the first one with no record in the player's .hs, computed here
+          from the file rather than read back from the game -- and the restore
+          after a file that will not open.
 
     python tools/collections_check.py          # ~20 s
     python tools/collections_check.py -v       # every row
@@ -90,6 +91,33 @@ def scan(root):
         hits.sort(key=lambda p: str(p).lower())
         out += hits
     return out
+
+
+def level_name(lvl, level):
+    """TLEVEL.LName of one level, by seek -- the collections are up to 1 MB."""
+    with lvl.open("rb") as f:
+        f.seek((level - 1) * LEVEL_REC + NAME_OFF)
+        return f.read(NAME_LEN)
+
+
+def first_unsolved(hs, levels):
+    """HighScores.FirstUnsolved, again: the level a new collection opens at.
+
+    The first record with `moves == 0`, counting a record past the end of a
+    short .hs as unbeaten, and 1 when every level is done -- the port's one
+    deviation from command 108's `CurLevel = 0`, argued in HighScores.cs and
+    borrowed from the original's own SkipCL.
+    """
+    if levels < 1:
+        return 1
+    data = hs.read_bytes() if hs.exists() else b""
+    have = len(data) // HS_REC
+    for i in range(levels):
+        if i >= have:
+            return i + 1
+        if int.from_bytes(data[i * HS_REC:i * HS_REC + 2], "little") == 0:
+            return i + 1
+    return 1
 
 
 def count_solved(hs):
@@ -227,14 +255,16 @@ def main():
         rel = m.group("path")
         lvl = ROOT / rel
         stem = rel[:rel.rfind(".")]                     # AssignHSFile: the last dot
+        levels = lvl.stat().st_size // LEVEL_REC
+        want_level = first_unsolved(lvl.with_suffix(".hs"), levels)
         want = {
             "ok": "1",
-            "level": "1",                               # CurLevel = 0, then load
-            "levels": str(lvl.stat().st_size // LEVEL_REC),
+            "level": str(want_level),                   # the first unsolved one
+            "levels": str(levels),
             "hs": stem + ".hs",
             "ghs": stem + ".ghs",
-            "pb": stem + "_0001.lpb",
-            "lname": cstr(lvl.read_bytes()[NAME_OFF:NAME_OFF + NAME_LEN]),
+            "pb": "%s_%04d.lpb" % (stem, want_level),
+            "lname": cstr(level_name(lvl, want_level)),
         }
         for key, w in want.items():
             if m.group(key) != w:

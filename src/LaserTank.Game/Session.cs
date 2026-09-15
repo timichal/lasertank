@@ -251,7 +251,12 @@ namespace LaserTank.Game
         /// `CurLevel = 0` then `LoadNextLevel(TRUE, FALSE)` is level **1**:
         /// LoadNextLevel reads at `CurLevel` and increments after, so a new
         /// collection always opens at its first level and never at the level
-        /// number the last one happened to be on.
+        /// number the last one happened to be on.  **This port opens it at the
+        /// first level the player has not beaten instead** -- which is still
+        /// never the old collection's level number, and is level 1 for a
+        /// collection that has never been played and for one that is finished.
+        /// HighScores.FirstUnsolved is where that deviation is argued and where
+        /// `SkipCL`, the original's own version of the idea, is cited.
         ///
         /// The two lines with nothing to do here are the ones about command 118
         /// -- the ten-level Backspace history, which this port does not have
@@ -306,10 +311,12 @@ namespace LaserTank.Game
             try { _levelCount = LevelFile.CountLevels(lvlPath); }
             catch (IOException) { _levelCount = 0; }
 
-            // CurLevel = 0; LoadNextLevel(TRUE, FALSE).  Load() builds a fresh
+            // CurLevel = 0; LoadNextLevel(TRUE, FALSE) -- through FirstUnsolved,
+            // see above.  It reads the .hs this call has just assigned, so it is
+            // asked here and not before AssignHSFile.  Load() builds a fresh
             // Engine and leaves E untouched when it fails, so the board on
             // screen survives a bad file along with everything restored here.
-            if (Load(1)) return true;
+            if (Load(HighScores.FirstUnsolved(Files.Hs, _levelCount))) return true;
             _lvlPath = oldPath;
             Files = oldFiles;
             _levelCount = oldCount;

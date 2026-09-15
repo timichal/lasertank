@@ -109,6 +109,51 @@ namespace LaserTank.Game
 
     public static class HighScores
     {
+        /// The level a freshly opened collection starts on: **the first one
+        /// this player has not beaten.**
+        ///
+        /// A deviation, and a deliberate one.  Command 108 is `CurLevel = 0;
+        /// LoadNextLevel(TRUE,FALSE)` (LTANK.C:924) -- level 1, always, because
+        /// the original opens collections through a file dialog and a file
+        /// dialog knows nothing about scores.  But the original *does* own this
+        /// idea already: `SkipCL`, Skip Completed Levels (LTANK2.C:961, :1010),
+        /// walks past every level whose .hs record has `moves > 0` on its way
+        /// to the next one.  This is that same test -- `TempHSData.moves > 0`
+        /// and nothing else, which is the only definition of "solved" anywhere
+        /// in the C -- asked once, at the one moment a player has said "take me
+        /// to this collection" and cannot have meant "to its first level in
+        /// particular".  Picking a level *inside* a collection is what the level
+        /// list is for and it is one keystroke away, so nothing is taken away
+        /// by this; what is taken away is scrolling past 400 solved rows every
+        /// time you come back to the collection you are working through.
+        ///
+        /// Two cases have no unsolved level to find and both answer 1: a
+        /// collection that is finished (there is nowhere better to go, and the
+        /// first level is where the original would have put you), and a .hs
+        /// that cannot be read.  A .hs shorter than the collection is not one
+        /// of them -- the file is dense and positional, so a record that is
+        /// past its end is a level that was never beaten, exactly as
+        /// CheckHighScore's own unchecked `ReadFile` reads it.
+        public static int FirstUnsolved(string hsPath, int levelCount)
+        {
+            if (levelCount < 1) return 1;
+            byte[] data = Array.Empty<byte>();
+            if (File.Exists(hsPath))
+            {
+                try { data = File.ReadAllBytes(hsPath); }
+                catch (IOException) { return 1; }
+                catch (UnauthorizedAccessException) { return 1; }
+            }
+            int have = data.Length / THSREC.Size;
+            for (int i = 0; i < levelCount; i++)
+            {
+                if (i >= have) return i + 1;            // past the end: never beaten
+                int at = i * THSREC.Size;
+                if ((data[at] | (data[at + 1] << 8)) == 0) return i + 1;
+            }
+            return 1;
+        }
+
         /// CheckHighScore (LTANK2.C:1071) and the part of HSBox that fills in
         /// the record (LTANK_D.C:826), in the original's order -- which matters,
         /// because the padding happens before the read and the read happens
