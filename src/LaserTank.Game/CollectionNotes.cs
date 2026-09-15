@@ -36,11 +36,17 @@
 // which is a level file only because that is the only container the game reads.
 //
 // **A stem that is not in this table still lists.**  It lands on the shelf its
-// directory implies and shows no blurb, which is the right answer for a level
-// the editor just saved and for whatever upstream adds next.  Nothing here is
-// load-bearing: CollectionList.BuildRows -- the rows
-// tools/collections_check.py diffs against Python -- does not know this file
-// exists, and the only gate that reads it reads it for keys.
+// directory implies, keeps its file name as its label and shows no blurb, which
+// is the right answer for a level the editor just saved and for whatever
+// upstream adds next.
+//
+// **The names are the one thing here that reaches the rows.**  The shelves and
+// the blurbs are a display layer -- drawn around rows that do not know they
+// exist -- but `Names` is read by CollectionList.BuildRows, which is what
+// tools/collections_check.py rebuilds in Python and diffs row by row and by
+// sha256.  So the ten names are written out again there, under the same rule as
+// the walk and the column widths: two implementations agreeing is evidence, one
+// agreeing with itself is not.
 using System.Collections.Generic;
 
 namespace LaserTank.Game
@@ -143,10 +149,56 @@ namespace LaserTank.Game
             ["inchworm"] = (Shelf.Walkthroughs, "note.inchworm"),
         };
 
-        /// **The sort key inside a shelf, low first**, and only two shelves have
-        /// one -- which is why this is five entries rather than a field on every
-        /// row.  Everything else answers 0 and keeps the scan order, which is the
-        /// sorted walk of the roots.
+        /// **What to call a collection, where its file name will not do.**  The
+        /// label is the stem by default, and on the Collections shelf that is
+        /// the right answer: `LaserTank`, `Challenge-IV`, `Sokoban-I` are what
+        /// the thirteen are called on laser-tank.com, what their high-score
+        /// pages are headed, and what a player asking for help will name.  The
+        /// other ten are not like that.  Their stems are what the zip happened
+        /// to hold -- `Game-Objects-in-LT` abbreviated to fit, `4triang` and
+        /// `telek-1` abbreviated past legibility, `Pono's_trick` with the
+        /// underscore a 1996 filesystem wanted -- and none of them is a name a
+        /// player would ever say out loud.
+        ///
+        /// A walkthrough is named for **the level of the original it opens
+        /// out**, number first: that is the whole of what it is, it is how the
+        /// shelf is already sorted, and `Level 179` is how a player who wants it
+        /// arrived at wanting it.  The titles after the colon are the levels'
+        /// own `TLEVEL.LName`s, spelled as the game spells them.
+        ///
+        /// **Untranslated, unlike the blurbs.**  These are not a description of
+        /// a collection -- which is copy, and lives in `data/language/*.json` in
+        /// eleven languages -- but the name of a particular file, next to twelve
+        /// other rows that are file names too; and the four walkthrough titles
+        /// are level names the game already draws in English out of the .lvl,
+        /// because that is the only place they exist.  Translating the row and
+        /// not the level it points at would read as two different levels.
+        private static readonly Dictionary<string, string> Names =
+            new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            ["Game-Objects-in-LT"] = "Game Objects in LaserTank",
+            ["Tutor-with-Playbacks"] = "Tutor with Playbacks",
+            ["Tutor"] = "Tutor",
+            ["Rotary Mirrors-Challenge"] = "Rotary Mirrors",
+            ["Tricks"] = "Tricks",
+            ["Pono's_trick"] = "Pono's Trick",
+
+            ["l40"] = "Level 40: Down the Drain",
+            ["4triang"] = "Level 149: The 4 Triangles",
+            ["telek-1"] = "Level 173: Telekinesis",
+            ["inchworm"] = "Level 179: Being an Inchworm",
+        };
+
+        /// The label a row is drawn under: the name above, or the file's stem
+        /// when nobody has given it one.
+        public static string NameOf(Collection c)
+            => Names.TryGetValue(c.Label, out string n) ? n : c.Label;
+
+        /// **The sort key inside a shelf, low first.**  Everything not named here
+        /// answers 0 and keeps the scan order, which is the sorted walk of the
+        /// roots -- right for the twelve Challenge/Beginner/Sokoban/Gary/Special
+        /// files, whose names already sort into their series, and right for
+        /// whatever the editor saves next.
         ///
         /// `LaserTank` is **-1**: it is the original file, the one the other
         /// twelve are measured against -- upstream's own description of the
@@ -155,15 +207,36 @@ namespace LaserTank.Game
         /// middle of the shelf, between Gary-II and Sokoban-I, reading as the
         /// tenth of thirteen peers.
         ///
-        /// A hint file's key is **the level of the original it opens out** -- 40,
-        /// 149, 173, 179 -- because that is what it is *about*, and the
-        /// alphabetical run (`4triang, inchworm, l40, telek-1`) interleaves them
-        /// meaninglessly.  The two kinds of entry share one map because they are
-        /// one thing: a position in a list.
+        /// The **tutorials run in teaching order**, 1 to 6: what the objects do,
+        /// then the beginner's course with its solutions to watch, then the same
+        /// course to fight, then the one object big enough for a file of its own,
+        /// then the two packs that are built out of what the Tutor files taught.
+        /// Alphabetically that is `Game-Objects, Pono's_trick, Rotary Mirrors,
+        /// Tricks, Tutor, Tutor-with-Playbacks`, which puts the two tutors last
+        /// and the trick pack second -- the exact reverse of the order upstream
+        /// tells people to work through them in.
+        ///
+        /// A **walkthrough's key is the level of the original it opens out** --
+        /// 40, 149, 173, 179 -- because that is what it is *about*, it is what
+        /// the row is now named after, and the alphabetical run (`4triang,
+        /// inchworm, l40, telek-1`) interleaves them meaninglessly.
+        ///
+        /// All three kinds share one map because they are one thing: a position
+        /// in a list.  A stem nobody has placed sorts to the **top** of its
+        /// shelf rather than the bottom, 0 being below both 1 and 40; that is
+        /// the shelves' existing behaviour and it is the useful one here, since
+        /// the only unplaced files are ones somebody has just added.
         private static readonly Dictionary<string, int> Order =
             new(System.StringComparer.OrdinalIgnoreCase)
         {
             ["LaserTank"] = -1,
+
+            ["Game-Objects-in-LT"] = 1,
+            ["Tutor-with-Playbacks"] = 2,
+            ["Tutor"] = 3,
+            ["Rotary Mirrors-Challenge"] = 4,
+            ["Tricks"] = 5,
+            ["Pono's_trick"] = 6,
 
             ["l40"] = 40,
             ["4triang"] = 149,

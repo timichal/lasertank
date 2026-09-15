@@ -146,12 +146,13 @@ namespace LaserTank.Game
                     if (CollectionNotes.ShelfOf(all[i]) == s) group.Add(i);
                 if (group.Count == 0) continue;
                 // Scan order inside a shelf -- the sorted walk of the roots --
-                // unless the shelf has an order of its own, which only
-                // Walkthroughs does: a hint file is *about* a level of the
-                // original, so it sorts by that level rather than by the name
-                // of the zip it came in.  The tie-break is the scan index, so
-                // the result is the same on every filesystem whether or not
-                // List.Sort is stable.
+                // unless CollectionNotes.Order places the row.  Two shelves are
+                // placed and one nearly: the tutorials run in teaching order,
+                // the walkthroughs by the level of the original each opens out,
+                // and the collections keep their alphabetical run with the
+                // original file lifted to the head of it.  The tie-break is the
+                // scan index, so the result is the same on every filesystem
+                // whether or not List.Sort is stable.
                 group.Sort((a, b) =>
                 {
                     int by = CollectionNotes.OrderOf(all[a])
@@ -258,18 +259,26 @@ namespace LaserTank.Game
 
         /// The rows, and they are this port's own -- there is no format string
         /// in the original to read, because the original's list was drawn by
-        /// comdlg32.  Three columns: the name the game knows the collection by,
-        /// then solved/levels, then where the file is.
+        /// comdlg32.  Three columns: what the collection is called, then
+        /// solved/levels, then where the file is.
         /// `tools/collections_check.py` rebuilds them in Python from the same
         /// directories, which is the same two-implementations rule the sprite
         /// sheets and the three list dialogs are held to.
+        ///
+        /// **The name is CollectionNotes.NameOf and not the file's stem**, which
+        /// is a difference on ten rows out of twenty-three -- the tutorials and
+        /// the walkthroughs, whose file names are abbreviations nobody says out
+        /// loud.  The thirteen collections are still their stems, because that
+        /// is what they are called everywhere else.  The column went 24 -> 28 to
+        /// hold `Level 179: Being an Inchworm`, the longest of the ten; the head
+        /// line below and the gate's LABEL_W move with it.
         public static string[] BuildRows(Collection[] all)
         {
             var rows = new string[all.Length];
             for (int i = 0; i < all.Length; i++)
             {
                 Collection c = all[i];
-                rows[i] = $"{Pad(c.Label, 24)} {c.Solved,5}/{c.Levels,-5} {c.Dir}";
+                rows[i] = $"{Pad(CollectionNotes.NameOf(c), 28)} {c.Solved,5}/{c.Levels,-5} {c.Dir}";
             }
             return rows;
         }
@@ -508,18 +517,18 @@ namespace LaserTank.Game
             // the head's baseline and lit it.  Faint rather than small is what
             // makes a head a head; the rule is what stops the rows.
             //
-            // The head string is spaced to BuildRows' own fields: 24 for the
-            // label, then `%5d/%-5d` at columns 25-35, then the directory at 37.
+            // The head string is spaced to BuildRows' own fields: 28 for the
+            // label, then `%5d/%-5d` at columns 29-39, then the directory at 41.
             //
             // **Placed by character column, so the labels are capped**, which is
             // the one place in this interface where a translation has a width it
             // must not exceed: these three sit over cells whose positions come
             // out of a printf, not out of a measurement, so a long word does not
             // reflow the table -- it lands on the next column's numbers.
-            // strings_check.py holds them to 24 / 11 / 20 characters.
+            // strings_check.py holds them to 28 / 11 / 20 characters.
             string heads = Cols((0, lang["coll.colName"]),
-                                (25, lang["coll.colSolved"]),
-                                (37, lang["coll.colWhere"]));
+                                (29, lang["coll.colSolved"]),
+                                (41, lang["coll.colWhere"]));
             n.DrawString(mono, new Vector2(x, y), heads,
                          HorizontalAlignment.Left, w, Ui.Px(12), Ui.Faint);
             float headY = y;

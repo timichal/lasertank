@@ -84,12 +84,15 @@ had 23 rows in one alphabetical run, with `4triang` between `Special-I` and `Gam
 and nothing to say that one of those is 2,030 levels of the actual game and another is five
 positions of a walkthrough for level 149. It has shelves now — **Collections**, **Tutorials**,
 **Walkthroughs**, **Your levels**, this port's naming rather than the website's — a line per
-collection on hover, `LaserTank` first and the hint files in level order, **only `Esc` to close it**
+collection on hover, `LaserTank` first, the tutorials in teaching order and the hint files in level
+order, the ten of them named (`Level 149: The 4 Triangles`, not `4triang`) rather than left as
+whatever the zip called the file, **only `Esc` to close it**
 (which is what the level list has done since step 11 — the two pickers are one panel to use), and
 the column heads `LevelList` has had since step 8 (the rows' own size,
 faint, with a rule under them, which is also what stopped the first row's hover band lighting
 them). **The grouping is a display layer downstream of `Scan` and `BuildRows`**, so
-`collections_check.py` still diffs the same rows against Python and went green unchanged. The copy
+`collections_check.py` still diffs the same rows against Python; the ten names are the one thing
+that reaches a row, and they are written out again in the gate. The copy
 is laser-tank.com's facts in this port's sentences, with the upstream wording quoted beside each
 group in `CollectionNotes.cs`.
 

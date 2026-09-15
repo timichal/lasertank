@@ -77,8 +77,9 @@ SLOT = re.compile(r"\{(\d+)\}")
 #: the width the column leaves them.  LevelList.Cells is where the numbers come
 #: from: the name cell starts at 9 and the author at 40, so `levels.colName`
 #: has 31 columns and is capped one short of it; and so on down.  CollectionList
-#: heads its three at 0 / 25 / 37 over rows whose own fields are 24 wide and
-#: `%5d/%-5d`.
+#: heads its three at 0 / 29 / 41 over rows whose own fields are 28 wide and
+#: `%5d/%-5d` -- 28 because ten of the rows are named rather than stemmed and
+#: `Level 179: Being an Inchworm` is the longest (CollectionNotes.Names).
 WIDTHS = {
     "levels.colNumber": 4,
     "levels.colName": 30,
@@ -88,7 +89,7 @@ WIDTHS = {
     "levels.colWho": 5,
     "levels.groupBest": 18,
     "levels.groupYours": 16,
-    "coll.colName": 24,
+    "coll.colName": 28,
     "coll.colSolved": 11,
     "coll.colWhere": 20,
 }

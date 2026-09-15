@@ -750,7 +750,7 @@ The picker built in step 8 answered *which file*, and nothing else. Twenty-three
 alphabetical run, `4triang` between `Special-I` and `Game-Objects-in-LT`, and no way to tell from
 the list that one of those is 2,030 levels of the actual game, one is five positions of a
 walkthrough for level 149, and one is the file whose readme calls its own contents bugs. The
-information was all on laser-tank.com and none of it was in the game. Three changes.
+information was all on laser-tank.com and none of it was in the game. Four changes.
 
 **The column heads were drawn wrong and the first row's hover band lit them.** They were set a
 point smaller than the rows — in a table whose cells are placed by *character column*, which is
@@ -759,7 +759,7 @@ rather than by a rule, so the first row's band (`y - Line + 4`, the same rectang
 box) reached up into the head's baseline and highlighted it on hover. Both are `LevelList`'s rules,
 which that panel has had since step 8: **the rows' own size, faint rather than small, and a rule
 under them.** The head string is spaced to `BuildRows`' own fields — `solved/total` set flush from
-column 25 puts its slash on the row's slash and `where` on the row's path.
+column 29 puts its slash on the row's slash and `where` on the row's path.
 
 **The list has shelves, and they are this port's naming rather than upstream's.** The site has
 *More Levels* — which means the ones with no high-score page, none of which are in this repo — and
@@ -786,16 +786,51 @@ Gary-II and Sokoban-I, reading as the tenth of thirteen peers.
 **Walkthroughs sort by the level they open out, not by their filename.** 40, 149, 173, 179 —
 `l40`, `4triang`, `telek-1`, `inchworm` — rather than the alphabetical run the directory walk
 produces, which interleaves them meaninglessly. A hint file is *about* a level of the original, so
-the level is what orders it. Those four and `LaserTank`'s **-1** are the whole of
-`CollectionNotes.Order` — five entries rather than a field on every row, because no other shelf has
-an order of its own: everything else returns 0 and keeps the scan order, with the scan index as the
-tie-break so the result is the same on every filesystem whether or not `List.Sort` is stable. The
-two kinds of entry share one map because they are one thing: a position in a list.
+the level is what orders it.
 
-**The grouping is a display layer and deliberately nothing more.** `Scan` and `BuildRows` are what
-`tools/collections_check.py` rebuilds in Python and diffs row by row and by `sha256`, and
-`--check-collections` dumps them in scan order. The shelves are applied downstream of both, so the
-gate still compares the same two things it always did and went green unchanged. Same reasoning as
+**The tutorials run in teaching order**, 1 to 6: what the objects do, then the beginner's course
+with its solutions recorded, then the same course to fight, then rotating mirrors — the one object
+big enough for a file of its own — then the two packs built out of what the Tutor files taught.
+Alphabetically that is `Game-Objects, Pono's_trick, Rotary Mirrors, Tricks, Tutor,
+Tutor-with-Playbacks`, which puts the two tutors last and the trick pack second: the exact reverse
+of the order upstream tells people to work through them in.
+
+Those ten and `LaserTank`'s **-1** are the whole of `CollectionNotes.Order` — a sparse side table
+rather than a field on every row, because the twelve Challenge / Beginner / Sokoban / Gary / Special
+files need nothing: they return 0 and keep the scan order, which their own names already sort into
+series. The scan index is the tie-break, so the result is the same on every filesystem whether or
+not `List.Sort` is stable. A stem nobody has placed sorts to the *top* of its shelf, 0 being below
+both 1 and 40, which is the useful direction — the only unplaced files are ones somebody has just
+added. All three kinds share one map because they are one thing: a position in a list.
+
+**Ten of the twenty-three rows are named rather than stemmed.** `Game Objects in LaserTank`, `Tutor
+with Playbacks`, `Tutor`, `Rotary Mirrors`, `Tricks`, `Pono's Trick`; and the four walkthroughs as
+`Level 40: Down the Drain`, `Level 149: The 4 Triangles`, `Level 173: Telekinesis`, `Level 179:
+Being an Inchworm`. The thirteen collections keep their stems, because `LaserTank`, `Challenge-IV`
+and `Sokoban-I` are what they are called on the website, on their high-score pages and by anyone
+asking for help. The other ten are not like that: their stems are whatever the zip happened to hold
+— `Game-Objects-in-LT` abbreviated to fit, `4triang` and `telek-1` abbreviated past legibility,
+`Pono's_trick` with the underscore a 1996 filesystem wanted — and none is a name a player would say
+out loud. A walkthrough takes its number first because that is the whole of what it is, it is how
+the shelf is already sorted, and `Level 179` is how a player who wants it arrived at wanting it; the
+titles after the colon are the levels' own `TLEVEL.LName`s, spelled as the game spells them.
+
+**The names are deliberately untranslated, unlike the blurbs.** A blurb *describes* a collection, so
+it is copy and lives in `data/language/*.json` in eleven languages. A name is the identity of one
+file, sitting next to thirteen rows that are file names; and the four walkthrough titles are level
+names the game already draws in English out of the `.lvl`, because that is the only place they
+exist. Translating the row and not the level it points at would read as two different levels. The
+name column went 24 → 28 to hold `Level 179: Being an Inchworm`, the longest of the ten, and the
+head positions and `strings_check`'s width cap moved with it.
+
+**The grouping is a display layer and deliberately nothing more; the names are the one exception.**
+`Scan` and `BuildRows` are what `tools/collections_check.py` rebuilds in Python and diffs row by row
+and by `sha256`, and `--check-collections` dumps them in scan order. The shelves and the blurbs are
+applied downstream of both, so the gate still compares the same two things it always did and went
+green unchanged. `Names` is not downstream — it is *in* a row — so the ten are written out again in
+the gate, beside the walk, the sort and the column widths that are duplicated there for the same
+reason: a name column read from the implementation it is meant to check would be the one column in
+the row that checks nothing. Same reasoning as
 step 8's for keeping these rows out of `ListMode`: **a gate means what it says only if what it
 checks did not move under it.** The hit names stay the collection's index in `_all` rather than the
 drawn position, so `chrome_check`'s `row:0` is still the first collection however the shelves are

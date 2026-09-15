@@ -64,7 +64,27 @@ NAME_LEN = 31
 # docstring: a list that agreed with itself would prove nothing.
 ROOTS = ["data/levels", "data/quirks", "out/levels"]
 
-LABEL_W = 24            # CollectionList.BuildRows' first column
+LABEL_W = 28            # CollectionList.BuildRows' first column
+
+# CollectionNotes.Names, again -- the ten rows whose label is not their file
+# name.  Written out here rather than parsed out of the C#, for the reason in
+# the docstring: the row format, the walk and the column widths are all
+# duplicated on purpose, and a name table read from the implementation it is
+# meant to check would be the one column in the row that checks nothing.  Keyed
+# case-insensitively because the corpus mixes .lvl and .LVL and the stems are no
+# steadier than the extensions (`Game-Objects-in-LT.LVL`, `Tricks.lvl`).
+NAMES = {
+    "game-objects-in-lt":       "Game Objects in LaserTank",
+    "tutor-with-playbacks":     "Tutor with Playbacks",
+    "tutor":                    "Tutor",
+    "rotary mirrors-challenge": "Rotary Mirrors",
+    "tricks":                   "Tricks",
+    "pono's_trick":             "Pono's Trick",
+    "l40":      "Level 40: Down the Drain",
+    "4triang":  "Level 149: The 4 Triangles",
+    "telek-1":  "Level 173: Telekinesis",
+    "inchworm": "Level 179: Being an Inchworm",
+}
 
 
 def cstr(b):
@@ -135,7 +155,7 @@ def count_solved(hs):
 
 def build_row(root, lvl):
     """CollectionList.BuildRows' one format, again."""
-    label = lvl.stem
+    label = NAMES.get(lvl.stem.lower(), lvl.stem)
     levels = lvl.stat().st_size // LEVEL_REC
     solved = count_solved(lvl.with_suffix(".hs"))
     where = lvl.parent.relative_to(root).as_posix()
