@@ -421,7 +421,10 @@ namespace LaserTank.Solver
         // key the run is byte-identical and the expansion is shorter; the
         // instrument that priced it is --push-time, whose census puts the
         // ceiling at the distinct (board, tank cell) ratio it prints.
-        public bool PushMemo = false;
+        // On by default since session 51: the gate (tools/push_memo.sh) is
+        // IDENTICAL on all three rungs, reports field for field and every
+        // .lpb byte for byte, so --no-push-memo only ever costs seconds.
+        public bool PushMemo = true;
         public double PushShare = 1.0;
 
         public bool SgReuse = false;       // restart from discarded nodes

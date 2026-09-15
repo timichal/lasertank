@@ -150,7 +150,7 @@ exception and it is worth naming**: item 14's third arm was run with the pass *s
 clock is the only reading in these files taken on an idle machine. The rule that made all of that
 possible is the one to carry forward — **a long pass is node-governed, so it costs a cheap item its wall
 clock and none of its numbers** — and with the pass done, both remaining items now have the whole machine
-if they want it. **What is left is one measurement and one default flip.**
+if they want it. **The flip landed in session 51 and re-gated `IDENTICAL`, so what is left is one measurement** — item 7 — **and the board-keyed second memo layer, which is optional and worth ~1.12x.**
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -382,8 +382,8 @@ from the pair.
 
 ### Then memoise — built and gated in session 50, and the key is not the one this item named ☑
 
-**`--push-memo` ships off by default, and on the arm the fourth pass runs it is 1.67x.** Three rungs,
-the same level list and the same node budget under both arms, `bash tools/push_memo.sh`:
+**`--push-memo` is on by default as of session 51, and on the arm the fourth pass runs it is 1.67x.**
+Three rungs, the same level list and the same node budget under both arms, `bash tools/push_memo.sh`:
 
 | rung | job time, memo off | on | speedup | nodes/s off → on | memo hit rate |
 |---|---:|---:|---:|---|---:|
@@ -456,6 +456,43 @@ are a loaded machine's; the ratios are the point and both arms carried the same 
 **off by default** — flipping it on is a one-line change and the gate above is the evidence for it, but
 nothing in these files has been re-measured with it on, and the seconds in every table above it are the
 searcher without it.
+
+### The default flip — done in session 51, and the gate had to be fixed to stay honest ☑
+
+**`PushMemo = true` in `Search.cs`, and `--no-push-memo` is the way off**, following the `--no-ida` /
+`--no-beam` convention. `--push-memo` is still accepted and is now a no-op, so every recipe in these
+files keeps working unchanged. **`build/lasertank-solve.exe` is republished** and carries the new
+default; nothing else in `tools/` mentions the flag, so no other recipe changes meaning.
+
+**The gate needed a one-line fix before it meant anything, and this is the third instrument defect these
+files have caught the same way.** `push_memo.sh` built its control arm as "pass no flag" — which after
+the flip *is* the memo — so it would have compared the memo against itself and printed `IDENTICAL` while
+measuring nothing, exactly like the gate that once passed on an empty directory. The control now passes
+`--no-push-memo`, and the `--push-time` lines are the evidence it bites: the off arm prints no memo line
+and `pushH` back at **42-47%** of the expansion, the on arm prints the hit rate and **4-17%**.
+
+**Re-gated after the flip, on an idle machine** — the first reading of this bench not taken beside item
+2's pass:
+
+| rung | job time, `--no-push-memo` | default | speedup | verdict |
+|---|---:|---:|---:|---|
+| `rung8` — the shipped rung, width 8 | 48.4 s | 36.9 s | **1.31x** | `IDENTICAL` |
+| `l8fire` — the pass's arm, width 128 | 93.0 s | 59.5 s | **1.56x** | `IDENTICAL` |
+| `layer7` — the one arm with `--push-stop` | 60.9 s | 45.9 s | **1.33x** | `IDENTICAL` |
+
+Same 50 levels, 13 / 6 / 10 solved, every `.lpb` byte-identical, 16.7M / 18.4M / 17.0M nodes a rung
+identical across the pair. **The ratios are 0.06 to 0.11 below session 50's** (1.40 / 1.67 / 1.42) and
+the ordering is the same, which is the shape to expect when the control is the arm that suffers most from
+a loaded machine: session 50 measured beside sixteen jobs, this one measured alone.
+
+**One thing in the table above this section does not reconcile, and it is the table rather than the
+memo.** Session 50's `job time` and `nodes/s` columns say `rung8` off is **16.8 s at 166,627 nodes/s**,
+which implies **2.8M nodes**; the reports that run banks sum to **16.7M nodes at 345k nodes/s** over the
+same 50 levels at the same 400k cap, and `bench/deep-levels.txt` has not changed since 2026-09-07. So
+those two columns are not measuring the bench the row names — most likely the single-level `time` split
+(`LaserTank.lvl` 10, 6M nodes, one thread) read into a bench row. **The speedup and hit-rate columns are
+unaffected** — they are ratios within a pair — and the gate verdict is untouched, which is what licenses
+the flip. Worth re-deriving before that table's absolute seconds are quoted anywhere else.
 
 **Both alternative explanations for the 166k are already ruled out**, which is why this item is now the
 whole of the wall-clock story rather than one of three guesses at it: `--push-eval none` runs at 171k
