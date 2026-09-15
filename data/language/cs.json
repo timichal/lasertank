@@ -59,6 +59,7 @@
     "status.noneMatch": "žádná další úroveň neodpovídá nastavení hry — mění se přes Ctrl+O",
     "status.lastLevel": "to byla poslední úroveň v této sbírce",
     "status.firstLevel": "tohle je první úroveň v této sbírce",
+    "status.noLastLevel": "není kam se vrátit",
 
     "win.solved": "Vyřešeno",
     "win.playback": "přehrávání došlo k vlajce",
@@ -103,6 +104,7 @@
     "keys.collections": "vybrat sbírku",
     "keys.nextLevel": "další úroveň",
     "keys.prevLevel": "předchozí úroveň",
+    "keys.lastPlayed": "naposledy hraná úroveň",
     "keys.stepLevel": "o úroveň dál, bez filtru",
     "keys.newGame": "začít znovu",
     "keys.record": "spustit nebo zastavit nahrávání",

@@ -76,6 +76,15 @@ namespace LaserTank.Game
         private int _recBufSize;
         private int _levelCount;
 
+        /// `Backspace[10]` and `BS_SP` (LTANK2.C:94), as a plain list.  See
+        /// Back() for what the ten slots were and why this is not ten.  The
+        /// invariant is the original's: **the level on screen is the top of
+        /// this**, which is what makes the push a no-op when a load lands where
+        /// it already is, and what makes the pop leave the stack describing
+        /// where it arrived.
+        private readonly System.Collections.Generic.List<int> _history =
+            new System.Collections.Generic.List<int>();
+
         // ---- step 4: the game around the game -------------------------------
         /// The .hs / .ghs / recording names AssignHSFile derives from the .lvl
         /// (LTANK2.C:1055).
@@ -226,7 +235,83 @@ namespace LaserTank.Game
             // RecBuffer belongs to a level that is no longer on screen.
             if (Pb.Open && Pb.Rec != null && Pb.Rec.Level == n) Pb.Install(E);
             else if (Pb.Open) Pb.Close(E);
+
+            // LTANK2.C:1045, the last thing LoadNextLevel does after that, and
+            // the reason the push is *here* rather than in each of Load's
+            // callers: the original has one loader and every command that
+            // changes the level goes through it, so "the level actually
+            // changed" is a fact this function knows and nothing above it has
+            // to remember.  `if (Backspace[BS_SP] != CurLevel)` is the whole
+            // condition -- a load that lands on the level already on screen
+            // (ReStart's neighbour F2 with RLL on, a playback of the level you
+            // are watching) pushes nothing, so Back() is never a key that does
+            // nothing twice.
+            if (_history.Count == 0 || _history[_history.Count - 1] != n)
+                _history.Add(n);
             return true;
+        }
+
+        // ---- command 118, Last Level Played ---------------------------------
+        //
+        // **Not undo.**  Undo is 110, it is bound to `U` and it walks the move
+        // buffer; this walks *level numbers*.  `Backspace[10]` with `BS_SP`
+        // as a ring (LTANK2.C:94), pushed by LoadNextLevel and popped by the
+        // `VK_BACK` accelerator -- "take me back to the level I was just on".
+        //
+        // **Ten, and why this is not ten.**  The bound is a 1996 fixed array
+        // and every awkward line in the original's case body is the ring
+        // showing through it: the pop has to zero the slot it leaves
+        // (`Backspace[BS_SP] = 0; // this is so we dont loop around`,
+        // LTANK.C:1003) or a full ring walks itself forever, and the menu item
+        // greys itself by peeking one slot further down to see whether that
+        // zero is the next one.  A list has neither problem, so this is a list:
+        // no sentinel, no wrap, and `Count` is the grey.
+        //
+        // **That deviation cannot reach a gate**, which is the whole of why it
+        // is allowed.  `WM_KEYDOWN` drops every virtual-key code outside
+        // VK 32..40 before `AddKBuff` ever sees it (LTANK.C:573), and VK_BACK
+        // is 8 -- so the history cannot enter a keystream, a `.lpb`, a `.hs`, a
+        // solver result or any fidelity harness.  It is interface, and the
+        // interface is the half this port is allowed to change.
+
+        /// The stack itself, oldest first and the level on screen last.  Read
+        /// by Step17Check and by nothing that draws: the panel this would
+        /// belong on does not exist, and a list of numbers is not one.
+        public System.Collections.Generic.IReadOnlyList<int> History => _history;
+
+        /// The level Back() would land on, or 0 -- which is
+        /// `Backspace[BS_SP - 1]`, the peek that greys the menu item in the
+        /// original.  Nothing draws it yet; `Step17Check` prints it, because
+        /// "where would it go" is the half of this command a stack of numbers
+        /// does not show on its own.
+        public int BackLevel => _history.Count > 1 ? _history[_history.Count - 2] : 0;
+
+        /// Command 118 (LTANK.C:1000).  -> false when there is nowhere back,
+        /// which is the grayed menu item, and then nothing has moved.
+        ///
+        /// The original pops, loads, and on a failed load restores `CurLevel`
+        /// but not the stack -- it has already zeroed the slot by then, so a
+        /// level that will not load costs you a step of history as well.  Here
+        /// the entry goes back on, because "nothing moved" is the answer every
+        /// other failed load in this file gives and a ring is not making the
+        /// decision any more.
+        public bool Back()
+        {
+            // Cleared for Advance's reason: this returns false in two ways --
+            // nowhere back, or the level that is back will not load -- and
+            // without this the second would be reported by a stale message from
+            // some earlier one.
+            Error = null;
+            if (_history.Count < 2) return false;
+            int here = _history[_history.Count - 1];
+            int to = _history[_history.Count - 2];
+            _history.RemoveAt(_history.Count - 1);
+            // Load's own push sees `to` on top and adds nothing, which is the
+            // original's `if (Backspace[BS_SP] != CurLevel)` doing exactly this
+            // job on the way out of the same command.
+            if (Load(to)) return true;
+            _history.Add(here);
+            return false;
         }
 
         // ---- LTANK2.C:974  LoadNextLevel, the half that is not a level load --
@@ -368,14 +453,14 @@ namespace LaserTank.Game
         /// HighScores.FirstUnsolved is where that deviation is argued and where
         /// `SkipCL`, the original's own version of the idea, is cited.
         ///
-        /// The two lines with nothing to do here are the ones about command 118
-        /// -- the ten-level Backspace history, which this port does not have
-        /// (see PROGRESS.md, "the rest of the original that is still missing").
-        /// **When 118 arrives, its stack must be cleared here**, because a
-        /// history of level numbers means nothing once the collection they
-        /// index has changed.  That is the whole reason those two lines are in
-        /// the original's case body, and it is exactly the kind of thing that
-        /// is invisible until someone plays two collections in one sitting.
+        /// **The two lines about command 118 are the history, and they are the
+        /// easiest thing in this case body to leave out.**  `Backspace[BS_SP] =
+        /// 0` plus the grey is *clear the stack*, because a history of level
+        /// numbers means nothing once the collection they index has changed --
+        /// going "back" from level 3 of one file to level 7 of another is not a
+        /// place anyone has been.  Invisible until someone plays two
+        /// collections in one sitting, which is why it was written down here
+        /// for two steps before there was a stack to clear.
         ///
         /// What is *not* transliterated is LoadNextLevel's opening prompt --
         /// `if (GameInProg) MessageBox(txt039, ...)`, "you will lose game data,
@@ -399,6 +484,7 @@ namespace LaserTank.Game
             string oldPath = _lvlPath;
             ScoreFiles oldFiles = Files;
             int oldCount = _levelCount;
+            int[] oldHistory = _history.ToArray();
 
             // **A playback does not survive a change of collection.**  Load()
             // keeps one open when the level number matches, which was a
@@ -421,6 +507,14 @@ namespace LaserTank.Game
             try { _levelCount = LevelFile.CountLevels(lvlPath); }
             catch (IOException) { _levelCount = 0; }
 
+            // `Backspace[BS_SP] = 0` -- and before the Load below, so the level
+            // this collection opens on is the bottom of the new stack rather
+            // than the second entry of a cleared one.  Restored with everything
+            // else when the file will not open, because a failed 108 has moved
+            // nothing and a history that lost its past to a typo would be the
+            // one part of "nothing moved" that was not true.
+            _history.Clear();
+
             // CurLevel = 0; LoadNextLevel(TRUE, FALSE) -- through FirstUnsolved,
             // see above.  It reads the .hs this call has just assigned, so it is
             // asked here and not before AssignHSFile.  Load() builds a fresh
@@ -430,6 +524,8 @@ namespace LaserTank.Game
             _lvlPath = oldPath;
             Files = oldFiles;
             _levelCount = oldCount;
+            _history.Clear();
+            _history.AddRange(oldHistory);
             return false;
         }
 
