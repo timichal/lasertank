@@ -454,6 +454,58 @@ namespace LaserTank.Game
         public static void Hot(CanvasItem ci, Rect2 r, float radius = 6f)
             => ci.DrawStyleBox(Box(Accent with { A = 0.070f }, AccentDim, radius, 1f), r);
 
+        // ---- the text field ---------------------------------------------------
+
+        /// **One field, drawn once.**  Three places in this port take typing --
+        /// the level list's filter, the editor's three level fields and the
+        /// name panel -- and until step 14 each drew its own box, its own
+        /// placeholder and its own caret, three times, with three different
+        /// answers to where the caret sits when the field is empty.  This is
+        /// the drawing half; `TextField` is the state and the keys, and it is
+        /// the only caller that is not a panel.
+        ///
+        /// The caret is a **block**, not a bar, and that is the one decision
+        /// worth stating: at 11.5 px a one-pixel bar after a string is easy to
+        /// miss, and in a field that has the keyboard whether or not anyone
+        /// clicked it, "where does what I type go" is the whole question the
+        /// widget has to answer.
+        ///
+        /// `label` is the editor's inline caps tag (`name`, `by`, `hint`) and
+        /// is null for a field that has a title over it instead.
+        /// `placeholder` is drawn in its place when the value is empty, **past
+        /// the caret rather than under it** -- a block caret sitting on the
+        /// first glyph of a hint reads as a rendering fault.
+        public static void Field(CanvasItem ci, Rect2 r, string value,
+                                 string placeholder, bool caret, Color border,
+                                 bool hot = false, string label = null,
+                                 float size = 11.5f)
+        {
+            ci.DrawStyleBox(Box(hot || caret ? Raised : Bg, border, 6f, 1f), r);
+
+            float tx = r.Position.X + Px(9);
+            if (label != null)
+            {
+                Caps(ci, new Vector2(tx - Px(1), r.Position.Y + r.Size.Y / 2f + Px(3)),
+                     label, Faint, 9);
+                // Measured rather than a fixed indent: `name` and `hint` set
+                // wider than `by` at this size, and a constant that cleared
+                // `by` ran `name` straight into its own value.
+                tx += CapsWidth(label, 9) + Px(9);
+            }
+
+            bool empty = value.Length == 0;
+            float baseline = r.Position.Y + r.Size.Y / 2f + Px(4);
+            Write(ci, new Vector2(empty ? tx + Px(10) : tx, baseline),
+                  empty ? placeholder : value, size, empty ? Faint : Text,
+                  r.End.X - tx - Px(9));
+            if (!caret) return;
+            float cw = empty ? 0 : Width(value, size);
+            ci.DrawRect(new Rect2(Mathf.Min(tx + cw + 2, r.End.X - Px(9)),
+                                  r.Position.Y + Px(6),
+                                  Mathf.Max(2, Px(2)), r.Size.Y - Px(12)),
+                        Accent with { A = 0.85f });
+        }
+
         /// **A finger is not a cursor.**  A target drawn as a 17-pixel keycap
         /// is a target a thumb misses, so the *hit* rectangle is grown to a
         /// floor and the drawing is left alone -- the chrome does not have to

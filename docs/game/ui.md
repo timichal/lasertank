@@ -62,7 +62,8 @@ Arrows move, space fires. Everything else: `R` restart (105), `F2` new game (101
 `S`/`P` next/previous level (107/119), `N` sound (102), `A` animation (104),
 `H` hint (301), `F1` the key list (907, and 903 in the editor),
 `Ctrl+G` graphics dialog (226), `F5`/`F6`/`F7`/`F4` record / save recording / playback / replay
-(123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented), `Z`
+(123/117/114/124), `F8` auto-record, `F9` editor (201), `Ctrl+L` language picker (invented),
+`Ctrl+N` your name (invented — see below), `Z`
 board-size preset, `I` interpolation, `C` the A1–P16 grid, `Esc` quit — **which asks first**.
 `[` and `]` are ours.
 
@@ -238,11 +239,16 @@ rather than clipping, and a shelf blurb that will not fit is dropped rather than
 moves the *cursor* and the viewport follows — there is no scrollbar here, so the head line carries
 a `N more · scroll` count when the window is too short for the list.
 
-**`--type STRING` is the filter field's instrument**, and it exists because neither of the other two
-could reach it: `--press` goes through the accelerator table and a text field is not an accelerator,
-`--click` reaches only the hit list and the field is a swallow because it is always focused. It types
-through the same `Key(InputEventKey)` the router calls and prints
-`type <s> list=True rows=N of=M filtering=B q=Q`; `chrome_check.py` drives five queries through it.
+**`--type STRING` is the text fields' instrument**, and it exists because neither of the other two
+could reach them: `--press` goes through the accelerator table and a text field is not an accelerator,
+`--click` reaches only the hit list and a field is a swallow because it is always focused. It types
+through the same `Key(InputEventKey)` the router calls, into whichever panel with a field is open —
+the same order the router tests them in, so it cannot reach a field the keyboard could not — and
+prints `type <s> list=True rows=N of=M filtering=B q=Q` for the filter or
+`type <s> name=True initials=I text=T` for the name. **`text=` is last on its line and `name=` is
+last on `--check-options`'s**, because a name has spaces in it and every reader of those lines splits
+on whitespace; `pack ... label=` had the same problem first. `chrome_check.py` drives five queries
+through the filter and four names through the panel.
 **`\b` and `\t` are two characters on that command line, not control codes** — a real backspace does
 not survive the shell, the gate's argument quoting and Godot's command-line split.
 
@@ -264,9 +270,40 @@ was killed by the interface. `--panel quit` is how it is reviewed.
 changes?", which needs this box plus a third button, because *Cancel* is a third answer. It was
 drawn up as the shape of four, and the other three are [*Finished*](history.md) rather than
 pending: the DeadBox and the Difficulty dialog (225) were answered without a dialog at all, and the
-`RecordBox`/`HSBox` name fields turned out to be settings rather than questions. The rule that
-sorted them is written down there — **a 1996 dialog is not evidence that a question was being
+`RecordBox`/`HSBox` name fields became **one settings row**, which step 14 built (below). The rule
+that sorted them is written down there — **a 1996 dialog is not evidence that a question was being
 asked; it is evidence that a dialog was the only surface there was.**
+
+**`Ctrl+N` is the port's one name, where the original has two.** `HSBox` (`LTANK_D.C:634`) opens
+the instant a level is beaten and wants *initials* for the score it is about to post; `RecordBox`
+(`:983`) opens on the first recording saved in a session and wants an *author* for the `.lpb`
+header. They are the same question about the same person, asked at two moments because a dialog was
+the only surface there was — so this port asks once, on a panel, and `Options.Name` **writes both of
+the original's keys**: the whole name into `[DATA] Record Author`, its first four characters into
+`[DATA] Player`, which is all a `.hs` record holds (`THSREC.NameEntry`). A `LaserTank.ini` this port
+wrote is one the 2010 binary opens with both of its dialogs already answered. The panel shows those
+four characters as they are typed rather than explaining them, because the one moment the merge can
+surprise somebody is when a long name becomes four letters on a score line.
+
+It is the quit prompt's shape rather than a list panel's — a title, a field, a line of copy and two
+answers drawn as the keys that give them — and **it is the one panel here with a Cancel**. The
+graphics and language pickers deliberately have none, because their choice is applied live and an
+Esc would be undoing what is already on screen; a name is a string and nothing behind the panel
+moves as it is typed, so a field you cannot open to look at would be the worse answer. `Enter`
+saves, `Esc` and a click outside leave it as it was, and nothing is written when the text did not
+change — pressing `Ctrl+N` to see what the name is must not add a line to a file shared with the
+2010 binary. `--panel name` reviews it and `--name STRING` is the command line's way in, persisted
+by `--save-options` exactly as `--sound` and `--zoom` are.
+
+**Every text field in the port is one widget** (`TextField` + `Ui.Field`), which step 14 factored
+out of the three that had grown separately: the level list's filter, the editor's three level
+fields, and this one. It carries what they had each answered on their own — Backspace, the printable
+latin-1 range, a length cap, and where the caret sits when the field is empty — and two of those
+answers were wrong before there was one copy. **The editor's fields had no cap at all**, though
+their own comment claimed one: `LevelRecord.Set` truncates on the way to disk, so the surplus was
+dropped at save time rather than refused at the keystroke. **The filter took characters the corpus
+cannot contain** — its test had no upper bound, so a query with `č` in it could never match a level
+name, every one of which is latin-1.
 
 **Playback needed no new rules** — `PBOpen`, `PlayBack`, `PBHold`, `Speed` and `SlowPB` have been
 read by `Engine.Tick` since Phase 2, so the panel is four buttons wired to five fields. One line of
@@ -299,8 +336,8 @@ wrong:
   arm). Defined, so it stays; the panel draws the slot as an empty frame so it is at least visible.
 
 **Reviewing UI without a window** is the same trick everywhere: `--shot FILE` draws one frame and
-exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint|quit` / `--editor`
-open the thing first. **Step 9 added four more, and they need a window rather than avoiding one**:
+exits, and `--menu` / `--panel levels|scores|global|collections|playback|help|hint|quit|name` /
+`--editor` open the thing first. **Step 9 added four more, and they need a window rather than avoiding one**:
 `--dump-hits` prints every clickable rectangle this frame registered, with its name; `--click X,Y`
 pushes a synthetic press and release through `MouseButton` — the whole arm, guards included — and
 prints what it landed on and what changed; `--press key:U` does the same through the keyboard's

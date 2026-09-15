@@ -321,10 +321,17 @@ namespace LaserTank.Game
         private Atlas _atlas;
         private Options _opt;
 
+        /// The options, for the one panel that writes one -- see NameMenu.
+        /// Everything else in this project reaches them through a method here,
+        /// and that stays the rule: a panel that needs a *setting* gets a
+        /// property on this class, not a second writer of the INI.
+        internal Options Options => _opt;
+
         /// The UI strings -- Core/Strings.cs, one keyed catalogue per language.
         /// Read through the `Strings` property, never directly.
         private Strings _lang;
         private LanguageMenu _langMenu;
+        private NameMenu _nameMenu;
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
         private GraphicsMenu _menu;
@@ -549,6 +556,15 @@ namespace LaserTank.Game
             // original because the original has no such dialog (Options.PsLang).
             _lang = LoadLanguage(ArgStr(args, "--lang") ?? _opt.LanguageCode);
             _langMenu = new LanguageMenu(this);
+            _nameMenu = new NameMenu(this);
+
+            // --name STRING, this run only unless --save-options is given --
+            // the same arrangement --sound, --pack and --zoom have.  The
+            // player's way in is Ctrl+N.  It is set before the Session exists
+            // because the recorder and the score post both read it.
+            string nameArg = ArgStr(args, "--name");
+            if (nameArg != null && Array.IndexOf(args, "--save-options") < 0)
+                _opt.SetName(nameArg, persist: false);
 
             _packs = Packs.Scan(_opt.GraphicsDir);
             _menu = new GraphicsMenu(this);
@@ -580,6 +596,11 @@ namespace LaserTank.Game
                 _opt.Ini.ReadOnly = false;
                 _opt.SetSize(_size);
                 if (soundArg.HasValue) _opt.SetSound(soundArg.Value);
+                // The persisting half of --name, which is why the run-only
+                // half above stands down when this flag is present: SetName is
+                // a no-op once the text matches, so setting it twice would
+                // write nothing.
+                if (nameArg != null) _opt.SetName(nameArg);
                 PersistGraphics();
                 if (gfxDir != null) _opt.SetGraphicsDir(gfxDir);
             }
@@ -768,10 +789,14 @@ namespace LaserTank.Game
                 case "hint": _hint = true; break;
                 // Step 8's, on the same terms.
                 case "quit": _quitAsk = true; break;
+                // Step 14's.  `--open-name` would have been the LanguageMenu
+                // spelling; this one is a panel like the rest and goes on the
+                // flag the rest are on.
+                case "name": _nameMenu.Show(_opt.Name); break;
                 case null: break;
                 default:
                     GD.PrintErr("--panel wants "
-                                + "levels|scores|global|collections|playback|help|hint|quit");
+                                + "levels|scores|global|collections|playback|help|hint|quit|name");
                     GetTree().Quit(2);
                     return;
             }
@@ -889,37 +914,52 @@ namespace LaserTank.Game
             return sb.ToString();
         }
 
-        /// One character into whichever list panel is open, through exactly
-        /// the `Key(InputEventKey)` the router calls -- the filter's own arm,
-        /// not a back door into its fields.  `\b` and `\t` carry the two
-        /// editing keys the field answers.
+        /// One character into whichever panel with a field is open, through
+        /// exactly the `Key(InputEventKey)` the router calls -- the field's own
+        /// arm, not a back door into it.  `\b` and `\t` carry the two editing
+        /// keys the fields answer.
         private void Type(char ch)
         {
-            if (_list == null || !_list.Open) return;
             Key code = ch switch
             {
                 '\b' => Key.Backspace,
                 '\t' => Key.Tab,
                 _ => Key.None,
             };
-            _list.Key(new InputEventKey
+            var k = new InputEventKey
             {
                 Pressed = true,
                 Keycode = code,
                 Unicode = code == Key.None ? ch : 0,
-            });
+            };
+            // The same order the router tests them in, so `--type` cannot
+            // reach a field the keyboard could not have reached.
+            if (_nameMenu != null && _nameMenu.Open) _nameMenu.Key(k);
+            else if (_list != null && _list.Open) _list.Key(k);
         }
 
-        /// What the open list is showing, for `--type`'s log: the query, how
-        /// many rows survived it and where the cursor is.  A gate can assert on
-        /// this without a copy of the filter in Python -- and the *count* is
-        /// the assertion, because it is the one number the four filter fields
-        /// all land in.
-        private string ListLine()
-            => _list == null || !_list.Open
+        /// What the field that was typed into is showing, for `--type`'s log.
+        ///
+        /// For the list that is the query, how many rows survived it and how
+        /// many there were -- a gate can assert on this without a copy of the
+        /// filter in Python, and the *count* is the assertion, because it is
+        /// the one number the four filter fields all land in.  For the name
+        /// panel it is the text and the four characters a `.hs` would carry,
+        /// which is the one thing about that field a screenshot would not
+        /// settle.
+        private string TypedLine()
+        {
+            // **`text=` is last on purpose.**  A name has spaces in it and
+            // this line is read by splitting on them, so the one field whose
+            // value can contain one has to be the field nothing follows.
+            if (_nameMenu != null && _nameMenu.Open)
+                return $"name=True initials={_nameMenu.Initials} "
+                       + $"text={_nameMenu.Text}";
+            return _list == null || !_list.Open
                 ? "list=False"
                 : $"list=True rows={_list.Count} of={_list.Total} "
                   + $"filtering={_list.Filtering} q={_list.Query}";
+        }
 
         /// `key:U`, `key:ctrl+G` -- KeyName read backwards.
         private static bool ParseKey(string s, out Key code, out bool ctrl)
@@ -1016,7 +1056,7 @@ namespace LaserTank.Game
                     Type(ch);
                     QueueRedraw();
                 }
-                GD.PrintRaw($"type {typed} {ListLine()}\n");
+                GD.PrintRaw($"type {typed} {TypedLine()}\n");
             }
 
             if (dump)
@@ -1090,7 +1130,8 @@ namespace LaserTank.Game
             $"level={_s?.Level} moves={_s?.E?.Game.ScoreMove} " +
             $"shots={_s?.E?.Game.ScoreShot} help={_help} quit={_quitAsk} " +
             $"hint={_hint} list={_list?.Open} coll={_collections?.Open} " +
-            $"gfx={_menu?.Open} lang={_langMenu?.Open} editor={_edit?.Open} " +
+            $"gfx={_menu?.Open} lang={_langMenu?.Open} name={_nameMenu?.Open} " +
+            $"editor={_edit?.Open} " +
             $"pb={_s?.Pb.PanelUp} rec={_s?.Rec2.Recording} sound={_opt?.SoundOn} " +
             $"ani={_opt?.AnimationOn} cell={Cell} pack={_atlas?.Label} " +
             $"lvlfile={(_s == null ? "" : Path.GetFileName(_s.LevelPath))}";
@@ -1349,7 +1390,11 @@ namespace LaserTank.Game
                 "options pack={7} label={8} sha256={9}\n" +
                 "options rll={10} rll_file={11} rll_level={12}\n" +
                 "options sound={13} animation={14} auto_record={15}\n" +
-                "options player={16} record_author={17}\n",
+                // **name= is last on its line** because a name has spaces
+                // in it, and every reader of these lines splits on
+                // whitespace -- the same arrangement `pack ... label=`
+                // has, and for the same reason.
+                "options initials={17} name={16}\n",
                 // **The preset, not the live layout.**  `--check-options` runs
                 // before there is a window or a Session, so `Cell` is whatever
                 // the unmeasured layout holds -- zero.  What this line is about
@@ -1365,10 +1410,13 @@ namespace LaserTank.Game
                 _opt.LastLevelFile.Length > 0 ? _opt.LastLevelFile : "-", _opt.LastLevel,
                 _opt.SoundOn ? "Yes" : "No",
                 // Step 4's three: the option that moves a trace, the one that
-                // starts the recorder, and the two names.
+                // starts the recorder, and the name -- which was two lines here
+                // until step 14 merged [DATA] Player and [DATA] Record Author
+                // into one value.  Both are printed still, because `initials`
+                // is what a .hs will carry and it is derived rather than typed.
                 _opt.AnimationOn ? "Yes" : "No", _opt.AutoRecord ? "Yes" : "No",
-                _opt.Player.Length > 0 ? _opt.Player : "-",
-                _opt.RecordAuthor.Length > 0 ? _opt.RecordAuthor : "-"));
+                _opt.Name.Length > 0 ? _opt.Name : "-",
+                _opt.Initials.Length > 0 ? _opt.Initials : "-"));
             // What the level resolution above settled on -- the collection and
             // the number this run would have opened.
             GD.PrintRaw(string.Format(inv, "options start_file={0} start_level={1}\n",
@@ -1501,6 +1549,16 @@ namespace LaserTank.Game
             if (_langMenu != null && _langMenu.Open)
             {
                 _langMenu.Key(k.Keycode);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            // The name panel, on the same terms again -- and it is the one
+            // panel here that must take *every* key, because it is a text
+            // field: see NameMenu.Key.
+            if (_nameMenu != null && _nameMenu.Open)
+            {
+                _nameMenu.Key(k);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -1689,6 +1747,12 @@ namespace LaserTank.Game
                     _langMenu.Show(Strings.Available(Paths.Data(Strings.DirName)),
                                    Strings.Code);
                     break;
+                // Step 14's, and no command id either: the original asks for
+                // the name in two dialogs it opens *at* you (HSBox and
+                // RecordBox), and this port asks once, where a setting lives.
+                // Ctrl+N is free in both accelerator tables -- ACC1 binds VK_N
+                // bare (102, Sound) and ACC2 does not bind it at all.
+                case Key.N when ctrl: _nameMenu.Show(_opt.Name); break;
                 // Commands 120/121/122, the Options menu's three sizes.
                 case Key.Z: SetSize(_size % 3 + 1); break;
                 case Key.I: _interpolate = !_interpolate; break;
@@ -1701,7 +1765,7 @@ namespace LaserTank.Game
                     break;
                 // Command 102, "Sound" (LTANK.C:875).  The checkmark is the INI
                 // here; ToggleOpt writes it immediately.
-                case Key.N:
+                case Key.N when !ctrl:
                     bool on = _opt.ToggleSound();
                     if (_sfx != null) _sfx.SoundOn = on;
                     break;
@@ -1836,6 +1900,7 @@ namespace LaserTank.Game
             !_quitAsk && !_help
             && !(_menu != null && _menu.Open)
             && !(_langMenu != null && _langMenu.Open)
+            && !(_nameMenu != null && _nameMenu.Open)
             && !(_list != null && _list.Open)
             && !(_collections != null && _collections.Open)
             && !(_s != null && _s.Pb.PanelUp);
@@ -2201,6 +2266,7 @@ namespace LaserTank.Game
             Rect2 host = _l.Window;
             if (_menu.Open) _menu.Draw(this, font, host);
             if (_langMenu.Open) _langMenu.Draw(this, font, host, Strings);
+            if (_nameMenu.Open) _nameMenu.Draw(this, font, host, Strings);
             if (_list.Open) _list.Draw(this, font, _mono, host);
             if (_collections.Open) _collections.Draw(this, font, _mono, host);
             // The stacked layout has no column to hold the hint card, so command
@@ -3533,6 +3599,7 @@ namespace LaserTank.Game
                 new("A", "keys.animation", Key.A),              // 104
                 new("ctrl G", "keys.graphics", Key.G, true),    // 226
                 new("ctrl L", "keys.language", Key.L, true),    // ours
+                new("ctrl N", "keys.name", Key.N, true),        // ours
             }),
             ("help.groupSession", new Binding[]
             {

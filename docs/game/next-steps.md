@@ -17,35 +17,18 @@ Everything here was named as left out at the time rather than forgotten. **The e
 is item 8** — it holds the one genuine modal prompt the port still wants, plus a file dialog, and
 nothing in it touches the game's own window.
 
-**Not blocked on a modal prompt — which is what this paragraph used to say.** Four things were
-listed here as waiting on a dialog. **Two of them turned out to be answered already, and two want a
-settings surface rather than a prompt**, which leaves item 3 with no modal work in it at all: the
-one box still worth building is the editor's, and it is item 8's.
+**Nothing here is blocked on a dialog any more.** Four things were listed as waiting on one.
+**Two turned out to be answered already** — the DeadBox, which is a status line here, and the
+Difficulty dialog (225), which is the level list's rank chips, both [*Finished*](history.md) — and
+**the other two were one settings row rather than two prompts**, which step 14 built. Item 3 has no
+modal work left in it at all: the one box still worth building is the editor's, and it is item 8's.
 
-*The two that are answered* are [*Finished*](history.md) and were being carried here as deferrals
-they are not: the DeadBox, which is a status line here, and the Difficulty dialog (225), which is
-the level list's rank chips.
-
-*The two that want a field* are the `RecordBox` and `HSBox` name prompts — `[DATA] Record Author`
-and `[DATA] Player`. Both keys are read and written already (`Options.SetRecordAuthor`,
-`Options.SetPlayer:402`), both are legal blank, and **both are identity rather than a decision about
-the level just played**. The original asks mid-action because a 1996 dialog is the only surface it
-has; asking for four characters at the instant the board turns green is the DeadBox's mistake with a
-text field in it, and `WinLine` already carries the whole of HSBox's content without stopping
-anything. So these two want two rows in a small settings panel — the `GraphicsMenu` /
-`LanguageMenu` shape — and **that inverts the dependency item 7 records**: item 7 waits on item 3
-for the *keyspace*, and these two halves of item 3 wait on item 7 for somewhere to put them.
-
-**And "there is nowhere to type" is no longer true.** Text entry exists twice, and neither instance
-is modal: `LevelList.Key`'s filter field (substring, `strupr`, `Backspace`, `QueryMax`) and
-`EditMode.Typing`'s three fields, which walk focus on Tab and clamp to what a `char[31]` in a file
-the 2010 binary reads back can hold. What is missing is those two factored into one `Ui` field with
-a caret — a refactor, not a blocker, and the thing to do before either name row is written.
-
-**Step 7 built the shape** — `Ui.Dialog` plus a scrim, a measured panel, keycaps for the buttons —
-and **step 8 built what now looks like the only modal question the game side needs**: `Esc`'s quit
-answer (`DrawQuitAsk`), which settles the modality, the clock rule and the "every other key is the
-safe answer".
+*The two that became one* were the `RecordBox` and `HSBox` name prompts — `[DATA] Record Author`
+and `[DATA] Player`. They are the same question about the same person, so the port stores one
+`Options.Name` and writes both of the original's keys from it, and `Ctrl+N` is where it is typed.
+See [*Finished*](history.md), step 14, for the merge and for the text field the three existing ones
+were factored into on the way. What that leaves for item 7 is a *shape* rather than a dependency:
+there is a settings panel in this port now, and it holds one row.
 
 **Additive, nothing blocking:** `Backspace[]`'s ten-level history (118); Resume Recording (125);
 Print (126); "View
@@ -54,6 +37,12 @@ piece of drawing); "Change Directory" (`ID_GRAPHBOX_09`, a shell folder browser 
 persisted and `--gfx-dir` sets it); and `LoadImageFile`'s per-language `Control.bmp` / `Opening.bmp`
 / `LaserTank.hlp`. **`LaserTank.hlp` is the one F1 stands in for**: command 907 is WinHelp in the
 original and the key list here, which is the answer the port can actually give.
+
+**Step 7 built the modal shape** — `Ui.Dialog` plus a scrim, a measured panel, keycaps for the
+buttons — **step 8 built the only modal question the game side needs** (`Esc`'s quit answer,
+`DrawQuitAsk`, which settles the modality, the clock rule and the "every other key is the safe
+answer"), and **step 14 built the first non-modal panel with a field in it**, which is the shape the
+rest of the settings will take.
 
 **Wants a `LoadNextLevel` port rather than a menu:** `[OPT] SkipComLev` and `[DATA] Diff_Setting`.
 Both are read into `Options` as comments only. **`Diff_Setting` has no UI work left in it**: the
@@ -123,18 +112,19 @@ last-known value. See `SOLVER.md`.
 
 ## 7. Settings: `user://`, a typed store, and the INI demoted to an importer
 
-**Waiting on item 3** for the *store*, and **owed to it** for the *panel*. `[OPT] SkipComLev` and
+**Waiting on item 3** for the *store*. `[OPT] SkipComLev` and
 `[DATA] Diff_Setting` are still to land — both are read into `Options` as comments today — so the
 original's keyspace is not finished being filled in, and splitting the store before they arrive
-means writing the migration mapping twice. That is the half that waits.
+means writing the migration mapping twice.
 
-**The other half runs the other way, and it is new.** Item 3's two name prompts — `[DATA] Record
-Author` and `[DATA] Player` — stopped being dialog work and became settings rows, so they want a
-surface this item has not built either: there is no settings *panel* in the port at all today, only
-the three list panels (`GraphicsMenu`, `LanguageMenu`, `CollectionList`) and the `F1` key list.
-**Panel and store are separable** — the two rows could be written against `Options` as it stands and
-migrate with everything else — so this is not a cycle, but whoever takes either one should know the
-other is now pointing at it.
+**The panel half is no longer waiting on anything, because step 14 built it.** Item 3's two name
+prompts became one settings row (`NameMenu`, `Ctrl+N`), written against `Options` as it stands, and
+it will migrate with everything else. What that settles for this item is the *shape* a second
+setting takes — a panel over the board, a `TextField` for anything typed, a Save and a Cancel — and
+the one property worth keeping when the store lands: **the panel writes on Save and not before**, so
+opening it changes no file. It is one row rather than a settings screen; the day there are three,
+whether they stay one panel per setting or become a list is a question this item can answer with
+something already on screen.
 
 Three separate jobs are tangled in `Ini` (`src/LaserTank.Game/Options.cs`), and only one of them is
 a settings mechanism:

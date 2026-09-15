@@ -1124,3 +1124,106 @@ score summary, which is `WinLine` — these become the status line), and *collec
 (225, and the two name prompts — these become a control that is visible while the thing it affects
 is visible). A 1996 dialog is not evidence that a question was being asked; it is evidence that a
 dialog was the only surface there was.
+
+---
+
+## ~~Step 14: one name, where the original asks twice~~ — **done 2026-09-15**
+
+Next-steps item 3 carried two of the original's dialogs as deferred work: `RecordBox`
+(`LTANK_D.C:983`), which wants an author for a `.lpb` header, and `HSBox` (`:634`), which wants
+initials for a score. Both keys were already read and written; what was missing was anywhere to type
+them. They are now **one field on one panel** — `Ctrl+N` — and that merge is the whole of the step's
+argument. What is on screen is in [`ui.md`](ui.md); this is why.
+
+### The two dialogs are one question
+
+`[DATA] Player` and `[DATA] Record Author` are the same person's name, kept twice. Nothing in either
+box is about the level just played: neither asks for an opinion, neither offers a choice, and
+neither can be answered differently without the `.hs` and the `.lpb` disagreeing about who was
+playing. They are two because **a 1996 dialog was the only surface the program had** — there was no
+settings screen to put a name on, so each feature asked at the moment it needed one, which is the
+same finding the DeadBox and the Difficulty dialog produced two steps earlier and is worth stating
+once more as a rule: *a dialog in the original is evidence of what the toolkit could do, not of what
+was being asked.*
+
+So `Options.Name` is one value and `SetName` writes both keys — the whole name into `Record Author`,
+its first four characters into `Player`, which is all `THSREC`'s `char[6]` holds with `GetWindowText
+(..., 5)` reading it. **Constraint 2 is what decides that it writes both rather than picking one**:
+a `LaserTank.ini` this port wrote is one the 2010 binary opens with both of its dialogs already
+answered, and the reverse read has a fallback for the same reason — a file that binary wrote has
+only `Player` in it, because `HSBox` is the dialog it opens first.
+
+**Two of the original's rules are recorded rather than kept**, and this is the kind of deviation the
+UI half is allowed: `HSBox` writes its key only when the initials changed under a *case-insensitive*
+compare, so re-typing `MZ` as `mz` does not rewrite it there, and `RecordBox` writes
+unconditionally. Both are properties of a box with one field that closes on OK. Here there is one
+field and one write, so the test is whether the text changed at all — typing `mz` over `MZ` is an
+edit, and a settings row that quietly declined it would be the odd one out. The `stricmp` survives
+where it is still load-bearing: `HighScores.Check` applies it to the *record*, which is what the
+file actually carries.
+
+### What the panel had to show, and the shape it took
+
+The one thing a merge like this can cost is a surprise, and there is exactly one available: a long
+name becomes four letters on a score line. So the panel draws those four characters in the accent as
+they are typed — `SCORES AS  Mich` — rather than explaining them in a sentence nobody reads.
+
+It is **`DrawQuitAsk`'s shape, not a list panel's**: a title, a field, a line of copy, and two
+answers drawn as the keys that give them. That prompt's own header had called itself the first of
+four and said what the rest would need — *"what they need past this is a text field and a third
+button"*. This is the text field. It needed no third button, because the merge took one of the two
+questions away.
+
+**It is also the one panel here with a Cancel, and that is a departure worth writing down.**
+`GraphicsMenu` and `LanguageMenu` deliberately have none — their choice is applied live, so an `Esc`
+would be undoing what is already on screen, and the original's 226 has no Cancel either
+(`LTANK_D.C:1247`: Close and Cancel run the same code). Nothing here is applied live: a name is a
+string and the board does not change as it is typed, so a field with no way out that does not commit
+is a field you cannot open to look at. `Enter` saves; `Esc`, the close button and a click outside
+leave it. And **nothing is written when the text did not change**, which matters more than it looks
+in a file shared with the 2010 binary: pressing `Ctrl+N` to see what the name is must not add a
+`Record Author` line to it.
+
+### The refactor it was waiting on, and the two bugs that were hiding in it
+
+Item 3 named the prerequisite: *"what is missing is those two factored into one `Ui` field with a
+caret — a refactor, not a blocker, and the thing to do before either name row is written."* Written
+first, as it said. `Ui.Field` is the drawing and `TextField` is the state and the keys; the level
+list's filter, the editor's three level fields and the name panel are its four callers.
+
+**Two of the four things that were duplicated were wrong rather than merely repeated**, and both are
+the shape of bug that only a second copy makes visible:
+
+* **The editor's fields had no length cap at all**, while their own comment claimed they *"clamp to
+  what a `char[31]` in a file the 2010 binary reads back can hold"*. They did not: `LevelRecord.Set`
+  truncates on the way to disk, so a level name typed past thirty characters was accepted, drawn,
+  and silently shortened at save time. `Max` is the record's own number now, so what the field shows
+  is what the file will hold.
+* **The filter took characters the corpus cannot contain.** Its test was `u >= 32 && u != 127` with
+  no upper bound, so a Czech player typing `č` got a query that could never match anything: every
+  level name in every `.lvl` is latin-1, and so is everything else these fields are compared against
+  or written into. The bound is the editor's own rule, applied to the field that had missed it.
+
+**And one thing the merge fixed on its way past**: `Recorder.Author` was a field copied out of the
+INI in the constructor, so a name changed mid-session reached the *next* recording and not the one
+being played. It reads `Options.Name` live now, which is what a settings row means.
+
+### The instruments, and the one line format that had to change
+
+`--type` was step 11's, for the one arm of the chrome neither `--press` nor `--click` can reach, and
+it now types into whichever panel with a field is open — **in the same order the router tests them**,
+so it cannot reach a field the keyboard could not. `--panel name` opens the panel for `--shot`;
+`--name STRING` is the command line's way in, run-only unless `--save-options` is given, which is
+`--sound`'s arrangement exactly.
+
+**A name has spaces in it, and two log lines are read by splitting on whitespace.** `--check-options`
+prints `name=` last on its line and `--type` prints `text=` last on its, with the gates taking the
+whole rest of the line — the same fix `pack ... label=` needed first, found here by a gate reporting
+`name=Michal` for a player called Michal Zlatkovsky.
+
+Gates: `options_check` gained two arms (one name into both keys, and `Player` alone as the fallback
+with the file left untouched), `chrome_check` a thirteenth screen and a `name_check` that types four
+names through the panel and asserts the four-character cut, and `strings_check` answers for seven
+more keys across eleven languages. The four fidelity gates cannot have moved and were run anyway —
+nothing in `src/LaserTank.Core/` was touched — and every presentation gate is green, `editor_check`
+included, which is the one that would have noticed if the fields' new length cap had reached a file.

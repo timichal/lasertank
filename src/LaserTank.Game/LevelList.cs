@@ -224,7 +224,7 @@ namespace LaserTank.Game
         public int Count => _order.Length;
         public int Total => _levels.Length;
         /// The query as it stands, upper-cased, for the same log.
-        public string Query => _q;
+        public string Query => _q.Text;
 
         // ---- the filter -----------------------------------------------------
         //
@@ -234,7 +234,10 @@ namespace LaserTank.Game
         // the header, change 3.
 
         /// SearchRec.data, upper-cased as `strupr(SearchRec.data)` leaves it.
-        private string _q = "";
+        /// A TextField since step 14 -- the box, the caret, the length cap and
+        /// the character test are one widget now, shared with the editor's
+        /// three fields and the name panel's one.
+        private readonly TextField _q = new TextField(QueryMax, upper: true);
         /// SearchRec.mode: 1 is the title, 2 is the author.  One or the other,
         /// never both -- the original's two controls are a radio pair.
         private bool _byAuthor;
@@ -255,7 +258,7 @@ namespace LaserTank.Game
         /// Whether anything is narrowing the list, which is what the caption
         /// has to say before it prints a count.
         public bool Filtering =>
-            _q.Length > 0 || _byAuthor || _diff != All || _unsolvedOnly;
+            !_q.Empty || _byAuthor || _diff != All || _unsolvedOnly;
 
         /// Read the three files and build the table.  The original does this in
         /// WM_INITDIALOG, once per opening, and so does this: a .hs written by
@@ -281,7 +284,7 @@ namespace LaserTank.Game
 
             if (!string.Equals(_forPath, lvlPath, StringComparison.OrdinalIgnoreCase))
             {
-                _q = "";
+                _q.Set("");
                 _byAuthor = false;
                 _diff = All;
                 _unsolvedOnly = false;
@@ -381,7 +384,7 @@ namespace LaserTank.Game
                      : _sel < _order.Length ? _levels[_order[_sel]].Number : 0;
 
             int qnum = 0;
-            bool numeric = !_byAuthor && int.TryParse(_q, out qnum) && qnum > 0;
+            bool numeric = !_byAuthor && int.TryParse(_q.Text, out qnum) && qnum > 0;
 
             var ord = new List<int>(_levels.Length);
             for (int i = 0; i < _levels.Length; i++)
@@ -395,11 +398,11 @@ namespace LaserTank.Game
                 if ((sdiff & _diff) == 0) continue;
                 // SearchRec.SkipComp, which the C tests as `TempHSData.moves == 0`.
                 if (_unsolvedOnly && _marks[i] > 0) continue;
-                if (_q.Length > 0)
+                if (!_q.Empty)
                 {
                     string hay = (_byAuthor ? lv.Author : lv.LName) ?? "";
                     bool hit = hay.ToUpperInvariant()
-                                  .Contains(_q, StringComparison.Ordinal);
+                                  .Contains(_q.Text, StringComparison.Ordinal);
                     // ID_LOADLEV_02, the direct level-number entry, folded into
                     // the one field: a query that is only digits also matches
                     // the number itself.
@@ -697,23 +700,16 @@ namespace LaserTank.Game
                 // and because the editor's three fields already spend Tab on
                 // moving between controls.
                 case Godot.Key.Tab: _byAuthor = !_byAuthor; Apply(); break;
-                case Godot.Key.Backspace:
-                    if (_q.Length > 0) { _q = _q.Substring(0, _q.Length - 1); Apply(); }
-                    break;
                 case Godot.Key.Enter:
                 case Godot.Key.KpEnter:
                     Commit();
                     break;
                 default:
-                    // The field.  This is the listbox's own type-ahead widened
-                    // from a prefix to a substring -- and `strupr` is why the
-                    // query is stored upper-cased.
-                    long u = k.Unicode;
-                    if (u >= 32 && u != 127 && _q.Length < QueryMax)
-                    {
-                        _q += char.ToUpperInvariant((char)u);
-                        Apply();
-                    }
+                    // The field, which is Backspace and every printable key.
+                    // This is the listbox's own type-ahead widened from a
+                    // prefix to a substring -- and `strupr` is why the query is
+                    // stored upper-cased (TextField.Upper).
+                    if (_q.Key(k)) Apply();
                     break;
             }
             return true;
@@ -1060,31 +1056,14 @@ namespace LaserTank.Game
             // nothing for a click on it to do -- and a live target here would be
             // a box that has to clear the touch floor for no behaviour.
             _view.Chrome.Swallow(field, "search");
-            n.DrawStyleBox(Ui.Box(Ui.Bg, _q.Length > 0 ? Ui.Accent : Ui.Border, 6f, 1f),
-                           field);
 
             // A placeholder rather than a label beside the box: there is no room
             // for one, and an empty field that says what it wants is the same
-            // instruction in the space there is.
-            float tx = x + Ui.Px(9);
-            float baseline = y + fieldH / 2f + Ui.Px(4);
-            bool empty = _q.Length == 0;
-            // The placeholder starts *past* the caret rather than under it:
-            // the caret sits where the next character will land, which with an
-            // empty field is the first column, and a block caret over the first
-            // glyph of "Enter Search String :" reads as a rendering fault.
-            Ui.Write(n, new Vector2(empty ? tx + Ui.Px(10) : tx, baseline),
-                     empty ? L["levels.search"] : _q,
-                     empty ? 11f : 11.5f, empty ? Ui.Faint : Ui.Text,
-                     field.Size.X - Ui.Px(20));
-            // The caret, a block for the reason EditMode's is: at this size a
-            // one-pixel bar after a string is easy to miss, and this field has
-            // the keyboard whether or not anyone clicked it.
-            float cw = empty ? 0 : Ui.Width(_q, 11.5f);
-            n.DrawRect(new Rect2(Mathf.Min(tx + cw + 2, field.End.X - Ui.Px(9)),
-                                 y + Ui.Px(6), Mathf.Max(2, Ui.Px(2)),
-                                 fieldH - Ui.Px(12)),
-                       Ui.Accent with { A = 0.85f });
+            // instruction in the space there is.  **The border is lit by the
+            // query, not by the focus** -- this field always has the caret, so
+            // the thing worth saying about it is whether a filter is on.
+            _q.Draw(n, field, L["levels.search"], caret: true,
+                    border: _q.Empty ? Ui.Border : Ui.Accent);
 
             float cx = field.End.X + Ui.Px(10);
             float chipY = y + (fieldH - ChipHeight()) / 2f;

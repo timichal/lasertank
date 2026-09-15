@@ -113,6 +113,7 @@
     "keys.animation": "动画",
     "keys.graphics": "图形包",
     "keys.language": "语言",
+    "keys.name": "你的名字",
     "keys.editor": "关卡编辑器",
     "keys.thisList": "这份列表",
     "keys.quit": "退出 — 会先询问",
@@ -212,6 +213,13 @@
     "lang.title": "语言",
     "lang.credit": "翻译：{0}",
     "lang.footer": "↑↓ 或点击选择 · 回车、Esc 或点击面板外关闭",
+
+    "name.title": "你的名字",
+    "name.placeholder": "谁在玩？",
+    "name.about": "它会出现在你的最佳成绩和你保存的录像里。",
+    "name.scoresAs": "成绩署名",
+    "name.save": "保存",
+    "name.cancel": "取消",
 
     "ed.enter": "编辑器  ·  F1 列出编辑器按键，F9 离开，Ctrl+S 保存",
     "ed.left": "已离开编辑器",

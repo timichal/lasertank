@@ -113,6 +113,7 @@
     "keys.animation": "Animation",
     "keys.graphics": "Grafikpaket",
     "keys.language": "Sprache",
+    "keys.name": "dein Name",
     "keys.editor": "der Level-Editor",
     "keys.thisList": "diese Liste",
     "keys.quit": "beenden — mit Rückfrage",
@@ -212,6 +213,13 @@
     "lang.title": "Sprache",
     "lang.credit": "übersetzt von {0}",
     "lang.footer": "↑↓ oder Klick wählt · Enter, Esc oder ein Klick daneben schließt",
+
+    "name.title": "Dein Name",
+    "name.placeholder": "Wer spielt?",
+    "name.about": "Er steht bei deinen Bestwerten und in den Aufnahmen, die du sicherst.",
+    "name.scoresAs": "in der Liste",
+    "name.save": "sichern",
+    "name.cancel": "abbrechen",
 
     "ed.enter": "Editor  ·  F1 zeigt die Editor-Tasten, F9 verlässt ihn, Strg+S sichert",
     "ed.left": "Editor verlassen",

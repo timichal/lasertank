@@ -113,6 +113,7 @@
     "keys.animation": "animación",
     "keys.graphics": "juego de gráficos",
     "keys.language": "idioma",
+    "keys.name": "tu nombre",
     "keys.editor": "el editor de niveles",
     "keys.thisList": "esta lista",
     "keys.quit": "salir — pregunta antes",
@@ -212,6 +213,13 @@
     "lang.title": "Idioma",
     "lang.credit": "traducido por {0}",
     "lang.footer": "↑↓ o clic elige · Intro, Esc o un clic fuera cierra",
+
+    "name.title": "Tu nombre",
+    "name.placeholder": "¿quién juega?",
+    "name.about": "Aparece en tus mejores marcas y en las grabaciones que guardes.",
+    "name.scoresAs": "en la lista",
+    "name.save": "guardar",
+    "name.cancel": "cancelar",
 
     "ed.enter": "Editor  ·  F1 lista sus teclas, F9 sale, Ctrl+S guarda",
     "ed.left": "has salido del editor",

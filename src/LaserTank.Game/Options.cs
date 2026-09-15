@@ -204,7 +204,7 @@ namespace LaserTank.Game
         public const string PsRllN = "RLLFilename";
         public const string PsRllL = "RLLLevel";
         public const string PsUser = "Player";                  // the initials
-        public const string PsPBA = "Record Author";
+        public const string PsPBA = "Record Author";            // the same person
         public const string PsYes = "Yes";
 
         /// `[DATA] Language` -- the one key in this class the original does not
@@ -286,12 +286,20 @@ namespace LaserTank.Game
             // sense, so a missing key means off rather than on.
             AutoRecord = YesNo(PsARec, false);
 
-            // [DATA] Player and [DATA] Record Author -- the initials that go
-            // into a .hs record and the name that goes into a .lpb header.
-            // Neither has a default: the original opens its dialogs with an
-            // empty box (LTANK_D.C:634, :983) and writes whatever comes back.
-            Player = _ini.Get(SecData, PsUser);
-            RecordAuthor = _ini.Get(SecData, PsPBA);
+            // **[DATA] Player and [DATA] Record Author are one value here.**
+            // See `Name` for the whole argument; the read is the half worth
+            // stating: the long key wins when it has anything in it, because
+            // it is the one that can hold a name rather than an abbreviation
+            // of one, and `Player` is the fallback for a file written by the
+            // 2010 binary, which asks for the initials first (HSBox) and for
+            // the author only on the first recording anyone saves.
+            //
+            // Neither key has a default: the original opens both dialogs with
+            // an empty box (LTANK_D.C:634, :983) and writes whatever comes
+            // back, so an empty name is legal and stays empty.
+            string author = _ini.Get(SecData, PsPBA);
+            Name = author.Length > 0 ? author : _ini.Get(SecData, PsUser);
+            if (Name.Length > NameMax) Name = Name.Substring(0, NameMax);
 
             // [DATA] Language.  No default written on load: an absent key means
             // the base language, and Strings.Load resolves an unknown code to
@@ -327,13 +335,50 @@ namespace LaserTank.Game
         public int LastLevel { get; private set; }
         /// [OPT] Auto_Record, command 115.
         public bool AutoRecord { get; private set; }
-        /// [DATA] Player -- the initials a .hs record carries.  HSBox reads it
-        /// with `GetPrivateProfileString(..., 5, ...)`, so four characters is
-        /// the width the original can store and this trims to the same.
-        public string Player { get; private set; }
-        /// [DATA] Record Author -- the name a .lpb header carries.  RecordBox
-        /// reads 30 into a char[31].
-        public string RecordAuthor { get; private set; }
+        /// **Who is playing -- one value, where the original has two.**
+        ///
+        /// The 2007 program asks twice.  `HSBox` (LTANK_D.C:634) wants
+        /// *initials* for the score it is about to post and keeps them in
+        /// `[DATA] Player`; `RecordBox` (LTANK_D.C:983) wants an *author* for
+        /// the recording it is about to write and keeps it in `[DATA] Record
+        /// Author`.  Two dialogs, two keys, two moments -- and one answer,
+        /// because they are the same question asked of the same person.  There
+        /// is no reading of either box under which a player would want them to
+        /// disagree, and a 1996 dialog per field is what made them two in the
+        /// first place.
+        ///
+        /// So the port stores one name and **writes both keys** (see SetName):
+        /// what a player types once ends up wherever the 2010 binary would look
+        /// for it, which is the whole of what constraint 2 asks of a settings
+        /// key.  `Initials` is the four characters a `.hs` record can hold, cut
+        /// from the same string rather than typed a second time.
+        ///
+        /// Thirty is `RecordBox`'s own width and the wider of the two, so it
+        /// is the one the field takes -- see NameMax.
+        public string Name { get; private set; }
+
+        /// `GetWindowText(..., PBSRec.Author, 31)` (LTANK_D.C:990) into a
+        /// `char Author[31]` (LTANK.H:148): thirty characters and a
+        /// terminator, which is also exactly what `LevelFile.WritePlayback`
+        /// puts in a `.lpb` header.
+        ///
+        /// **The original loses the thirtieth on the way back**, and it is a
+        /// finding rather than something to reproduce: RecordBox *reads* the
+        /// INI with `GetPrivateProfileString(..., 30, ...)` (LTANK_D.C:983),
+        /// which is 29 characters and a terminator -- so a 30-character name
+        /// the 2010 binary itself wrote reopens its own dialog one character
+        /// short.  Nothing here reads the key that way, so nothing here has to
+        /// be short by one.
+        public const int NameMax = 30;
+
+        /// **[DATA] Player, derived.**  `HSBox` reads the key with
+        /// `GetPrivateProfileString(..., 5, ...)` and the score record's field
+        /// is `char[6]` with four of them reachable (THSREC.NameEntry), so a
+        /// name longer than four characters posts its first four -- which is
+        /// what initials are, and what `%4s` in both list dialogs prints.
+        public string Initials => Name.Length > THSREC.NameEntry - 1
+                                  ? Name.Substring(0, THSREC.NameEntry - 1)
+                                  : Name;
 
         /// SetGameSize's own write (LTANK2.C:1737).
         public void SetSize(int size)
@@ -394,19 +439,36 @@ namespace LaserTank.Game
             return on;
         }
 
-        /// HSBox's write (LTANK_D.C:830): the initials, trimmed to the four
-        /// characters `GetWindowText(..., 5)` can return, and written only when
-        /// they changed -- `if (stricmp(temps, HS.name) != 0)`, a
-        /// case-*insensitive* compare, so re-typing "MZ" as "mz" does not
-        /// rewrite the key.
-        public void SetPlayer(string name)
+        /// **The one name, into both of the original's keys.**  HSBox's write
+        /// (LTANK_D.C:830) and RecordBox's (LTANK_D.C:990) at once: the whole
+        /// name into `[DATA] Record Author`, its first four characters into
+        /// `[DATA] Player`.  A `LaserTank.ini` this port has written is one the
+        /// 2010 binary reads back with both of its dialogs already answered.
+        ///
+        /// `persist: false` is `--name`'s run-only form, the same arrangement
+        /// `--sound` and `--zoom` have: the value applies to this session and
+        /// the file is not touched unless `--save-options` says so.
+        ///
+        /// **Two of the original's own rules are deliberately not reproduced,
+        /// and they are recorded rather than kept.**  HSBox writes its key only
+        /// when the initials changed under a *case-insensitive* compare
+        /// (`if (stricmp(temps, HS.name) != 0)`), so re-typing "MZ" as "mz"
+        /// does not rewrite it there; RecordBox writes unconditionally.  Both
+        /// are properties of a box that opens with one field and closes on OK.
+        /// Here there is one field and one write, so the test is whether the
+        /// text changed at all -- typing "mz" over "MZ" is an edit, and a
+        /// settings row that quietly declined it would be the odd one.  The
+        /// `stricmp` survives where it is still load-bearing: HighScores.Check
+        /// applies it to the *record*, which is what the file actually carries.
+        public void SetName(string name, bool persist = true)
         {
             name ??= "";
-            if (name.Length > THSREC.NameEntry - 1)
-                name = name.Substring(0, THSREC.NameEntry - 1);
-            if (string.Equals(name, Player, StringComparison.OrdinalIgnoreCase)) return;
-            Player = name;
-            _ini.Set(SecData, PsUser, name);
+            if (name.Length > NameMax) name = name.Substring(0, NameMax);
+            if (name == Name) return;
+            Name = name;
+            if (!persist) return;
+            _ini.Set(SecData, PsPBA, Name);
+            _ini.Set(SecData, PsUser, Initials);
         }
 
         /// `[DATA] Language` -- the picker's write.  See PsLang.
@@ -416,13 +478,6 @@ namespace LaserTank.Game
         {
             LanguageCode = string.IsNullOrEmpty(code) ? Core.Strings.BaseCode : code;
             _ini.Set(SecData, PsLang, LanguageCode);
-        }
-
-        /// RecordBox's write (LTANK_D.C:990), unconditional there.
-        public void SetRecordAuthor(string name)
-        {
-            RecordAuthor = name ?? "";
-            _ini.Set(SecData, PsPBA, RecordAuthor);
         }
 
         /// LoadLevel's own write (LTANK2.C:1035), gated on RLL exactly there.

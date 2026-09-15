@@ -119,10 +119,13 @@ def options(out):
         if line.startswith("options "):
             for k, v in re.findall(r"(\w+)=(\S*)", line[8:]):
                 o[k] = v
-            # label= is last on its line and may contain spaces.
-            m = re.search(r"\blabel=(.*)$", line)
-            if m:
-                o["label"] = m.group(1).strip()
+            # label= and name= are last on their lines and may contain
+            # spaces -- a pack is called "Eye Saver + Grid" and a player is
+            # called whatever they typed.
+            for key in ("label", "name"):
+                m = re.search(r"\b%s=(.*)$" % key, line)
+                if m:
+                    o[key] = m.group(1).strip()
         elif line.startswith("pack "):
             d = dict(re.findall(r"(\w+)=(\S*)", line[5:]))
             m = re.search(r"\blabel=(.*)$", line)
@@ -202,6 +205,47 @@ def check_ini(tmp):
                     % (o3.get("size"), o3.get("cell")))
     else:
         good &= ok("Size survives a restart", "Size 1 -> 24 px cells")
+
+    # -- **one name, two keys.**  [DATA] Player and [DATA] Record Author are
+    # one value in this port (Options.Name), because HSBox and RecordBox are
+    # the same question asked twice -- so the thing to pin is that the merge
+    # does not cost the interop the two keys are there for: what the port
+    # writes, the 2010 binary still finds under both of its own names, and the
+    # four characters `.hs` can hold are cut from the same string rather than
+    # asked for separately.
+    name = tmp / "name.ini"
+    rc, out = run(["--ini", name, "--name", "Michal Zlatkovsky", "--save-options",
+                   "--check-options"])
+    rc2, out2 = run(["--ini", name, "--check-options"])
+    o = options(out2)
+    text = name.read_text("latin-1")
+    if rc or rc2:
+        good = fail("one name into both keys", "rc=%d/%d" % (rc, rc2))
+    elif "Record Author=Michal Zlatkovsky" not in text or "Player=Mich" not in text:
+        good = fail("one name into both keys",
+                    "the file says %r" % text.replace("\r\n", " | "))
+    elif o.get("name") != "Michal Zlatkovsky" or o.get("initials") != "Mich":
+        good = fail("one name into both keys",
+                    "read back name=%s initials=%s"
+                    % (o.get("name"), o.get("initials")))
+    else:
+        good &= ok("one name into both keys",
+                   "Record Author + Player=Mich, and back")
+
+    # And the read the other way: a file the 2010 binary wrote has only the
+    # initials in it, because HSBox is the dialog it opens first -- so Player
+    # is the fallback, and nothing is rewritten by a run that merely reads it.
+    old_ini = tmp / "name_2010.ini"
+    old_ini.write_bytes(b"[DATA]\r\nPlayer=MZ\r\n")
+    rc, out = run(["--ini", old_ini, "--check-options"])
+    o = options(out)
+    if rc or o.get("name") != "MZ" or o.get("initials") != "MZ":
+        good = fail("Player alone is the name",
+                    "rc=%d name=%s initials=%s" % (rc, o.get("name"), o.get("initials")))
+    elif "Record Author" in old_ini.read_text("latin-1"):
+        good = fail("Player alone is the name", "reading it wrote Record Author")
+    else:
+        good &= ok("Player alone is the name", "MZ, and the file is untouched")
 
     # -- remember-last-level, both halves.  The write is Session.Load's
     # (LTANK2.C:1035), so it is exercised through a run that really loads a

@@ -113,6 +113,7 @@
     "keys.animation": "animation",
     "keys.graphics": "graphics pack",
     "keys.language": "language",
+    "keys.name": "your name",
     "keys.editor": "the level editor",
     "keys.thisList": "this list",
     "keys.quit": "quit — it asks first",
@@ -212,6 +213,13 @@
     "lang.title": "Language",
     "lang.credit": "translated by {0}",
     "lang.footer": "↑↓ or click picks · Enter, Esc or outside closes",
+
+    "name.title": "Your name",
+    "name.placeholder": "who is playing?",
+    "name.about": "It goes on the high scores you post and on the recordings you save.",
+    "name.scoresAs": "scores as",
+    "name.save": "save",
+    "name.cancel": "cancel",
 
     "ed.enter": "Editor  ·  F1 lists the editor keys, F9 leaves, Ctrl+S saves",
     "ed.left": "left the editor",

@@ -113,6 +113,7 @@
     "keys.animation": "動畫",
     "keys.graphics": "圖形包",
     "keys.language": "語言",
+    "keys.name": "你的名字",
     "keys.editor": "關卡編輯器",
     "keys.thisList": "這份清單",
     "keys.quit": "結束 — 會先詢問",
@@ -212,6 +213,13 @@
     "lang.title": "語言",
     "lang.credit": "翻譯：{0}",
     "lang.footer": "↑↓ 或點擊選擇 · Enter、Esc 或點擊面板外關閉",
+
+    "name.title": "你的名字",
+    "name.placeholder": "誰在玩？",
+    "name.about": "它會出現在你的最佳成績和你儲存的錄影裡。",
+    "name.scoresAs": "成績署名",
+    "name.save": "儲存",
+    "name.cancel": "取消",
 
     "ed.enter": "編輯器  ·  F1 列出編輯器按鍵，F9 離開，Ctrl+S 儲存",
     "ed.left": "已離開編輯器",

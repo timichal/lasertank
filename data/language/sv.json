@@ -113,6 +113,7 @@
     "keys.animation": "animering",
     "keys.graphics": "grafikpaket",
     "keys.language": "språk",
+    "keys.name": "ditt namn",
     "keys.editor": "baneditorn",
     "keys.thisList": "den här listan",
     "keys.quit": "avsluta — den frågar först",
@@ -212,6 +213,13 @@
     "lang.title": "Språk",
     "lang.credit": "översatt av {0}",
     "lang.footer": "↑↓ eller klick väljer · Enter, Esc eller ett klick utanför stänger",
+
+    "name.title": "Ditt namn",
+    "name.placeholder": "vem spelar?",
+    "name.about": "Det står vid dina bästa resultat och i inspelningarna du sparar.",
+    "name.scoresAs": "i listan",
+    "name.save": "spara",
+    "name.cancel": "avbryt",
 
     "ed.enter": "Editor  ·  F1 listar editorns tangenter, F9 lämnar den, Ctrl+S sparar",
     "ed.left": "lämnade editorn",

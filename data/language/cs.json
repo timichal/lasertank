@@ -113,6 +113,7 @@
     "keys.animation": "animace",
     "keys.graphics": "grafická sada",
     "keys.language": "jazyk",
+    "keys.name": "tvoje jméno",
     "keys.editor": "editor úrovní",
     "keys.thisList": "tento seznam",
     "keys.quit": "konec — nejdřív se zeptá",
@@ -212,6 +213,13 @@
     "lang.title": "Jazyk",
     "lang.credit": "přeložil {0}",
     "lang.footer": "↑↓ nebo klik vybírá · Enter, Esc nebo klik mimo zavírá",
+
+    "name.title": "Tvoje jméno",
+    "name.placeholder": "kdo hraje?",
+    "name.about": "Zapíše se k tvým nejlepším výsledkům a do záznamů, které uložíš.",
+    "name.scoresAs": "ve výsledcích",
+    "name.save": "uložit",
+    "name.cancel": "zrušit",
 
     "ed.enter": "Editor  ·  F1 vypíše klávesy editoru, F9 ho opustí, Ctrl+S ukládá",
     "ed.left": "editor opuštěn",

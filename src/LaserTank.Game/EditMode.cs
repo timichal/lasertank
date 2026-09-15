@@ -58,10 +58,18 @@ namespace LaserTank.Game
         private LevelRecord _rec;
 
         /// `Ed1` and `Ed2`, the two edit controls, plus the hint the HintBox
-        /// dialog edits.  Strings here; the *write widths* are LevelRecord's,
-        /// because they are the original's `GetWindowText` counts and belong
-        /// with the record they truncate into.
-        private string _name = "", _author = "", _hint = "";
+        /// dialog edits -- one `TextField` each since step 14, which is where
+        /// the three of them stopped being three copies of a box with a caret
+        /// in it.
+        ///
+        /// **The widths are LevelRecord's own**, because they are the
+        /// original's `GetWindowText` counts, and they are now a *cap on the
+        /// field* rather than a truncation at save time: this file used to
+        /// claim they clamped and they did not -- `LevelRecord.Set` dropped the
+        /// surplus on the way to disk, out of sight of the player typing it.
+        private readonly TextField _name = new TextField(LevelRecord.NameEntry - 1);
+        private readonly TextField _author = new TextField(LevelRecord.NameEntry - 1);
+        private readonly TextField _hint = new TextField(LevelRecord.HintEntry - 1);
         private bool _hintTyped;
 
         /// Which control has the caret: 0 none, 1 name, 2 author, 3 hint.
@@ -80,8 +88,8 @@ namespace LaserTank.Game
 
         public Editor Core => _ed;
         public int TunnelId => _tunnel;
-        public string Name => _name;
-        public string Author => _author;
+        public string Name => _name.Text;
+        public string Author => _author.Text;
         public ushort Diff => _rec?.Diff ?? 0;
 
         // ---- entering and leaving -------------------------------------------
@@ -96,9 +104,9 @@ namespace LaserTank.Game
             if (_s?.E == null) return;
             _ed = new Editor(_s.E);
             _rec = LevelRecord.Read(_s.LevelPath, _s.Level) ?? new LevelRecord();
-            _name = _rec.Name;
-            _author = _rec.Author;
-            _hint = _rec.Hint;
+            _name.Set(_rec.Name);
+            _author.Set(_rec.Author);
+            _hint.Set(_rec.Hint);
             _hintTyped = false;
             _focus = 0;
             _tunnel = 0;
@@ -128,8 +136,8 @@ namespace LaserTank.Game
             if (_s?.E != null)
             {
                 Array.Copy(_ed.PlayfieldForSave(), _s.E.CurRecData.PF, 256);
-                _s.E.CurRecData.LName = _name;
-                _s.E.CurRecData.Author = _author;
+                _s.E.CurRecData.LName = _name.Text;
+                _s.E.CurRecData.Author = _author.Text;
                 _s.E.CurRecData.SDiff = _rec.Diff;
                 _s.EditorResume();
             }
@@ -331,10 +339,13 @@ namespace LaserTank.Game
         }
 
         /// An edit control with the caret.  Tab walks Name -> Author -> Hint ->
-        /// board, Enter and Escape drop out, Backspace deletes.  Everything
-        /// else that has a character goes in -- including the letters that are
-        /// accelerators outside a field, which is exactly what ACC2's comment
-        /// is about.
+        /// board and Enter and Escape drop out; everything else is the field's,
+        /// including the letters that are accelerators outside one, which is
+        /// exactly what ACC2's comment is about.
+        ///
+        /// The character rules -- Backspace, latin-1, printable, and the
+        /// record's own width -- are TextField's, because they are the same
+        /// rules as the filter field's and the name panel's.
         private bool Typing(InputEventKey k)
         {
             switch (k.Keycode)
@@ -347,34 +358,24 @@ namespace LaserTank.Game
                 case Godot.Key.Escape:
                     _focus = 0;
                     return true;
-                case Godot.Key.Backspace:
-                    Set(Text().Length > 0 ? Text()[..^1] : "");
-                    return true;
             }
-            long u = k.Unicode;
-            // latin-1 and printable: the fields are `char[31]` in a file the
-            // 2010 binary reads back, so a character it cannot store is not
-            // accepted here either.
-            if (u >= 32 && u < 256) Set(Text() + (char)u);
+            TextField f = Focused();
+            if (f != null && f.Key(k))
+            {
+                // The hint is the one field whose emptiness is not the same as
+                // never having been touched: command 601 writes one NUL over
+                // the old hint and leaves the rest of it in the record, so a
+                // save only rewrites the hint when somebody typed in this one.
+                if (_focus == 3) _hintTyped = true;
+                Modified = true;
+            }
             return true;
         }
 
-        private string Text() => _focus switch
+        private TextField Focused() => _focus switch
         {
-            1 => _name, 2 => _author, 3 => _hint, _ => "",
+            1 => _name, 2 => _author, 3 => _hint, _ => null,
         };
-
-        private void Set(string v)
-        {
-            switch (_focus)
-            {
-                case 1: _name = v; break;
-                case 2: _author = v; break;
-                case 3: _hint = v; _hintTyped = true; break;
-                default: return;
-            }
-            Modified = true;
-        }
 
         /// The five ranks, in the order the five digits set them.  701..705 is
         /// a menu in the original and a menu is a list you walk; the chip is the
@@ -406,9 +407,9 @@ namespace LaserTank.Game
         private void ClearField()
         {
             _ed.ClearField();
-            _name = "";
-            _author = "";
-            _hint = "";
+            _name.Set("");
+            _author.Set("");
+            _hint.Set("");
             _hintTyped = false;
             _rec.ClearHint();
             Modified = true;
@@ -431,9 +432,9 @@ namespace LaserTank.Game
             try
             {
                 string dest = Destination(out bool copied);
-                _rec.Name = _name;
-                _rec.Author = _author;
-                if (_hintTyped) _rec.Hint = _hint;
+                _rec.Name = _name.Text;
+                _rec.Author = _author.Text;
+                if (_hintTyped) _rec.Hint = _hint.Text;
                 _rec.SetPlayfield(_ed.PlayfieldForSave());
                 _rec.Write(dest, _s.Level);
                 Modified = false;
@@ -607,9 +608,9 @@ namespace LaserTank.Game
             Ui.Rule(n, x0, y2, w);
             y2 += Ui.Px(14);
 
-            y2 = Field(n, x0, y2, w, L["ed.fieldName"], _name, 1);
-            y2 = Field(n, x0, y2, w, L["ed.fieldAuthor"], _author, 2);
-            y2 = Field(n, x0, y2, w, L["ed.fieldHint"], _hint, 3);
+            y2 = DrawField(n, x0, y2, w, L["ed.fieldName"], _name, 1);
+            y2 = DrawField(n, x0, y2, w, L["ed.fieldAuthor"], _author, 2);
+            y2 = DrawField(n, x0, y2, w, L["ed.fieldHint"], _hint, 3);
             y2 += Ui.Px(6);
 
             var info = new TLEVELINFO { SDiff = _rec.Diff };
@@ -656,10 +657,9 @@ namespace LaserTank.Game
             return Ui.Px(18);
         }
 
-        /// One of the three text fields.  The caret is a block rather than a
-        /// bar: at 12 px a one-pixel bar after a proportional string is easy to
-        /// miss, and which of the three has focus is the thing a player needs to
-        /// know before typing.
+        /// One of the three text fields.  The box, the label, the value and the
+        /// caret are `Ui.Field`'s since step 14; what is left here is the
+        /// layout and the hit target.
         ///
         /// **A click puts the caret in it**, which is what a box shaped like a
         /// text field promises and what Tab was the only way to do until step 9.
@@ -667,32 +667,15 @@ namespace LaserTank.Game
         /// mouse arm because that arm is a transliteration of `LOWORD(lparam) >
         /// ContXPos` -- a half-plane split between board and palette, with
         /// nothing in it about fields the original drew as Windows controls.
-        private float Field(Node2D n, float x, float y, float w,
-                            string label, string value, int which)
+        private float DrawField(Node2D n, float x, float y, float w,
+                                string label, TextField f, int which)
         {
             bool focused = _focus == which;
             float h = Ui.Px(28);
             var r = new Rect2(x, y, w, h);
             bool hot = _view.Chrome.Add(r, "field:" + which, () => _focus = which);
-            n.DrawStyleBox(Ui.Box(focused || hot ? Ui.Raised : Ui.Bg,
-                                  focused ? Ui.Accent : hot ? Ui.BorderLit : Ui.Border,
-                                  6f, 1f), r);
-            Ui.Caps(n, new Vector2(x + Ui.Px(8), y + h / 2f + Ui.Px(3)), label,
-                    Ui.Faint, 9);
-            // Measured rather than a fixed indent: "name" and "hint" set wider
-            // than "by" at this size, and a constant that cleared "by" ran
-            // "name" straight into its own value.
-            float vx = x + Ui.Px(8) + Ui.CapsWidth(label, 9) + Ui.Px(10);
-            Ui.Write(n, new Vector2(vx, y + h / 2f + Ui.Px(4)),
-                     value.Length == 0 ? "—" : value, 11.5f,
-                     value.Length == 0 ? Ui.Faint : Ui.Text, r.End.X - vx - Ui.Px(8));
-            if (focused)
-            {
-                float cw = Ui.Width(value, 11.5f);
-                n.DrawRect(new Rect2(Mathf.Min(vx + cw + 1, r.End.X - Ui.Px(10)),
-                                     y + Ui.Px(7), Ui.Px(2), h - Ui.Px(14)),
-                           Ui.Accent);
-            }
+            f.Draw(n, r, "—", focused,
+                   focused ? Ui.Accent : hot ? Ui.BorderLit : Ui.Border, hot, label);
             return y + h + Ui.Px(6);
         }
 

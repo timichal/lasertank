@@ -113,6 +113,7 @@
     "keys.animation": "animatie",
     "keys.graphics": "graphicspakket",
     "keys.language": "taal",
+    "keys.name": "je naam",
     "keys.editor": "de leveleditor",
     "keys.thisList": "deze lijst",
     "keys.quit": "afsluiten — het vraagt eerst",
@@ -212,6 +213,13 @@
     "lang.title": "Taal",
     "lang.credit": "vertaald door {0}",
     "lang.footer": "↑↓ of klik kiest · Enter, Esc of een klik ernaast sluit",
+
+    "name.title": "Je naam",
+    "name.placeholder": "wie speelt er?",
+    "name.about": "Hij staat bij je beste scores en in de opnamen die je bewaart.",
+    "name.scoresAs": "in de lijst",
+    "name.save": "bewaren",
+    "name.cancel": "annuleren",
 
     "ed.enter": "Editor  ·  F1 toont de toetsen, F9 verlaat hem, Ctrl+S bewaart",
     "ed.left": "editor verlaten",

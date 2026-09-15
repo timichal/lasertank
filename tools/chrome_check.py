@@ -80,6 +80,7 @@ SCREENS = [
     ("collections", ["--level", "1", "--panel", "collections"]),
     ("graphics",    ["--level", "1", "--menu"]),
     ("language",    ["--level", "1", "--open-lang"]),
+    ("name",        ["--level", "1", "--panel", "name"]),
     ("playback",    ["--level", "1", "--panel", "playback"]),
     ("quit",        ["--level", "1", "--panel", "quit"]),
     ("editor",      ["--level", "1", "--editor"]),
@@ -114,6 +115,11 @@ MUST = {
     "collections": ["scrim", "close", "row:0"],
     "graphics":    ["scrim", "close", "row:0", "snap:1"],
     "language":    ["scrim", "close", "row:0"],
+    # The name panel's two answers are on this list for the reason `close` is:
+    # they are the only way a player without a keyboard commits or abandons a
+    # name.  The field itself is a swallow -- it always has the caret -- so it
+    # is not here and cannot be: there is nothing for a click on it to do.
+    "name":        ["scrim", "close", "name:save", "name:cancel"],
     "playback":    ["pb:space", "pb:R", "pb:Esc"],
     "quit":        ["scrim", "quit:yes", "quit:no"],
     "editor":      ["field:1", "field:2", "field:3", "diff", "key:F1"],
@@ -374,6 +380,7 @@ def main():
             print("  %-12s %2d binding(s) clicked and pressed" % (name, len(want)))
 
     fails += filter_check(godot, ini, fresh)
+    fails += name_check(godot, ini, fresh)
 
     shutil.rmtree(tmp, ignore_errors=True)
     return report(fails, screens, pairs)
@@ -425,6 +432,58 @@ def filter_check(godot, ini, fresh):
         else:
             print("  %-22s %5d of %d rows   ok" % (repr(query), n, total))
     return out
+
+
+# The other text field, and the one assertion the merge is actually about.
+#
+# `[DATA] Player` and `[DATA] Record Author` are one value in this port (see
+# Options.Name), which means a long name and the four characters a `.hs` record
+# can hold are now derived from each other rather than typed separately -- so
+# the cut is the thing to pin.  `--type` reaches the field the same way it
+# reaches the filter, and the panel logs both halves.
+NAMES = [
+    ("MZ",                   "MZ",         "MZ"),
+    ("Michal Z",             "Michal Z",   "Mich"),
+    ("Michal Z" + r"\b" * 2, "Michal",     "Mich"),
+    # Thirty is RecordBox's own width (Options.NameMax) and the field stops
+    # there rather than letting the surplus reach a file that would drop it.
+    ("x" * 40,               "x" * 30,     "xxxx"),
+]
+
+
+def name_check(godot, ini, fresh):
+    """`--type` into the name panel: what it holds, and what a .hs would get."""
+    print("the name field:")
+    out = []
+    flags = ["--level", "1", "--panel", "name"]
+    for typed, want_text, want_initials in NAMES:
+        fresh()
+        text, initials = typed_name(run(godot, flags + ["--type", typed], ini))
+        if text is None:
+            out.append("name %r: no type line" % typed)
+        elif text != want_text or initials != want_initials:
+            out.append("name %r: text=%r initials=%r -- wanted %r / %r"
+                       % (typed, text, initials, want_text, want_initials))
+        else:
+            print("  %-22s %-12s scores as %s   ok"
+                  % (repr(typed), repr(text), initials))
+    return out
+
+
+def typed_name(lines):
+    """`type <s> name=True initials=I text=T` -> (T, I).
+
+    **`text=` is last and is taken as the whole rest of the line**, because a
+    name has spaces in it -- which is the one thing this field can hold that
+    none of the others can, and the reason the game prints it there."""
+    for line in lines:
+        if line.startswith("type ") and " name=True" in line:
+            initials = ""
+            for field in line.split():
+                if field.startswith("initials="):
+                    initials = field[len("initials="):]
+            return line.split(" text=", 1)[1], initials
+    return None, None
 
 
 def typed_rows(lines):

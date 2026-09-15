@@ -46,8 +46,8 @@ speeds, takes the mouse both as a *move order* through the original's own `Mouse
 the editor's brush, **answers that mouse in its own chrome as well — every keycap, pill, row and
 card is a button, and a tap is a click**, edits and saves a `.lvl` byte-faithfully, labels the
 board A1–P16 on all four sides the way `WM_PAINT` does, shows its UI in any of the original's ten
-translations, and remembers its settings in a `LaserTank.ini` with the original's own section and
-key names.
+translations, remembers its settings in a `LaserTank.ini` with the original's own section and
+key names, and takes the player's name **once** where the original asks for it in two dialogs.
 
 **It now also looks like something.** Step 7 — the redesign the faithful port was the prelude to —
 replaced the text strip under the board with a designed interface: a resizable, aspect-locked board
@@ -95,6 +95,18 @@ them). **The grouping is a display layer downstream of `Scan` and `BuildRows`**,
 that reaches a row, and they are written out again in the gate. The copy
 is laser-tank.com's facts in this port's sentences, with the upstream wording quoted beside each
 group in `CollectionNotes.cs`.
+
+**And since step 14 the player has a name, once.** The original asks twice — `HSBox` wants
+initials the instant a level is beaten, `RecordBox` wants an author the first time a recording is
+saved — and they are the same question about the same person, asked at two moments because a 1996
+dialog was the only surface the program had. `Ctrl+N` is one field on one panel, and `Options.Name`
+**writes both of the original's keys** from it, so a `LaserTank.ini` this port wrote is one the 2010
+binary opens with both of its dialogs already answered. The panel shows the four characters a `.hs`
+record can hold as they are typed, because that is the one thing the merge can surprise anyone with.
+On the way it took the refactor next-steps item 3 had named as the thing to do first — the level
+list's filter, the editor's three fields and this one are `TextField` now — and **that second copy
+made two bugs visible**: the editor's fields had never had the length cap their own comment claimed,
+and the filter accepted characters no `.lvl` can contain. See [*Finished*](docs/game/history.md).
 
 It also turned up **a gate that had been red for a reason nobody could reproduce**, on a screen
 nothing had touched: `chrome_check` took its baseline INI by *copying the player's*, and three
@@ -207,11 +219,11 @@ claimed to add is a route to commands items 3 and 8 have not written yet.
 
 | # | what it is | the short of it |
 |---|---|---|
-| **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten. **The four commands this row used to call *blocked on a modal prompt* are down to none**: two are [*Finished*](docs/game/history.md) — the DeadBox is the status line, the Difficulty dialog (225) is the level list's rank chips — and the two name prompts are settings rows rather than questions, which points them at item 7. What is left is a shrinking list of additive dialogs; step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the filter bar now. **The editor's share is item 8, and it holds the one modal prompt the port still wants** |
+| **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten. **The four commands this row used to call *blocked on a modal prompt* are down to none, and all four are answered**: the DeadBox is the status line, the Difficulty dialog (225) is the level list's rank chips, and the two name prompts turned out to be *one* settings row, which step 14 built (`Ctrl+N`). What is left is a shrinking list of additive dialogs; step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the filter bar now. **The editor's share is item 8, and it holds the one modal prompt the port still wants** |
 | **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
-| **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Waiting on item 3** for the store — `SkipComLev` and `Diff_Setting` are still to land, and doing it first means writing the migration twice — and **now owed a panel by it**: item 3's two name prompts became settings rows, and there is no settings panel in the port at all, only the three list panels and `F1`. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
+| **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Waiting on item 3** for the store — `SkipComLev` and `Diff_Setting` are still to land, and doing it first means writing the migration twice. **The panel half is no longer waiting**: step 14's name row is the first settings surface and it will migrate with everything else. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
 | **8** | **The editor** | the commands are ported and gated (`--edit`, `editor_check.py`); what is missing is the chrome. Two blocked on a file dialog — Load Level (602) and Save As (606), both of which the collection picker is the model for — and one modal prompt, which is now the port's only one rather than a dependency shared with item 3: the *save changes?* question on leaving, `DrawQuitAsk` plus a third button. `LoadTID` *as* a dialog stays argued against — a prompt per painted cell is worse than the `T` mode it is here |
 
 ---

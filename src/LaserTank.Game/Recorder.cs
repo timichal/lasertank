@@ -58,12 +58,21 @@ namespace LaserTank.Game
         /// if recording is off, and off posts it if on (LTANK.C:978).
         public bool AutoRecord { get; private set; }
 
-        /// `PBSRec.Author`, [DATA] Record Author.  The original asks for it once,
-        /// in RecordBox, on the first save of a session (`if (PBSRec.Author[0]
-        /// == 0)`) and remembers it in the INI from then on.  There is no dialog
-        /// here yet, so the INI value is used and an empty one stays empty --
-        /// which the C also allows: RecordBox's edit box can be left blank.
-        public string Author { get; private set; }
+        /// `PBSRec.Author` -- the name a `.lpb` header carries, which since
+        /// step 14 is `Options.Name`, the one name the player set once.
+        ///
+        /// The original asks for it in RecordBox, on the first save of a
+        /// session (`if (PBSRec.Author[0] == 0)`), and remembers it in the INI
+        /// from then on.  Here it is a settings row rather than a question at
+        /// the moment of saving -- see Options.Name -- and it is **read live
+        /// rather than copied in**: this used to be a field filled from the INI
+        /// in the constructor, which is run once per Session, so a name set
+        /// after that would not have reached a recording saved afterwards at
+        /// all.  Harmless while nothing could set one and wrong the moment
+        /// something could, which is what a settings row is.  An empty name
+        /// stays empty, which the C allows too: RecordBox's edit box can be
+        /// left blank.
+        public string Author => _opt?.Name ?? "";
 
         private readonly Options _opt;
 
@@ -71,7 +80,6 @@ namespace LaserTank.Game
         {
             _opt = opt;
             AutoRecord = opt != null && opt.AutoRecord;
-            Author = opt?.RecordAuthor ?? "";
             // LTANK2.C:1044: `if (ARecord && !PBOpen) SendMessage(123)`.  The
             // first level load happens right after this, so starting here is
             // the same thing one call earlier.
@@ -98,12 +106,6 @@ namespace LaserTank.Game
         public void OnLevelLoaded(bool playbackOpen)
         {
             if (AutoRecord && !playbackOpen) Recording = true;
-        }
-
-        public void SetAuthor(string name)
-        {
-            Author = name ?? "";
-            _opt?.SetRecordAuthor(Author);
         }
     }
 

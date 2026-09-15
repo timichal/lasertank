@@ -113,6 +113,7 @@
     "keys.animation": "animacija",
     "keys.graphics": "grafički set",
     "keys.language": "jezik",
+    "keys.name": "tvoje ime",
     "keys.editor": "uređivač razina",
     "keys.thisList": "ovaj popis",
     "keys.quit": "izlaz — prvo pita",
@@ -212,6 +213,13 @@
     "lang.title": "Jezik",
     "lang.credit": "preveo {0}",
     "lang.footer": "↑↓ ili klik bira · Enter, Esc ili klik izvan zatvara",
+
+    "name.title": "Tvoje ime",
+    "name.placeholder": "tko igra?",
+    "name.about": "Stoji uz tvoje najbolje rezultate i u snimkama koje spremiš.",
+    "name.scoresAs": "na ljestvici",
+    "name.save": "spremi",
+    "name.cancel": "odustani",
 
     "ed.enter": "Uređivač  ·  F1 popisuje tipke, F9 izlazi, Ctrl+S sprema",
     "ed.left": "izlaz iz uređivača",

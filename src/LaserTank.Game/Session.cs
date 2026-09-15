@@ -728,7 +728,7 @@ namespace LaserTank.Game
         {
             if (Pb.Open || !OkToHS || !_postScores) return;
             Score = HighScores.Check(Files, Level, E.Game.ScoreMove, E.Game.ScoreShot,
-                                     _opt.Player, _hs);
+                                     _opt.Initials, _hs);
         }
 
         // ---- WM_SaveRec, LTANK.C:702 ---------------------------------------
