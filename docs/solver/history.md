@@ -8,9 +8,12 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Items 1, 3, 5, 6, 8, 9, 11, 12, 13,
-14, 15, 16, 17 and 18 are done, and eight of those closed *negative* or half-negative** — which is the
-ordering rule paying off rather than failing. Two of the negatives (17, then 5) are items that reached
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 19 is done
+except 7 and 10, and eight of those closed *negative* or half-negative** — which is the ordering rule
+paying off rather than failing. The largest of the positives is
+[item 2](#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm),
+which took the corpus from **494 to 1,581 of 4,185** and is the only item here that cost days of machine
+time rather than hours. Two of the negatives (17, then 5) are items that reached
 the front of the list and were **refused by falsifiers they built for themselves**, which is the rule
 working at its most expensive and most useful; item 14 is the third kind, an item whose decision run
 came back clean and negative, and which **handed the list a better-aimed successor on its way out**.
@@ -32,6 +35,101 @@ this tree**, on top of a pass 2 that is itself a learned key.
 
 **The push side stayed open and became item 2's question**, which is where it was answered over a
 population rather than over two benches.
+
+### 2. The fourth pass, run over the corpus — 1,087 levels, and the stride ranked the wrong second arm.
+
+**The composite is 494 → 1,581 of 4,185 (11.8% → 37.8%).** Three push arms at 40M nodes over every one of
+the **3,691** levels the shipped chain fails: union **1,087 (29.5%)**, **2,249 of 2,249 solutions through
+the two-engine gate, zero divergences**, 67 h 30 m wall and 879 h of job time at 13.0x parallelism.
+`build/reports/chain5.jsonl` is the union of the chain and the three arms and is what a fifth pass has to
+be pointed at; `tools/l5_pass.sh` is the recipe, unchanged from the one the item shipped.
+
+| arm | wall | solo | rate | exclusive — what dropping it costs | greedy |
+|---|---:|---:|---:|---:|---|
+| l8fire | 27 h 18 m | **805** | 21.8% | **173** | 805 (21.8%) |
+| enables | 18 h 52 m | 718 | 19.5% | **101** | +191 → 996 (27.0%) |
+| layer7 | 21 h 20 m | 726 | 19.7% | 91 | +91 → **1,087 (29.5%)** |
+
+**The stride priced the pass. What it could not do is separate two arms that are close.** The rehearsal's
+84 of 255 was written up here as ~1,172 union and ~1,670 composite (~40%); the corpus came back with
+**1,087 and 1,581 (37.8%)** — **7.8% and 5.6% optimistic** against that published prediction, or 12%
+against a naive 84/255 scaling, and the three solo rates landed **4.1 / 1.9 / 0.9 pp** high. **For sizing a
+67-hour run off 255 levels that is a good instrument.**
+
+**Where it failed is the ordering of arms 2 and 3, and it failed in both directions at once.** The stride's
+greedy chain was `l8fire` **+66** → `layer7` **+14** → `enables` **+4** — the second arm three and a half
+times the third, which is the reading that put `enables` last and nearly retired it. Over the corpus the
+two are inside **1%** of each other: run in the stride's own order, `layer7` adds **+181** and `enables`
+then adds **+101**; run greedily, `enables` adds **+191** and `layer7` then adds **+91**. The union is
+1,087 either way and **the greedy pick between them is decided by ten levels out of 1,087.** Their
+exclusive counts invert outright — **15 / 11 / 4** on the stride against **173 / 91 / 101** on the corpus.
+
+**The decision that ordering would have licensed is the thing to measure, and it is the wrong one.**
+*Drop the arm that adds +4* was a live reading of the rehearsal; dropping `enables` costs **101 levels**,
+which is **more** than dropping `layer7` (91) — the arm the stride ranked above it. So the rule is narrower
+than *compare unions*: **a stride sizes a union; it cannot order the arms inside it, and it must not be
+used to drop one.** Exclusivity is the statistic a small sample destroys, because two arms that overlap on
+15 sampled levels are free to diverge across the other fourteen-fifteenths, and these two did. **All three
+arms are load-bearing**: only 440 of the 1,087 (40.5%) are solved by all three, and **365 (33.6%) are
+solved by exactly one.**
+
+**`Hard` falls for the first time.** The tier was 0 of 257 in the chain, and the rehearsal's 1-in-15
+sample held **21 Hard-and-Deadly levels and solved none of them in any of seven arms**, which is what
+licensed the sentence *none of this touches the two tiers that have never fallen*. Over the corpus it
+is **5 of 257**:
+
+| level | name | keys | ratio | arms |
+|---|---|---:|---:|---|
+| `Challenge-I` 306 | Robinson Crusoë | 91 | 1.30x | all three |
+| `Challenge-I` 1346 | Fort Knox II | 55 | 1.31x | all three |
+| `Challenge-I` 1101 | Mr. Ping-Pong VI | 51 | 1.38x | layer7 + enables |
+| `Challenge-I` 1596 | It's a Snap | 82 | 1.95x | l8fire only |
+| `LaserTank` 901 | fission | 66 | 1.32x | l8fire only |
+
+**`Deadly` does not move** — 1 of 56, the level the chain already had. And the per-tier shape is the
+chain's shape stretched, not a new one: Kids **39.0% → 81.8%**, Easy **5.2% → 33.3%**, Medium
+**1.1% → 10.8%**, Hard **0 → 1.9%**.
+
+**The ceiling is still budget, and it is not close.** Of the **2,604** levels nothing solved, **99.6%** of
+`l8fire`'s misses stop on `budget`, and **5 levels** — five — are structural in all three arms at once. No
+solved level reached the node cap (max 39.98M of 40M), so nothing was won on the last percent of the
+budget either. 40M is a price, not a wall.
+
+**`--max-keys 5000` was worth at least 11 levels**, which is the one thing in the run that was never
+rehearsed. Eleven of the 1,087 have solutions longer than the old 1,200-key default — ten in `Special-I`,
+one in `LaserTank` — longest `Special-I` 311 *even longerer* at **4,681 keys / 1.12x**. Nothing came within
+300 keys of the new cap, so the raise is free and is not binding either. This is
+[closed item 12](#12-per-level-maxkeys-from-the-record----max-keys-record)'s flag earning its keep on a
+population for the first time.
+
+**What the 1,087 look like against the records:** ratio p25 **1.36** / p50 **1.56** / p90 **2.63**;
+**249 of them (22.9%) match the `.ghs` record's moves and shots exactly**, and **8 come in under it**, the
+furthest `Challenge-I` 1941 *Invitation to temptation* at **0.328** — a third of the recorded line. A
+record in `.ghs` is somebody's score, not a proof of optimality, and this is the first population large
+enough to say how often it is beatable: about **0.7%** of the time.
+
+**The economics, because the third arm is the argument.** Marginal cost per new level, in greedy order:
+`l8fire` **122 s**, `enables` **356 s**, `layer7` **844 s**. The last arm is 21 h 20 m of the 67 h 30 m for
+**91 levels, 8.4% of the union** — that is what the union rule costs when you actually pay it, and it is
+still the right call, because those 91 levels have no other route on this tree.
+
+**One follow-up the pass turned up and nobody asked for.** `enables` is the only arm that stops on
+`push-depth` at scale — **177 levels**, against `l8fire`'s 6 and `layer7`'s 3 — and those stops leave a
+median **10M of the 40M nodes unspent** (p50 30.1M used). `--push-depth` is documented as *a backstop
+only*, 1,200 board changes; on this arm, at this budget, it is not a backstop. Raising it costs nothing to
+try and is the cheapest unclaimed thing in these files.
+
+**The instrument the item built was worth more than the numbers say.** The pass ran from 2026-09-10 11:28
+to 2026-09-15 20:29 — **67 h 30 m of wall clock across seven restarts**, the longest of them a
+two-and-a-half-day stop (session 46's). Every arm still finished at 3,691 of 3,691,
+because `RESUME=1` drops the levels an arm's own report has already attempted. A 67-hour run that cannot
+be interrupted is a run that never finishes on a machine somebody also uses.
+
+**What it did not touch:** `LaserTank.lvl` 6 *Cascade* is in the 4,185-level sample and all three arms fail it
+(`enables` on `push-depth`, the other two on `budget`), and level 10 is not in the sample at all. The two
+open hand-supervised levels are exactly as
+[closed item 5](#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself) and
+[closed item 8](#8-level-10-one-traced-run--and-it-answered-a-question-the-item-did-not-ask) left them.
 
 ### 3. Refresh the banked solutions — a no-op, because the premise expired.
 
@@ -1786,7 +1884,7 @@ nodes**: when narrow works it works at roughly a twelfth of the budget. Routes a
 
 **So the follow-up is a budget question, not a width question.** Two arms that tie at 40M and separate
 by 1.6x in nodes on the levels they share are two arms that do **not** tie at 4M or 10M, and that curve
-is [item 7](next-actions.md#7-2nd--the-solved-vs-budget-curve) rather than a new item. The five reports
+is [item 7](next-actions.md#7-1st--the-solved-vs-budget-curve) rather than a new item. The five reports
 are banked, so any budget rung can be read against them without re-running a control.
 
 **What it leaves.** `--push-beam 32` is not a new default — 84 is not 85. It is a **second arm** on a
@@ -1856,7 +1954,31 @@ is in [`SOLVER.md`](../../SOLVER.md#status).
 
 ## The state of the tree and of `build/`
 
-**`build/lasertank-solve.exe` is current again as of session 46**, and the four sessions it spent behind
+**`build/lasertank-solve.exe` is current again as of session 51, and the republish was gated against the
+fourth pass's own output.** Item 2's pass held the published binary from 2026-09-10 to 2026-09-15 and
+four solver commits landed behind it while it ran (`ea48d3a`, `0bfc16a`, `cd8a065`, `d3fab4a` — the last
+two are item 10's `--push-time` and `--push-memo`, in `Push.cs`, `Heuristic.cs` and `Search.cs`), plus one
+`LaserTank.Core` commit (`70a4782`, the i18n move of the rank names out of `GameState.cs`). **So the
+binary that produced the 1,087 no longer exists**, and the check is not against it but against what it
+wrote: five levels from five collections re-run on the rebuilt binary at the `l8fire` arm's own flags and
+40M budget are **node-identical, key-identical, depth-identical and `.lpb`-byte-identical** to the pass's
+banked rows —
+
+| level | pass: nodes / keys / depth | rebuilt | `.lpb` |
+|---|---|---|---|
+| `Beginner-I` 1341 | 219,779 / 93 / 93 | same | identical |
+| `Beginner-II` 511 | 250,506 / 24 / 24 | same | identical |
+| `Challenge-II` 1591 | 214,003 / 57 / 57 | same | identical |
+| `Challenge-IV` 371 | 206,438 / 64 / 64 | same | identical |
+| `Challenge-V` 406 | 245,551 / 18 / 18 | same | identical |
+
+— so **`chain5.jsonl` and every report in `build/reports/` still stand as controls against the current
+binary**, and both of item 10's flags really are inert when not asked for. Evidence in
+`build/gatecheck/`. **This is the check to run every time `build/` is republished behind a pass**, and it
+is better than the old one: the pass's banked output is a stronger control than a second binary, because
+it is the thing the numbers are actually quoted from.
+
+**`build/lasertank-solve.exe` was also current as of session 46**, and the four sessions it spent behind
 the tree are why the side-build habit exists. Item 2's pass held the published binary open from
 2026-09-10 — `dotnet publish -o build` cannot replace a running `.exe` — so sessions 42-45 built to
 `build/item16/` and `build/wr/` instead and drove them through `$LT_SOLVE`, which is what the three
@@ -1963,6 +2085,12 @@ rebases:
 - **`chain-s25.jsonl` is the 476 chain**, and it is the report all six fourth-pass arms were pointed at.
   The full run points at `chain.jsonl` (494) instead, which is why its numbers will not be arm-by-arm
   comparable with the rehearsal's.
+- **`chain5.jsonl` = 1,581**, the fourth pass folded in: `tools/chain_union.py` over `chain.jsonl` and the
+  three arm reports, 494 + 805 + 191 + 91. **It, not `chain.jsonl`, is what a fifth pass points at.** The
+  arms themselves are `build/reports/l5-{l8fire,layer7,enables}.jsonl` (3,691 rows each) with
+  `build/l5/{arm}/` holding their **805 / 726 / 718 gated solutions**; `l5-run.log` is everything the run
+  printed over six days and `l5-run.stamps` is the per-arm wall clock the resume and the `status` table
+  are computed from. All of it is in gitignored `build/` and all of it is re-derivable — for 67 h 30 m.
 - The push benches live in `build/bench/{ferry,deep}-{coarse,learned,work,none,hs128,hs157}.jsonl`.
 
 ---
@@ -2532,6 +2660,30 @@ against 1.61M on the 76 levels both solve and four exclusive wins at 1.8M-3.4M o
 failed at 40M. Two arms that tie at 40M and differ 1.6x in nodes do not tie at 4M, so the follow-up is
 item 7's budget curve and not a width item. Five-arm union **101 of 138 (73.2%)**.
 
+**session 51 — item 2 finished, and the pass that took five days is the project's largest single
+result.** The fourth pass completed its third arm at 2026-09-15 20:29, six calendar days and seven
+restarts after it began: **1,087 of 3,691 (29.5%)**, composite **494 → 1,581 of 4,185
+(11.8% → 37.8%)**, **2,249 of 2,249 gated** with zero divergences, 67 h 30 m wall and 879 h of job time.
+`build/reports/chain5.jsonl` is the new *everything that is still open* report. **The finding is not the
+count, it is what the rehearsal got wrong.** A 1-in-15 stride priced the union to within 7.8% of its own
+published prediction and the composite to within 5.6% — good instrument — and then **put arms 2 and 3 in
+the wrong order and 3.5x apart when they are within 1%.** `enables` was written up at *+4* and nearly
+dropped; dropping it would have cost **101 levels**, more than dropping the `layer7` the stride ranked
+above it (91), and their exclusive counts invert (**15 / 11 / 4** on the stride, **173 / 91 / 101** on the
+corpus). So *compare unions* survives and gets a limit clause: **a stride sizes a union; it cannot order
+the arms inside it, and it must not be used to drop one.**
+Two firsts came out of the run — **`Hard` falls, 5 of 257**, a tier that was 0 of 257 in the chain and
+untouched by all seven rehearsal arms, and **8 solutions come in under the `.ghs` record**, which is
+the first population big enough to say how often a recorded score is beatable (~0.7%). The ceiling
+has not moved: of the 2,604
+levels nothing solved, 99.6% still stop on `budget` and **five** are structural in all three arms.
+**The tree was then republished for the first time since session 46 and gated against the pass itself.**
+Four solver commits and one `LaserTank.Core` commit had landed behind the running binary, so the binary
+that produced the 1,087 is gone; five levels from five collections re-run at the `l8fire` arm's flags and
+budget come back **node-, key-, depth- and `.lpb`-byte-identical** to the banked rows, so the whole
+`build/reports/` bank still stands as a control and item 10's two flags are inert off by default. The
+control is the pass's own output rather than a second binary, which is the better form of this check.
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -2540,7 +2692,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-2nd--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-1st--the-solved-vs-budget-curve) item 7 |
 | 2 | the node budget hides most of a push rung's wall clock | [next-actions](next-actions.md#10-last--wall-clock-on-the-push-rungs) item 10 |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |
