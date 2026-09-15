@@ -1625,7 +1625,8 @@ namespace LaserTank.Game
             if (_list != null && _list.Open)
             {
                 _list.Key(k);
-                if (_list.Chosen > 0) _s?.Load(_list.Chosen);
+                int pickedLevel = _list.TakeChosen();
+                if (pickedLevel > 0) _s?.Load(pickedLevel);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -1636,7 +1637,8 @@ namespace LaserTank.Game
             if (_collections != null && _collections.Open)
             {
                 _collections.Key(k.Keycode);
-                if (_collections.Chosen != null) OpenDataFile(_collections.Chosen);
+                string pickedFile = _collections.TakeChosen();
+                if (pickedFile != null) OpenDataFile(pickedFile);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -2051,9 +2053,17 @@ namespace LaserTank.Game
                 // value -- `EndDialog(Dialog, i + 100)` and the `if (i > 100)`
                 // that meets it -- so the click path has to collect it in
                 // exactly the place the key path does.
-                if (_list != null && _list.Chosen > 0) _s?.Load(_list.Chosen);
-                if (_collections != null && _collections.Chosen != null)
-                    OpenDataFile(_collections.Chosen);
+                // **Taken, not read.**  This arm runs after *every* chrome
+                // click -- a chip in the options panel, a keycap on the top bar
+                // -- because the click that commits a picker is an ordinary
+                // chrome click and there is no return value to catch it in.  A
+                // picker that left its answer behind would therefore re-load
+                // the level it was last given on the next click anywhere, which
+                // is the one bug this shape can have: see LevelList.TakeChosen.
+                int picked = _list != null ? _list.TakeChosen() : 0;
+                if (picked > 0) _s?.Load(picked);
+                string pickedColl = _collections?.TakeChosen();
+                if (pickedColl != null) OpenDataFile(pickedColl);
                 return true;
             }
 

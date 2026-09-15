@@ -211,10 +211,19 @@ namespace LaserTank.Game
         /// it, 113 and 906 do not -- is in this file's header along with why the
         /// merge could not keep both.
         public bool StopsClock => true;
-        /// The level the player chose, or 0 -- BoardView reads and clears it,
+        /// The level the player chose, or 0 -- BoardView takes and clears it,
         /// which is `EndDialog(Dialog, i + 100)` and the `if (i > 100)` that
         /// meets it (LTANK.C:910).
-        public int Chosen { get; private set; }
+        private int Chosen { get; set; }
+
+        /// **The answer is read once.**  `EndDialog`'s return value reaches the
+        /// one `DialogBox` call that asked for it and then it is gone; here the
+        /// field outlives the panel, and the mouse path reads it after *any*
+        /// chrome click rather than after this panel's own -- so a level picked
+        /// an hour ago would be re-loaded by the next click on an unrelated
+        /// chip, and the game would jump back to it.  Taking it clears it, so
+        /// one commit loads one level.
+        public int TakeChosen() { int c = Chosen; Chosen = 0; return c; }
 
         public LevelList(BoardView view) { _view = view; }
 

@@ -79,9 +79,14 @@ namespace LaserTank.Game
         /// LevelList.StopsClock for the same split.
         public bool StopsClock => true;
 
-        /// The collection the player chose, or null.  BoardView reads and
+        /// The collection the player chose, or null.  BoardView takes and
         /// clears it, the way it does LevelList.Chosen.
-        public string Chosen { get; private set; }
+        private string Chosen { get; set; }
+
+        /// Read once and cleared, for the reason LevelList.TakeChosen spells
+        /// out: a stale answer here re-opens a collection on a click that had
+        /// nothing to do with this panel.
+        public string TakeChosen() { string c = Chosen; Chosen = null; return c; }
 
         public CollectionList(BoardView view) { _view = view; }
 
