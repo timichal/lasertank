@@ -77,6 +77,15 @@ namespace LaserTank.Game
         public bool Personal;
         /// Did this run beat the collection's posted best?  This is the one the
         /// original prints "Congratulation's You beat it !!" for (txt012).
+        ///
+        /// **False when there is no posted best at all**, which is not what
+        /// LevelFile.Beats says on its own: a null or blank target is beaten by
+        /// anything, because that is the rule the *write* needs.  A collection
+        /// that ships no `.ghs` record for a level is one that keeps no world
+        /// score for it -- the quirk levels are the reason -- and announcing a
+        /// world best there would be announcing a record nobody is keeping.
+        /// The level list has always drawn that case as one star rather than
+        /// three (LevelList.BuildMarks); this is the same rule.
         public bool Global;
         /// Set when the write failed -- a read-only corpus, say.  Never fatal:
         /// losing a high score must not take the game down.
@@ -123,7 +132,7 @@ namespace LaserTank.Game
             var r = new ScoreResult();
             THSREC target = LevelFile.ReadHS(files.Ghs, level);
             r.Target = target != null && target.Moves > 0 ? target : null;
-            r.Global = LevelFile.Beats(moves, shots, target);
+            r.Global = r.Target != null && LevelFile.Beats(moves, shots, r.Target);
 
             try
             {
