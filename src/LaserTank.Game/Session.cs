@@ -368,6 +368,16 @@ namespace LaserTank.Game
         /// ticks and this stopped at 3.  Same lesson as `RestorePos` above,
         /// from the opposite direction -- ask the C what the button does.
         ///
+        /// **The one thing this deliberately leaves out** is the dialog proc's
+        /// own guard, `if (Game.RecP > 1) ... else ID_DEADBOX_RESTART`
+        /// (LTANK_D.C:159): in the original, dying on the first turn turns
+        /// every button of the box into Restart, Undo included.  Decided
+        /// against on 2026-09-15 -- undo means undo on turn 1 here.  Reasons
+        /// and the cost of reopening it: docs/game/history.md, "The DeadBox's
+        /// first-turn guard".  If
+        /// it is ever reopened, oracle/driver.c's `Z` moves with it or the
+        /// three script drivers stop being comparable.
+        ///
         /// -> whether the undo itself found anything.  The game resumes
         /// regardless, so the caller has nothing to refuse.
         public bool UndoDead()

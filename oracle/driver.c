@@ -507,6 +507,10 @@ static void script_feed(void)
     switch (c) {
     case '.': break;                                        /* idle one tick */
     case 'z': UndoStep();                        break;     /* command 110   */
+    /* DeadBox Undo.  No `Game.RecP > 1` guard (LTANK_D.C:159) on purpose:
+       the port dropped the box's first-turn Restart rule, so all three
+       script drivers leave it out together.  See docs/game/history.md,
+       "The DeadBox's first-turn guard". */
     case 'Z': UndoStep(); GameOn(TRUE); lt_dead = 0; break; /* DeadBox Undo  */
     case 'c': SaveGame = Game;                              /* command 111   */
               can_restore = 1;                   break;

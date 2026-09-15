@@ -2,55 +2,27 @@
 
 Nothing is blocked. The order and the short form are in
 [`PROGRESS.md`](../../PROGRESS.md#next-steps); this file carries each item in full — what it is
-waiting on, what it would cost, and what the finished work beside it already answered. Items keep
-their numbers because the other files refer to them by number; what is done is in
-[`history.md`](history.md).
+waiting on and what it would cost.
+
+**Open items only.** What is done, and what was deliberately decided against, is in
+[`history.md`](history.md) and is not repeated here. **Items keep their numbers** because the other
+files refer to them by number, so a number retires when its item closes rather than being reused —
+which is why this file starts at 3.
 
 ---
 
-## 1. i18n  *(done — see [`history.md`](history.md), step 13)*
-
-The audit this item asked for was run, and the rule it was to be run on — *a key is read by a widget
-or it goes* — answered **go** for the file as a whole. `data/language/` is eleven catalogues of the
-port's own text now; the 2007 `.dat` files are still frozen under `original/` and
-`tools/convert_language.py` still decodes them. The rule survives as
-[`tools/strings_check.py`](../../tools/strings_check.py), which fails both ways: a key nothing draws
-and a lookup with no key are equally a red gate. What is there is in
-[`ui.md`, *i18n as built*](ui.md#i18n-as-built); why it went that way is in
-[*Finished*](history.md).
-
 ## 3. The rest of the original that is still missing
 
-Everything here was named as left out at the time rather than forgotten.
+Everything here was named as left out at the time rather than forgotten. **The editor's share of it
+is item 8** — it is blocked on the same modal prompt as the first paragraph below, plus a file
+dialog, and nothing in it touches the game's own window.
 
-**Blocked on a file dialog:** Load Level in the editor (602) and Save As (606). 108 was the third
-and is done — and the way it was done is the model for these two: a list of what is *in the repo*
-rather than a native file dialog. See [*Finished*](history.md), the collection picker. 602 wants exactly the same
-list plus a level inside the chosen collection (which is `LevelList`, already built); 606 wants
-somewhere to type a name, so it is really blocked on the modal prompt below rather than on a file
-dialog.
-
-**Blocked on a modal prompt:** the "save changes?" prompt on leaving the editor (`Modified` is
-tracked and shown, there is just no message box), the `RecordBox`/`HSBox` name prompts (both INI
-keys are read and written; there is nowhere to type), the Difficulty dialog (225), the DeadBox
-itself (a status line here — see [*Finished*](history.md), the level-39 report), and the `LoadTID`
-tunnel dialog
-*as* a dialog (the id is a mode here, cycled with `T`, because a modal prompt per painted cell is
-worse than a mode). **Step 7 built the shape all of these want** — `Ui.Dialog` plus a scrim, a
-measured panel, keycaps for the buttons — and **step 8 built the first one**: `Esc`'s quit prompt
-(`DrawQuitAsk`), which is the yes/no with its modality, its clock rule and its "every other key is
-the safe answer" already settled. So what is left for the rest is a text field, not a look.
-
-**And the DeadBox has a rule of its own that nothing here implements yet** — its *headline* is
-the port's own since step 13 (`status.dead`), but the rule below is about its buttons. Its dialog
-proc is four lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
-else EndDialog(Dialog, ID_DEADBOX_RESTART);` — **die on the first turn and every button is Restart**,
-Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as the
-level-39 report in [*Finished*](history.md): logic that lives in a dialog proc rather than in the
-game, and
-therefore a guard the port has to write down or lose. It is a *separate* change because Restart is
-command 105, which none of the three script drivers has a token for — implementing it faithfully
-means adding one to all three, so it does not ride along with `Session.AcceptsInput`.
+**Blocked on a modal prompt:** the `RecordBox`/`HSBox` name prompts (both INI keys are read and
+written; there is nowhere to type), the Difficulty dialog (225), and the DeadBox itself, which is a
+status line here rather than a box. **Step 7 built the shape all three want** — `Ui.Dialog` plus a
+scrim, a measured panel, keycaps for the buttons — and **step 8 built the first modal prompt in the
+port**: `Esc`'s quit answer (`DrawQuitAsk`), which settles the modality, the clock rule and the
+"every other key is the safe answer". So what is left for the rest is a text field, not a look.
 
 **Additive, nothing blocking:** `Backspace[]`'s ten-level history (118); Resume Recording (125);
 Print (126); "View
@@ -60,37 +32,23 @@ persisted and `--gfx-dir` sets it); and `LoadImageFile`'s per-language `Control.
 / `LaserTank.hlp`. **`LaserTank.hlp` is the one F1 stands in for**: command 907 is WinHelp in the
 original and the key list here, which is the answer the port can actually give.
 
-**Done in step 11**, and listed here because this is where they were left out: the Search
-sub-dialog (`SearchBox`, `LTANK_D.C:197` — name or author substring, difficulty mask,
-skip-completed), `TransListKey`'s type-ahead, and `ID_LOADLEV_02`'s direct level-number entry. All
-three are the level list's filter bar now, and the third is folded into the first field rather than
-given one of its own. See [*Finished*](history.md), step 11.
-
 **Wants a `LoadNextLevel` port rather than a menu:** `[OPT] SkipComLev` and `[DATA] Diff_Setting`.
 Both are read into `Options` as comments only. **`Diff_Setting` is closer than it was**: the
 Difficulty dialog (225) writes the same five-bit mask the level list's rank chips now toggle, so what
 is left is persisting it and having `LoadNextLevel` read it.
 
-**Not coming:** the `.ln` files under `Setups/Language/` (a 4.0-era format superseded by the
-`.dat`s and not read by the 2007 build).
-
-**And the route these want, when they land, is the `F1` list — not a menu bar.** Item 2 was that
-bar, and it is [*Finished*](history.md), decided against: what it had left to add over `F1` and
-step 9 was a route to exactly the commands above, and a bar cannot route to a command nobody has
-written yet. Each of these is blocked on *being written*; once one is, it gets a row in `PlayKeys`
-or `EditorKeys` like every other command in this port, and that row is both its documentation and
-its click target.
+**And the route these want, when they land, is the `F1` list — not a menu bar** (which was item 2,
+and is [*Finished*](history.md), decided against). Each of these is blocked on *being written*; once
+one is, it gets a row in `PlayKeys` or `EditorKeys` like every other command in this port, and that
+row is both its documentation and its click target.
 
 ## 4. The UI redesign, third pass
 
-The first pass is built — see [*Finished*](history.md), step 7 — and it deliberately stopped at the
-chrome. The biggest thing it left was **mouse and touch**, and that is [*Finished*](history.md),
-step 9. The second-biggest was that the chrome looked generated, and that is step 10. Step 11 did
-the third thing it left, which was not a *look* at all: the one table it built was unusable at the
-size the corpus actually is, and it took a filter bar, a mark column, a scrollbar and column gutters
-to fix — **none of which is in this list, because none of them was visible until someone played
-it.** Worth remembering before the bullets below are treated as the whole of what is left. What is
-still open:
+The first pass stopped at the chrome and steps 9, 10 and 11 closed the three biggest things it
+left ([*Finished*](history.md)). **The third of those was never on this list**: the one table step 8
+built was unusable at the size the corpus actually is, and it took a filter bar, a mark column, a
+scrollbar and column gutters to fix — none of which was visible until someone played it. Worth
+remembering before the bullets below are treated as the whole of what is left.
 
 * **Web.** Nothing here needs a platform branch and there is no stretch mode to fight, so an HTML5
   export should draw correctly today. It has not been tried. **Step 10 removed the one thing that
@@ -191,3 +149,23 @@ the save format to engine classes and is miserable to diff.
 second half for the new store (the existing halves stay, pointed at the importer),
 `chrome_check.py`'s self-written baseline moves with it, and `Step6Check`'s three-`Options`
 round trip is rewritten against the typed record.
+
+## 8. The editor
+
+The editor's commands are ported and gated — `--edit` scripts against the oracle's own `ChangeGO`,
+and `editor_check.py`'s 3,000 of them plus the `.lvl` writer's byte-for-byte round trip. **What is
+missing is the chrome around them** — four commands, none of which touches the game's own window,
+which is why they are an item rather than four more bullets in item 3. The modal prompt two of them
+want is the one item 3 is waiting on, so that half lands for both at once.
+
+**Blocked on a file dialog:** Load Level (602) and Save As (606). 108 was the third of these and is
+done — and the way it was done is the model for both: a list of what is *in the repo* rather than a
+native file dialog. See [*Finished*](history.md), the collection picker. 602 wants exactly that
+list plus a level inside the chosen collection, which is `LevelList` and already built; 606 wants
+somewhere to type a name, so it is really blocked on the prompt below rather than on a file dialog.
+
+**Blocked on a modal prompt:** the "save changes?" prompt on leaving the editor — `Modified` is
+tracked and shown, there is just no message box — and the `LoadTID` tunnel dialog *as* a dialog.
+**The second of those is worth arguing about before it is built**: the tunnel id is a mode here,
+cycled with `T`, because a modal prompt per painted cell is worse than a mode, and that reasoning
+does not weaken when the panel exists. The *save changes?* half wants nothing item 3 does not.

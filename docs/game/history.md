@@ -157,7 +157,38 @@ Green after: `replay_all` 187 (**112/112 move/shot counts still exact against th
 the strongest single check that the death change is right, since those are the 2010 game's own
 recorded scores), `test_difftrace` 29, `sweep` 2,347/2,347, `undo_check` 600, `mouse_check` 500,
 `roundtrip_check` 60×6, `tick_check` 208, `sound_check`, `editor_check`, `list_check`, `test_fuzz` 25.
-**One thing the DeadBox still does not do here — see [*Next steps*](next-steps.md) item 4.**
+
+### The DeadBox's first-turn guard — **decided against, 2026-09-15**
+
+One thing the DeadBox deliberately does not do here. Its *headline* is the port's own since step 13
+(`status.dead`); this is about its buttons. The dialog proc is four lines (`LTANK_D.C:159`) and the
+second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam); else EndDialog(Dialog,
+ID_DEADBOX_RESTART);` — the proc *lies about which button was pressed* when at most one key has
+been consumed, and the caller switches on that return value (`LTANK.C:725`), so **die on the first
+turn and every button is Restart**, Undo included. `RetBox` ("Return to Game") has the identical
+test, and there it is dead code: command 907 discards the `DialogBox` result (`LTANK.C:1373`).
+
+**Undo behaves the same on turn 1 as on every other turn here.** Not an oversight to come back
+to — the reasons, because this is the kind of call that gets re-litigated:
+
+  * **Nothing that measures this port can see it.** Undo is not a key, so it is in no keystream: no
+    `.lpb`, no `replay_all` score, no solver result changes. And `UndoStep` rewinds `Game.RecP` with
+    the rest of `Game`, so even `RecBuffer[0..RecP)` — what `WM_SaveRec` writes — lands where the
+    original's restart would have left it. What is left is one interactive button on one turn.
+  * **All three script drivers already agree without it**, which is why no gate went red: `Z` is
+    bare `UndoStep(); GameOn(TRUE)` in `oracle/driver.c:510`, in `LaserTank.Cli`, and in
+    `Session.UndoDead`. **So the deviation is the cheap state and faithfulness is the expensive
+    one** — implementing the guard means implementing Restart, which is command 105 and has no
+    token in any of the three, added to all three, to make a difference no diff could check.
+  * **105 is not a level reload either**, so that work is not the `Session.Restart` already here:
+    it restores `Game.PF` from `CurRecData.PF` and calls `BuildBMField` (which re-scans the tank
+    home and zeroes moves/shots), and it deliberately does *not* call `ResetUndoBuffer`, so the
+    undo buffer survives a restart in the original — hence the death path's `UndoStep()` before
+    `PostMessage(105)`, *"we have to undo the error first"*. The port's `Restart()` is
+    `Load(Level)`, and `LoadLevel` does reset the buffer (`Engine.cs:481`).
+
+**If this is ever reopened, both `Z` tokens move with it**, or the drivers stop being comparable.
+`Session.UndoDead`, `oracle/driver.c` and `LaserTank.Cli` each carry a comment pointing here.
 
 ## ~~The coordinate grid (A1–P16)~~ — **done 2026-09-13**
 
@@ -444,7 +475,7 @@ decision in `LevelList`'s header and in *The game's own UI* above — written do
 **`Esc` asks before it quits.** `Enter`/`Y` quits, every other key including `Esc` keeps playing, and
 the board freezes while the question is up. Unconditional, because "only when there is something to
 lose" needs the game to know what a player calls a loss. It is also the first of the modal prompts
-the rest of the port is blocked on — see [*Next steps*](next-steps.md), item 3.
+the rest of the port is blocked on — see [*Next steps*](next-steps.md), items 3 and 8.
 
 `--panel quit` reviews the prompt; `--panel levels|scores|global` are three names for the one table
 now, kept so that no instrument named in these files started printing usage.
@@ -943,11 +974,11 @@ obviously going to cover.
 
 **The residue is not a menu-bar job.** What the item still claimed to add was "a route to the
 handful of commands nothing on screen names" — and those are the *unbuilt* ones in
-[*Next steps*](next-steps.md) item 3: Load Level (602), Save As (606), the name prompts, Print
-(126), the opening screen. **A menu bar cannot route to a command that does not exist**, so every
+[*Next steps*](next-steps.md): Load Level (602) and Save As (606), which are item 8's, and the
+name prompts, Print (126) and the opening screen, which are item 3's. **A menu bar cannot route to a command that does not exist**, so every
 one of them is blocked on being written, not on a bar; and the moment one is written, the route it
 wants is a row in `PlayKeys` or `EditorKeys`, where it is documented and clickable in the same
-stroke. The residue therefore moves to item 3, which is where the work actually is.
+stroke. The residue therefore moves to those two items, which is where the work actually is.
 
 **What is lost, stated so it is not rediscovered as a surprise.** The original's menus are the only
 converted artifact in the tree that nothing reads — `Language.MainMenu` / `Language.EditorMenu`
@@ -1029,7 +1060,9 @@ findings the JSON was not carrying: the codepages, which are measured and record
 distribution, and `LANGUAGES`, the one table where the installer's directory names meet ISO codes.
 It is a decoder now rather than a producer: it writes nothing unless given `--out DIR`, and it
 refuses `data/language/`, which would otherwise let a stale 2007 conversion land on top of what
-replaced it.
+replaced it. **The `.ln` files under `Setups/Language/` are the one language artifact that will
+never be read**: a 4.0-era format the `.dat`s superseded and the 2007 build does not open, so there
+is nothing in them to decode against.
 
 **What the round trip proved, and why losing it is not a loss.** `lang_check.py` rebuilt all 2,293
 source lines out of the JSON and compared **bytes** in each file's own codepage. That was a real

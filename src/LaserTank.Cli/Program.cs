@@ -352,7 +352,11 @@ namespace LaserTank.Cli
             {
                 case '.': break;                                  // idle one tick
                 case 'z': e.UndoStep(); break;                    // command 110
-                case 'Z':                                         // DeadBox Undo
+                // DeadBox Undo.  No `Game.RecP > 1` guard (LTANK_D.C:159) on
+                // purpose: the port dropped the box's first-turn Restart rule,
+                // so all three script drivers leave it out together.  See
+                // docs/game/history.md, "The DeadBox's first-turn guard".
+                case 'Z':
                     e.UndoStep();
                     e.GameOn(true);
                     e.Deaths = 0;

@@ -192,23 +192,27 @@ python tools/sweep.py                            # everything on engines.py read
 ## Next steps
 
 Nothing is blocked. Roughly in the order they are worth doing; each one in full, with what it is
-waiting on and what the finished work beside it already answered, is in
-[`docs/game/next-steps.md`](docs/game/next-steps.md). **Items keep their numbers**, so the gaps
-where **1** and **2** were are deliberate. **1** was i18n and it is
+waiting on and what it would cost, is in
+[`docs/game/next-steps.md`](docs/game/next-steps.md) — which carries the **open** items only, and
+sends what closes to [*Finished*](docs/game/history.md).
+
+**Items keep their numbers**, so a number retires with its item rather than being reused and the
+gaps where **1** and **2** were are deliberate. **1** was i18n and it is
 [*Finished*](docs/game/history.md), step 13: the audit it asked for was run, the rule it was to be
 run on — *a key is read by a widget or it goes* — answered *go* for the 2007 strings as a whole, and
 `data/language/` is eleven catalogues of the port's own text with `tools/strings_check.py` failing
 both ways over them. **2** was a menu bar and it is [*Finished*](docs/game/history.md), decided
 against — `F1` and step 9 had already taken both halves of what it was for, and the route it still
-claimed to add is a route to commands item 3 has not written yet.
+claimed to add is a route to commands items 3 and 8 have not written yet.
 
 | # | what it is | the short of it |
 |---|---|---|
-| **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: two commands blocked on a file dialog, six on a modal prompt (step 8 built the first of those), the DeadBox's own first-turn guard, and a shrinking list of additive dialogs — step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the level list's filter bar now |
+| **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: four commands blocked on a modal prompt (step 8 built the first one in the port) and a shrinking list of additive dialogs — step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the level list's filter bar now. **The editor's share is item 8** |
 | **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |
 | **6** | **The solver** | the larger unfinished half and a goal in its own right. It runs on the other machine now, so any number here is a last-known value. See [`SOLVER.md`](SOLVER.md) |
 | **7** | **Settings: `user://` and a typed store** | three jobs are tangled in `Ini` — a fidelity artifact worth keeping, interop with the 2010 binary's own file, and the port's own settings, which are already drifting (`[DATA] Language` is invented). The plan is the language files' plan: demote `Ini` to a one-way importer, move the port's settings to a typed `user://settings.json`. **Waiting on item 3** — `SkipComLev` and `Diff_Setting` are still to land, and doing it first means writing the migration twice. Carries a real bug either way: `Paths.Ini` writes to the repo root and nothing in the tree uses `user://` |
+| **8** | **The editor** | the commands are ported and gated (`--edit`, `editor_check.py`); what is missing is the chrome. Two blocked on a file dialog — Load Level (602) and Save As (606), both of which the collection picker is the model for — and two on item 3's modal prompt: the *save changes?* question on leaving, and `LoadTID` *as* a dialog rather than the `T` mode it is here, which is worth arguing about before it is built |
 
 ---
 
