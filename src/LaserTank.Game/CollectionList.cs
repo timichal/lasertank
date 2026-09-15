@@ -281,6 +281,22 @@ namespace LaserTank.Game
             return s.Length >= w ? s.Substring(0, w) : s.PadRight(w);
         }
 
+        /// LevelList.Cols, for the head line: text at given character columns,
+        /// space-filled between.  A label that overruns its slot pushes the next
+        /// one right rather than being cut -- which is why the gate caps the
+        /// three, and why a cap that is exceeded shows up as a shifted heading
+        /// and not as a silent truncation.
+        private static string Cols(params (int at, string text)[] parts)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach ((int at, string text) in parts)
+            {
+                while (sb.Length < at) sb.Append(' ');
+                sb.Append(text);
+            }
+            return sb.ToString();
+        }
+
         private static bool SamePath(string a, string b)
         {
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
@@ -460,17 +476,16 @@ namespace LaserTank.Game
             w = panel.Size.X - 2 * pad;
             float y = panel.Position.Y + pad + Ui.Px(11);
 
-            // Both halves of the title are the loaded language's: the menu
-            // item's own label (`&Open Data File...`, command 108, out of
-            // Language.MainMenu) and txt002, which is the string the original
-            // hands GetOpenFileName as its `*.LVL` filter.  Step 6 converted
-            // both and nothing had read either until now.
-            Language lang = _view.Strings;
-            Ui.Caps(n, new Vector2(x, y), lang.Label(108), Ui.Text, 12);
+            // The title names what the panel *is* rather than what the original
+            // called the command that opened it.  Command 108 is `&Open Data
+            // File...` on a menu bar this port does not have, and "data file" is
+            // 1996 for the thing every player here calls a collection.
+            Strings lang = _view.Strings;
+            Ui.Caps(n, new Vector2(x, y), lang["coll.title"], Ui.Text, 12);
             Rect2 close = Ui.CloseRect(panel, pad);
             Ui.CloseX(n, close, _view.Chrome.Add(Ui.Touch(close), "close", Close));
             Ui.Write(n, new Vector2(close.Position.X - Ui.Px(10) - Ui.Px(240), y),
-                     $"{lang["txt002"]}  ·  {_rows.Length}", 11, Ui.Faint, Ui.Px(240),
+                     lang.F("coll.count", _rows.Length), 11, Ui.Faint, Ui.Px(240),
                      HorizontalAlignment.Right);
             y += Ui.Px(12);
             Ui.Rule(n, x, y, w);
@@ -479,7 +494,7 @@ namespace LaserTank.Game
             if (_rows.Length == 0)
             {
                 Ui.Write(n, new Vector2(x, y + Ui.Px(10)),
-                         "no .lvl under " + string.Join(", ", Roots), 12, Ui.Bad, w);
+                         lang.F("coll.empty", string.Join(", ", Roots)), 12, Ui.Bad, w);
                 Footer(n, panel, x, w);
                 return;
             }
@@ -494,10 +509,17 @@ namespace LaserTank.Game
             // makes a head a head; the rule is what stops the rows.
             //
             // The head string is spaced to BuildRows' own fields: 24 for the
-            // label, then `%5d/%-5d` at columns 26-36, then the directory at
-            // 38.  `solved/total` set flush from column 25 puts its slash on
-            // the row's slash and `where` on the row's path.
-            string heads = Pad("collection", 24) + "solved/total where";
+            // label, then `%5d/%-5d` at columns 25-35, then the directory at 37.
+            //
+            // **Placed by character column, so the labels are capped**, which is
+            // the one place in this interface where a translation has a width it
+            // must not exceed: these three sit over cells whose positions come
+            // out of a printf, not out of a measurement, so a long word does not
+            // reflow the table -- it lands on the next column's numbers.
+            // strings_check.py holds them to 24 / 11 / 20 characters.
+            string heads = Cols((0, lang["coll.colName"]),
+                                (25, lang["coll.colSolved"]),
+                                (37, lang["coll.colWhere"]));
             n.DrawString(mono, new Vector2(x, y), heads,
                          HorizontalAlignment.Left, w, Ui.Px(12), Ui.Faint);
             float headY = y;
@@ -535,7 +557,7 @@ namespace LaserTank.Game
                 if (_items[i].Coll >= 0 && (i < top || i >= top + shown)) hiddenRows++;
             if (hiddenRows > 0)
             {
-                string more = $"{hiddenRows} more · scroll";
+                string more = lang.F("coll.more", hiddenRows);
                 float mw = Ui.Width(more, 11);
                 if (Ui.Width(heads, 12, mono) + mw + Ui.Px(20) <= w)
                     Ui.Write(n, new Vector2(x + w - mw, headY), more, 11, Ui.Dim);
@@ -555,7 +577,8 @@ namespace LaserTank.Game
                     // more thing overlapping the rows for chrome_check to
                     // catch.
                     float hy = y + (i > 0 ? Gap : 0);
-                    (string name, string blurb) = CollectionNotes.Head(it.Shelf);
+                    (string nameKey, string blurbKey) = CollectionNotes.Head(it.Shelf);
+                    string name = lang[nameKey], blurb = lang[blurbKey];
                     Ui.Caps(n, new Vector2(x, hy), name, Ui.Accent, 10);
                     // **Dropped rather than clipped.**  The blurb is the one
                     // thing on the line that is optional, and half of it -- the
@@ -606,7 +629,8 @@ namespace LaserTank.Game
             if (show >= 0 && show < _items.Length && _items[show].Coll >= 0)
             {
                 Collection c = _all[_items[show].Coll];
-                string note = CollectionNotes.TextOf(c);
+                string noteKey = CollectionNotes.KeyOf(c);
+                string note = noteKey == null ? "" : lang[noteKey];
                 // A collection nobody has written a line for -- one the editor
                 // saved, or one upstream added since -- says where it is
                 // instead.  A blank strip reads as a bug; a path is at least
@@ -625,12 +649,10 @@ namespace LaserTank.Game
         /// bug, and the clause that goes is the one the next one implies.
         private void Footer(Node2D n, Rect2 panel, float x, float w)
         {
-            string s = "↑↓ or wheel picks · Enter or a second click opens · "
-                       + "Esc or a click outside closes";
-            if (Ui.Width(s, 11) > w)
-                s = "↑↓ or wheel picks · Enter opens · Esc or a click outside closes";
-            if (Ui.Width(s, 11) > w)
-                s = "↑↓ picks · Enter opens · Esc closes";
+            Strings lang = _view.Strings;
+            string s = lang["coll.footerFull"];
+            if (Ui.Width(s, 11) > w) s = lang["coll.footerMid"];
+            if (Ui.Width(s, 11) > w) s = lang["coll.footerShort"];
             Ui.Write(n, new Vector2(x, panel.End.Y - Ui.Px(13)), s, 11, Ui.Faint, w);
         }
     }

@@ -2,7 +2,7 @@
 
 The port's interface: the original's accelerator tables read rather than invented, the panels that
 stand in for its dialogs, the editor as a mode of the window, the instruments that review any of it
-without a human at the screen, and the ten translations. The facts underneath the drawing are in
+without a human at the screen, and the eleven languages it is written in. The facts underneath the drawing are in
 [`rendering.md`](rendering.md); what the redesign did and in what order is in
 [`history.md`](history.md); what is still missing is in [`next-steps.md`](next-steps.md).
 
@@ -329,58 +329,102 @@ GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.M
 
 ## i18n as built
 
-The original's ten translations, converted **once** into keyed UTF-8 JSON under `data/language/`,
-plus a picker on `Ctrl+L` and a `[DATA] Language` key. The picker and the key are **invented** — the
-original has neither: the language is chosen by *which of the ten `Setups/` trees you installed*
-(`LANGFile` is built at `LTANK.C:1421` and never varies).
+**Eleven keyed catalogues of this port's own text**, one JSON file per language under
+`data/language/`, plus a picker on `Ctrl+L` and a `[DATA] Language` key. The picker and the key are
+**invented** — the original has neither: the language is chosen by *which of the ten `Setups/` trees
+you installed* (`LANGFile` is built at `LTANK.C:1421` and never varies).
 
-**The codes are ISO, not the installer's directory names.** `en.json`, `fr.json`, `de.json`,
-`nl.json`, `pt.json`, `es.json`, `sv.json`, `hr.json`, `zh-Hans.json`, `zh-Hant.json`, and the same
-string in each file's `code`, in `Language.BaseCode` (`en`) and in `[DATA] Language`. The 2007
-directory names — `US`, `Du`, `Sp`, `Sw`, and the `Cs`/`Ct` that turned out to be Chinese rather
-than Czech — survive in exactly one place, the left column of `LANGUAGES` in
-`tools/convert_language.py`, because `original/` is frozen and that is where the two naming systems have
-to meet. The table is reproduced in [*Finished*](history.md), under the ISO language codes, with the
-codepages.
+**The 2007 translations are not what is in those files, and that is the whole of this pass.** Step 6
+converted the original's ten `Language.dat` files into keyed JSON and the port drew twenty-three of
+their 155 slots. The other hundred and thirty-two described a Windows menu bar, a nine-button
+control panel and sixteen dialogs — an interface the redesign had already replaced: step 7 turned
+the control panel into a column, step 8 merged the three list dialogs into one table, step 9 made
+every label a button, step 11 turned the Search dialog into a filter bar. next-steps item 1 called
+for an audit on one rule — *a key is read by a widget or it goes* — and run against the file as a
+whole the rule answered **go**.
 
-**The display name is the port's, the banner is kept as data.** `LANGUAGES` assigns `name` (the
-English name of the language, because `ThemeDB.FallbackFont` has no CJK glyphs); each file also
-carries `sourceDir`, `sourceEncoding` and `sourceName` — the translator's own banner line verbatim,
-completeness claim and all. `lang_check.check_structure` asserts all six header fields, and
-`sourceName` against the `.dat`'s banner, which is the one string in the file the round trip below
-cannot reach: it lives on a `#` line the original's own loader skips.
+So the catalogue is the port's own: keys named after the widget that draws them (`quit.title`,
+`levels.groupBest`, `obj.thinIce`), prose written rather than inherited, in **English, Czech,
+German, Spanish, French, Croatian, Dutch, Portuguese, Swedish and both Chinese scripts**. The
+original's own wording is not missed. `ID_DEADBOX_DEAD` is *"YOU ARE DEAD ! ! !"*, txt012 is
+*"Congratulation's You beat it !!"*, and neither survives being read twice.
 
-**Why this one file is not a transliteration.** `LANGUAGE.C` exists to read a *positional* file:
-`Language\Language.dat` is 240 lines in six fixed-size sections (`SIZE_MMENU` 49, `SIZE_EMENU` 24,
-`SIZE_BUTTON` 9, `SIZE_TEXT` 48, `SIZE_DIALOGS` 96, `SIZE_ABOUTMSG` 14, `LT32L_US.H:42`), comments
-and blanks skipped, each translation in whichever 8-bit codepage its author's Windows happened to
-use. **The population of such files is closed** — the ten that shipped in 2007 are all there will
-ever be, and no rule reads a UI string. So the conversion happens once, in
-`tools/convert_language.py`, and the game reads JSON.
+**Czech is new.** The 2007 distribution has no Czech: `Setups/Cs` and `Setups/Ct` turned out to be
+Simplified and Traditional Chinese, which is the finding the codepage measurement produced and the
+reason the ISO codes here are `zh-Hans` and `zh-Hant`. `cs.json` is the first Czech LaserTank has
+had.
 
-That is a deviation from this project's usual answer, so it carries the usual price: the conversion
-is checkable **against the artifact**.
+**The rule is a gate now, and it runs both ways.** An audit is a thing somebody has to remember to
+run again; `tools/strings_check.py` is not. It fails if a key in `en.json` appears in no source
+file, and it fails if a lookup in the source names a key `en.json` does not have — a dead key and a
+label with no string are both build failures. It also holds the eleven files to one key set with no
+blanks, checks that every `{0}` in English survives into every translation, and caps the handful of
+labels that are placed by *character column*. Comments are stripped before the source is scanned, so
+a key that survives only because it is mentioned in a comment counts as dead, which is what it is.
 
-- **Nothing is hand-typed.** The 153 string keys are parsed out of the frozen `LT32L_US.H` —
-  `ButText1..9`, `txt001..txt045`, `REC_Title`, `help01..03`, `HelpFileName`, and the 96 `ID_*`
-  dialog slots — and the menu trees' shape, command ids and separator positions out of the frozen
-  `lt32l_us.inc`. The text section's numbering has two gaps (no `txt003`, no `txt030`), which is
-  exactly what a hand-written table gets wrong.
-- **The gate runs the conversion backwards.** `lang_check.py` rebuilds every one of the 240 source
-  lines out of the JSON — undoes the escape conversion, re-attaches the accelerator hint after a
-  tab, re-encodes to that file's own codepage — and compares **bytes** with the original line: 2,293
-  lines across the ten files. That is what catches a mangled accent, a shifted section, a dropped
-  string or a mis-keyed slot.
-- **The 90 lines it cannot rebuild are asserted, not excused.** Nine lines per file address a menu
-  *separator*, and the JSON keeps no text for one because the original never applies one either —
-  `ChangeMenuText` checks `ItemInfo.fType == MFT_STRING` and a separator's is not. That is why all
-  ten files carry the untranslated word `SEPARATOR` in those slots, and the gate asserts they do.
+**Eleven labels have a width they must not exceed, and only eleven.** Everything else in this
+interface is measured and the layout moves around it (see *Two layout rules* above). The level
+table's column heads and the collection picker's are the exception: they sit over cells whose
+positions come out of the original's own `printf` widths — `%4d`, `%-30.30s`, `%5d`, `%4s` — so a
+long word does not reflow the table, it lands on the next column's numbers. `strings_check.WIDTHS`
+carries the eleven caps and the failure names the column. This is why German's shots column is
+`Sch.` and Dutch's is the singular `schot`: a table is one of the few places where abbreviating is
+the correct answer rather than a defeat.
 
-**The codepages were measured, not guessed** — nothing in the distribution records them. The table
-is in [*Finished*](history.md), under the ISO language codes, along with the surprise:
-`zh-Hans`/`zh-Hant` (`Setups/Cs`, `Setups/Ct`) are Chinese, not Czech.
+**The instruments are not translated, and that is a rule rather than an omission.** Every
+`--check-*` line, every `--play` and `--options` dump, every string `tools/` parses stays English:
+a measurement that moves when the player picks a language is not one. The split predates this pass —
+`HighScores.Describe` has been two methods since step 6 for exactly this reason — and it is the same
+rule as an instrument not writing the player's state.
 
-**Two findings worth keeping in view.**
+**What proves the files.** Three of `strings_check.py`'s four arms are about the data and the
+fourth is about the game:
+
+- **keys** — one key set across eleven files, no blank values, matching placeholders, capped
+  columns.
+- **source** — both directions of the audit rule, against the C# with its comments stripped.
+- **godot** — `--check-strings CODE` dumps what the *game* resolved, through `BoardView.Strings`,
+  the same property every label on screen goes through, and it is diffed against this tool's own
+  read of the JSON. Two readers agreeing proves the data; only the game proves that what the screen
+  shows *is* that data. A check that built its own object would pass while the UI drew eleven
+  languages of nothing.
+- **ini** — `--check-strings-ini`: the picker's choice survives a restart, an unknown code degrades
+  to the base language rather than to `[quit.title]` on every label, a foreign INI key comes back
+  untouched, and the per-key fallback fills a blank *and* an absent key without clobbering a
+  translated one. That last check has to build the file the corpus does not contain, because the
+  gate holds the eleven shipped files to one key set and the fallback therefore never fires in
+  anger. It is kept for the file that is hand-edited or half-finished, and because the alternative
+  is `[quit.title]` on a button.
+
+---
+
+### The 2007 files, and what became of them
+
+`original/src/Setups/*/Language/Language.dat` are still in the tree, frozen, and
+`tools/convert_language.py` still decodes all ten — run it with no arguments and it reports; give it
+`--out DIR` and it writes the JSON somewhere you can read it. It refuses `data/language/`, which is
+no longer its output.
+
+It is kept because it is the **executable form of two findings**, neither of which the JSON was
+carrying:
+
+- **The codepages were measured, not guessed.** Nothing in the distribution records them. `cp1252`
+  for English, French, German, Dutch, Portuguese, Spanish and Swedish; `cp1250` for Croatian; `gbk`
+  and `big5` for the two Chinese files. Get one wrong and the file still loads and still looks
+  plausible.
+- **The installer's names are not language codes.** `LANGUAGES` in that script is the one place the
+  2007 directory names meet ISO: `US`→`en`, `Du`→`nl`, `Sp`→`es`, `Sw`→`sv`, and the `Cs`/`Ct` that
+  are Chinese rather than Czech.
+
+What went with the conversion is the round-trip gate — `lang_check.py`, which rebuilt all 2,293
+source lines out of the JSON and compared bytes in each file's own codepage. It proved the
+conversion was lossless, which was worth proving while something consumed the conversion. Nothing
+does now, and a gate that defends a file nobody opens is 683 lines of Python and 25 s a run spent on
+a claim about a derived artifact whose producer and input are both still in the repo. The findings
+it established survive here and in [*Finished*](history.md); the `.dat` files survive under
+`original/`; the decoder survives in `tools/`.
+
+**Two findings from the original loader worth keeping in view.**
 
 *The `while(!feof(fd))` bug is real and the port is free of it by construction.* `InitLanguage`'s
 loop reads with `fgets`, then unconditionally chops the last character with
@@ -392,13 +436,9 @@ which is why the About box shows it twice. It is a quirk of a *loader the port d
 there is nothing to transliterate it into — which is why it is here and not in
 [*Quirk hazards*](quirks.md).
 
-*Four of the ten files are labelled 90% or less, and the fallback still never fires.* A translator
-who skipped a line copied the English one rather than leaving it blank, and the only section any file
-actually stops short in is `about` — which does not fall back, because borrowing the English tail
-would put two languages in one paragraph. So the shipped corpus resolves **zero** strings through
-`Language.Load`'s fill-from-base branch. The fallback is kept anyway (a future or hand-edited file
-needs it, and the alternative is `[ID_WINBOX_03]` on a label) and `lang_check.check_fallback` builds
-the partial file the corpus does not contain: one key blanked, one removed outright, one section
-truncated, and a translated key that must *not* be overwritten. Both ways of being absent are
-separate lines of code and both are tested.
-
+*A `.dat` is a layout as much as a string table, and that is the other reason none of it came
+across.* txt014 is `"\nRecorded by "` — a newline smuggled inside a translation because the original
+concatenates four pieces into one `MessageBox` body. txt009/010/011 are `"M: "`, `" S: "`, `" I: "`,
+three labels each carrying its own spacing so that the concatenation lines up. Both are sentences
+written as `printf` calls, and both are one string with placeholders here (`pb.recordedBy`,
+`score.record`) precisely so a translator can put the clause in their own language's word order.

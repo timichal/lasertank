@@ -321,9 +321,9 @@ namespace LaserTank.Game
         private Atlas _atlas;
         private Options _opt;
 
-        /// The UI strings, converted from the original's ten Language.dat files
-        /// (Core/Language.cs).  Read through `Strings`, never directly.
-        private Language _lang;
+        /// The UI strings -- Core/Strings.cs, one keyed catalogue per language.
+        /// Read through the `Strings` property, never directly.
+        private Strings _lang;
         private LanguageMenu _langMenu;
         private System.Collections.Generic.List<Pack> _packs;
         private Pack _pack;
@@ -469,17 +469,17 @@ namespace LaserTank.Game
                 return;
             }
             // Step 6's two, on the same terms: no INI, no pack, no level, and
-            // safe to run eight at a time.  --check-lang goes through _lang and
-            // the Strings property, so it reads what a label would read.
-            if (ArgStr(args, "--check-lang") is string clg)
+            // safe to run eight at a time.  --check-strings goes through _lang
+            // and the Strings property, so it reads what a label would read.
+            if (ArgStr(args, "--check-strings") is string clg)
             {
                 _lang = LoadLanguage(clg);
-                GetTree().Quit(Step6Check.CheckLang(clg, _lang));
+                GetTree().Quit(Step6Check.CheckStrings(clg, _lang));
                 return;
             }
-            if (ArgStr(args, "--check-lang-ini") is string cli)
+            if (ArgStr(args, "--check-strings-ini") is string cli)
             {
-                GetTree().Quit(Step6Check.CheckLangIni(cli));
+                GetTree().Quit(Step6Check.CheckStringsIni(cli));
                 return;
             }
             // Command 108's, on the same terms as the four above: no INI, no
@@ -814,7 +814,7 @@ namespace LaserTank.Game
             // can open is otherwise unphotographable, and step 2's lesson --
             // measure pixels, do not look at them -- needs a pixel to measure.
             if (Array.IndexOf(args, "--open-lang") >= 0)
-                _langMenu.Show(Language.Available(Paths.Data(Language.DirName)),
+                _langMenu.Show(Strings.Available(Paths.Data(Strings.DirName)),
                                Strings.Code);
 
             // `--hover X,Y` parks the pointer before the frame is captured, so
@@ -1285,33 +1285,33 @@ namespace LaserTank.Game
         /// with no strings should say so rather than crash on the first label,
         /// and `[ID_WINBOX_03]` on screen is a clearer bug report than a stack
         /// trace out of _Draw.
-        private static Language LoadLanguage(string code)
+        private static Strings LoadLanguage(string code)
         {
-            string dir = Paths.Data(Language.DirName);
-            Language got = Language.Load(dir, code);
+            string dir = Paths.Data(Strings.DirName);
+            Strings got = Strings.Load(dir, code);
             if (got == null)
-                GD.PrintErr("no languages under " + dir
-                            + " -- run: python tools/convert_language.py");
+                GD.PrintErr("no language catalogue under " + dir);
+            Strings.SetCurrent(got);
             return got;
         }
 
         /// Every label on screen goes through here.
         ///
-        /// Never null once _Ready has run: Language.Load falls back to the base
-        /// language for an unknown code and Strings falls back again to an empty
-        /// one if data/language/ is missing outright, so a label is at worst
-        /// `[ID_WINBOX_03]` and never a NullReferenceException in the middle of
-        /// a draw.  `--check-lang` reads this same property, which is the point
-        /// of it being a property.
-        internal Language Strings => _lang ?? Language.Empty;
+        /// Never null once _Ready has run: Strings.Load falls back to the base
+        /// language for an unknown code and this falls back again to an empty
+        /// catalogue if data/language/ is missing outright, so a label is at
+        /// worst `[quit.title]` and never a NullReferenceException in the middle
+        /// of a draw.  `--check-strings` reads this same property, which is the
+        /// point of it being a property.
+        internal Strings Strings => _lang ?? Strings.Empty;
 
         /// The language picker's live preview, and step 6's whole apply path.
         /// Nothing is reloaded but the strings -- no sheet, no level, no tick --
         /// because nothing else depends on them.
         internal void ApplyLanguage(string code)
         {
-            Language got = Language.Load(Paths.Data(Language.DirName), code);
-            if (got != null) _lang = got;
+            Strings got = Strings.Load(Paths.Data(Strings.DirName), code);
+            if (got != null) { _lang = got; Strings.SetCurrent(got); }
             QueueRedraw();
         }
 
@@ -1661,11 +1661,15 @@ namespace LaserTank.Game
                     // Session.UndoDead.
                     bool undone = _s != null && (_s.Now == Session.State.Dead
                                                  ? _s.UndoDead() : _s.Undo());
-                    if (!undone) _error = "nothing to undo";
+                    if (!undone) _error = Strings["status.nothingToUndo"];
                     break;
-                case Key.C when ctrl: _s?.SavePos(); _error = "position saved"; break;
+                case Key.C when ctrl:
+                    _s?.SavePos();
+                    _error = Strings["status.positionSaved"];
+                    break;
                 case Key.V when ctrl:                                 // 112
-                    if (_s != null && !_s.RestorePos()) _error = "no saved position";
+                    if (_s != null && !_s.RestorePos())
+                        _error = Strings["status.noSavedPosition"];
                     break;
 
                 // ---- recording and playback ---------------------------------
@@ -1682,7 +1686,7 @@ namespace LaserTank.Game
                 // and the editor's own Ctrl+L (602) is on ACC2, a different
                 // table that only applies while EditorOn.
                 case Key.L when ctrl:
-                    _langMenu.Show(Language.Available(Paths.Data(Language.DirName)),
+                    _langMenu.Show(Strings.Available(Paths.Data(Strings.DirName)),
                                    Strings.Code);
                     break;
                 // Commands 120/121/122, the Options menu's three sizes.
@@ -1692,7 +1696,9 @@ namespace LaserTank.Game
                 // Plain `C` is free in both accelerator tables -- ACC1 binds
                 // VK_C only with CONTROL (111, Save Position) and so does ACC2
                 // (601, Clear Field) -- so this takes no key the original used.
-                case Key.C: _error = "grid " + (ToggleGrid() ? "on" : "off"); break;
+                case Key.C:
+                    _error = Strings[ToggleGrid() ? "status.gridOn" : "status.gridOff"];
+                    break;
                 // Command 102, "Sound" (LTANK.C:875).  The checkmark is the INI
                 // here; ToggleOpt writes it immediately.
                 case Key.N:
@@ -1721,7 +1727,8 @@ namespace LaserTank.Game
                 case Key.A:
                     bool ani = _opt.ToggleAnimation();
                     if (_s?.E != null) _s.E.Ani_On = ani;
-                    _error = "animation " + (ani ? "on" : "off");
+                    _error = Strings[ani ? "status.animationOn"
+                                         : "status.animationOff"];
                     break;
 
                 // Command 301, "Hint" (LTANK.C's ButText7 button, VK_H in ACC1).
@@ -1729,7 +1736,7 @@ namespace LaserTank.Game
                 // a panel over the board when the window is too narrow for one.
                 case Key.H:
                     if (string.IsNullOrEmpty(_s?.Rec.Hint))
-                        _error = "this level has no hint";
+                        _error = Strings["status.noHint"];
                     else
                         _hint = !_hint;
                     break;
@@ -1741,8 +1748,9 @@ namespace LaserTank.Game
                 // Command 115, "Auto Record" (LTANK.C:978), which also turns the
                 // recorder itself on or off.
                 case Key.F8:
-                    _error = "auto-record "
-                             + (_s != null && _s.Rec2.ToggleAutoRecord() ? "on" : "off");
+                    _error = Strings[_s != null && _s.Rec2.ToggleAutoRecord()
+                                     ? "status.autoRecordOn"
+                                     : "status.autoRecordOff"];
                     break;
 
                 // Command 201, "Editor" -- VK_F9 in ACC1 (lt32l_us.inc:132).
@@ -2023,29 +2031,29 @@ namespace LaserTank.Game
                 // `if (Recording)` is command 117's own guard -- F6 does nothing
                 // at all when the recorder is off, which is worth saying out
                 // loud rather than looking broken.
-                _error = p == null ? "not recording -- F5 starts it"
-                                   : "saved " + Path.GetFileName(p);
+                _error = p == null ? Strings["status.notRecording"]
+                                   : Strings.F("status.recordingSaved",
+                                               Path.GetFileName(p));
             }
             catch (Exception ex) { _error = ex.Message; }
         }
 
         /// Command 123 (F5).  The original's checkmark is the window title --
-        /// `SetWindowText(MainH, REC_Title)` -- and step 6 made that reachable,
-        /// so it is the window title here too, and the HUD as well because a
-        /// title bar is easy to miss.  REC_Title leads with a space in all ten
-        /// files; that is the translators' own byte and it stays.
+        /// `SetWindowText(MainH, REC_Title)` -- so it is the window title here
+        /// too, and the status line as well, because a title bar is easy to
+        /// miss.
         private void ToggleRecording()
         {
             if (_s == null) return;
             bool on = _s.Rec2.Toggle();
-            _error = on ? "recording" : "recording off";
-            DisplayServer.WindowSetTitle(on ? Strings["REC_Title"].TrimStart()
-                                            : AppTitle);
+            _error = Strings[on ? "status.recordingOn" : "status.recordingOff"];
+            DisplayServer.WindowSetTitle(
+                on ? Strings.F("app.titleRecording", AppTitle) : AppTitle);
         }
 
-        /// LT32L_US.H:10.  Not a language string: `App_Title` is a compile-time
-        /// constant in the original, outside the 240 lines, and none of the ten
-        /// files translates it.
+        /// LT32L_US.H:10.  Not a translatable string: `App_Title` is a
+        /// compile-time constant in the original, outside the 240 lines, none of
+        /// the ten files translated it, and it is the name of the game.
         private const string AppTitle = "LaserTank";
 
         /// Command 101, New Game (F2): back to the remembered level, or level 1.
@@ -2110,9 +2118,11 @@ namespace LaserTank.Game
         {
             if (_s == null) return;
             if (_s.OpenDataFile(lvlPath))
-                _error = $"{Path.GetFileName(lvlPath)} -- {_s.LevelCount} levels";
+                _error = Strings.F("status.collectionOpened",
+                                   Path.GetFileName(lvlPath), _s.LevelCount);
             else
-                _error = _s.Error ?? ("cannot open " + Path.GetFileName(lvlPath));
+                _error = _s.Error ?? Strings.F("status.cannotOpen",
+                                               Path.GetFileName(lvlPath));
         }
 
         /// Command 114 (F7), PlayBack Recording.  The original opens a file
@@ -2127,10 +2137,10 @@ namespace LaserTank.Game
             {
                 if (!File.Exists(cand)) continue;
                 string bad = _s.LoadPlayback(cand);
-                _error = bad ?? ("playing " + Path.GetFileName(cand));
+                _error = bad ?? Strings.F("status.playing", Path.GetFileName(cand));
                 return;
             }
-            _error = "no recording for this level in out/recordings/ or beside the .lvl";
+            _error = Strings["status.noRecording"];
         }
 
         public override void _Draw()
@@ -2158,7 +2168,8 @@ namespace LaserTank.Game
                 DrawTopBar();
                 Ui.Card(this, _l.Well);
                 Ui.Write(this, _l.Well.Position + new Vector2(Ui.Px(20), Ui.Px(36)),
-                         _error ?? "no level", 15, Ui.Bad, _l.Well.Size.X - Ui.Px(40));
+                         _error ?? Strings["status.noLevel"], 15, Ui.Bad,
+                         _l.Well.Size.X - Ui.Px(40));
                 return;
             }
 
@@ -2431,24 +2442,66 @@ namespace LaserTank.Game
 
         /// HSBox (LTANK_D.C:598) as one line.  That dialog's whole content is
         /// this: the score just made, the previous personal best if there was
-        /// one (txt008), and either the posted best (txt009) or
-        /// "Congratulation's You beat it !!" (txt012) when the posted best has
-        /// been beaten.  What the dialog also does -- ask for the initials --
-        /// is `[DATA] Player` here, read before the write rather than after.
-        private string WinLine()
+        /// one, and either the posted best or -- when the posted best has been
+        /// beaten -- a congratulation.  What the dialog also does, ask for the
+        /// initials, is `[DATA] Player` here, read before the write rather than
+        /// after.
+        ///
+        /// **Assembled from clauses rather than from one format string**, which
+        /// is deliberate: which clauses appear depends on four independent facts
+        /// (a playback, a world best, a personal best, a `.hs` that would not
+        /// write), and a single string with eight optional halves is not
+        /// something a translator can work on.  Each clause is a key and the
+        /// separator is the chrome's own middot.
+        ///
+        /// **And it sheds a clause at a time rather than being clipped**, which
+        /// is the rule the list footers already follow and the one line of the
+        /// interface that had escaped it.  English fits at the default window by
+        /// about a word; German does not (`Enter für das nächste Level, F6
+        /// sichert die Aufzeichnung` is half again as long as its English), and
+        /// a status line cut mid-word reads as a fault rather than as a squeeze.
+        ///
+        /// The ranking is the argument: **par goes first** because the info
+        /// column is showing it three inches away and this is the only clause in
+        /// the line that is duplicated on screen; **the prompt goes second**,
+        /// because `Solved` in green already says the level is over and F6 is on
+        /// F1's list; the verdict and the `.hs` error never go, because nothing
+        /// else on screen carries either.
+        private string WinLine(float maxW)
         {
+            const string Sep = "  ·  ";
             ScoreResult r = _s.Score;
+            string solved = Strings["win.solved"];
+            string next = Strings["win.next"];
             if (r == null)
-                return _s.Pb.Open ? "playback reached the flag"
-                                  : "SOLVED -- Enter for the next level, F6 saves it";
-            string s = "SOLVED";
-            if (r.Global) s += " -- " + Strings["txt012"];
-            else if (r.Personal) s += " -- your best yet";
-            else s += " -- your best stands at " + HighScores.Describe(r.Old, Strings);
-            if (r.Target != null && !r.Global)
-                s += "   (par " + r.Target.Moves + "/" + r.Target.Shots + ")";
-            if (r.Error != null) s += "   [.hs not written: " + r.Error + "]";
-            return s + "   Enter next, F6 saves";
+                return _s.Pb.Open ? Strings["win.playback"]
+                                  : Fit(maxW, solved + Sep + next, solved);
+
+            string head = solved + Sep
+                        + (r.Global ? Strings["win.worldBest"]
+                         : r.Personal ? Strings["win.personalBest"]
+                         : Strings.F("win.standing",
+                                     HighScores.Describe(r.Old, Strings)));
+            string par = r.Target != null && !r.Global
+                ? "   (" + Strings.F("win.par", r.Target.Moves, r.Target.Shots) + ")"
+                : "";
+            string err = r.Error != null
+                ? "   [" + Strings.F("win.notWritten", r.Error) + "]" : "";
+
+            return Fit(maxW, head + par + err + Sep + next,
+                            head + err + Sep + next,
+                            head + err);
+        }
+
+        /// The first of `forms` that fits in `w`, or the last of them.  Same
+        /// shape as LevelList.Footer and CollectionList.Footer, which is the
+        /// point: there is one answer in this interface to "the measurement says
+        /// no", and it is to drop a whole clause rather than a few characters.
+        private static string Fit(float w, params string[] forms)
+        {
+            foreach (string f in forms)
+                if (Ui.Width(f, 12) <= w) return f;
+            return forms[forms.Length - 1];
         }
 
         // =====================================================================
@@ -2551,20 +2604,24 @@ namespace LaserTank.Game
         {
             var pills = new System.Collections.Generic.List<(string, Color, Color, Key)>();
             if (_s != null && _s.Rec2.Recording)
-                pills.Add(("rec", Ui.Bad, new Color(0.24f, 0.09f, 0.09f), Key.F5));
+                pills.Add((Strings["pill.rec"], Ui.Bad,
+                           new Color(0.24f, 0.09f, 0.09f), Key.F5));
             if (_s != null && _s.Pb.Open)
-                pills.Add(("playback", Ui.Cyan, new Color(0.07f, 0.16f, 0.18f), Key.F7));
+                pills.Add((Strings["pill.playback"], Ui.Cyan,
+                           new Color(0.07f, 0.16f, 0.18f), Key.F7));
             if (_edit != null && _edit.Open)
-                pills.Add(("editor", Ui.Accent, new Color(0.20f, 0.14f, 0.05f), Key.F9));
+                pills.Add((Strings["pill.editor"], Ui.Accent,
+                           new Color(0.20f, 0.14f, 0.05f), Key.F9));
             if (_opt != null && !_opt.SoundOn)
-                pills.Add(("muted", Ui.Faint, Ui.Raised, Key.N));
+                pills.Add((Strings["pill.muted"], Ui.Faint, Ui.Raised, Key.N));
             if (_opt != null && !_opt.AnimationOn)
-                pills.Add(("still", Ui.Faint, Ui.Raised, Key.A));
+                pills.Add((Strings["pill.still"], Ui.Faint, Ui.Raised, Key.A));
             // The pinned cell size, because it is the one piece of state the
             // window itself does not show: a board that exactly fills its well
             // and a board snapped to 32 px look the same until you drag.  `Z`
             // cycles the three, which is what a click on it does.
-            pills.Add((_pinCell > 0 ? _pinCell + " px" : Cell + " px fit",
+            pills.Add((_pinCell > 0 ? Strings.F("pill.snap", _pinCell)
+                                    : Strings.F("pill.snapFit", Cell),
                        Ui.Faint, Ui.Raised, Key.Z));
 
             float h = Ui.Px(10) + Ui.Px(8);
@@ -2677,7 +2734,8 @@ namespace LaserTank.Game
                 float fx = x;
                 float fy = foot.Position.Y + Ui.Px(6);
                 fx = Ui.Keycap(this, fx, fy, "F1") + Ui.Px(10);
-                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)), "all keys", 11f,
+                Ui.Write(this, new Vector2(fx, fy + Ui.Px(15)),
+                         Strings["info.allKeys"], 11f,
                          hot ? Ui.Text : Ui.Faint, foot.End.X - fx);
             }
         }
@@ -2700,7 +2758,8 @@ namespace LaserTank.Game
         {
             TLEVEL lv = _s.Rec;
             var info = new TLEVELINFO { SDiff = lv.SDiff };
-            string name = string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName;
+            string name = string.IsNullOrEmpty(lv.LName) ? Strings["info.untitled"]
+                                                         : lv.LName;
 
             // Measured, not reserved: the name is the author's and wraps to two
             // lines often enough that a fixed block clips real level names.
@@ -2712,7 +2771,7 @@ namespace LaserTank.Game
             // column whose every other line is a reading, the counter should be
             // one too.
             Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
-                    "Level " + _s.Level + " / " + _s.LevelCount, Ui.Faint, 9.5f);
+                    Strings.F("info.levelOf", _s.Level, _s.LevelCount), Ui.Faint, 9.5f);
             y += Ui.Px(9) + Ui.Px(13);
 
             Ui.Wrapped(this, new Vector2(x, y + Ui.Px(TitlePt) * 0.80f), name,
@@ -2726,9 +2785,8 @@ namespace LaserTank.Game
             // trying to get out of.  The colour still carries the rank (the
             // original colours its level number by exactly this table,
             // `DifCList`, LTANK.C:532); the box around it was never carrying
-            // anything.  DiffName is " - Kids" and the like, hence the trim.
-            string rank = info.DiffName.TrimStart(' ', '-').Trim();
-            if (rank == "") rank = "unrated";
+            // anything.
+            string rank = Strings[info.RankKey];
             Color dc = Ui.Diff[Math.Clamp((int)lv.SDiff, 0, 5)];
             const string Sep = "  ·  ";
             float ax = x;
@@ -2766,9 +2824,9 @@ namespace LaserTank.Game
             TGAMEREC g = _s.E.Game;
             bool hasPar = LevelFile.ReadHighScore(_s.Files.Ghs, _s.Level,
                                                   out ushort tm, out ushort ts);
-            Row("moves", g.ScoreMove, hasPar ? tm : (ushort)0, hasPar);
+            Row(Strings["info.moves"], g.ScoreMove, hasPar ? tm : (ushort)0, hasPar);
             y += Ui.Px(36);
-            Row("shots", g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
+            Row(Strings["info.shots"], g.ScoreShot, hasPar ? ts : (ushort)0, hasPar);
             y += Ui.Px(36);
 
             // The par is set small and dim on purpose: it is the *other*
@@ -2779,7 +2837,8 @@ namespace LaserTank.Game
             if (hasPar)
             {
                 y += Ui.Px(4);
-                Ui.Caps(this, new Vector2(x, y + Ui.Px(9)), "par", Ui.Faint, 9.5f);
+                Ui.Caps(this, new Vector2(x, y + Ui.Px(9)), Strings["info.par"],
+                        Ui.Faint, 9.5f);
                 Ui.Write(this, new Vector2(x, y + Ui.Px(9)), tm + " / " + ts, 11f,
                          Ui.Dim, w, HorizontalAlignment.Right);
                 y += Ui.Px(13);
@@ -2811,14 +2870,14 @@ namespace LaserTank.Game
         {
             (string, string, Key)[] rows =
             {
-                ("U", "undo", Key.U),
-                ("R", "restart", Key.R),
-                ("H", "hint", Key.H),
+                ("U", Strings["action.undo"], Key.U),
+                ("R", Strings["action.restart"], Key.R),
+                ("H", Strings["action.hint"], Key.H),
                 // Since step 8 this one panel is also both high-score lists,
                 // which is what the label has to say: V and G are gone and a
                 // player who used them looks here first.
-                ("L", "levels & scores", Key.L),
-                ("O", "collections", Key.O),
+                ("L", Strings["action.levels"], Key.L),
+                ("O", Strings["action.collections"], Key.O),
             };
             float rowH = Ui.Px(25);
             // **Step 9 made these five rows do what they name.**  They were
@@ -2858,7 +2917,7 @@ namespace LaserTank.Game
             // The caption already says what closes it; clicking the block is the
             // same instruction for a player with no H to press.
             if (HitKey(r, Key.H)) Ui.Hot(this, r, 2f);
-            Ui.Caps(this, new Vector2(x, y + Ui.Px(8)), "Hint  ·  H hides",
+            Ui.Caps(this, new Vector2(x, y + Ui.Px(8)), Strings["info.hint"],
                     Ui.Accent, 9.5f);
             y += Ui.Px(8) + Ui.Px(13);
             Ui.Wrapped(this, new Vector2(x, y + Ui.Px(10)), hint, 11.5f,
@@ -2890,9 +2949,10 @@ namespace LaserTank.Game
                                  r.Size.X * 0.55f + Ui.Px(12), Ui.Px(42));
             if (HitKey(name, Key.L)) Ui.Hot(this, name, 2f);
             Ui.Caps(this, new Vector2(x, y + Ui.Px(9)),
-                    "Level " + _s.Level + " / " + _s.LevelCount, Ui.Faint, 9.5f);
+                    Strings.F("info.levelOf", _s.Level, _s.LevelCount), Ui.Faint, 9.5f);
             Ui.Wrapped(this, new Vector2(x, y + Ui.Px(34)),
-                       string.IsNullOrEmpty(lv.LName) ? "(untitled)" : lv.LName,
+                       string.IsNullOrEmpty(lv.LName) ? Strings["info.untitled"]
+                                                      : lv.LName,
                        17, Ui.Text, r.Size.X * 0.55f, 1, Ui.Title);
 
             // **The narrow layout's only way in, and the reason step 9 exists.**
@@ -2924,8 +2984,8 @@ namespace LaserTank.Game
             // had said.
             float tw = Ui.Px(96);
             float tx = r.End.X - pad - tw;
-            Readout(y + Ui.Px(4), "moves", g.ScoreMove);
-            Readout(y + Ui.Px(27), "shots", g.ScoreShot);
+            Readout(y + Ui.Px(4), Strings["info.moves"], g.ScoreMove);
+            Readout(y + Ui.Px(27), Strings["info.shots"], g.ScoreShot);
 
             void Readout(float ry, string label, int value)
             {
@@ -2952,19 +3012,25 @@ namespace LaserTank.Game
             DrawRect(new Rect2(r.Position.X, r.Position.Y, r.Size.X, Mathf.Max(1, Ui.Px(1))),
                      Ui.Border);
 
+            // The room a line has, measured before one is asked for: the dot,
+            // its gap, and the padding either side.  WinLine sheds against it.
+            float textW = r.Size.X - 2 * Ui.Px(PadD) - Ui.Px(6) - Ui.Px(9);
+
             bool editing = _edit != null && _edit.Open;
             (string what, Color tint) = editing
                 ? (_edit.Status ?? "", Ui.Accent)
                 : _s.Now switch
                 {
-                    Session.State.Won => (WinLine(), Ui.Good),
+                    Session.State.Won => (WinLine(textW), Ui.Good),
                     // ID_DEADBOX_DEAD is the dialog's own headline ("YOU ARE
                     // DEAD ! ! !"); the two keys after it are this port's
                     // legend, because DeadBox offers them as buttons and there
                     // are no buttons here.
-                    Session.State.Dead =>
-                        (Strings["ID_DEADBOX_DEAD"] + "  —  U undoes the last move, R restarts",
-                         Ui.Bad),
+                    // DeadBox's own headline is "YOU ARE DEAD ! ! !", which is
+                    // 1996 shareware and does not survive being read twice.  The
+                    // two keys after it are this port's legend, because DeadBox
+                    // offers them as buttons and there are no buttons here.
+                    Session.State.Dead => (Strings["status.dead"], Ui.Bad),
                     _ => (_error ?? "", Ui.Accent),
                 };
 
@@ -2982,8 +3048,7 @@ namespace LaserTank.Game
             }
             else
             {
-                Ui.Write(this, new Vector2(pad, base_),
-                         "arrows move · space fires · U undo · R restart · F1 keys",
+                Ui.Write(this, new Vector2(pad, base_), Strings["status.default"],
                          12, Ui.Faint, r.Size.X - 2 * pad);
             }
         }
@@ -3020,16 +3085,16 @@ namespace LaserTank.Game
             float x = panel.Position.X + pad;
             float y = panel.Position.Y + pad;
 
-            // txt013 + LName + txt014 + Author: "Playback Level : " and
-            // "\nRecorded by " (LANGUAGE.C:54), out of the loaded language.
-            // txt014 leads with a newline because the original builds a
-            // MessageBox body out of these four pieces; this is one line on a
-            // panel, so the newline is turned into the spacing it stands for.
+            // The original builds a MessageBox body out of four pieces --
+            // "Playback Level : ", the name, "\nRecorded by ", the author, with
+            // the newline carried inside the third -- which is a layout smuggled
+            // into a string.  Here they are two lines on a panel and two keys,
+            // and the panel decides where the second one goes.
             Ui.Write(this, new Vector2(x, y + Ui.Px(11)),
-                     Strings["txt013"] + pb.Rec.LName, 12.5f, Ui.Text,
+                     Strings.F("pb.title", pb.Rec.LName), 12.5f, Ui.Text,
                      panel.Size.X - 2 * pad);
             Ui.Write(this, new Vector2(x, y + Ui.Px(28)),
-                     Strings["txt014"].Replace("\n", "") + pb.Rec.Author, 11.5f,
+                     Strings.F("pb.recordedBy", pb.Rec.Author), 11.5f,
                      Ui.Dim, panel.Size.X - 2 * pad);
 
             // ID_PLAYBOX_09 / _10: the count of keys played, over the total,
@@ -3057,9 +3122,9 @@ namespace LaserTank.Game
             float kx = panel.End.X - pad;
             foreach ((string key, string label, bool on, Key code) in new[]
             {
-                ("3", "step", pb.Speed == PbSpeed.Step, Key.Key3),
-                ("2", "slow", pb.Speed == PbSpeed.Slow, Key.Key2),
-                ("1", "fast", pb.Speed == PbSpeed.Fast, Key.Key1),
+                ("3", Strings["pb.step"], pb.Speed == PbSpeed.Step, Key.Key3),
+                ("2", Strings["pb.slow"], pb.Speed == PbSpeed.Slow, Key.Key2),
+                ("1", Strings["pb.fast"], pb.Speed == PbSpeed.Fast, Key.Key1),
             })
             {
                 float lw = Ui.Width(label, 10.5f);
@@ -3085,9 +3150,9 @@ namespace LaserTank.Game
             float tx = x, ty = panel.End.Y - pad - Ui.KeycapHeight(10.5f) + Ui.Px(4);
             foreach ((string cap, string label, Key code) in new[]
             {
-                ("space", _s.E.PlayBack ? "pause" : "play", Key.Space),
-                ("R", "reset", Key.R),
-                ("Esc", "close", Key.Escape),
+                ("space", Strings[_s.E.PlayBack ? "pb.pause" : "pb.play"], Key.Space),
+                ("R", Strings["pb.reset"], Key.R),
+                ("Esc", Strings["pb.close"], Key.Escape),
             })
             {
                 float cwid = Ui.KeycapWidth(cap, 10.5f), lw = Ui.Width(label, 10.5f);
@@ -3119,7 +3184,7 @@ namespace LaserTank.Game
             DrawStyleBox(Ui.Box(new Color(0.13f, 0.11f, 0.06f), Ui.AccentDim, 12f, 1f, 16f),
                          r);
             Ui.Caps(this, new Vector2(r.Position.X + pad, r.Position.Y + pad + Ui.Px(9)),
-                    "Hint  ·  H hides", Ui.Accent);
+                    Strings["info.hint"], Ui.Accent);
             Ui.Wrapped(this, new Vector2(r.Position.X + pad,
                                          r.Position.Y + pad + Ui.Px(23) + Ui.Px(11)),
                        hint, 13, new Color(0.87f, 0.82f, 0.70f), w - 2 * pad, 10);
@@ -3168,11 +3233,34 @@ namespace LaserTank.Game
             foreach ((string _, Binding[] items) in groups)
                 total += headH + items.Length * rowH + groupGap;
 
+            // **The column is as wide as the widest row in it, measured.**
+            // It used to be a flat `Ui.Px(300)`, which is reserved width -- the
+            // thing step 7 wrote down a rule against and which English passes
+            // by luck.  The first language to be drawn through it said so:
+            // German cut four labels mid-word (`... starten oder be`, `... oder
+            // ausblende`, `... hart b`, `auf 24 / 32 / 40 px einraste`), because
+            // `den letzten Zug zurücknehmen` is half again as wide as `undo the
+            // last move` and the panel did not know.  A key list is a table of
+            // short phrases and there is nothing in it to shed, so the panel
+            // grows instead -- up to what the window can hold, which is the one
+            // limit that is real.
+            float widest = 0;
+            foreach ((string _, Binding[] items) in groups)
+                foreach (Binding b in items)
+                    widest = Mathf.Max(widest, LabelIndent(b)
+                                               + Ui.Width(Strings[b.LabelKey], 11.5f));
+            float wantCol = Mathf.Max(Ui.Px(300), widest + Ui.Px(14));
+
             int cols = 1;
             if (host.Size.X >= Ui.Px(700)) cols = 2;
             else if (total > availH && host.Size.X >= Ui.Px(500)) cols = 2;
+            // Two columns of a width nobody asked for is worse than one of the
+            // right width: if the pair will not fit, fall back before sizing.
+            if (cols == 2 && 2 * wantCol + colGap + 2 * pad > host.Size.X - Ui.Px(32)
+                && total <= availH)
+                cols = 1;
 
-            float w = Mathf.Min(cols * Ui.Px(300) + (cols - 1) * colGap + 2 * pad,
+            float w = Mathf.Min(cols * wantCol + (cols - 1) * colGap + 2 * pad,
                                 host.Size.X - Ui.Px(32));
             float colW = (w - 2 * pad - (cols - 1) * colGap) / cols;
 
@@ -3219,14 +3307,16 @@ namespace LaserTank.Game
             _hits.Swallow(r);
 
             float x = r.Position.X + pad, y = r.Position.Y + pad + Ui.Px(12);
-            Ui.Caps(this, new Vector2(x, y), editing ? "Editor keys" : "Keys", Ui.Text, 13);
+            Ui.Caps(this, new Vector2(x, y),
+                    Strings[editing ? "help.titleEditor" : "help.title"], Ui.Text, 13);
             // Right-aligned *inside* the panel: DrawString lays a right-aligned
             // string out in the box [at.X, at.X + w], so the box has to start a
             // width back from the edge rather than at it.
             Rect2 close = Ui.CloseRect(r, pad);
             float cw = Ui.Px(150);
             Ui.Write(this, new Vector2(close.Position.X - Ui.Px(10) - cw, y),
-                     "F1 or Esc closes", 11, Ui.Faint, cw, HorizontalAlignment.Right);
+                     Strings["help.close"], 11, Ui.Faint, cw,
+                     HorizontalAlignment.Right);
             Ui.CloseX(this, close, _hits.Add(Ui.Touch(close), "close", () => _help = false));
             y += Ui.Px(14);
             Ui.Rule(this, x, y, r.Size.X - 2 * pad);
@@ -3236,10 +3326,11 @@ namespace LaserTank.Game
             for (int i = 0; i < cols; i++) colY[i] = y;
             for (int i = 0; i < groups.Length; i++)
             {
-                (string title, Binding[] items) = groups[i];
+                (string titleKey, Binding[] items) = groups[i];
                 int ci = colOf[i];
                 float cx = x + ci * (colW + colGap);
-                Ui.Caps(this, new Vector2(cx, colY[ci] + Ui.Px(9)), title, Ui.Accent, 9.5f);
+                Ui.Caps(this, new Vector2(cx, colY[ci] + Ui.Px(9)), Strings[titleKey],
+                        Ui.Accent, 9.5f);
                 colY[ci] += headH;
                 foreach (Binding b in items)
                 {
@@ -3262,10 +3353,13 @@ namespace LaserTank.Game
                         kx = Ui.Keycap(this, kx, colY[ci], k, 10.5f) + Ui.Px(4);
                     // The labels line up at a fixed indent, except where the
                     // caps are wider than it -- four arrows are, and ran into
-                    // "move the tank" on the first pass.
-                    float lx = Mathf.Max(cx + Ui.Px(96), kx + Ui.Px(10));
+                    // "move the tank" on the first pass.  LabelIndent is the
+                    // same sum, measured ahead of the draw so the panel can be
+                    // sized from it.
+                    float lx = cx + LabelIndent(b);
                     Ui.Write(this, new Vector2(lx, colY[ci] + Ui.Px(14)),
-                             b.Label, 11.5f, hot ? Ui.Text : Ui.Dim, cx + colW - lx);
+                             Strings[b.LabelKey], 11.5f, hot ? Ui.Text : Ui.Dim,
+                             cx + colW - lx);
                     colY[ci] += rowH;
                 }
                 colY[ci] += groupGap;
@@ -3296,17 +3390,17 @@ namespace LaserTank.Game
             _hits.Add(host, "scrim", () => _quitAsk = false);
 
             float pad = Ui.Px(22);
-            string title = "Quit LaserTank?";
-            string body = _s != null && _s.Now == Session.State.Won
-                ? "this level is won -- the next one is S"
-                : "the level you are on will not be saved";
+            string title = Strings["quit.title"];
+            string body = Strings[_s != null && _s.Now == Session.State.Won
+                                  ? "quit.bodyWon" : "quit.body"];
+            string yesLabel = Strings["quit.yes"], noLabel = Strings["quit.no"];
 
             // Wide enough for the copy *and* for the two buttons side by side
             // -- which is what the answers became in step 9, and which is a
             // longer line than the question on a short body.
-            float buttons = Ui.KeycapWidth("Enter", 11f) + Ui.Width("quit", 11.5f)
+            float buttons = Ui.KeycapWidth("Enter", 11f) + Ui.Width(yesLabel, 11.5f)
                             + Ui.KeycapWidth("Esc", 11f)
-                            + Ui.Width("keep playing", 11.5f) + Ui.Px(64);
+                            + Ui.Width(noLabel, 11.5f) + Ui.Px(64);
             float w = Mathf.Min(Mathf.Max(Ui.Px(320),
                                           Mathf.Max(Ui.Width(body, 12), buttons)
                                           + 2 * pad),
@@ -3343,23 +3437,37 @@ namespace LaserTank.Game
             // quits".
             float kh = Ui.KeycapHeight(11f);
             float yesW = Ui.KeycapWidth("Enter", 11f) + Ui.Px(9)
-                         + Ui.Width("quit", 11.5f);
+                         + Ui.Width(yesLabel, 11.5f);
             var yes = new Rect2(x - Ui.Px(8), y - Ui.Px(4),
                                 yesW + 2 * Ui.Px(8), kh + Ui.Px(8));
             if (_hits.Add(yes, "quit:yes", () => { _quitAsk = false; GetTree().Quit(); }))
                 Ui.Hot(this, yes);
             float kx = Ui.Keycap(this, x, y, "Enter", 11f) + Ui.Px(9);
-            Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), "quit", 11.5f, Ui.Text);
+            Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), yesLabel, 11.5f, Ui.Text);
 
             float nx = yes.End.X + Ui.Px(14);
             float noW = Ui.KeycapWidth("Esc", 11f) + Ui.Px(9)
-                        + Ui.Width("keep playing", 11.5f);
+                        + Ui.Width(noLabel, 11.5f);
             var no = new Rect2(nx, y - Ui.Px(4), noW + 2 * Ui.Px(8), kh + Ui.Px(8));
             bool noHot = _hits.Add(no, "quit:no", () => _quitAsk = false);
             if (noHot) Ui.Hot(this, no);
             kx = Ui.Keycap(this, nx + Ui.Px(8), y, "Esc", 11f) + Ui.Px(9);
-            Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), "keep playing", 11.5f,
+            Ui.Write(this, new Vector2(kx, y + Ui.Px(15)), noLabel, 11.5f,
                      noHot ? Ui.Text : Ui.Dim);
+        }
+
+        /// Where a row's label starts, relative to the column's left edge: the
+        /// fixed indent, or past the keycaps when they are wider than it.
+        ///
+        /// It exists because the *draw* needs it and the *measure* needs it
+        /// first, and a second copy of this sum would be the kind of thing that
+        /// agrees until one of them is edited.
+        private static float LabelIndent(Binding b)
+        {
+            float kx = 0;
+            foreach (string k in b.Caps.Split(' '))
+                kx += Ui.KeycapWidth(k, 10.5f) + Ui.Px(4);
+            return Mathf.Max(Ui.Px(96), kx + Ui.Px(10) - Ui.Px(4));
         }
 
         /// One row of the key list.  **Since step 9 it carries the command as
@@ -3371,7 +3479,13 @@ namespace LaserTank.Game
         /// own WM_KEYDOWN filter and which a click cannot stand in for, and the
         /// editor's three mouse verbs, which describe the pointer rather than
         /// name a key for it to press.
-        private readonly record struct Binding(string Caps, string Label,
+        ///
+        /// `Caps` is the keycap glyphs, which are not translated -- a key is
+        /// called `Esc` on the keyboard in front of the player whatever language
+        /// the chrome is in.  `LabelKey` is what the row says it does, and that
+        /// is a catalogue key, resolved at draw time so the overlay follows
+        /// Ctrl+L like everything else.
+        private readonly record struct Binding(string Caps, string LabelKey,
                                                Key Cmd = Key.None, bool Ctrl = false);
 
         /// The bindings, as data -- so the overlay and the router cannot drift.
@@ -3379,52 +3493,52 @@ namespace LaserTank.Game
         /// except the four marked "ours" is out of ACC1 (lt32l_us.inc:120).
         private static readonly (string, Binding[])[] PlayKeys =
         {
-            ("Play", new Binding[]
+            ("help.groupPlay", new Binding[]
             {
-                new("← ↑ → ↓", "move the tank"),
-                new("space", "fire"),
-                new("U", "undo the last move", Key.U),          // 110
-                new("R", "restart the level", Key.R),           // 105
-                new("H", "show or hide the hint", Key.H),       // 301
-                new("ctrl C", "save this position", Key.C, true),   // 111
-                new("ctrl V", "restore it", Key.V, true),           // 112
+                new("← ↑ → ↓", "keys.move"),
+                new("space", "keys.fire"),
+                new("U", "keys.undo", Key.U),                   // 110
+                new("R", "keys.restart", Key.R),                // 105
+                new("H", "keys.hint", Key.H),                   // 301
+                new("ctrl C", "keys.savePos", Key.C, true),     // 111
+                new("ctrl V", "keys.restorePos", Key.V, true),  // 112
             }),
             // The Scores group used to be a group: V and G had a row each, and
             // step 8 merged both lists into L's panel and unbound the two keys.
-            // The one row left says so -- "levels and high scores" is what the
-            // panel is, and a player who knew the old keys has to be told where
-            // they went by the list that used to carry them.
-            ("Levels", new Binding[]
+            // The one row left says so -- `keys.levels` is what the panel is,
+            // and a player who knew the old keys has to be told where they went
+            // by the list that used to carry them.
+            ("help.groupLevels", new Binding[]
             {
-                new("L", "levels and high scores", Key.L),      // 106, 113, 906
-                new("O", "pick a collection", Key.O),           // 108
-                new("S", "next level", Key.S),                  // 107
-                new("P", "previous level", Key.P),              // 119
-                new("F2", "new game", Key.F2),                  // 101
+                new("L", "keys.levels", Key.L),                 // 106, 113, 906
+                new("O", "keys.collections", Key.O),            // 108
+                new("S", "keys.nextLevel", Key.S),              // 107
+                new("P", "keys.prevLevel", Key.P),              // 119
+                new("F2", "keys.newGame", Key.F2),              // 101
             }),
-            ("Recording", new Binding[]
+            ("help.groupRecording", new Binding[]
             {
-                new("F5", "start or stop recording", Key.F5),   // 123
-                new("F6", "save the recording", Key.F6),        // 117
-                new("F7", "play one back", Key.F7),             // 114
-                new("F4", "replay this level", Key.F4),         // 124
-                new("F8", "record every level", Key.F8),        // 125
+                new("F5", "keys.record", Key.F5),               // 123
+                new("F6", "keys.saveRecording", Key.F6),        // 117
+                new("F7", "keys.playback", Key.F7),             // 114
+                new("F4", "keys.replay", Key.F4),               // 124
+                new("F8", "keys.autoRecord", Key.F8),           // 125
             }),
-            ("View", new Binding[]
+            ("help.groupView", new Binding[]
             {
-                new("Z", "snap to 24 / 32 / 40 px", Key.Z),     // 120-122
-                new("C", "the A1-P16 grid", Key.C),             // ours
-                new("I", "smooth or snap the tank", Key.I),     // ours
-                new("N", "sound", Key.N),                       // 102
-                new("A", "animation", Key.A),                   // 104
-                new("ctrl G", "graphics pack", Key.G, true),    // 226
-                new("ctrl L", "language", Key.L, true),         // ours
+                new("Z", "keys.snap", Key.Z),                   // 120-122
+                new("C", "keys.grid", Key.C),                   // ours
+                new("I", "keys.interpolate", Key.I),            // ours
+                new("N", "keys.sound", Key.N),                  // 102
+                new("A", "keys.animation", Key.A),              // 104
+                new("ctrl G", "keys.graphics", Key.G, true),    // 226
+                new("ctrl L", "keys.language", Key.L, true),    // ours
             }),
-            ("Session", new Binding[]
+            ("help.groupSession", new Binding[]
             {
-                new("F9", "the level editor", Key.F9),          // 201
-                new("F1", "this list", Key.F1),                 // 907
-                new("Esc", "quit -- it asks first", Key.Escape), // ours
+                new("F9", "keys.editor", Key.F9),               // 201
+                new("F1", "keys.thisList", Key.F1),             // 907
+                new("Esc", "keys.quit", Key.Escape),            // ours
             }),
         };
 
@@ -3432,34 +3546,34 @@ namespace LaserTank.Game
         /// panel used to have to list itself in eight grey lines.
         private static readonly (string, Binding[])[] EditorKeys =
         {
-            ("Paint", new Binding[]
+            ("help.groupPaint", new Binding[]
             {
-                new("click", "paint with the left brush"),
-                new("right", "paint with the right brush"),
-                new("shift", "shift-click rotates in place"),
-                new("X", "swap the two brushes", Key.X),
-                new("T", "the tunnel id", Key.T),
+                new("click", "keys.paintLeft"),
+                new("right", "keys.paintRight"),
+                new("shift", "keys.rotate"),
+                new("X", "keys.swapBrushes", Key.X),
+                new("T", "keys.tunnelId", Key.T),
             }),
-            ("Board", new Binding[]
+            ("help.groupBoard", new Binding[]
             {
-                new("ctrl ←→", "shift the board"),              // 710/711
-                new("ctrl ↑↓", "shift the board"),              // 712/713
-                new("ctrl C", "clear the field", Key.C, true),  // 601
-                new("1 - 5", "the difficulty"),
+                new("ctrl ←→", "keys.shiftBoard"),              // 710/711
+                new("ctrl ↑↓", "keys.shiftBoard"),              // 712/713
+                new("ctrl C", "keys.clearField", Key.C, true),  // 601
+                new("1 - 5", "keys.difficulty"),
             }),
-            ("File", new Binding[]
+            ("help.groupFile", new Binding[]
             {
-                new("ctrl S", "save the level", Key.S, true),   // 603
-                new("tab", "name / author / hint", Key.Tab),
-                new("F9", "leave the editor", Key.F9),          // 604
+                new("ctrl S", "keys.saveLevel", Key.S, true),   // 603
+                new("tab", "keys.fields", Key.Tab),
+                new("F9", "keys.leaveEditor", Key.F9),          // 604
             }),
-            ("View", new Binding[]
+            ("help.groupView", new Binding[]
             {
-                new("Z", "snap to 24 / 32 / 40 px", Key.Z),
-                new("C", "the A1-P16 grid", Key.C),
-                new("ctrl G", "graphics pack", Key.G, true),    // 226
-                new("F1", "this list", Key.F1),                 // 903
-                new("Esc", "leave the editor", Key.Escape),
+                new("Z", "keys.snap", Key.Z),
+                new("C", "keys.grid", Key.C),
+                new("ctrl G", "keys.graphics", Key.G, true),    // 226
+                new("F1", "keys.thisList", Key.F1),             // 903
+                new("Esc", "keys.leaveEditor", Key.Escape),
             }),
         };
     }

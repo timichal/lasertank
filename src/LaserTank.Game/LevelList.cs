@@ -157,20 +157,18 @@ namespace LaserTank.Game
 
     public sealed class LevelList
     {
-        /// ID_LOADLEV_00 (LT32L_US.H), the caption of the dialog command 106
-        /// opens -- which is the dialog this panel is, since `L` is what opens
-        /// it.  Step 6 took the English out: this is the key, and the caption
-        /// comes from the loaded language.
+        /// The caption, and a small monument to how the i18n audit went.
         ///
-        /// **ID_HIGHLIST_00 and ID_GHIGHLIST_00 are no longer read**, and that
-        /// is a finding for the i18n audit rather than an oversight: they are
-        /// the captions of two dialogs this port no longer has, because their
-        /// columns are in this table.  The audit's rule is that a key is read by
-        /// a widget or it goes, and these two are the first pair the rule has
-        /// caught.  They are not deleted here -- deleting a key means editing
-        /// all ten JSON files and lang_check.py's expectation, which is the
-        /// audit's job and not this change's.
-        private const string TitleKey = "ID_LOADLEV_00";
+        /// This was `ID_LOADLEV_00`, the caption of the dialog command 106
+        /// opens -- which is the dialog this panel is, since `L` is what opens
+        /// it.  Step 8 merged the two high-score lists in here as well, which
+        /// left `ID_HIGHLIST_00` and `ID_GHIGHLIST_00` -- their captions -- read
+        /// by nothing, and that was recorded as the first pair the audit's rule
+        /// had caught: *a key is read by a widget or it goes*.  Run against the
+        /// whole file the rule caught 132 of 155, so what went was the file.
+        /// The caption is the port's own key now and the panel is called what it
+        /// is rather than what the menu item that opened it was called.
+        private const string TitleKey = "levels.title";
 
         /// DifCList (LTANK_D.C:24), which is COLORREF -- 0x00BBGGRR, so the
         /// bytes read backwards from an RGB literal.  Index is the difficulty
@@ -539,14 +537,24 @@ namespace LaserTank.Game
         /// the six score columns fall into.  Without the group line the row
         /// reads `103 46 Duck 125 49 mz` and nothing says which three are the
         /// world's and which three are yours.
-        private static string HeaderLine(Cells c) => Cols(
-            (c.Num, "   #"), (c.Name, "level"),
-            (c.Author, c.Author < 0 ? null : "author"),
-            (c.BMoves, "moves"), (c.BShots, "shots"), (c.BWho, "who"),
-            (c.MMoves, "moves"), (c.MShots, "shots"), (c.MWho, "who"));
+        /// **These labels are placed by character column, so they are capped.**
+        /// Every other string in this interface is measured and the layout moves
+        /// around it; these sit over cells whose positions come out of the
+        /// original's own printf widths, so a label that is one character too
+        /// long does not reflow anything -- it lands on the next column's
+        /// numbers.  strings_check.py holds the eleven files to the widths the
+        /// Cells table leaves: 30 for the name, 20 for the author, 5 each for
+        /// moves / shots / who, 18 and 16 for the two group heads.
+        private static string HeaderLine(Cells c, Strings L) => Cols(
+            (c.Num, L["levels.colNumber"].PadLeft(4)), (c.Name, L["levels.colName"]),
+            (c.Author, c.Author < 0 ? null : L["levels.colAuthor"]),
+            (c.BMoves, L["levels.colMoves"]), (c.BShots, L["levels.colShots"]),
+            (c.BWho, L["levels.colWho"]),
+            (c.MMoves, L["levels.colMoves"]), (c.MShots, L["levels.colShots"]),
+            (c.MWho, L["levels.colWho"]));
 
-        private static string GroupLine(Cells c) => Cols(
-            (c.BMoves, "posted best"), (c.MMoves, "yours"));
+        private static string GroupLine(Cells c, Strings L) => Cols(
+            (c.BMoves, L["levels.groupBest"]), (c.MMoves, L["levels.groupYours"]));
 
         /// `%-30.30s`: pad to `w` with spaces, truncate at `w`.
         private static string Pad(string s, int w)
@@ -866,7 +874,8 @@ namespace LaserTank.Game
             w = panel.Size.X - 2 * pad;
             float y = panel.Position.Y + pad + Ui.Px(11);
 
-            Ui.Caps(n, new Vector2(x, y), _view.Strings[TitleKey], Ui.Text, 12);
+            Strings L = _view.Strings;
+            Ui.Caps(n, new Vector2(x, y), L[TitleKey], Ui.Text, 12);
             // What file this is, how many levels are in it, and how many of them
             // you have solved -- which is the one number in this game that
             // answers "where was I", and the reason the collection picker shows
@@ -881,17 +890,18 @@ namespace LaserTank.Game
             // that names a file has no width a layout can assume anyway, so it
             // asks for what it needs and sheds a clause when the answer is more
             // than the line between the title and the close button.
-            float capL = x + Ui.CapsWidth(_view.Strings[TitleKey], 12) + Ui.Px(20);
+            float capL = x + Ui.CapsWidth(L[TitleKey], 12) + Ui.Px(20);
             float capR = close.Position.X - Ui.Px(10);
             // With a filter on, the first number is what you can see and the
             // second is what is in the file: a bare `12 levels` under a filter
             // would be a lie about the collection.
             string count = Filtering
-                ? $"{_order.Length} of {_levels.Length} levels"
-                : $"{_levels.Length} levels";
-            string cap = $"{_lvlName}  ·  {count}  ·  {_solved} solved";
+                ? L.F("levels.countFiltered", _order.Length, _levels.Length)
+                : L.F("levels.count", _levels.Length);
+            string solved = L.F("levels.solved", _solved);
+            string cap = $"{_lvlName}  ·  {count}  ·  {solved}";
             if (Ui.Width(cap, 11) > capR - capL)
-                cap = $"{count}  ·  {_solved} solved";
+                cap = $"{count}  ·  {solved}";
             if (Ui.Width(cap, 11) > capR - capL)
                 cap = $"{_solved}/{_levels.Length}";
             Ui.Write(n, new Vector2(capL, y), cap, 11, Ui.Faint, capR - capL,
@@ -900,15 +910,15 @@ namespace LaserTank.Game
             Ui.Rule(n, x, y, w);
             y += Ui.Px(20);
 
-            y = FilterBar(n, x, y, w);
+            y = FilterBar(n, L, x, y, w);
             Ui.Rule(n, x, y, w);
             y += Ui.Px(18);
 
             if (_levels.Length == 0)
             {
                 Ui.Write(n, new Vector2(x, y + Ui.Px(10)),
-                         "the level file could not be read", 12, Ui.Bad, w);
-                Footer(n, panel, x, w);
+                         L["levels.unreadable"], 12, Ui.Bad, w);
+                Footer(n, L, panel, x, w);
                 return;
             }
 
@@ -923,10 +933,10 @@ namespace LaserTank.Game
             // finger to the left of the moves it names and the whole table
             // reads as broken.  Faint rather than small is what makes them
             // headers.
-            n.DrawString(mono, new Vector2(x, y), GroupLine(c), HorizontalAlignment.Left,
+            n.DrawString(mono, new Vector2(x, y), GroupLine(c, L), HorizontalAlignment.Left,
                          tw, Ui.Px(size), Ui.Faint * new Color(1, 1, 1, 0.7f));
             y += Line;
-            n.DrawString(mono, new Vector2(x, y), HeaderLine(c),
+            n.DrawString(mono, new Vector2(x, y), HeaderLine(c, L),
                          HorizontalAlignment.Left, tw, Ui.Px(size), Ui.Faint);
             y += Ui.Px(6);
             Ui.Rule(n, x, y, w);
@@ -943,10 +953,10 @@ namespace LaserTank.Game
                 // A filter that matches nothing has to say so: an empty panel
                 // under a bar full of switches reads as a broken collection.
                 Ui.Write(n, new Vector2(x, y + Ui.Px(4)),
-                         "no level matches the filter", 12, Ui.Dim, tw);
+                         L["levels.noMatch"], 12, Ui.Dim, tw);
                 Scrollbar(n, panel.End.X - pad - Gutter + Ui.Px(6), rowsTop,
                           rows * Line + 3, rows);
-                Footer(n, panel, x, w);
+                Footer(n, L, panel, x, w);
                 return;
             }
 
@@ -1017,7 +1027,7 @@ namespace LaserTank.Game
 
             Scrollbar(n, panel.End.X - pad - Gutter + Ui.Px(6), rowsTop,
                       rows * Line + 3, rows);
-            Footer(n, panel, x, w);
+            Footer(n, L, panel, x, w);
         }
 
         // ---- the filter bar -------------------------------------------------
@@ -1025,24 +1035,21 @@ namespace LaserTank.Game
         /// The Search dialog's four controls, on two lines inside the panel.
         /// -> the y its closing rule belongs at.
         ///
-        /// **The labels are the original's**, which is nine more of the 155 keys
-        /// per language file that had no widget reading them: ID_SEARCH_01, _03,
-        /// _04, _08 and _10 through _14.  That is next-steps item 1 working the
-        /// way round it was meant to -- a key is read by a widget or it goes,
-        /// and these got a widget.
-        ///
-        /// The other six of the Search dialog's keys are still unread, and each
-        /// is a finding for that audit rather than an oversight: _00 is the
-        /// dialog's caption and there is no dialog, _02 is a group box, _05 and
-        /// _06 are Cancel and Ok and this bar commits as you type, _09 is the
-        /// "Filter by Difficulty" master checkbox that greys the five rank
-        /// buttons -- which a row of chips you can simply click does not need --
-        /// and ID_LOADLEV_03 is the button that opened the dialog.
-        private float FilterBar(Node2D n, float x, float y, float w)
+        /// **The labels used to be the original Search dialog's**, and this is
+        /// where the audit that replaced them can be read off.  Nine of its keys
+        /// had found a widget here (ID_SEARCH_01, _03, _04, _08, _10-_14) and six
+        /// never would: _00 is a caption and there is no dialog, _02 is a group
+        /// box, _05 and _06 are Cancel and Ok and this bar commits as you type,
+        /// _09 is the "Filter by Difficulty" master checkbox that greys the five
+        /// rank buttons -- which a row of chips you can simply click does not
+        /// need -- and ID_LOADLEV_03 is the button that opened the dialog.  Nine
+        /// of fifteen is roughly the ratio the whole file ran at, which is what
+        /// decided next-steps item 1 the way it went: the keys are the port's own
+        /// now, and the widget that draws one is what names it.
+        private float FilterBar(Node2D n, Strings L, float x, float y, float w)
         {
-            Language L = _view.Strings;
-            string byTitle = Language.StripAmpersand(L["ID_SEARCH_03"]);
-            string byAuthor = Language.StripAmpersand(L["ID_SEARCH_04"]);
+            string byTitle = L["levels.byName"];
+            string byAuthor = L["levels.byAuthor"];
 
             // The two mode chips sit on the field's own line, hard right.
             float tgW = ChipWidth(byTitle) + ChipWidth(byAuthor) + Ui.Px(6);
@@ -1056,9 +1063,9 @@ namespace LaserTank.Game
             n.DrawStyleBox(Ui.Box(Ui.Bg, _q.Length > 0 ? Ui.Accent : Ui.Border, 6f, 1f),
                            field);
 
-            // ID_SEARCH_01 is "Enter Search String :" -- a label in the original,
-            // a placeholder here, which is the same words doing the same job in
-            // a layout that has no room for a label beside the box.
+            // A placeholder rather than a label beside the box: there is no room
+            // for one, and an empty field that says what it wants is the same
+            // instruction in the space there is.
             float tx = x + Ui.Px(9);
             float baseline = y + fieldH / 2f + Ui.Px(4);
             bool empty = _q.Length == 0;
@@ -1067,7 +1074,7 @@ namespace LaserTank.Game
             // empty field is the first column, and a block caret over the first
             // glyph of "Enter Search String :" reads as a rendering fault.
             Ui.Write(n, new Vector2(empty ? tx + Ui.Px(10) : tx, baseline),
-                     empty ? L["ID_SEARCH_01"] : _q,
+                     empty ? L["levels.search"] : _q,
                      empty ? 11f : 11.5f, empty ? Ui.Faint : Ui.Text,
                      field.Size.X - Ui.Px(20));
             // The caret, a block for the reason EditMode's is: at this size a
@@ -1093,15 +1100,12 @@ namespace LaserTank.Game
             // strings whose width nobody here decides, and a row of chips that
             // runs off the panel is worse than a row of letters that does not.
             y += Ui.Px(42);
-            string[] ranks =
-            {
-                Language.StripAmpersand(L["ID_SEARCH_10"]),
-                Language.StripAmpersand(L["ID_SEARCH_11"]),
-                Language.StripAmpersand(L["ID_SEARCH_12"]),
-                Language.StripAmpersand(L["ID_SEARCH_13"]),
-                Language.StripAmpersand(L["ID_SEARCH_14"]),
-            };
-            string skip = Language.StripAmpersand(L["ID_SEARCH_08"]);
+            // The five ranks are the same five words the level block and the
+            // editor's chip draw, out of TLEVELINFO.RankKeys -- one rank, one
+            // key, three widgets.
+            string[] ranks = new string[5];
+            for (int i = 0; i < 5; i++) ranks[i] = L[TLEVELINFO.RankKeys[i + 1]];
+            string skip = L["levels.unsolved"];
             float need = ChipWidth(skip) + Ui.Px(16);
             foreach (string r in ranks) need += ChipWidth(r) + Ui.Px(6);
             if (need > w)
@@ -1212,16 +1216,14 @@ namespace LaserTank.Game
         /// clauses are ranked instead.  The marker legend is last to go because
         /// nothing else documents it; the chords go first because the chips they
         /// name are on screen and clickable.
-        private static void Footer(Node2D n, Rect2 panel, float x, float w)
+        private static void Footer(Node2D n, Strings L, Rect2 panel, float x, float w)
         {
-            const string marks = "·  * solved  ** par  *** beat par";
+            string marks = L["levels.marks"];
             string[] forms =
             {
-                "↑↓ or wheel picks · Enter loads · type to filter · Tab title/author"
-                    + " · Ctrl+1-5 ranks · Ctrl+U unsolved · Esc closes  " + marks,
-                "↑↓ picks · Enter loads · type to filter · Tab title/author"
-                    + " · Esc closes  " + marks,
-                "type to filter · Enter loads · Esc closes  " + marks,
+                L["levels.footerFull"] + "  " + marks,
+                L["levels.footerMid"] + "  " + marks,
+                L["levels.footerShort"] + "  " + marks,
                 marks,
             };
             string s = forms[^1];

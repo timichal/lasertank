@@ -179,17 +179,17 @@ namespace LaserTank.Game
             try { loaded = e.LoadLevel(_lvlPath, n); }
             catch (IOException ex)
             {
-                Error = $"cannot read {_lvlPath}: {ex.Message}";
+                Error = Strings.Cur.F("err.cannotRead", _lvlPath, ex.Message);
                 return false;
             }
             catch (UnauthorizedAccessException ex)
             {
-                Error = $"cannot read {_lvlPath}: {ex.Message}";
+                Error = Strings.Cur.F("err.cannotRead", _lvlPath, ex.Message);
                 return false;
             }
             if (!loaded)
             {
-                Error = $"cannot load level {n} of {_lvlPath}";
+                Error = Strings.Cur.F("err.cannotLoadLevel", n, _lvlPath);
                 return false;
             }
             E = e;
@@ -442,15 +442,16 @@ namespace LaserTank.Game
         {
             if (!Pb.Load(path)) return Pb.Error;
             if (!Load(Pb.Rec.Level))
-                return $"cannot load level {Pb.Rec.Level} of {Path.GetFileName(_lvlPath)}";
+                return Strings.Cur.F("err.cannotLoadLevel", Pb.Rec.Level,
+                                     Path.GetFileName(_lvlPath));
             // LoadPlayback's own check, and the reason it has a name-search
             // fallback: a .lpb records the level *name* as well as its number,
             // so a collection whose levels have moved is detectable.
             if (E.CurRecData.LName != Pb.Rec.LName)
             {
-                string bad = $"\"{Pb.Rec.LName}\" is not level {Pb.Rec.Level} of "
-                             + $"{Path.GetFileName(_lvlPath)} (that is "
-                             + $"\"{E.CurRecData.LName}\")";
+                string bad = Strings.Cur.F("err.playbackMismatch", Pb.Rec.LName,
+                                           Pb.Rec.Level, Path.GetFileName(_lvlPath),
+                                           E.CurRecData.LName);
                 Pb.Close(E);
                 return bad;
             }

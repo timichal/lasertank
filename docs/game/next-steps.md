@@ -8,46 +8,16 @@ their numbers because the other files refer to them by number; what is done is i
 
 ---
 
-## 1. i18n: actually use the translations  *(the UI has settled — this is now unblocked)*
+## 1. i18n  *(done — see [`history.md`](history.md), step 13)*
 
-The strings **are** wired, but only twenty-three of them: `ID_DEADBOX_DEAD`,
-`ID_GRAPHBOX_00`–`_05`, `ID_LOADLEV_00`, `ID_SEARCH_01`, `_03`, `_04`, `_08`, `_10`–`_14`,
-`REC_Title` and `txt009`–`txt014`. That is 23 of the **155** keys in each file. The rest describe
-dialogs and a nine-button control panel this port does not have, which is why they read as unused.
-
-**Nine of those twenty-three arrived in step 11, and they arrived the right way round.** The level
-list's filter bar is the Search sub-dialog inlined, so it needed the Search dialog's own labels and
-took them — which is this item's rule (*a key is read by a widget or it goes*) settled by the widget
-turning up rather than by a deletion. It also produced six more *findings* of the other kind, all in
-the same dialog: `ID_SEARCH_00` is a caption and there is no dialog, `_02` is a group box, `_05` and
-`_06` are Cancel and Ok and the bar commits as you type, `_09` is the "Filter by Difficulty" master
-checkbox that greys the five rank buttons — which a row of chips you can click does not need — and
-`ID_LOADLEV_03` is the button that opened the dialog. Six keys with no widget and a reason each,
-which is what the audit is supposed to produce.
-
-**It was sixteen until step 8, and the two it lost are the audit working.** `ID_HIGHLIST_00` and
-`ID_GHIGHLIST_00` are the captions of the two score dialogs, and merging the three lists into one
-table left the port with no widget that is either of them — their columns are in `L`'s table under
-headers of the port's own. That is exactly the finding this item is for: a key is read by a widget
-or it goes. They are not deleted yet, because deleting one means editing all ten JSON files *and*
-`lang_check.py`'s expectation, which is this item's job and not step 8's.
-
-So the job is an audit, and step 7 is what it was waiting for: for each key, either a widget reads
-it or it goes. `ButText1`–`ButText9` are the original's button strip; the 96 `ID_*` slots are its
-dialogs; `txt001`–`txt045` are its status and message lines. Deleting a key means editing all ten
-JSON files **and** `lang_check.py`'s expectation, because the gate ties the JSON back to the 2007
-bytes line by line — a dropped key currently fails it, which is the gate working. Whatever the
-audit removes, the *converter* should keep reading, so the mapping from the frozen artifact stays
-complete and re-runnable.
-
-**Step 7 made the audit bigger and easier at the same time.** Bigger, because the redesign wrote a
-lot of new English: the F1 overlay's six group headings and thirty-odd key labels, the info
-column's `Level n of m` / `Score` / `moves` / `shots` / `par`, the status bar's default line, and
-the editor panel's `Palette` / `left` / `right`. Easier, because they are all in **two tables and
-two draw functions** (`PlayKeys`, `EditorKeys`, `DrawInfoColumn`, `EditMode.Draw`) rather than
-scattered through a legend. The port's own strings still have no key in the original and still fall
-back to English by having only an English form — the model set by the legend strip, which step 7
-deleted.
+The audit this item asked for was run, and the rule it was to be run on — *a key is read by a widget
+or it goes* — answered **go** for the file as a whole. `data/language/` is eleven catalogues of the
+port's own text now; the 2007 `.dat` files are still frozen under `original/` and
+`tools/convert_language.py` still decodes them. The rule survives as
+[`tools/strings_check.py`](../../tools/strings_check.py), which fails both ways: a key nothing draws
+and a lookup with no key are equally a red gate. What is there is in
+[`ui.md`, *i18n as built*](ui.md#i18n-as-built); why it went that way is in
+[*Finished*](history.md).
 
 ## 3. The rest of the original that is still missing
 
@@ -71,8 +41,9 @@ measured panel, keycaps for the buttons — and **step 8 built the first one**: 
 (`DrawQuitAsk`), which is the yes/no with its modality, its clock rule and its "every other key is
 the safe answer" already settled. So what is left for the rest is a text field, not a look.
 
-**And the DeadBox has a rule of its own that nothing here implements yet.** Its dialog proc is four
-lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
+**And the DeadBox has a rule of its own that nothing here implements yet** — its *headline* is
+the port's own since step 13 (`status.dead`), but the rule below is about its buttons. Its dialog
+proc is four lines (`LTANK_D.C:159`) and the second one is a guard: `if (Game.RecP > 1) EndDialog(Dialog, wparam);
 else EndDialog(Dialog, ID_DEADBOX_RESTART);` — **die on the first turn and every button is Restart**,
 Undo included. `RetBox` ("Return to Game") has the identical test. It is the same species as the
 level-39 report in [*Finished*](history.md): logic that lives in a dialog proc rather than in the
@@ -127,7 +98,9 @@ still open:
   `SystemFont` fell through to Godot's own *proportional* face in a browser, so the level list —
   whose column rules are placed in glyph units off the original's `sprintf` padding — was
   fixed-pitch everywhere except the one target this bullet is about. Both faces are shipped now.
-  `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing.
+  `Paths` and the `.hs`/`.ini` writes are what will need work, not the drawing. **Step 13 left
+  one thing to watch here**: the eleven column heads `strings_check.WIDTHS` caps are capped in
+  *characters*, which is only a width at all while the face is fixed-pitch.
 * **Motion.** There is none, and three places want it now: the status line, which replaces its
   content with no transition; the win state, which is a colour change on a line of text; and, since
   step 9, the press itself — a target that highlights on hover but does not move under a click says
@@ -177,8 +150,9 @@ a settings mechanism:
 
 1. **A fidelity artifact.** `Atoi`, the case-sensitive `strcmp(temps, psYes)` test, *only a missing
    key gives the default* — these are recorded findings about the 2010 binary, pinned by
-   `options_check.py`'s `ini` arm and five checks in `lang_check.py`. Research output, not
-   plumbing, and worth keeping whatever happens to the rest.
+   `options_check.py`'s `ini` arm and six checks in `strings_check.py` — five of them the INI
+   checks `lang_check.py` used to carry, which step 13 moved across intact before deleting it.
+   Research output, not plumbing, and worth keeping whatever happens to the rest.
 2. **Interop with the 2010 binary.** The preserve-every-other-line rule is load-bearing only
    because the port can share one file with the original and must not reset the dozen keys it knows
    nothing about (`PosX`, `Diff_Setting`, `Player`). This is the one job that *requires* the
@@ -194,9 +168,10 @@ breaks the moment an exported build lands somewhere unwritable — which is ever
 install and the web export item 4 is circling. `user://` is where this belongs regardless of what
 is decided below.
 
-**The shape, which is the language files' shape.** Item 1's rule for a deleted key is *whatever the
-audit removes, the converter should keep reading* — the artifact's reader stays complete and
-re-runnable while the runtime moves on. Same split here:
+**The shape, which is the language files' shape** — and step 13 has now built it, so this is a
+precedent rather than an analogy. `data/language/` is the port's own catalogue and
+`tools/convert_language.py` is a decoder that writes nothing and refuses to write there: the
+artifact's reader stays complete and re-runnable while the runtime moves on. Same split here:
 
 - `Ini` stays, demoted to a **one-way importer**: on first run, read a `LaserTank.ini` if one is
   beside the repo or named by `$LT_INI`, fold it into the settings object, and never write it
@@ -212,7 +187,7 @@ re-runnable while the runtime moves on. Same split here:
 for an engine class, and it does not preserve foreign lines. **Not a `Resource`/`.tres`**: it binds
 the save format to engine classes and is miserable to diff.
 
-**What it costs:** `options_check.py`'s `ini` arm and `lang_check.py`'s five INI checks both need a
+**What it costs:** `options_check.py`'s `ini` arm and `strings_check.py`'s INI arm both need a
 second half for the new store (the existing halves stay, pointed at the importer),
 `chrome_check.py`'s self-written baseline moves with it, and `Step6Check`'s three-`Options`
 round trip is rewritten against the typed record.

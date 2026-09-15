@@ -1,509 +1,266 @@
 {
- "code": "hr",
- "name": "Croatian",
- "author": "Ivan Hrsto",
- "sourceDir": "Hr",
- "sourceName": "Croatian - ( 100 %)",
- "sourceEncoding": "cp1250",
- "sourceLines": 239,
- "buttons": {
-  "ButText1": "Poništi",
-  "ButText2": "Spremi poziciju",
-  "ButText3": "Obnovi poziciju",
-  "ButText4": "Nova",
-  "ButText5": "<< Nivo",
-  "ButText6": "Nivo >>",
-  "ButText7": "Savjet",
-  "ButText8": "Ispočetka",
-  "ButText9": "Učitaj nivo"
- },
- "text": {
-  "txt001": "Datoteka nije pronađena\nOdaberi neku drugu",
-  "txt002": "Datoteke s nivoima (*.LVL)",
-  "txt004": "Odaberi datoteku",
-  "txt005": "Datoteke izvedbe (*.LPB)",
-  "txt006": "Spremi datoteku izvedbe",
-  "txt007": "LaserTank-ova greška",
-  "txt008": "Stari rezultat > M:",
-  "txt009": "M: ",
-  "txt010": " S: ",
-  "txt011": " I: ",
-  "txt012": "Čestitam !  Srušio si rekord !!",
-  "txt013": "Izvedba nivoa : ",
-  "txt014": "\nSnimio ",
-  "txt015": "\nNe može biti pronađeno u trenutnoj datoteci\n< ",
-  "txt016": "Želiš li nastaviti snimati ?",
-  "txt017": "&Izvedi",
-  "txt018": "P&auza",
-  "txt019": "Nema dovoljno memorije - Undo Roll Over",
-  "txt020": "Otvori datoteku izvedbe",
-  "txt021": "Savjet",
-  "txt022": "Nivo NIJE Spremljen !  Spremiti ?",
-  "txt023": " - Djeca",
-  "txt024": " - Jednostavno",
-  "txt025": " - Srednje",
-  "txt026": " - Teško",
-  "txt027": " - Ubojito",
-  "txt028": " - [Editor]",
-  "txt029": "LaserTank Editor",
-  "txt031": "Ovo NIJE ispravan LaserTank-ov grafički komplet",
-  "txt032": "game.bmp i/ili mask.bmp nije pronađena",
-  "txt033": "Otvori datoteku izvedbe za nastavak",
-  "txt034": "Povratak u igru",
-  "txt035": "< NIJE PRIJAVLJEN SAVJET ZA OVAJ NIVO >",
-  "txt036": "LaserTank-ov nivo broj ",
-  "txt037": "Označi direktorij s LaserTank-ovom grafikom",
-  "txt038": "Igra u tijeku ...",
-  "txt039": "Odigrani potezi biti će izgubljeni.\nŽeliš li spremiti igru ?",
-  "txt040": "Srušeni",
-  "txt041": "Svi",
-  "txt042": "Completed %d of %d levels",
-  "txt043": "Difficulty Set = ",
-  "txt044": "DJSTU",
-  "txt045": "LaserTank Graphics file Not Found !",
-  "REC_Title": " LaserTank *** SNIMA SE ***",
-  "help01": "Editor Instructions",
-  "help02": "Revisions",
-  "help03": "Writing Your Own Levels",
-  "HelpFileName": "Language\\LaserTankHr.hlp"
- },
- "dialogs": {
-  "ID_ABOUTBOX_00": "O igri Laser Tank",
-  "ID_ABOUTBOX_OK": "&Ok",
-  "ID_ABOUTBOX_04": "By Jim Kindley",
-  "ID_ABOUTBOX_06": "Verzija",
-  "ID_DEADBOX_UNDO": "&Poništi potez",
-  "ID_DEADBOX_DEAD": "POGINUO SI ! ! !",
-  "ID_DEADBOX_RESTART": "&Ispočetka",
-  "ID_DIFFBOX_00": "Težina",
-  "ID_DIFFBOX_01": "&Ok",
-  "ID_DIFFBOX_02": "&Djeca",
-  "ID_DIFFBOX_03": "&Jednostavno",
-  "ID_DIFFBOX_04": "&Srednje",
-  "ID_DIFFBOX_05": "&Teško",
-  "ID_DIFFBOX_06": "&Ubojito",
-  "ID_DIFFBOX_07": "S&ve",
-  "ID_DIFFBOX_08": "Odaberi",
-  "ID_GRAPHBOX_00": "Odaberi grafiku",
-  "ID_GRAPHBOX_01": "Odaberi",
-  "ID_GRAPHBOX_02": "&Interna grafika",
-  "ID_GRAPHBOX_03": "&Korisnička grafika ",
-  "ID_GRAPHBOX_04": "&Zatvori",
-  "ID_GRAPHBOX_05": "Autor :",
-  "ID_GRAPHBOX_06": "Opis Laser Tank grafičkog kompleta",
-  "ID_GRAPHBOX_08": "&Prikaži pozdravni ekran ",
-  "ID_GRAPHBOX_09": "Promijeni &direktorij",
-  "ID_LOADLEV_00": "Odaberi nivo",
-  "ID_LOADLEV_01": "O&dustani",
-  "ID_LOADLEV_03": "&Filtar",
-  "ID_LOADLEV_04": "Datoteka:",
-  "ID_LOADLEV_05": "- Greška pri učitavanju datoteke -",
-  "ID_LOADLEV_06": "Broj   Ime                            Autor",
-  "ID_LOADLEV_07": "ili direktno po broju nivoa >>",
-  "ID_HINTBOX_00": "Promijeni savjet",
-  "ID_HINTBOX_01": "&Ok",
-  "ID_HINTBOX_02": "O&dustani",
-  "ID_SEARCH_00": "Filtar za izbor nivoa",
-  "ID_SEARCH_01": "Unesi traženi izraz :",
-  "ID_SEARCH_02": "Traži po",
-  "ID_SEARCH_03": "&Naslovu",
-  "ID_SEARCH_04": "&Autoru",
-  "ID_SEARCH_05": "O&dustani",
-  "ID_SEARCH_06": "&Ok",
-  "ID_SEARCH_08": "&Prikaži samo neprijeđene nivoe",
-  "ID_SEARCH_09": "&Filtriraj po težini",
-  "ID_SEARCH_10": "&D",
-  "ID_SEARCH_11": "&J",
-  "ID_SEARCH_12": "&S",
-  "ID_SEARCH_13": "&T",
-  "ID_SEARCH_14": "&U",
-  "ID_RETBOX_00": "Pov&ratak u igru",
-  "ID_WINBOX_00": "&Ok",
-  "ID_WINBOX_01": "Pobijedio si ! ! !",
-  "ID_WINBOX_02": "Datoteka :",
-  "ID_WINBOX_03": "- Greška -",
-  "ID_LOADTID_00": "Odaberi broj grupe tunela",
-  "ID_LOADTID_03": "&Ok",
-  "ID_LOADTID_04": "Unesi broj grupe za ovaj tunel",
-  "ID_HIGHBOX_00": "! Novi najbolji rezultat !",
-  "ID_HIGHBOX_01": "&Ok",
-  "ID_HIGHBOX_02": "Broj nivoa :",
-  "ID_HIGHBOX_03": "Ime nivoa :",
-  "ID_HIGHBOX_04": "Pomaka :",
-  "ID_HIGHBOX_05": "Pucnjeva :",
-  "ID_HIGHBOX_10": "Inicijali :",
-  "ID_HIGHBOX_12": "Globalni :",
-  "ID_HIGHBOX_13": "- Nema podataka -",
-  "ID_HIGHLIST_00": "Najbolji rezultati",
-  "ID_HIGHLIST_01": "&Ok",
-  "ID_HIGHLIST_02": "- Greška pri učitavanju datoteke -",
-  "ID_HIGHLIST_03": "Broj  Ime                       Pomaka  Pucnjeva  Inicijali",
-  "ID_GHIGHLIST_00": "Globalna lista najboljih rezultata",
-  "ID_GHIGHLIST_01": "&Ok",
-  "ID_GHIGHLIST_02": "Broj  Ime                              M      S   Inic   M     S  Inic",
-  "ID_GHIGHLIST_03": "Globalni",
-  "ID_GHIGHLIST_04": "Lokalni",
-  "ID_GHIGHLIST_05": "- Nema podataka -",
-  "ID_GHIGHLIST_06": "&Srušeni",
-  "ID_RECBOX_00": "Snimanje igre",
-  "ID_RECBOX_01": "Unesi svoje ime",
-  "ID_RECBOX_02": "&Ok",
-  "ID_PLAYBOX_00": "Izvedba snimke",
-  "ID_PLAYBOX_01": "&Zatvori",
-  "ID_PLAYBOX_02": "&Izvedi",
-  "ID_PLAYBOX_03": "&Početak",
-  "ID_PLAYBOX_04": "&Brzo",
-  "ID_PLAYBOX_05": "&Sporo",
-  "ID_PLAYBOX_06": "&Korak",
-  "ID_PLAYBOX_07": "Korak :",
-  "ID_PLAYBOX_08": "od",
-  "ID_PLAYBOX_11": "Brzina",
-  "ID_PICKLEVEL_00": "Spremi nivo",
-  "ID_PICKLEVEL_01": "&Ok",
-  "ID_PICKLEVEL_02": "Spremi nivo pod redni",
-  "ID_PICKLEVEL_03": "broj :",
-  "ID_PICKLEVEL_06": "= Dodaj",
-  "ID_PICKLEVEL_08": "O&briši rezultate"
- },
- "about": [
-  "     LaserTank je HelpWare i možete ga besplatno igrati.\n\n",
-  "     Kada postanete vješt igrac, mogli biste napraviti koji vlastiti nivo koristeci editor nivoa i poslati nam ga, zajedno s pripadajucom snimkom igre (LPB datoteke).\n\n",
-  "     Mi cemo svako malo obnavljati softver i dodavati sve dobre nivoe koje smo dobili. Vidi \"Pisanje vlastitih nivoa\" i \"Snimanje & izvodenje\" u datoteci pomoci.\n\n",
-  "     (Molim vas da budete inventivni i ne pokušavate kopirati nešto što vec postoji.)\n",
-  "     (Vec postoji velik broj nivoa dostupnih na LaserTankovoj web stranici.)\n\n",
-  "     AKO srušite neki od najboljih rezultata, i sigurni ste da imate najnoviju verziju datoteke s listom najboljih globalnih rezultata, pošaljite mi zip datoteku s izvedbom za nivoe koje ste srušili i datoteku LaserTank.hs.\n\n",
-  "     Datoteke mi možete poslati e-mail poštom na adresu :\n",
-  "        lasertank@globetrotter.net\n\n",
-  "     Za više nivoa, grafičkih datoteka, i najnoviju datoteku s listom najboljih globalnih rezultata posjetite LaserTank-ovu WEB stranicu :\n",
-  "        http://pages.globetrotter.net/lasertank\n\n ",
-  "     For Help or more info about this game join or check out the Yahoo Group at :\n",
-  "        http://groups.yahoo.com/lasertank\n",
-  "     =========================\n     Na hrvatski jezik preveo:\n     Ivan Hrsto\n     =========================\n"
- ],
- "menu": {
-  "main": [
-   {
-    "text": "I&gra",
-    "items": [
-     {
-      "text": "&Nova",
-      "cmd": 101,
-      "accel": "F2"
-     },
-     {
-      "text": "&Učitaj nivo...",
-      "cmd": 106,
-      "accel": "L"
-     },
-     {
-      "text": "Pre&skoči nivo",
-      "cmd": 107,
-      "accel": "S"
-     },
-     {
-      "text": "&Prethodni nivo",
-      "cmd": 119,
-      "accel": "P"
-     },
-     {
-      "text": "Za&dnji pokrenuti nivo",
-      "cmd": 118,
-      "accel": "BkSp"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Otvori datoteku...",
-      "cmd": 108,
-      "accel": "O"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Najbolji r&ezultati",
-      "cmd": 113,
-      "accel": "V"
-     },
-     {
-      "text": "&Globalna lista najboljih",
-      "cmd": 906,
-      "accel": "G"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Snimanje ig&re",
-      "cmd": 123,
-      "accel": "F5"
-     },
-     {
-      "text": "Spre&mi snimku",
-      "cmd": 117,
-      "accel": "F6"
-     },
-     {
-      "text": "Nas&tavi snimanje",
-      "cmd": 125,
-      "accel": "F8"
-     },
-     {
-      "text": "Izved&ba snimke...",
-      "cmd": 114,
-      "accel": "F7"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Ispis pozicije",
-      "cmd": 126
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "I&zlaz",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "Po&tez",
-    "items": [
-     {
-      "text": "&Početna pozicija",
-      "cmd": 105,
-      "accel": "R"
-     },
-     {
-      "text": "Poništi &zadnji",
-      "cmd": 110,
-      "accel": "U"
-     },
-     {
-      "text": "&Spremi poziciju",
-      "cmd": 111,
-      "accel": "Ctrl+C"
-     },
-     {
-      "text": "&Obnovi poziciju",
-      "cmd": 112,
-      "accel": "Crtl+V"
-     },
-     {
-      "text": "Od&vrti sve poteze",
-      "cmd": 124,
-      "accel": "F4"
-     }
-    ]
-   },
-   {
-    "text": "&Opcije",
-    "items": [
-     {
-      "text": "&Animacija",
-      "cmd": 104,
-      "accel": "A"
-     },
-     {
-      "text": "Z&vuk",
-      "cmd": 102,
-      "accel": "N"
-     },
-     {
-      "text": "&Zapamti zadnji nivo",
-      "cmd": 109
-     },
-     {
-      "text": "Pres&koči završene nivoe",
-      "cmd": 116
-     },
-     {
-      "text": "Au&tomatsko snimanje",
-      "cmd": 115
-     },
-     {
-      "text": "Isključi &upozorenja",
-      "cmd": 127
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "V&eličina",
-      "items": [
-       {
-        "text": "&Mali",
-        "cmd": 120
-       },
-       {
-        "text": "&Srednji",
-        "cmd": 121
-       },
-       {
-        "text": "&Veliki",
-        "cmd": 122
-       }
-      ]
-     },
-     {
-      "text": "&Promijeni težinu...",
-      "cmd": 225,
-      "accel": "D"
-     },
-     {
-      "text": "Promijeni &grafiku ...",
-      "cmd": 226,
-      "accel": "Ctrl+G"
-     }
-    ]
-   },
-   {
-    "text": "&Editor [F9]",
-    "cmd": 201
-   },
-   {
-    "text": "&Pomoć",
-    "items": [
-     {
-      "text": "&Savjet",
-      "cmd": 301,
-      "accel": "H"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Indeks",
-      "cmd": 902
-     },
-     {
-      "text": "&Brza pomoć",
-      "cmd": 907,
-      "accel": "F1"
-     },
-     {
-      "text": "&Revizije (Povijest)",
-      "cmd": 904
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&O igri",
-      "cmd": 901
-     }
-    ]
-   }
-  ],
-  "editor": [
-   {
-    "text": "&Editor",
-    "items": [
-     {
-      "text": "&Obriši polje",
-      "cmd": 601,
-      "accel": "Ctrl+C"
-     },
-     {
-      "text": "&Učitaj nivo...",
-      "cmd": 602,
-      "accel": "Ctrl+L"
-     },
-     {
-      "text": "&Spremi nivo",
-      "cmd": 603,
-      "accel": "Ctrl+S"
-     },
-     {
-      "text": "Spremi k&ao...",
-      "cmd": 606
-     },
-     {
-      "text": "I&zlaz",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "&Savjet",
-    "cmd": 605
-   },
-   {
-    "text": "Po&makni",
-    "items": [
-     {
-      "text": "D&esno",
-      "cmd": 710,
-      "accel": "Ctrl+Direction"
-     },
-     {
-      "text": "&Lijevo",
-      "cmd": 711
-     },
-     {
-      "text": "&Gore",
-      "cmd": 712
-     },
-     {
-      "text": "&Dolje",
-      "cmd": 713
-     }
-    ]
-   },
-   {
-    "text": "&Zatvori editor [F9]",
-    "cmd": 604
-   },
-   {
-    "text": "&Težina",
-    "items": [
-     {
-      "text": "&Djeca",
-      "cmd": 701
-     },
-     {
-      "text": "&Jednostavno",
-      "cmd": 702
-     },
-     {
-      "text": "&Srednje",
-      "cmd": 703
-     },
-     {
-      "text": "&Teško",
-      "cmd": 704
-     },
-     {
-      "text": "&Ubojito",
-      "cmd": 705
-     }
-    ]
-   },
-   {
-    "text": "&Pomoć",
-    "items": [
-     {
-      "text": "&Editor",
-      "cmd": 903,
-      "accel": "F1"
-     },
-     {
-      "text": "&Kreiranje nivoa",
-      "cmd": 905
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&O igri",
-      "cmd": 901
-     }
-    ]
-   }
-  ]
- }
+  "code": "hr",
+  "name": "Croatian",
+  "credit": "",
+  "strings": {
+    "app.titleRecording": "{0} — snimanje",
+
+    "pill.rec": "snima",
+    "pill.playback": "reprodukcija",
+    "pill.editor": "uređivač",
+    "pill.muted": "bez zvuka",
+    "pill.still": "bez animacije",
+    "pill.snap": "{0} px",
+    "pill.snapFit": "{0} px prilagođeno",
+
+    "info.levelOf": "Razina {0} / {1}",
+    "info.untitled": "(bez naslova)",
+    "info.moves": "potezi",
+    "info.shots": "hici",
+    "info.par": "norma",
+    "info.allKeys": "sve tipke",
+    "info.hint": "Savjet  ·  H ga skriva",
+
+    "action.undo": "poništi",
+    "action.restart": "ispočetka",
+    "action.hint": "savjet",
+    "action.levels": "razine i rekordi",
+    "action.collections": "zbirke",
+
+    "rank.unrated": "bez ocjene",
+    "rank.kids": "Za djecu",
+    "rank.easy": "Lako",
+    "rank.medium": "Srednje",
+    "rank.hard": "Teško",
+    "rank.deadly": "Smrtonosno",
+
+    "status.default": "strelice voze · razmaknica puca · U poništava · R ispočetka · F1 tipke",
+    "status.dead": "Tvoj tenk je uništen  ·  U poništava zadnji potez, R pokreće razinu ispočetka",
+    "status.nothingToUndo": "nema više što poništiti",
+    "status.positionSaved": "položaj spremljen",
+    "status.noSavedPosition": "na ovoj razini nije spremljen nijedan položaj",
+    "status.gridOn": "mreža uključena",
+    "status.gridOff": "mreža isključena",
+    "status.animationOn": "animacija uključena",
+    "status.animationOff": "animacija isključena",
+    "status.autoRecordOn": "snima se svaka razina",
+    "status.autoRecordOff": "više se ne snima svaka razina",
+    "status.noHint": "ova razina nema savjet",
+    "status.recordingOn": "snimanje u tijeku",
+    "status.recordingOff": "snimanje zaustavljeno",
+    "status.notRecording": "snimanje ne teče — F5 ga pokreće",
+    "status.recordingSaved": "snimka spremljena u {0}",
+    "status.collectionOpened": "{0} — {1} razina",
+    "status.cannotOpen": "{0} se ne može otvoriti",
+    "status.playing": "reproducira se {0}",
+    "status.noRecording": "za ovu razinu nema snimke, ni u out/recordings/ ni uz datoteku .lvl",
+    "status.noLevel": "nijedna razina nije učitana",
+    "status.packFallback": "{0} — koristi se ugrađena grafika",
+
+    "win.solved": "Riješeno",
+    "win.playback": "reprodukcija je stigla do zastave",
+    "win.next": "Enter za sljedeću razinu, F6 sprema snimku",
+    "win.worldBest": "novi svjetski rekord",
+    "win.personalBest": "tvoj dosad najbolji rezultat",
+    "win.standing": "tvoj rekord ostaje {0}",
+    "win.par": "norma {0}/{1}",
+    "win.notWritten": "rekord nije zapisan: {0}",
+    "score.record": "{0} poteza, {1} hitaca, igrač {2}",
+
+    "pb.title": "Reprodukcija  ·  {0}",
+    "pb.recordedBy": "snimio {0}",
+    "pb.play": "pokreni",
+    "pb.pause": "pauza",
+    "pb.reset": "ispočetka",
+    "pb.close": "zatvori",
+    "pb.fast": "brzo",
+    "pb.slow": "sporo",
+    "pb.step": "korak po korak",
+
+    "help.title": "Tipke",
+    "help.titleEditor": "Tipke uređivača",
+    "help.close": "F1 ili Esc zatvara",
+    "help.groupPlay": "Igra",
+    "help.groupLevels": "Razine",
+    "help.groupRecording": "Snimanje",
+    "help.groupView": "Prikaz",
+    "help.groupSession": "Sesija",
+    "help.groupPaint": "Crtanje",
+    "help.groupBoard": "Polje",
+    "help.groupFile": "Datoteka",
+
+    "keys.move": "voziti tenk",
+    "keys.fire": "pucati",
+    "keys.undo": "poništiti zadnji potez",
+    "keys.restart": "pokrenuti razinu ispočetka",
+    "keys.hint": "prikazati ili sakriti savjet",
+    "keys.savePos": "spremiti ovaj položaj",
+    "keys.restorePos": "vratiti se na njega",
+    "keys.levels": "razine i rekordi",
+    "keys.collections": "odabrati zbirku",
+    "keys.nextLevel": "sljedeća razina",
+    "keys.prevLevel": "prethodna razina",
+    "keys.newGame": "krenuti iznova",
+    "keys.record": "pokrenuti ili zaustaviti snimanje",
+    "keys.saveRecording": "spremiti snimku",
+    "keys.playback": "reproducirati snimku",
+    "keys.replay": "ponovno odigrati ovu razinu",
+    "keys.autoRecord": "snimati svaku razinu",
+    "keys.snap": "poravnati na 24 / 32 / 40 px",
+    "keys.grid": "mreža A1–P16",
+    "keys.interpolate": "glatko ili skokovito kretanje tenka",
+    "keys.sound": "zvuk",
+    "keys.animation": "animacija",
+    "keys.graphics": "grafički set",
+    "keys.language": "jezik",
+    "keys.editor": "uređivač razina",
+    "keys.thisList": "ovaj popis",
+    "keys.quit": "izlaz — prvo pita",
+    "keys.paintLeft": "crtati lijevim kistom",
+    "keys.paintRight": "crtati desnim kistom",
+    "keys.rotate": "Shift i klik okreće na mjestu",
+    "keys.swapBrushes": "zamijeniti dva kista",
+    "keys.tunnelId": "broj tunela",
+    "keys.shiftBoard": "pomaknuti polje",
+    "keys.clearField": "isprazniti polje",
+    "keys.difficulty": "težina",
+    "keys.saveLevel": "spremiti razinu",
+    "keys.fields": "naziv / autor / savjet",
+    "keys.leaveEditor": "izaći iz uređivača",
+
+    "quit.title": "Izaći iz LaserTanka?",
+    "quit.body": "razina na kojoj si neće biti spremljena",
+    "quit.bodyWon": "ova je razina riješena — sljedeća je na S",
+    "quit.yes": "izađi",
+    "quit.no": "nastavi igrati",
+
+    "levels.title": "Razine",
+    "levels.count": "{0} razina",
+    "levels.countFiltered": "{0} od {1} razina",
+    "levels.solved": "{0} riješeno",
+    "levels.unreadable": "datoteku s razinama nije bilo moguće pročitati",
+    "levels.noMatch": "nijedna razina ne odgovara filtru",
+    "levels.search": "traži po nazivu ili broju",
+    "levels.byName": "naziv",
+    "levels.byAuthor": "autor",
+    "levels.unsolved": "neriješene",
+    "levels.colNumber": "#",
+    "levels.colName": "razina",
+    "levels.colAuthor": "autor",
+    "levels.colMoves": "potez",
+    "levels.colShots": "hici",
+    "levels.colWho": "tko",
+    "levels.groupBest": "svjetski rekord",
+    "levels.groupYours": "tvoji",
+    "levels.marks": "·  * riješeno  ** norma  *** bolje",
+    "levels.footerFull": "↑↓ ili kotačić bira · Enter učitava · tipkanje filtrira · Tab naziv/autor · Ctrl+1-5 težina · Ctrl+U neriješene · Esc zatvara",
+    "levels.footerMid": "↑↓ bira · Enter učitava · tipkanje filtrira · Tab naziv/autor · Esc zatvara",
+    "levels.footerShort": "tipkanje filtrira · Enter učitava · Esc zatvara",
+
+    "coll.title": "Zbirke",
+    "coll.count": "{0} datoteka s razinama",
+    "coll.empty": "nijedna datoteka .lvl pod {0}",
+    "coll.colName": "zbirka",
+    "coll.colSolved": "riješeno",
+    "coll.colWhere": "gdje",
+    "coll.more": "još {0} · pomakni",
+    "coll.footerFull": "↑↓ ili kotačić bira · Enter ili drugi klik otvara · Esc ili klik izvan zatvara",
+    "coll.footerMid": "↑↓ ili kotačić bira · Enter otvara · Esc ili klik izvan zatvara",
+    "coll.footerShort": "↑↓ bira · Enter otvara · Esc zatvara",
+
+    "shelf.collections": "Zbirke",
+    "shelf.collectionsBlurb": "sama igra — svaka razina ima svjetski rekord koji se može oboriti",
+    "shelf.tutorials": "Vježbe",
+    "shelf.tutorialsBlurb": "kratke datoteke koje uče objekte i trikove",
+    "shelf.walkthroughs": "Rješenja",
+    "shelf.walkthroughsBlurb": "jedna teška razina izvornika, prikazana u fazama",
+    "shelf.yours": "Tvoje razine",
+    "shelf.yoursBlurb": "sve što je uređivač spremio",
+
+    "note.lasertank": "Izvorna datoteka — igra onakva kakvu je Jim Kindley objavio, i još uvijek mjesto gdje svi počinju.",
+    "note.challenge1": "Za dan kad izvornik ponestane. Još pet datoteka pune duljine, nijedna blaža ni lakša.",
+    "note.challenge2": "Druga od pet koje nastavljaju ondje gdje izvorna datoteka staje.",
+    "note.challenge3": "Treća od pet koje nastavljaju ondje gdje izvorna datoteka staje.",
+    "note.challenge4": "Četvrta od pet koje nastavljaju ondje gdje izvorna datoteka staje.",
+    "note.challenge5": "Posljednja od pet i jedina koja još raste — nove razine prvo stižu ovamo.",
+    "note.beginner1": "Razine koje su ostale datoteke odbile kao prelagane, što ovu čini mjestom za učenje.",
+    "note.beginner2": "Još istoga: blagi kraj zbirke i datoteka koju se daje djetetu.",
+    "note.sokoban1": "Zagonetke guranja u duhu Sokobana, s tenkom i laserom umjesto skladištara.",
+    "note.sokoban2": "Druga Sokoban datoteka. Ista zamisao, manje mjesta za okretanje.",
+    "note.gary1": "Garyjevi nizovi, izvučeni iz glavnih datoteka: jedna zamisao po jedna, razrađena do kraja.",
+    "note.gary2": "Ostatak Garyjevih razina i najmanja od trinaest datoteka.",
+    "note.special1": "Ostaci — razine koje su ostale datoteke odbile kao predugačke, previše slične ili previše čudne.",
+    "note.objects": "Jedna razina po objektu, svaka sa snimljenim rješenjem: što radi svako polje u igri.",
+    "note.tutorPlaybacks": "Tečaj za početnike, svaka razina sa snimljenim rješenjem. Počni ovdje ako su ti objekti novi.",
+    "note.tutor": "Specifikacija trikova: jedna razina po nedokumentiranom ponašanju, svaka objašnjena u vlastitom savjetu. Većina su greške koje je autor namjerno ostavio.",
+    "note.rotary": "Rotirajuća zrcala i ništa drugo, svaka razina sa svojom snimkom — jedini objekt vrijedan zasebne datoteke.",
+    "note.tricks": "Razine sastavljene od trikova iz datoteke Tutor, napravljene više za gledanje nego za igranje.",
+    "note.pono": "Mauove razine o Ponovu triku: kako prijeći tanki led a da ne pukne.",
+    "note.l40": "Razina 40 izvornika, „Down the Drain”, razložena korak po korak. Autor: „Trebala su mi četiri sata za ovu.”",
+    "note.triangles": "Razina 149 izvornika, „The 4 Triangles”, razlomljena na etape.",
+    "note.telekinesis": "Razina 173 izvornika, „Telekinesis”, s položajima koji je odaju.",
+    "note.inchworm": "Razina 179 izvornika, „Being an Inchworm”, s položajem koji je odaje.",
+
+    "gfx.title": "Grafika",
+    "gfx.author": "autor",
+    "gfx.internal": "Ugrađena grafika",
+    "gfx.user": "Vlastita grafika",
+    "gfx.notFound": "(nije pronađeno)",
+    "gfx.snap": "Poravnaj",
+    "gfx.footer": "↑↓ ili klik bira · 1/2/3 ili Z poravnava · Enter, Esc ili klik izvan zatvara",
+
+    "lang.title": "Jezik",
+    "lang.credit": "preveo {0}",
+    "lang.footer": "↑↓ ili klik bira · Enter, Esc ili klik izvan zatvara",
+
+    "ed.enter": "Uređivač  ·  F1 popisuje tipke, F9 izlazi, Ctrl+S sprema",
+    "ed.left": "izlaz iz uređivača",
+    "ed.leftModified": "izlaz iz uređivača — nespremljene promjene i dalje su na polju",
+    "ed.tunnel": "tunel broj {0}",
+    "ed.difficulty": "težina: {0}",
+    "ed.cleared": "isprazno — Ctrl+S sprema to kao novu razinu",
+    "ed.saved": "razina {0} spremljena u {1}",
+    "ed.savedCopy": "razina {0} spremljena u {1}  (kopija — data/ je referentna zbirka)",
+    "ed.saveFailed": "spremanje nije uspjelo: {0}",
+    "ed.palette": "Paleta",
+    "ed.brushLeft": "lijevi",
+    "ed.brushRight": "desni",
+    "ed.fieldName": "naziv",
+    "ed.fieldAuthor": "autor",
+    "ed.fieldHint": "savjet",
+    "ed.modified": "promijenjeno",
+    "ed.keys": "tipke uređivača",
+
+    "obj.dirt": "zemlja",
+    "obj.tank": "tenk",
+    "obj.flag": "zastava",
+    "obj.water": "voda",
+    "obj.solid": "čvrsti blok",
+    "obj.block": "pomični blok",
+    "obj.bricks": "cigle",
+    "obj.mirrorUL": "zrcalo ↖",
+    "obj.mirrorUR": "zrcalo ↗",
+    "obj.mirrorDR": "zrcalo ↘",
+    "obj.mirrorDL": "zrcalo ↙",
+    "obj.rotoUL": "rotirajuće zrcalo ↖",
+    "obj.rotoUR": "rotirajuće zrcalo ↗",
+    "obj.rotoDR": "rotirajuće zrcalo ↘",
+    "obj.rotoDL": "rotirajuće zrcalo ↙",
+    "obj.onewayUp": "jednosmjerno ↑",
+    "obj.onewayRight": "jednosmjerno →",
+    "obj.onewayDown": "jednosmjerno ↓",
+    "obj.onewayLeft": "jednosmjerno ←",
+    "obj.crystal": "kristalni blok",
+    "obj.antitankUp": "protutenkovski top ↑",
+    "obj.antitankRight": "protutenkovski top →",
+    "obj.antitankDown": "protutenkovski top ↓",
+    "obj.antitankLeft": "protutenkovski top ←",
+    "obj.ice": "led",
+    "obj.thinIce": "tanki led",
+    "obj.tunnel": "tunel",
+
+    "err.cannotRead": "{0} se ne može pročitati: {1}",
+    "err.cannotLoadLevel": "razinu {0} iz {1} nije moguće učitati",
+    "err.playbackMismatch": "„{0}” nije razina {1} datoteke {2} — ondje je „{3}”"
+  }
 }

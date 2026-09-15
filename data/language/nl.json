@@ -1,509 +1,266 @@
 {
- "code": "nl",
- "name": "Dutch",
- "author": "Ron Meijer",
- "sourceDir": "Du",
- "sourceName": "Dutch (95% complete)",
- "sourceEncoding": "cp1252",
- "sourceLines": 239,
- "buttons": {
-  "ButText1": "Undo",
-  "ButText2": "Positie Opslaan",
-  "ButText3": "Herstel Positie",
-  "ButText4": "Nieuw",
-  "ButText5": "<< Spel",
-  "ButText6": "Spel >>",
-  "ButText7": "Hint",
-  "ButText8": "Herstart",
-  "ButText9": "Open het Spel"
- },
- "text": {
-  "txt001": "The Level file can not be found\nPlease select a new one",
-  "txt002": "Spel Bestanden (*.LVL)",
-  "txt004": "Gebruik alleen LaserTank Level Bestanden",
-  "txt005": "Playback Bestanden (*.LPB)",
-  "txt006": "Save Playback File",
-  "txt007": "LaserTank Fout",
-  "txt008": "Oude Hoogste Score > B:",
-  "txt009": "B: ",
-  "txt010": " S: ",
-  "txt011": " I: ",
-  "txt012": "Gefeliciteerd Je hebt hem verslagen !!",
-  "txt013": "Playback Bestand : ",
-  "txt014": "\nRecord Maker",
-  "txt015": "\nCan Not be found in the current level file\n< ",
-  "txt016": "Wil je blijven opnemen?",
-  "txt017": "&Speel",
-  "txt018": "&Pauze",
-  "txt019": "Out of Memory - Undo Roll Over",
-  "txt020": "Open Playback bestand",
-  "txt021": "LaserTank Hint",
-  "txt022": "Spel NIET OPGESLAGEN, Bestand Opslaan ?",
-  "txt023": " - Kinderen",
-  "txt024": " - Eenvoudig",
-  "txt025": " - Middel",
-  "txt026": " - Heftig",
-  "txt027": " - Dodelijk",
-  "txt028": " - [Bewerker]",
-  "txt029": "LaserTank Bewerker",
-  "txt031": "Kan niet gevonden worden in het huidige bestand",
-  "txt032": "spel.bmp en/of masker.bmp Niet Gevonden",
-  "txt033": "Open Afspeel bestand voor vervolg",
-  "txt034": "Te&rug naar het Spel",
-  "txt035": "< GEEN HINT VOOR DIT SPEL BIJGELEVERD >",
-  "txt036": "LaserTank Spel #",
-  "txt037": "Zoek LaserTank Grafisch Bestands-map",
-  "txt038": "Spel Loopt ...",
-  "txt039": "Je verliest de Spel Gegevens.\nWil je het Spel Opslaan ?",
-  "txt040": "Beat",
-  "txt041": "Alles",
-  "txt042": "Completed %d of %d levels",
-  "txt043": "Difficulty Set = ",
-  "txt044": "KEMHD",
-  "txt045": "LaserTank Graphics file Not Found !",
-  "REC_Title": " LaserTank *** OPNAME ***",
-  "help01": "Editor Instructions",
-  "help02": "Revisions",
-  "help03": "Writing Your Own Levels",
-  "HelpFileName": "Language\\LaserTankDu.hlp"
- },
- "dialogs": {
-  "ID_ABOUTBOX_00": "Over LaserTank",
-  "ID_ABOUTBOX_OK": "&Ok",
-  "ID_ABOUTBOX_04": "By Jim Kindley",
-  "ID_ABOUTBOX_06": "Versie",
-  "ID_DEADBOX_UNDO": "Ter&ug laatste zet",
-  "ID_DEADBOX_DEAD": "JE BENT DOOD ! ! !",
-  "ID_DEADBOX_RESTART": "Te&rug Begin",
-  "ID_DIFFBOX_00": "Spel Moeilijkheid",
-  "ID_DIFFBOX_01": "&Ok",
-  "ID_DIFFBOX_02": "&Kinderen",
-  "ID_DIFFBOX_03": "&Eenvoudig",
-  "ID_DIFFBOX_04": "&Middel",
-  "ID_DIFFBOX_05": "&Heftig",
-  "ID_DIFFBOX_06": "&Dodelijk",
-  "ID_DIFFBOX_07": "&Alle",
-  "ID_DIFFBOX_08": "Zoek uit",
-  "ID_GRAPHBOX_00": "Selecteer Grafisch Bestand",
-  "ID_GRAPHBOX_01": "Selecteer:",
-  "ID_GRAPHBOX_02": "&Bestaand Grafische",
-  "ID_GRAPHBOX_03": "&Eigen Grafische",
-  "ID_GRAPHBOX_04": "&Sluit",
-  "ID_GRAPHBOX_05": "Maker :",
-  "ID_GRAPHBOX_06": "LaserTank Grafische Achtergrond",
-  "ID_GRAPHBOX_08": "Bekijk &Openings Beeld",
-  "ID_GRAPHBOX_09": "&Verander Bestand",
-  "ID_LOADLEV_00": "Zoek Spel om te Openen",
-  "ID_LOADLEV_01": "&Herstel",
-  "ID_LOADLEV_03": "&Filter",
-  "ID_LOADLEV_04": "  Bestand:",
-  "ID_LOADLEV_05": "- Fout met het Openen -",
-  "ID_LOADLEV_06": "Spel   Naam                           Maker",
-  "ID_LOADLEV_07": "of Spel nummer intoetsen >>",
-  "ID_HINTBOX_00": "Maak je Hint",
-  "ID_HINTBOX_01": "&Ok",
-  "ID_HINTBOX_02": "&Herstel",
-  "ID_SEARCH_00": "Filter voor Spelletjes",
-  "ID_SEARCH_01": "Vul Zoekopdracht in :",
-  "ID_SEARCH_02": "Zoek Bij",
-  "ID_SEARCH_03": "&Titel",
-  "ID_SEARCH_04": "M&aker",
-  "ID_SEARCH_05": "&Herstel",
-  "ID_SEARCH_06": "&Ok",
-  "ID_SEARCH_08": "Alleen &Onopgeloste",
-  "ID_SEARCH_09": "&Filter moeilijkheid",
-  "ID_SEARCH_10": "&Kinderen",
-  "ID_SEARCH_11": "&Eenvoudig",
-  "ID_SEARCH_12": "&Middel",
-  "ID_SEARCH_13": "&Heftig",
-  "ID_SEARCH_14": "&Dodelijk",
-  "ID_RETBOX_00": "Te&rug naar het Spel",
-  "ID_WINBOX_00": "&Ok",
-  "ID_WINBOX_01": "Je wint!",
-  "ID_WINBOX_02": "Spel:",
-  "ID_WINBOX_03": "- Fout -",
-  "ID_LOADTID_00": "Zoek Soort Tunnel #",
-  "ID_LOADTID_03": "&Ok",
-  "ID_LOADTID_04": "Toets Nummer voor deze Tunnel in",
-  "ID_HIGHBOX_00": "! Nieuwste Record !",
-  "ID_HIGHBOX_01": "&Ok",
-  "ID_HIGHBOX_02": "Spel Nummer :",
-  "ID_HIGHBOX_03": "Spel Naam   :",
-  "ID_HIGHBOX_04": "Zet:",
-  "ID_HIGHBOX_05": "Schot:",
-  "ID_HIGHBOX_10": "Initialen:",
-  "ID_HIGHBOX_12": "Wereld Rec:",
-  "ID_HIGHBOX_13": "- No Data -",
-  "ID_HIGHLIST_00": "Hoogste Punten",
-  "ID_HIGHLIST_01": "&Ok",
-  "ID_HIGHLIST_02": "- Fout met Openen -",
-  "ID_HIGHLIST_03": "Spel  Naam                        Beweging Schot Initialen",
-  "ID_GHIGHLIST_00": "Wereld Record",
-  "ID_GHIGHLIST_01": "&Ok",
-  "ID_GHIGHLIST_02": "Spel  Naam                             B      S   Init   B     S  Init",
-  "ID_GHIGHLIST_03": "Wereld",
-  "ID_GHIGHLIST_04": "JIJ",
-  "ID_GHIGHLIST_05": "- geen Data -",
-  "ID_GHIGHLIST_06": "&Beste",
-  "ID_RECBOX_00": "Opname Spel",
-  "ID_RECBOX_01": "Hier je naam invullen",
-  "ID_RECBOX_02": "&Ok",
-  "ID_PLAYBOX_00": "Spel Afspelen",
-  "ID_PLAYBOX_01": "S&luit",
-  "ID_PLAYBOX_02": "S&peel",
-  "ID_PLAYBOX_03": "&Opnieuw",
-  "ID_PLAYBOX_04": "&Snel",
-  "ID_PLAYBOX_05": "&Rustig",
-  "ID_PLAYBOX_06": "S&tap",
-  "ID_PLAYBOX_07": "Stap :",
-  "ID_PLAYBOX_08": "van",
-  "ID_PLAYBOX_11": "Snelheid",
-  "ID_PICKLEVEL_00": "Sla LaserTank Spel Op",
-  "ID_PICKLEVEL_01": "&Ok",
-  "ID_PICKLEVEL_02": "Toets het Spel-nummer in",
-  "ID_PICKLEVEL_03": "Als :",
-  "ID_PICKLEVEL_06": "= Add",
-  "ID_PICKLEVEL_08": "S&choonmaken punten"
- },
- "about": [
-  "     Laser Tank is HelpWare en je kunt het gratis gebruiken.\n\n",
-  "     Nadat je een geoefend speler bent geworden, zou je misschien een of twee spelletjes (Levels) willen maken, met gebruikmaking van de Level Editor en ze dan naar ons toesturen met je playback (LPB files).\n\n",
-  "     We zullen de software en alle goede spelletjes die toegezonden zijn zo nu en dan bijwerken (\"updaten\"). Zie:\"je eigen spelletjes maken\" en \"opnemen & afspelen\"in het help file.\n\n",
-  "     (Wees alstjeblieft inventief en probeer niet datgene dat al bestaat te imiteren.)\n",
-  "     (Er zijn al zo veel spelletjes te vinden op de LaserTank WEB site.)\n\n",
-  "     Als U één van de High Scores verslagen heeft en U heeft het meest recente Wereld record, de Global High Score file, stuur me dan een zip met de playbacks van dit nummer en het LaserTank.hs bestand.\n\n",
-  "     U kunt me de bestanden e-mailen naar:\n",
-  "\t      lasertank@globetrotter.net\n\n",
-  "     Voor nieuwe levels, andere grafisch bewerkingen & de meest recente Global High Score file, kijk bij:\n",
-  "     LaserTank WEB site:\n",
-  "        http://www.jccontrols.net/laser\n",
-  "     For Help or more info about this game join or check out the Yahoo Group at :\n",
-  "        http://groups.yahoo.com/lasertank\n"
- ],
- "menu": {
-  "main": [
-   {
-    "text": "&Spel",
-    "items": [
-     {
-      "text": "&Nieuw",
-      "cmd": 101,
-      "accel": "F2"
-     },
-     {
-      "text": "Open Spe&l...",
-      "cmd": 106,
-      "accel": "L"
-     },
-     {
-      "text": "&Sla Spel over",
-      "cmd": 107,
-      "accel": "S"
-     },
-     {
-      "text": "S&pel Hiervoor",
-      "cmd": 119,
-      "accel": "P"
-     },
-     {
-      "text": "Laast Gespeel&de Spel",
-      "cmd": 118,
-      "accel": "BkSp"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Open Bestand...",
-      "cmd": 108,
-      "accel": "O"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Voor Jouw Hoogste Punten",
-      "cmd": 113,
-      "accel": "V"
-     },
-     {
-      "text": "&Gehele Wereld Punten",
-      "cmd": 906,
-      "accel": "G"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Record (Opname) Spel",
-      "cmd": 123,
-      "accel": "F5"
-     },
-     {
-      "text": "Bew&aar Recording",
-      "cmd": 117,
-      "accel": "F6"
-     },
-     {
-      "text": "Herstart Re&cording",
-      "cmd": 125,
-      "accel": "F8"
-     },
-     {
-      "text": "Play&back (Afspelen) Spel...",
-      "cmd": 114,
-      "accel": "F7"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Uitpr&inten Spelveld",
-      "cmd": 126
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Afsluit&en",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "&Zet",
-    "items": [
-     {
-      "text": "He&rstart",
-      "cmd": 105,
-      "accel": "R"
-     },
-     {
-      "text": "Ter&ug Laatste Zet/Schot",
-      "cmd": 110,
-      "accel": "U"
-     },
-     {
-      "text": "&Sla Positie op",
-      "cmd": 111,
-      "accel": "Ctrl+C"
-     },
-     {
-      "text": "Herstart &Positie",
-      "cmd": 112,
-      "accel": "Crtl+V"
-     },
-     {
-      "text": "Afspelen (RePla&y)",
-      "cmd": 124,
-      "accel": "F4"
-     }
-    ]
-   },
-   {
-    "text": "&Mogelijkheden",
-    "items": [
-     {
-      "text": "&Animatie",
-      "cmd": 104,
-      "accel": "A"
-     },
-     {
-      "text": "Gelui&den",
-      "cmd": 102,
-      "accel": "N"
-     },
-     {
-      "text": "&Registreer Laatste Spel",
-      "cmd": 109
-     },
-     {
-      "text": "Sla Voltoo&id Spel over",
-      "cmd": 116
-     },
-     {
-      "text": "Au&tomatisch Opnemen",
-      "cmd": 115
-     },
-     {
-      "text": "Zet &Waarschuwingen uit",
-      "cmd": 127
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Gr&ootte",
-      "items": [
-       {
-        "text": "&Klein",
-        "cmd": 120
-       },
-       {
-        "text": "&Middel",
-        "cmd": 121
-       },
-       {
-        "text": "&Groot",
-        "cmd": 122
-       }
-      ]
-     },
-     {
-      "text": "Verander Moeilijkhei&d...",
-      "cmd": 225,
-      "accel": "D"
-     },
-     {
-      "text": "Verander &Grafisch ...",
-      "cmd": 226,
-      "accel": "Ctrl+G"
-     }
-    ]
-   },
-   {
-    "text": "B&ewerker [F9]",
-    "cmd": 201
-   },
-   {
-    "text": "&Help",
-    "items": [
-     {
-      "text": "&Hint",
-      "cmd": 301,
-      "accel": "H"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Index",
-      "cmd": 902
-     },
-     {
-      "text": "&Quick Hulp",
-      "cmd": 907,
-      "accel": "F1"
-     },
-     {
-      "text": "Ove&rzicht",
-      "cmd": 904
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Alles van het Spel",
-      "cmd": 901
-     }
-    ]
-   }
-  ],
-  "editor": [
-   {
-    "text": "B&ewerker",
-    "items": [
-     {
-      "text": "Terrein S&choonmaken",
-      "cmd": 601,
-      "accel": "Ctrl+C"
-     },
-     {
-      "text": "Spe&l Openen...",
-      "cmd": 602,
-      "accel": "Ctrl+L"
-     },
-     {
-      "text": "&Spel Opslaan",
-      "cmd": 603,
-      "accel": "Ctrl+S"
-     },
-     {
-      "text": "Opslaan &Als...",
-      "cmd": 606
-     },
-     {
-      "text": "Afsluit&en",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "&Hint",
-    "cmd": 605
-   },
-   {
-    "text": "&Shift",
-    "items": [
-     {
-      "text": "&Rechts",
-      "cmd": 710,
-      "accel": "Ctrl+Richting"
-     },
-     {
-      "text": "&Links",
-      "cmd": 711
-     },
-     {
-      "text": "&Boven",
-      "cmd": 712
-     },
-     {
-      "text": "Bene&den",
-      "cmd": 713
-     }
-    ]
-   },
-   {
-    "text": "&Sluit Bewerker [F9]",
-    "cmd": 604
-   },
-   {
-    "text": "Moeilijkhei&d",
-    "items": [
-     {
-      "text": "&Kinderen",
-      "cmd": 701
-     },
-     {
-      "text": "&Eenvoudig",
-      "cmd": 702
-     },
-     {
-      "text": "&Middel",
-      "cmd": 703
-     },
-     {
-      "text": "&Heftig",
-      "cmd": 704
-     },
-     {
-      "text": "&Dodelijk",
-      "cmd": 705
-     }
-    ]
-   },
-   {
-    "text": "&Help",
-    "items": [
-     {
-      "text": "B&ewerker",
-      "cmd": 903,
-      "accel": "F1"
-     },
-     {
-      "text": "Spelletjes ont&werpen",
-      "cmd": 905
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&Alles van het Spel",
-      "cmd": 901
-     }
-    ]
-   }
-  ]
- }
+  "code": "nl",
+  "name": "Dutch",
+  "credit": "",
+  "strings": {
+    "app.titleRecording": "{0} — opname loopt",
+
+    "pill.rec": "opname",
+    "pill.playback": "afspelen",
+    "pill.editor": "editor",
+    "pill.muted": "gedempt",
+    "pill.still": "stil",
+    "pill.snap": "{0} px",
+    "pill.snapFit": "{0} px passend",
+
+    "info.levelOf": "Level {0} / {1}",
+    "info.untitled": "(naamloos)",
+    "info.moves": "zetten",
+    "info.shots": "schoten",
+    "info.par": "richtwaarde",
+    "info.allKeys": "alle toetsen",
+    "info.hint": "Hint  ·  H verbergt hem",
+
+    "action.undo": "ongedaan",
+    "action.restart": "opnieuw",
+    "action.hint": "hint",
+    "action.levels": "levels & records",
+    "action.collections": "verzamelingen",
+
+    "rank.unrated": "niet ingedeeld",
+    "rank.kids": "Kinderen",
+    "rank.easy": "Makkelijk",
+    "rank.medium": "Middel",
+    "rank.hard": "Moeilijk",
+    "rank.deadly": "Dodelijk",
+
+    "status.default": "pijltjes rijden · spatie schiet · U ongedaan · R opnieuw · F1 toetsen",
+    "status.dead": "Je tank is vernietigd  ·  U maakt de laatste zet ongedaan, R begint het level opnieuw",
+    "status.nothingToUndo": "er valt niets meer ongedaan te maken",
+    "status.positionSaved": "positie bewaard",
+    "status.noSavedPosition": "in dit level is geen positie bewaard",
+    "status.gridOn": "raster aan",
+    "status.gridOff": "raster uit",
+    "status.animationOn": "animatie aan",
+    "status.animationOff": "animatie uit",
+    "status.autoRecordOn": "elk level wordt opgenomen",
+    "status.autoRecordOff": "niet meer elk level wordt opgenomen",
+    "status.noHint": "dit level heeft geen hint",
+    "status.recordingOn": "opname loopt",
+    "status.recordingOff": "opname gestopt",
+    "status.notRecording": "er loopt geen opname — F5 start er een",
+    "status.recordingSaved": "opname bewaard in {0}",
+    "status.collectionOpened": "{0} — {1} levels",
+    "status.cannotOpen": "{0} kan niet worden geopend",
+    "status.playing": "{0} wordt afgespeeld",
+    "status.noRecording": "geen opname van dit level, niet in out/recordings/ en niet naast het .lvl-bestand",
+    "status.noLevel": "geen level geladen",
+    "status.packFallback": "{0} — de interne graphics worden gebruikt",
+
+    "win.solved": "Opgelost",
+    "win.playback": "het afspelen bereikte de vlag",
+    "win.next": "Enter voor het volgende level, F6 bewaart de opname",
+    "win.worldBest": "een nieuw wereldrecord",
+    "win.personalBest": "je beste resultaat tot nu toe",
+    "win.standing": "je record blijft {0}",
+    "win.par": "richtwaarde {0}/{1}",
+    "win.notWritten": "record niet weggeschreven: {0}",
+    "score.record": "{0} zetten, {1} schoten, van {2}",
+
+    "pb.title": "Afspelen  ·  {0}",
+    "pb.recordedBy": "opgenomen door {0}",
+    "pb.play": "afspelen",
+    "pb.pause": "pauze",
+    "pb.reset": "opnieuw",
+    "pb.close": "sluiten",
+    "pb.fast": "snel",
+    "pb.slow": "langzaam",
+    "pb.step": "stap voor stap",
+
+    "help.title": "Toetsen",
+    "help.titleEditor": "Toetsen van de editor",
+    "help.close": "F1 of Esc sluit",
+    "help.groupPlay": "Spel",
+    "help.groupLevels": "Levels",
+    "help.groupRecording": "Opname",
+    "help.groupView": "Weergave",
+    "help.groupSession": "Sessie",
+    "help.groupPaint": "Tekenen",
+    "help.groupBoard": "Speelveld",
+    "help.groupFile": "Bestand",
+
+    "keys.move": "de tank besturen",
+    "keys.fire": "schieten",
+    "keys.undo": "de laatste zet ongedaan maken",
+    "keys.restart": "het level opnieuw beginnen",
+    "keys.hint": "de hint tonen of verbergen",
+    "keys.savePos": "deze positie bewaren",
+    "keys.restorePos": "ernaar terugkeren",
+    "keys.levels": "levels en records",
+    "keys.collections": "een verzameling kiezen",
+    "keys.nextLevel": "volgend level",
+    "keys.prevLevel": "vorig level",
+    "keys.newGame": "opnieuw beginnen",
+    "keys.record": "opname starten of stoppen",
+    "keys.saveRecording": "de opname bewaren",
+    "keys.playback": "er een afspelen",
+    "keys.replay": "dit level opnieuw afspelen",
+    "keys.autoRecord": "elk level opnemen",
+    "keys.snap": "vastzetten op 24 / 32 / 40 px",
+    "keys.grid": "het raster A1–P16",
+    "keys.interpolate": "vloeiend of per vak bewegen",
+    "keys.sound": "geluid",
+    "keys.animation": "animatie",
+    "keys.graphics": "graphicspakket",
+    "keys.language": "taal",
+    "keys.editor": "de leveleditor",
+    "keys.thisList": "deze lijst",
+    "keys.quit": "afsluiten — het vraagt eerst",
+    "keys.paintLeft": "met het linkerpenseel tekenen",
+    "keys.paintRight": "met het rechterpenseel tekenen",
+    "keys.rotate": "Shift-klik draait op zijn plaats",
+    "keys.swapBrushes": "de twee penselen verwisselen",
+    "keys.tunnelId": "het tunnelnummer",
+    "keys.shiftBoard": "het speelveld verschuiven",
+    "keys.clearField": "het speelveld leegmaken",
+    "keys.difficulty": "de moeilijkheid",
+    "keys.saveLevel": "het level bewaren",
+    "keys.fields": "naam / auteur / hint",
+    "keys.leaveEditor": "de editor verlaten",
+
+    "quit.title": "LaserTank afsluiten?",
+    "quit.body": "het level waar je in zit wordt niet bewaard",
+    "quit.bodyWon": "dit level is opgelost — het volgende zit op S",
+    "quit.yes": "afsluiten",
+    "quit.no": "doorspelen",
+
+    "levels.title": "Levels",
+    "levels.count": "{0} levels",
+    "levels.countFiltered": "{0} van {1} levels",
+    "levels.solved": "{0} opgelost",
+    "levels.unreadable": "het levelbestand kon niet worden gelezen",
+    "levels.noMatch": "geen enkel level past bij het filter",
+    "levels.search": "zoek op naam of nummer",
+    "levels.byName": "naam",
+    "levels.byAuthor": "auteur",
+    "levels.unsolved": "onopgelost",
+    "levels.colNumber": "#",
+    "levels.colName": "level",
+    "levels.colAuthor": "auteur",
+    "levels.colMoves": "zet",
+    "levels.colShots": "schot",
+    "levels.colWho": "wie",
+    "levels.groupBest": "wereldrecord",
+    "levels.groupYours": "jouw",
+    "levels.marks": "·  * opgelost  ** richtwaarde  *** beter",
+    "levels.footerFull": "↑↓ of wiel kiest · Enter laadt · typen filtert · Tab naam/auteur · Ctrl+1-5 niveaus · Ctrl+U onopgelost · Esc sluit",
+    "levels.footerMid": "↑↓ kiest · Enter laadt · typen filtert · Tab naam/auteur · Esc sluit",
+    "levels.footerShort": "typen filtert · Enter laadt · Esc sluit",
+
+    "coll.title": "Verzamelingen",
+    "coll.count": "{0} levelbestanden",
+    "coll.empty": "geen .lvl-bestand onder {0}",
+    "coll.colName": "verzameling",
+    "coll.colSolved": "opgelost",
+    "coll.colWhere": "waar",
+    "coll.more": "nog {0} · scroll",
+    "coll.footerFull": "↑↓ of wiel kiest · Enter of een tweede klik opent · Esc of een klik ernaast sluit",
+    "coll.footerMid": "↑↓ of wiel kiest · Enter opent · Esc of een klik ernaast sluit",
+    "coll.footerShort": "↑↓ kiest · Enter opent · Esc sluit",
+
+    "shelf.collections": "Verzamelingen",
+    "shelf.collectionsBlurb": "het eigenlijke spel — elk level met een wereldrecord om te verslaan",
+    "shelf.tutorials": "Lesbestanden",
+    "shelf.tutorialsBlurb": "korte bestanden die de objecten en de trucs uitleggen",
+    "shelf.walkthroughs": "Oplossingen",
+    "shelf.walkthroughsBlurb": "één moeilijk level uit het origineel, in stappen voorgedaan",
+    "shelf.yours": "Jouw levels",
+    "shelf.yoursBlurb": "alles wat de editor heeft bewaard",
+
+    "note.lasertank": "Het oorspronkelijke bestand — het spel zoals Jim Kindley het uitbracht, en nog altijd waar iedereen begint.",
+    "note.challenge1": "Voor als het origineel op is. Nog vijf bestanden van volle lengte, geen ervan milder of makkelijker.",
+    "note.challenge2": "De tweede van de vijf die verdergaan waar het oorspronkelijke bestand ophoudt.",
+    "note.challenge3": "De derde van de vijf die verdergaan waar het oorspronkelijke bestand ophoudt.",
+    "note.challenge4": "De vierde van de vijf die verdergaan waar het oorspronkelijke bestand ophoudt.",
+    "note.challenge5": "De laatste van de vijf, en de enige die nog groeit — nieuwe levels komen hier het eerst terecht.",
+    "note.beginner1": "Levels die de andere bestanden te makkelijk vonden, en juist daarom de plek om te leren.",
+    "note.beginner2": "Meer van hetzelfde: het zachte einde van de verzameling, en het bestand dat je een kind geeft.",
+    "note.sokoban1": "Duwpuzzels in de geest van Sokoban, met een tank en een laser waar de magazijnknecht stond.",
+    "note.sokoban2": "Het tweede Sokoban-bestand. Hetzelfde idee, minder ruimte om te keren.",
+    "note.gary1": "Gary's reeksen, uit de hoofdbestanden gelicht: één idee tegelijk, tot het op is.",
+    "note.gary2": "De rest van Gary's levels, en het kleinste van de dertien bestanden.",
+    "note.special1": "De restanten — levels die de andere bestanden afwezen omdat ze te lang, te gelijkend of te vreemd waren.",
+    "note.objects": "Eén level per object, elk met zijn oplossing opgenomen: wat elke tegel in het spel doet.",
+    "note.tutorPlaybacks": "De cursus voor beginners, elk level met zijn oplossing opgenomen. Begin hier als de objecten nieuw voor je zijn.",
+    "note.tutor": "De specificatie van de trucs: één level per ongedocumenteerd gedrag, elk uitgelegd in zijn eigen hint. De meeste zijn fouten die de auteur er met opzet in liet.",
+    "note.rotary": "Draaispiegels en verder niets, elk level met zijn opname — het ene object dat een eigen bestand verdient.",
+    "note.tricks": "Levels gebouwd op de trucs uit Tutor, gemaakt om naar te kijken in plaats van tegen te vechten.",
+    "note.pono": "Mau's levels over de truc van Pono: hoe je dun ijs oversteekt zonder het te breken.",
+    "note.l40": "Level 40 uit het origineel, “Down the Drain”, stap voor stap uitgevouwen. De auteur: “Ik heb er vier uur over gedaan.”",
+    "note.triangles": "Level 149 uit het origineel, “The 4 Triangles”, in etappes opgedeeld.",
+    "note.telekinesis": "Level 173 uit het origineel, “Telekinesis”, met de stellingen die het weggeven.",
+    "note.inchworm": "Level 179 uit het origineel, “Being an Inchworm”, met de stelling die het weggeeft.",
+
+    "gfx.title": "Graphics",
+    "gfx.author": "van",
+    "gfx.internal": "Interne graphics",
+    "gfx.user": "Eigen graphics",
+    "gfx.notFound": "(niet gevonden)",
+    "gfx.snap": "Vast",
+    "gfx.footer": "↑↓ of klik kiest · 1/2/3 of Z zet vast · Enter, Esc of een klik ernaast sluit",
+
+    "lang.title": "Taal",
+    "lang.credit": "vertaald door {0}",
+    "lang.footer": "↑↓ of klik kiest · Enter, Esc of een klik ernaast sluit",
+
+    "ed.enter": "Editor  ·  F1 toont de toetsen, F9 verlaat hem, Ctrl+S bewaart",
+    "ed.left": "editor verlaten",
+    "ed.leftModified": "editor verlaten — niet-bewaarde wijzigingen staan nog op het speelveld",
+    "ed.tunnel": "tunnelnummer {0}",
+    "ed.difficulty": "moeilijkheid: {0}",
+    "ed.cleared": "leeggemaakt — Ctrl+S bewaart het als een nieuw level",
+    "ed.saved": "level {0} bewaard in {1}",
+    "ed.savedCopy": "level {0} bewaard in {1}  (een kopie — data/ is de verzameling)",
+    "ed.saveFailed": "bewaren mislukt: {0}",
+    "ed.palette": "Palet",
+    "ed.brushLeft": "links",
+    "ed.brushRight": "rechts",
+    "ed.fieldName": "naam",
+    "ed.fieldAuthor": "van",
+    "ed.fieldHint": "hint",
+    "ed.modified": "gewijzigd",
+    "ed.keys": "toetsen van de editor",
+
+    "obj.dirt": "aarde",
+    "obj.tank": "tank",
+    "obj.flag": "vlag",
+    "obj.water": "water",
+    "obj.solid": "vast blok",
+    "obj.block": "beweegbaar blok",
+    "obj.bricks": "bakstenen",
+    "obj.mirrorUL": "spiegel ↖",
+    "obj.mirrorUR": "spiegel ↗",
+    "obj.mirrorDR": "spiegel ↘",
+    "obj.mirrorDL": "spiegel ↙",
+    "obj.rotoUL": "draaispiegel ↖",
+    "obj.rotoUR": "draaispiegel ↗",
+    "obj.rotoDR": "draaispiegel ↘",
+    "obj.rotoDL": "draaispiegel ↙",
+    "obj.onewayUp": "eenrichting ↑",
+    "obj.onewayRight": "eenrichting →",
+    "obj.onewayDown": "eenrichting ↓",
+    "obj.onewayLeft": "eenrichting ←",
+    "obj.crystal": "kristalblok",
+    "obj.antitankUp": "antitankkanon ↑",
+    "obj.antitankRight": "antitankkanon →",
+    "obj.antitankDown": "antitankkanon ↓",
+    "obj.antitankLeft": "antitankkanon ←",
+    "obj.ice": "ijs",
+    "obj.thinIce": "dun ijs",
+    "obj.tunnel": "tunnel",
+
+    "err.cannotRead": "{0} kan niet worden gelezen: {1}",
+    "err.cannotLoadLevel": "level {0} uit {1} kan niet worden geladen",
+    "err.playbackMismatch": "“{0}” is niet level {1} van {2} — dat is “{3}”"
+  }
 }

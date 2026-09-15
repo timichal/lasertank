@@ -9,7 +9,12 @@ cited from elsewhere in these files. Newest last. What is *not* done is in
 
 ## ~~i18n: ISO language codes~~ — **done 2026-09-08**
 
-`data/language/` is `en.json`, `fr.json`, `de.json`, `nl.json`, `pt.json`, `es.json`, `sv.json`,
+**Superseded in part by step 13 below**, which threw the converted strings away and put the port's
+own catalogue in `data/language/` instead. What survives unchanged is everything this entry is
+actually *about*: the codes, the table under them, and the Cs/Ct finding. What no longer exists is
+`lang_check.py` and the JSON shape described at the end.
+
+`data/language/` was `en.json`, `fr.json`, `de.json`, `nl.json`, `pt.json`, `es.json`, `sv.json`,
 `hr.json`, `zh-Hans.json`, `zh-Hant.json`; the `code` field inside each, `Language.BaseCode`, the
 picker's rows and `[DATA] Language` all carry the same ISO code. What is left of the original's
 **installer-directory** names is the left column of one table, `LANGUAGES` in
@@ -54,8 +59,10 @@ worth having the day this gets a font that can render them. The picker also draw
 name as two columns instead of one padded string, since `en` and `zh-Hans` do not line up under a
 proportional font.
 
-`lang_check.py` is green on all four halves: 2,293 lines rebuilt byte for byte across the ten
-files, ten languages identical in the CLI and in the game, 5 INI checks.
+`lang_check.py` was green on all four halves: 2,293 lines rebuilt byte for byte across the ten
+files, ten languages identical in the CLI and in the game, 5 INI checks. Step 13 retired it with the
+conversion it was checking; `tools/convert_language.py` still decodes all ten `.dat` files, and the
+table above is the reason it is kept.
 
 ## ~~The level-39 report — and the oracle's one blind spot~~ — **done 2026-09-11**
 
@@ -913,3 +920,94 @@ stay converted, gate-pinned and unused, the same standing as the `ID_*` slots it
 If the port ever grows a surface where a list of *all* commands grouped by verb beats a list of
 *bound* commands grouped by task, the model is still sitting there and the top bar is where it
 goes.
+
+**Step 13 took that sentence at its word and deleted them**, along with the rest of the converted
+artifact: `Language.cs` is gone. The menu trees are still *derivable* — `tools/convert_language.py`
+reads their shape and command ids out of the frozen `lt32l_us.inc` and prints them under `--out` —
+so the model is still sitting there, one command away rather than in the tree.
+
+## ~~Step 13: i18n, the other way round~~ — **done 2026-09-15**
+
+Next-steps item 1 asked for an audit of the 155 keys per language file on one rule — *a key is read
+by a widget or it goes*. Run against the file as a whole, the rule answered **go**. `data/language/`
+is now eleven catalogues of this port's own text, keys named after the widget that draws them, and
+nothing at runtime reads a 2007 string. The section that describes what is there is
+[`ui.md`, *i18n as built*](ui.md#i18n-as-built); what follows is why it went this way and what it
+cost.
+
+**The audit's own arithmetic decided it.** Twenty-three of 155 were wired, nine of them arrived in
+step 11 and six *findings* arrived with them — `ID_SEARCH_00` is a caption and there is no dialog,
+`_02` is a group box, `_05`/`_06` are Cancel and Ok and the bar commits as you type, `_09` is a
+master checkbox that greys five buttons a row of chips does not need, `ID_LOADLEV_03` is the button
+that opened the dialog. Nine of fifteen in the one dialog anybody looked at hard is roughly the
+ratio the whole file ran at, and the ratio is the argument: the remaining slots describe a Windows
+menu bar, a nine-button control panel and sixteen dialogs, and steps 7 through 11 had replaced every
+one of them. An audit that keeps 23 keys and deletes 132 is not an audit, it is a rewrite with extra
+bookkeeping.
+
+**And the strings were not worth keeping on their own account.** `ID_DEADBOX_DEAD` is *"YOU ARE
+DEAD ! ! !"*; txt012 is *"Congratulation's You beat it !!"*, apostrophe and all. More to the point,
+several of them are *layouts* rather than strings: txt014 is `"\nRecorded by "`, a newline smuggled
+inside a translation because the original concatenates four pieces into one `MessageBox` body, and
+txt009/010/011 are `"M: "`, `" S: "`, `" I: "`, three labels each carrying its own spacing so the
+concatenation lines up. Neither is something a translator can work on. Both are one string with
+placeholders now (`pb.recordedBy`, `score.record`), which is the form that lets a clause be put in
+another language's word order.
+
+**Eleven languages, and one of them is new.** English, Czech, German, Spanish, French, Croatian,
+Dutch, Portuguese, Swedish, Simplified and Traditional Chinese — 240 keys each, 2,640 strings,
+written rather than derived from the 2007 text. Czech is the addition and it is a small joke at the
+distribution's expense: `Setups/Cs` and `Setups/Ct` are Chinese, not Czech, which is what the
+codepage measurement found in step 6, so the port is the first LaserTank with actual Czech in it.
+
+**The rule is a gate now, and that is the part that will still be true in a year.** An audit is a
+thing somebody has to remember to run again. `tools/strings_check.py` fails if a key in `en.json`
+appears in no source file, and fails if a lookup in the source names a key `en.json` does not have —
+a dead key and a label with no string are both build failures. The scan is asymmetric on purpose: a
+*lookup* is the indexer or `.F(`, and every one of those must resolve; a *mention* is any key-shaped
+string literal anywhere, which is what keeps alive the several tables that carry their keys as plain
+data (the F1 overlay's bindings, the editor's object names, `CollectionNotes`' stems). Read the
+other way round it would be wrong — a mention is not evidence a key resolves — so it only ever keeps
+a key and never demands one. Comments are stripped first, by a character walk rather than a regex,
+because the two cases that matter are exactly the ones a regex gets wrong: `"out/recordings/"` is
+not a comment and `/// `quit.title`` is.
+
+**The eleven width-capped labels are the one place a translation has a hard limit**, and they are
+capped because they are placed by character column rather than measured — over cells whose positions
+are the original's own `%4d` / `%-30.30s` / `%5d` / `%4s`. A long word there does not reflow the
+table, it lands on the next column's numbers. So German's shots column is `Sch.` and Dutch's is the
+singular `schot`, and `strings_check.WIDTHS` is why. Everything else in the interface is measured and
+the layout moves around it, which is step 7's rule and is why only eleven of 240 keys need this.
+
+**What went.** `data/language/*.json` in its old shape; `tools/lang_check.py`, all 683 lines;
+`LangDump.cs` with `--lang-dump` and `--lang-list`; `Core/Language.cs`, including the two menu trees
+the entry above this one said were converted, gate-pinned and unused — they were, and this is where
+they stop being converted too. `Step6Check`'s dump half is now `--check-strings`, and
+`TLEVELINFO.DiffNames` — the five rank words, in English, in `Core` — is `RankKeys`, because Core
+has no business holding one language's spelling of a rank while the mapping from bit to rank is a
+fact about the file format and stays.
+
+**What did not go, and why.** `original/src/Setups/*/Language/Language.dat` are frozen in the tree
+and untouched; they were always the ground truth and the JSON was always derived.
+`tools/convert_language.py` stays and still decodes all ten — it is the executable form of two
+findings the JSON was not carrying: the codepages, which are measured and recorded nowhere in the
+distribution, and `LANGUAGES`, the one table where the installer's directory names meet ISO codes.
+It is a decoder now rather than a producer: it writes nothing unless given `--out DIR`, and it
+refuses `data/language/`, which would otherwise let a stale 2007 conversion land on top of what
+replaced it.
+
+**What the round trip proved, and why losing it is not a loss.** `lang_check.py` rebuilt all 2,293
+source lines out of the JSON and compared **bytes** in each file's own codepage. That was a real
+proof and it is what made step 6's conversion trustworthy without a transliteration standing behind
+it. It proved a property of a *derived artifact*, though, and once nothing consumes the artifact the
+gate defends a file nobody opens — 683 lines and 25 s a run, for a claim whose producer and input
+are both still in the repo and whose findings are written down. The five `[DATA] Language` INI
+checks were never about translations and moved across intact, plus a sixth: the per-key fallback,
+which the shipped corpus cannot exercise now that the gate holds all eleven files to one key set, so
+the check builds the partial file the corpus does not contain.
+
+**One thing the pass found that was not i18n.** `Packs.Load`'s fallback message and `Session`'s
+three load errors are drawn on the status bar, which makes them interface; `--play`'s `highscore`
+line and every `--check-*` dump are parsed by `tools/`, which makes them measurements. The two had
+been one kind of string. They are two now, and the rule is the one `HighScores.Describe` has carried
+since step 6: **a measurement that moves when the player picks a language is not one.**

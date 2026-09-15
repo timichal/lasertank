@@ -166,13 +166,24 @@ namespace LaserTank.Core
             1 => '1', 2 => '2', 4 => '3', 8 => '4', 16 => '5', _ => '0',
         };
 
-        /// The five difficulty names, LANGUAGE.C:65 -- leading " - " and all,
-        /// because that is how the status panel concatenates them onto the level
-        /// number (LTANK.C:537).  Index 0 is "no rating".
-        public static readonly string[] DiffNames =
-            { "", " - Kids", " - Easy", " - Medium", " - Hard", " - Deadly" };
+        /// The catalogue key for this record's rank, `rank.unrated` through
+        /// `rank.deadly`.
+        ///
+        /// The *names* used to be here, as the original has them (LANGUAGE.C:65,
+        /// `" - Kids"` and the rest, leading separator and all, because that is
+        /// how the status panel concatenates them onto the level number at
+        /// LTANK.C:537).  They moved out with the rest of the UI text: a rank is
+        /// a word on a chip in eleven languages now, and Core has no business
+        /// holding one language's spelling of it.  What stays is the *mapping* --
+        /// which bit means which rank -- because that is a fact about the file
+        /// format.  See Strings.
+        public string RankKey => RankKeys[DiffDigit - '0'];
 
-        public string DiffName => DiffNames[DiffDigit - '0'];
+        public static readonly string[] RankKeys =
+        {
+            "rank.unrated", "rank.kids", "rank.easy",
+            "rank.medium", "rank.hard", "rank.deadly",
+        };
     }
 
     /// LTANK.H:145 tRecordRec -- the 66-byte header of a .lpb file.

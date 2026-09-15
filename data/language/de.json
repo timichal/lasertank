@@ -1,508 +1,266 @@
 {
- "code": "de",
- "name": "German",
- "author": "Manfred Sauke",
- "sourceDir": "De",
- "sourceName": "German",
- "sourceEncoding": "cp1252",
- "sourceLines": 238,
- "buttons": {
-  "ButText1": "Zurück",
-  "ButText2": "Position speichern",
-  "ButText3": "Position abrufen",
-  "ButText4": "Neu",
-  "ButText5": "<< Level",
-  "ButText6": "Level >>",
-  "ButText7": "Tipp",
-  "ButText8": "Anfang",
-  "ButText9": "Level öffnen"
- },
- "text": {
-  "txt001": "Level-Datei nicht gefunden\nBitte neu auswählen",
-  "txt002": "Level-Dateien (*.LVL)",
-  "txt004": "Level-Datei öffnen",
-  "txt005": "Playback-Dateien (*.LPB)",
-  "txt006": "Aufzeichnung speichern",
-  "txt007": "Vehler",
-  "txt008": "Alter High Score > M:",
-  "txt009": "M: ",
-  "txt010": " S: ",
-  "txt011": " I: ",
-  "txt012": "Congratulation's You beat it !!",
-  "txt013": "Levelname : ",
-  "txt014": "\nAufgezeichnet von ",
-  "txt015": "\nNicht in der aktuellen Level-Datei gefunden\n< ",
-  "txt016": "Weiter aufzeichnen ???",
-  "txt017": "Start",
-  "txt018": "Pause",
-  "txt019": "Out of Memory - Undo Roll Over",
-  "txt020": "Playback-Datei öffnen",
-  "txt021": "Tipp",
-  "txt022": "Level NICHT gespeichert, jetzt speichern ?",
-  "txt023": " - Kids",
-  "txt024": " - Einfach",
-  "txt025": " - Mittel",
-  "txt026": " - Hart",
-  "txt027": " - Tödlich",
-  "txt028": " - [Editor]",
-  "txt029": "LaserTank Editor",
-  "txt031": "Grafik-Datei kann nicht geöffnet werden",
-  "txt032": "Datei game.bmp und/oder mask.bmp nicht gefunden",
-  "txt033": "Playback-Datei öffnen",
-  "txt034": "Zurück zum Spiel",
-  "txt035": "< SORRY...KEIN TIPP VORHANDEN... >",
-  "txt036": "LaserTank Level #",
-  "txt037": "Ordner auswählen",
-  "txt038": "Spiel läuft ...",
-  "txt039": "Level *nicht* gespeichert.\nJetzt speichern?",
-  "txt040": "GHS",
-  "txt041": "Alle",
-  "txt042": "Gelöst: %d von %d Leveln",
-  "txt043": "Schwierigkeitsgrade = ",
-  "txt044": "KEMHT",
-  "txt045": "LaserTank Grafik-Datei nicht gefunden !",
-  "REC_Title": " LaserTank *** AUFNAHME ***",
-  "help01": "Editor Instructions",
-  "help02": "Revisions",
-  "help03": "Writing Your Own Levels",
-  "HelpFileName": "Language\\LaserTankDE.hlp"
- },
- "dialogs": {
-  "ID_ABOUTBOX_00": "Über LaserTank",
-  "ID_ABOUTBOX_OK": "OK",
-  "ID_ABOUTBOX_04": "Deutsch: Manfred Sauke ",
-  "ID_ABOUTBOX_06": "Version",
-  "ID_DEADBOX_UNDO": "Z U R Ü C K",
-  "ID_DEADBOX_DEAD": "DU BIST TOT ! ! !",
-  "ID_DEADBOX_RESTART": "ANFANG",
-  "ID_DIFFBOX_00": "Schwierigkeitsgrade",
-  "ID_DIFFBOX_01": "OK",
-  "ID_DIFFBOX_02": "Kids",
-  "ID_DIFFBOX_03": "Einfach",
-  "ID_DIFFBOX_04": "Mittel",
-  "ID_DIFFBOX_05": "Hart",
-  "ID_DIFFBOX_06": "Tödlich",
-  "ID_DIFFBOX_07": "Alle",
-  "ID_DIFFBOX_08": "Auswählen",
-  "ID_GRAPHBOX_00": "Grafik auswählen",
-  "ID_GRAPHBOX_01": "Auswählen:",
-  "ID_GRAPHBOX_02": "Originalgrafik",
-  "ID_GRAPHBOX_03": "Benutzergrafik",
-  "ID_GRAPHBOX_04": "Ende",
-  "ID_GRAPHBOX_05": "Autor :",
-  "ID_GRAPHBOX_06": "Beschreibung :",
-  "ID_GRAPHBOX_08": "Startbildschirm",
-  "ID_GRAPHBOX_09": "Ordner wählen",
-  "ID_LOADLEV_00": "Level öffnen",
-  "ID_LOADLEV_01": "Ende",
-  "ID_LOADLEV_03": "Filter",
-  "ID_LOADLEV_04": "Datei:",
-  "ID_LOADLEV_05": "- Datei nicht gefunden ?!? -",
-  "ID_LOADLEV_06": "Level#  Name                           Autor",
-  "ID_LOADLEV_07": "oder Levelnummer eingeben >>",
-  "ID_HINTBOX_00": "Tipp eingeben",
-  "ID_HINTBOX_01": "OK",
-  "ID_HINTBOX_02": "Ende",
-  "ID_SEARCH_00": "Level suchen",
-  "ID_SEARCH_01": "Suchbegriff eingeben :",
-  "ID_SEARCH_02": "Suche nach",
-  "ID_SEARCH_03": "Titel",
-  "ID_SEARCH_04": "Autor",
-  "ID_SEARCH_05": "Ende",
-  "ID_SEARCH_06": "OK",
-  "ID_SEARCH_08": "Nur ungelöste Level",
-  "ID_SEARCH_09": "Filter nach Schwierigkeitsgrad",
-  "ID_SEARCH_10": "Kids",
-  "ID_SEARCH_11": "Einfach",
-  "ID_SEARCH_12": "Mittel",
-  "ID_SEARCH_13": "Hart",
-  "ID_SEARCH_14": "Tödlich",
-  "ID_RETBOX_00": "Zurück zum Spiel",
-  "ID_WINBOX_00": "OK",
-  "ID_WINBOX_01": "Gewonnen ! ! !",
-  "ID_WINBOX_02": "Datei :",
-  "ID_WINBOX_03": "- Fehler -",
-  "ID_LOADTID_00": "Nummer des Tunnels eingeben",
-  "ID_LOADTID_03": "OK",
-  "ID_LOADTID_04": "Nummer für diesen Tunnel :",
-  "ID_HIGHBOX_00": "! Neuer High Score !  M = Schritte  S = Schüsse",
-  "ID_HIGHBOX_01": "OK",
-  "ID_HIGHBOX_02": "Levelnummer :",
-  "ID_HIGHBOX_03": "Levelname :",
-  "ID_HIGHBOX_04": "   M :",
-  "ID_HIGHBOX_05": "   S :",
-  "ID_HIGHBOX_10": "Initialen :",
-  "ID_HIGHBOX_12": "Global HS :",
-  "ID_HIGHBOX_13": "- Keine Daten -",
-  "ID_HIGHLIST_00": "High Scores",
-  "ID_HIGHLIST_01": "OK",
-  "ID_HIGHLIST_02": "- Datei nicht gefunden -",
-  "ID_HIGHLIST_03": "Lev#  Name                            M        S       I",
-  "ID_GHIGHLIST_00": "Global High Scores",
-  "ID_GHIGHLIST_01": "OK",
-  "ID_GHIGHLIST_02": "Lev#  Name                             M      S   Init   M     S  Init",
-  "ID_GHIGHLIST_03": "Global",
-  "ID_GHIGHLIST_04": "Lokal",
-  "ID_GHIGHLIST_05": "- Keine Daten -",
-  "ID_GHIGHLIST_06": "GHS",
-  "ID_RECBOX_00": "Level aufzeichnen",
-  "ID_RECBOX_01": "Bitte Namen eingeben :",
-  "ID_RECBOX_02": "OK",
-  "ID_PLAYBOX_00": "Level wiedergeben",
-  "ID_PLAYBOX_01": "Schließen",
-  "ID_PLAYBOX_02": "Start",
-  "ID_PLAYBOX_03": "Anfang",
-  "ID_PLAYBOX_04": "Schnell",
-  "ID_PLAYBOX_05": "Langsam",
-  "ID_PLAYBOX_06": "Schritt",
-  "ID_PLAYBOX_07": "Schritt :",
-  "ID_PLAYBOX_08": "-->",
-  "ID_PLAYBOX_11": "Tempo",
-  "ID_PICKLEVEL_00": "Level speichern",
-  "ID_PICKLEVEL_01": "OK",
-  "ID_PICKLEVEL_02": "Levelnummer eingeben",
-  "ID_PICKLEVEL_03": "Nummer :",
-  "ID_PICKLEVEL_06": "= Neu",
-  "ID_PICKLEVEL_08": "High Score löschen"
- },
- "about": [
-  "LaserTank ist Helpware und du bekommst es umsonst.\n\nWenn du ein erfahrener Spieler geworden bist, schreibe mit dem Editor ein oder mehrere neue Level und schicke sie uns, zusammen mit einer Aufzeichnung der Lösung.\n\n",
-  "Die Level-Dateien werden immer mal wieder mit allen guten neuen Leveln ergänzt, die eingeschickt wurden. Siehe auch \"Eigene Level schreiben\" und \"Aufzeichnen und wiedergeben\" in der Hilfe-Datei.\n\n(Bitte sei erfinderisch und kopiere keine Level, die es schon gibt).\n\n",
-  "(Es gibt schon sehr viele Level auf der LaserTank-Website).\n\n",
-  "Wenn du einen der High Scores verbessert hast, überzeuge dich, dass ",
-  "deine Global High Score-Liste auf dem neusten Stand ist und schicke ",
-  "uns die LPB-Datei mit der Lösung.\n\n",
-  "Schicke deine E-Mail an : lasertank@globetrotter.net\n\n",
-  "Mehr Level, die aktuellen Global High Score-Listen und Grafik-Dateien ",
-  "findest du auf der LaserTank-Website : \n",
-  "   http://www.jccontrols.net/laser\n\n",
-  "Für weitere Tips und Informationen schau mal in die Yahoo-Gruppe rein :\n",
-  "   http://groups.yahoo.com/lasertank\n"
- ],
- "menu": {
-  "main": [
-   {
-    "text": "Spiel",
-    "items": [
-     {
-      "text": "Neu",
-      "cmd": 101,
-      "accel": "F2"
-     },
-     {
-      "text": "Level öffnen...",
-      "cmd": 106,
-      "accel": "L"
-     },
-     {
-      "text": "Nächstes Level",
-      "cmd": 107,
-      "accel": "S"
-     },
-     {
-      "text": "Vorheriges Level",
-      "cmd": 119,
-      "accel": "P"
-     },
-     {
-      "text": "Zuletzt gespieltes Level",
-      "cmd": 118,
-      "accel": "<-"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Level-Datei laden...",
-      "cmd": 108,
-      "accel": "O"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "High Scores...",
-      "cmd": 113,
-      "accel": "V"
-     },
-     {
-      "text": "Global High Score-Liste...",
-      "cmd": 906,
-      "accel": "G"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Level aufzeichnen",
-      "cmd": 123,
-      "accel": "F5"
-     },
-     {
-      "text": "Aufzeichnung speichern...",
-      "cmd": 117,
-      "accel": "F6"
-     },
-     {
-      "text": "Aufzeichnung zusammenfassen...",
-      "cmd": 125,
-      "accel": "F8"
-     },
-     {
-      "text": "Aufzeichnung wiedergeben...",
-      "cmd": 114,
-      "accel": "F7"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Spielfeld drucken...",
-      "cmd": 126
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Beenden",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "Schritt",
-    "items": [
-     {
-      "text": "Anfang",
-      "cmd": 105,
-      "accel": "R"
-     },
-     {
-      "text": "Zurück",
-      "cmd": 110,
-      "accel": "U"
-     },
-     {
-      "text": "Position speichern",
-      "cmd": 111,
-      "accel": "Strg+C"
-     },
-     {
-      "text": "Position abrufen",
-      "cmd": 112,
-      "accel": "Strg+V"
-     },
-     {
-      "text": "Zusammenfassen",
-      "cmd": 124,
-      "accel": "F4"
-     }
-    ]
-   },
-   {
-    "text": "Optionen",
-    "items": [
-     {
-      "text": "Animation",
-      "cmd": 104,
-      "accel": "A"
-     },
-     {
-      "text": "Sound",
-      "cmd": 102,
-      "accel": "N"
-     },
-     {
-      "text": "Letztes Level merken",
-      "cmd": 109
-     },
-     {
-      "text": "Gelöste Level überspringen",
-      "cmd": 116
-     },
-     {
-      "text": "AutoAufnahme",
-      "cmd": 115
-     },
-     {
-      "text": "Warnungen deaktivieren",
-      "cmd": 127
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Fenstergröße",
-      "items": [
-       {
-        "text": "Klein",
-        "cmd": 120
-       },
-       {
-        "text": "Mittel",
-        "cmd": 121
-       },
-       {
-        "text": "Groß",
-        "cmd": 122
-       }
-      ]
-     },
-     {
-      "text": "Schwierigkeitsgrade...",
-      "cmd": 225,
-      "accel": "D"
-     },
-     {
-      "text": "Grafik auswählen...",
-      "cmd": 226,
-      "accel": "Strg+G"
-     }
-    ]
-   },
-   {
-    "text": "Editor [F9]",
-    "cmd": 201
-   },
-   {
-    "text": "Hilfe",
-    "items": [
-     {
-      "text": "Tipp",
-      "cmd": 301,
-      "accel": "H"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Index",
-      "cmd": 902
-     },
-     {
-      "text": "Schnelle Hilfe",
-      "cmd": 907,
-      "accel": "F1"
-     },
-     {
-      "text": "Revisions",
-      "cmd": 904
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Über LaserTank",
-      "cmd": 901
-     }
-    ]
-   }
-  ],
-  "editor": [
-   {
-    "text": "Editor",
-    "items": [
-     {
-      "text": "Feld räumen",
-      "cmd": 601,
-      "accel": "Strg+C"
-     },
-     {
-      "text": "Level öffnen...",
-      "cmd": 602,
-      "accel": "Strg+L"
-     },
-     {
-      "text": "Level speichern",
-      "cmd": 603,
-      "accel": "Strg+S"
-     },
-     {
-      "text": "Level speichern als...",
-      "cmd": 606
-     },
-     {
-      "text": "Beenden",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "Tipp",
-    "cmd": 605
-   },
-   {
-    "text": "Verschieben ",
-    "items": [
-     {
-      "text": "Rechts",
-      "cmd": 710,
-      "accel": "Strg+Richtung"
-     },
-     {
-      "text": "Links",
-      "cmd": 711
-     },
-     {
-      "text": "Hoch",
-      "cmd": 712
-     },
-     {
-      "text": "Runter",
-      "cmd": 713
-     }
-    ]
-   },
-   {
-    "text": "Editor schließen [F9]",
-    "cmd": 604
-   },
-   {
-    "text": "Schwierigkeit",
-    "items": [
-     {
-      "text": "Kids",
-      "cmd": 701
-     },
-     {
-      "text": "Einfach ",
-      "cmd": 702
-     },
-     {
-      "text": "Mittel",
-      "cmd": 703
-     },
-     {
-      "text": "Hart",
-      "cmd": 704
-     },
-     {
-      "text": "Tödlich",
-      "cmd": 705
-     }
-    ]
-   },
-   {
-    "text": "Hilfe",
-    "items": [
-     {
-      "text": "Editor",
-      "cmd": 903,
-      "accel": "F1"
-     },
-     {
-      "text": "Eigene Level schreiben",
-      "cmd": 905
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "Über LaserTank",
-      "cmd": 901
-     }
-    ]
-   }
-  ]
- }
+  "code": "de",
+  "name": "German",
+  "credit": "",
+  "strings": {
+    "app.titleRecording": "{0} — Aufzeichnung läuft",
+
+    "pill.rec": "rec",
+    "pill.playback": "Wiedergabe",
+    "pill.editor": "Editor",
+    "pill.muted": "stumm",
+    "pill.still": "statisch",
+    "pill.snap": "{0} px",
+    "pill.snapFit": "{0} px angepasst",
+
+    "info.levelOf": "Level {0} / {1}",
+    "info.untitled": "(ohne Titel)",
+    "info.moves": "Züge",
+    "info.shots": "Schüsse",
+    "info.par": "Vorgabe",
+    "info.allKeys": "alle Tasten",
+    "info.hint": "Tipp  ·  H blendet aus",
+
+    "action.undo": "zurück",
+    "action.restart": "neu starten",
+    "action.hint": "Tipp",
+    "action.levels": "Level & Bestwerte",
+    "action.collections": "Sammlungen",
+
+    "rank.unrated": "ohne Wertung",
+    "rank.kids": "Kinder",
+    "rank.easy": "Leicht",
+    "rank.medium": "Mittel",
+    "rank.hard": "Schwer",
+    "rank.deadly": "Tödlich",
+
+    "status.default": "Pfeiltasten fahren · Leertaste feuert · U zurück · R neu · F1 Tasten",
+    "status.dead": "Dein Panzer ist zerstört  ·  U nimmt den letzten Zug zurück, R startet neu",
+    "status.nothingToUndo": "nichts mehr zurückzunehmen",
+    "status.positionSaved": "Position gesichert",
+    "status.noSavedPosition": "für dieses Level ist keine Position gesichert",
+    "status.gridOn": "Raster an",
+    "status.gridOff": "Raster aus",
+    "status.animationOn": "Animation an",
+    "status.animationOff": "Animation aus",
+    "status.autoRecordOn": "jedes Level wird aufgezeichnet",
+    "status.autoRecordOff": "es wird nicht mehr jedes Level aufgezeichnet",
+    "status.noHint": "zu diesem Level gibt es keinen Tipp",
+    "status.recordingOn": "Aufzeichnung läuft",
+    "status.recordingOff": "Aufzeichnung beendet",
+    "status.notRecording": "es läuft keine Aufzeichnung — F5 startet eine",
+    "status.recordingSaved": "Aufzeichnung gesichert unter {0}",
+    "status.collectionOpened": "{0} — {1} Level",
+    "status.cannotOpen": "{0} lässt sich nicht öffnen",
+    "status.playing": "{0} wird abgespielt",
+    "status.noRecording": "für dieses Level gibt es keine Aufzeichnung, weder in out/recordings/ noch neben der .lvl",
+    "status.noLevel": "kein Level geladen",
+    "status.packFallback": "{0} — es wird die interne Grafik verwendet",
+
+    "win.solved": "Gelöst",
+    "win.playback": "die Wiedergabe hat die Flagge erreicht",
+    "win.next": "Enter für das nächste Level, F6 sichert die Aufzeichnung",
+    "win.worldBest": "ein neuer Weltbestwert",
+    "win.personalBest": "dein bisher bester Lauf",
+    "win.standing": "dein Bestwert bleibt bei {0}",
+    "win.par": "Vorgabe {0}/{1}",
+    "win.notWritten": "Bestwert nicht geschrieben: {0}",
+    "score.record": "{0} Züge, {1} Schüsse, von {2}",
+
+    "pb.title": "Wiedergabe  ·  {0}",
+    "pb.recordedBy": "aufgezeichnet von {0}",
+    "pb.play": "abspielen",
+    "pb.pause": "Pause",
+    "pb.reset": "zurücksetzen",
+    "pb.close": "schließen",
+    "pb.fast": "schnell",
+    "pb.slow": "langsam",
+    "pb.step": "Schritt",
+
+    "help.title": "Tasten",
+    "help.titleEditor": "Editor-Tasten",
+    "help.close": "F1 oder Esc schließt",
+    "help.groupPlay": "Spiel",
+    "help.groupLevels": "Level",
+    "help.groupRecording": "Aufzeichnung",
+    "help.groupView": "Ansicht",
+    "help.groupSession": "Sitzung",
+    "help.groupPaint": "Malen",
+    "help.groupBoard": "Spielfeld",
+    "help.groupFile": "Datei",
+
+    "keys.move": "den Panzer fahren",
+    "keys.fire": "feuern",
+    "keys.undo": "den letzten Zug zurücknehmen",
+    "keys.restart": "das Level neu starten",
+    "keys.hint": "den Tipp ein- oder ausblenden",
+    "keys.savePos": "diese Position sichern",
+    "keys.restorePos": "sie wiederherstellen",
+    "keys.levels": "Level und Bestwerte",
+    "keys.collections": "eine Sammlung wählen",
+    "keys.nextLevel": "nächstes Level",
+    "keys.prevLevel": "vorheriges Level",
+    "keys.newGame": "von vorn anfangen",
+    "keys.record": "Aufzeichnung starten oder beenden",
+    "keys.saveRecording": "die Aufzeichnung sichern",
+    "keys.playback": "eine abspielen",
+    "keys.replay": "dieses Level noch einmal",
+    "keys.autoRecord": "jedes Level aufzeichnen",
+    "keys.snap": "auf 24 / 32 / 40 px einrasten",
+    "keys.grid": "das Raster A1–P16",
+    "keys.interpolate": "den Panzer weich oder hart bewegen",
+    "keys.sound": "Ton",
+    "keys.animation": "Animation",
+    "keys.graphics": "Grafikpaket",
+    "keys.language": "Sprache",
+    "keys.editor": "der Level-Editor",
+    "keys.thisList": "diese Liste",
+    "keys.quit": "beenden — mit Rückfrage",
+    "keys.paintLeft": "mit dem linken Pinsel malen",
+    "keys.paintRight": "mit dem rechten Pinsel malen",
+    "keys.rotate": "Umschalt-Klick dreht an Ort und Stelle",
+    "keys.swapBrushes": "die beiden Pinsel tauschen",
+    "keys.tunnelId": "die Tunnelnummer",
+    "keys.shiftBoard": "das Spielfeld verschieben",
+    "keys.clearField": "das Spielfeld leeren",
+    "keys.difficulty": "der Schwierigkeitsgrad",
+    "keys.saveLevel": "das Level sichern",
+    "keys.fields": "Name / Autor / Tipp",
+    "keys.leaveEditor": "den Editor verlassen",
+
+    "quit.title": "LaserTank beenden?",
+    "quit.body": "das Level, auf dem du stehst, wird nicht gesichert",
+    "quit.bodyWon": "dieses Level ist gelöst — das nächste liegt auf S",
+    "quit.yes": "beenden",
+    "quit.no": "weiterspielen",
+
+    "levels.title": "Level",
+    "levels.count": "{0} Level",
+    "levels.countFiltered": "{0} von {1} Level",
+    "levels.solved": "{0} gelöst",
+    "levels.unreadable": "die Level-Datei ließ sich nicht lesen",
+    "levels.noMatch": "kein Level passt zum Filter",
+    "levels.search": "nach Name oder Nummer suchen",
+    "levels.byName": "Name",
+    "levels.byAuthor": "Autor",
+    "levels.unsolved": "ungelöst",
+    "levels.colNumber": "#",
+    "levels.colName": "Level",
+    "levels.colAuthor": "Autor",
+    "levels.colMoves": "Züge",
+    "levels.colShots": "Sch.",
+    "levels.colWho": "wer",
+    "levels.groupBest": "Weltbestwert",
+    "levels.groupYours": "eigene",
+    "levels.marks": "·  * gelöst  ** Vorgabe  *** besser",
+    "levels.footerFull": "↑↓ oder Rad wählt · Enter lädt · tippen filtert · Tab Name/Autor · Strg+1-5 Grade · Strg+U ungelöst · Esc schließt",
+    "levels.footerMid": "↑↓ wählt · Enter lädt · tippen filtert · Tab Name/Autor · Esc schließt",
+    "levels.footerShort": "tippen filtert · Enter lädt · Esc schließt",
+
+    "coll.title": "Sammlungen",
+    "coll.count": "{0} Level-Dateien",
+    "coll.empty": "keine .lvl-Datei unter {0}",
+    "coll.colName": "Sammlung",
+    "coll.colSolved": "gelöst",
+    "coll.colWhere": "wo",
+    "coll.more": "{0} weitere · scrollen",
+    "coll.footerFull": "↑↓ oder Rad wählt · Enter oder ein zweiter Klick öffnet · Esc oder ein Klick daneben schließt",
+    "coll.footerMid": "↑↓ oder Rad wählt · Enter öffnet · Esc oder ein Klick daneben schließt",
+    "coll.footerShort": "↑↓ wählt · Enter öffnet · Esc schließt",
+
+    "shelf.collections": "Sammlungen",
+    "shelf.collectionsBlurb": "das eigentliche Spiel — jedes Level mit einem Weltbestwert, den es zu schlagen gilt",
+    "shelf.tutorials": "Lernpakete",
+    "shelf.tutorialsBlurb": "kurze Dateien, die die Objekte und die Kniffe erklären",
+    "shelf.walkthroughs": "Lösungswege",
+    "shelf.walkthroughsBlurb": "ein schweres Level des Originals, in Zwischenständen gezeigt",
+    "shelf.yours": "Deine Level",
+    "shelf.yoursBlurb": "alles, was der Editor gesichert hat",
+
+    "note.lasertank": "Die Originaldatei — das Spiel, wie Jim Kindley es ausgeliefert hat, und immer noch der Anfang für alle.",
+    "note.challenge1": "Für den Tag, an dem das Original zu Ende ist. Fünf weitere Dateien in voller Länge, keine davon milder.",
+    "note.challenge2": "Die zweite der fünf, die dort weitermachen, wo die Originaldatei aufhört.",
+    "note.challenge3": "Die dritte der fünf, die dort weitermachen, wo die Originaldatei aufhört.",
+    "note.challenge4": "Die vierte der fünf, die dort weitermachen, wo die Originaldatei aufhört.",
+    "note.challenge5": "Die letzte der fünf, und die einzige, die noch wächst — neue Level landen zuerst hier.",
+    "note.beginner1": "Level, die den anderen Dateien zu leicht waren, was diese hier zum Ort zum Lernen macht.",
+    "note.beginner2": "Mehr davon: das sanfte Ende des Bestands, und die Datei, die man einem Kind gibt.",
+    "note.sokoban1": "Schiebe-Rätsel im Geist von Sokoban, mit einem Panzer und einem Laser an der Stelle des Lagerarbeiters.",
+    "note.sokoban2": "Die zweite Sokoban-Datei. Dieselbe Idee, weniger Platz zum Wenden.",
+    "note.gary1": "Garys Serien, aus den Hauptdateien herausgelöst: eine Idee nach der anderen, bis sie erschöpft ist.",
+    "note.gary2": "Der Rest von Garys Leveln, und die kleinste der dreizehn Dateien.",
+    "note.special1": "Die Reste — Level, die den anderen Dateien zu lang, zu ähnlich oder zu seltsam waren.",
+    "note.objects": "Ein Level je Objekt, jedes mit aufgezeichneter Lösung: was jede Kachel im Spiel tut.",
+    "note.tutorPlaybacks": "Der Anfängerkurs, jedes Level mit aufgezeichneter Lösung. Der richtige Start, wenn die Objekte neu sind.",
+    "note.tutor": "Die Spezifikation der Kniffe: ein Level je undokumentiertem Verhalten, jedes im eigenen Tipp erklärt. Die meisten sind Fehler, die der Autor absichtlich gelassen hat.",
+    "note.rotary": "Drehspiegel und sonst nichts, jedes Level mit seiner Wiedergabe — das eine Objekt, das eine eigene Datei verdient.",
+    "note.tricks": "Level aus den Kniffen der Tutor-Datei, zum Zuschauen gebaut statt zum Kämpfen.",
+    "note.pono": "Maus Level zu Ponos Kniff: wie man dünnes Eis überquert, ohne es zu brechen.",
+    "note.l40": "Level 40 des Originals, „Down the Drain“, Schritt für Schritt aufgefaltet. Der Autor: „Ich habe vier Stunden dafür gebraucht.“",
+    "note.triangles": "Level 149 des Originals, „The 4 Triangles“, in Etappen zerlegt.",
+    "note.telekinesis": "Level 173 des Originals, „Telekinesis“, mit den Stellungen, die es verraten.",
+    "note.inchworm": "Level 179 des Originals, „Being an Inchworm“, mit der Stellung, die es verrät.",
+
+    "gfx.title": "Grafik",
+    "gfx.author": "von",
+    "gfx.internal": "Interne Grafik",
+    "gfx.user": "Eigene Grafik",
+    "gfx.notFound": "(nicht gefunden)",
+    "gfx.snap": "Raster",
+    "gfx.footer": "↑↓ oder Klick wählt · 1/2/3 oder Z rastet ein · Enter, Esc oder ein Klick daneben schließt",
+
+    "lang.title": "Sprache",
+    "lang.credit": "übersetzt von {0}",
+    "lang.footer": "↑↓ oder Klick wählt · Enter, Esc oder ein Klick daneben schließt",
+
+    "ed.enter": "Editor  ·  F1 zeigt die Editor-Tasten, F9 verlässt ihn, Strg+S sichert",
+    "ed.left": "Editor verlassen",
+    "ed.leftModified": "Editor verlassen — ungesicherte Änderungen stehen noch auf dem Feld",
+    "ed.tunnel": "Tunnelnummer {0}",
+    "ed.difficulty": "Schwierigkeit: {0}",
+    "ed.cleared": "geleert — Strg+S sichert es als neues Level",
+    "ed.saved": "Level {0} nach {1} gesichert",
+    "ed.savedCopy": "Level {0} nach {1} gesichert  (eine Kopie — data/ ist der Bestand)",
+    "ed.saveFailed": "konnte nicht sichern: {0}",
+    "ed.palette": "Palette",
+    "ed.brushLeft": "links",
+    "ed.brushRight": "rechts",
+    "ed.fieldName": "Name",
+    "ed.fieldAuthor": "von",
+    "ed.fieldHint": "Tipp",
+    "ed.modified": "geändert",
+    "ed.keys": "Editor-Tasten",
+
+    "obj.dirt": "Erde",
+    "obj.tank": "Panzer",
+    "obj.flag": "Flagge",
+    "obj.water": "Wasser",
+    "obj.solid": "fester Block",
+    "obj.block": "beweglicher Block",
+    "obj.bricks": "Ziegel",
+    "obj.mirrorUL": "Spiegel ↖",
+    "obj.mirrorUR": "Spiegel ↗",
+    "obj.mirrorDR": "Spiegel ↘",
+    "obj.mirrorDL": "Spiegel ↙",
+    "obj.rotoUL": "Drehspiegel ↖",
+    "obj.rotoUR": "Drehspiegel ↗",
+    "obj.rotoDR": "Drehspiegel ↘",
+    "obj.rotoDL": "Drehspiegel ↙",
+    "obj.onewayUp": "Einbahn ↑",
+    "obj.onewayRight": "Einbahn →",
+    "obj.onewayDown": "Einbahn ↓",
+    "obj.onewayLeft": "Einbahn ←",
+    "obj.crystal": "Kristallblock",
+    "obj.antitankUp": "Abwehrgeschütz ↑",
+    "obj.antitankRight": "Abwehrgeschütz →",
+    "obj.antitankDown": "Abwehrgeschütz ↓",
+    "obj.antitankLeft": "Abwehrgeschütz ←",
+    "obj.ice": "Eis",
+    "obj.thinIce": "dünnes Eis",
+    "obj.tunnel": "Tunnel",
+
+    "err.cannotRead": "{0} lässt sich nicht lesen: {1}",
+    "err.cannotLoadLevel": "Level {0} aus {1} lässt sich nicht laden",
+    "err.playbackMismatch": "„{0}“ ist nicht Level {1} von {2} — dort steht „{3}“"
+  }
 }

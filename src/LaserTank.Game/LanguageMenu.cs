@@ -118,15 +118,35 @@ namespace LaserTank.Game
         /// already redrawn itself in it.
         ///
         /// The rows are `<code>   <name>` -- an ISO code and the display name
-        /// out of the JSON.  The name is deliberately the English one rather
-        /// than the endonym: this draws in ThemeDB.FallbackFont, which has no
-        /// CJK glyphs, so the two Chinese rows would be boxes.  The endonyms
-        /// are worth having the day this gets a font that can render them.
-        public void Draw(Node2D n, Font font, Rect2 host, Language lang)
+        /// out of the catalogue.  The name is deliberately the English one
+        /// rather than the endonym, and the reason has changed shape since step
+        /// 6 wrote it down: the chrome sets in IBM Plex Mono, which has no CJK
+        /// glyphs, and what draws the two Chinese rows is Godot falling through
+        /// to whatever the *system* has.  That works on a desktop with a CJK
+        /// font installed and is not something this panel can promise -- a web
+        /// export especially.  An English name is legible to everyone and to
+        /// every font here; the endonyms are worth having the day this ships a
+        /// face that covers them.
+        public void Draw(Node2D n, Font font, Rect2 host, Strings lang)
         {
             if (_langs == null || _langs.Count == 0) return;
 
-            float w = Mathf.Min(Ui.Px(360), host.Size.X - Ui.Px(40));
+            // **Measured, not reserved.**  This was a flat `Ui.Px(360)`, which
+            // English fits inside and Czech does not: the footer came out as
+            // `Enter, Esc nebo klik mimo z`, a cut mid-word that reads as a
+            // rendering fault rather than as a squeeze.  The panel is a list of
+            // eleven short rows and one line of instruction, so there is nothing
+            // in it to shed -- it asks for what it needs and the window is the
+            // only limit.  Same rule as LevelList's caption; same bug the F1
+            // overlay had.
+            float want = Mathf.Max(Ui.Width(lang["lang.footer"], 11),
+                                   Ui.CapsWidth(lang["lang.title"], 12) + Ui.Px(60));
+            foreach (LanguageInfo li in _langs)
+                want = Mathf.Max(want, CodeCol + Ui.Width(li.Name, 12.5f));
+            if (lang.Credit.Length > 0)
+                want = Mathf.Max(want, Ui.Width(lang.F("lang.credit", lang.Credit), 11.5f));
+            float w = Mathf.Min(Mathf.Max(Ui.Px(360), want + 2 * Pad),
+                                host.Size.X - Ui.Px(40));
             float height = Pad + Ui.Px(12) + Ui.Px(16)
                            + _langs.Count * Line + Ui.Px(8)
                            + Line + Ui.Px(6) + Line + Pad;
@@ -144,12 +164,10 @@ namespace LaserTank.Game
             float wInner = panel.Size.X - 2 * Pad;
             float y = panel.Position.Y + Pad + Ui.Px(11);
 
-            // There is no string in the original for "pick a language" -- there
-            // was nothing to pick.  ID_GRAPHBOX_01, "Select One", is the
-            // nearest thing the corpus has that is not about graphics, and it
-            // is translated in all ten files, so the panel's own title is in
-            // the language being previewed like everything else on it.
-            Ui.Caps(n, new Vector2(x, y), lang["ID_GRAPHBOX_01"], Ui.Text, 12);
+            // The title is drawn out of the language being *previewed*, like
+            // everything else on this panel: moving the cursor loads the
+            // catalogue, so the panel is its own sample of what it is offering.
+            Ui.Caps(n, new Vector2(x, y), lang["lang.title"], Ui.Text, 12);
             Rect2 close = Ui.CloseRect(panel, Pad);
             Ui.CloseX(n, close, _view.Chrome.Add(Ui.Touch(close), "close", Close));
             y += Ui.Px(12);
@@ -177,14 +195,17 @@ namespace LaserTank.Game
                 y += Line;
             }
 
+            // Only when somebody has one to claim.  The eleven that ship today
+            // were written with the port rather than contributed to it, so their
+            // `credit` is empty and this line is simply absent -- which is the
+            // honest rendering, and leaves the field ready for the first file
+            // that is somebody's.
             y += Ui.Px(8);
-            if (lang.Author.Length > 0)
-                Ui.Write(n, new Vector2(x, y), lang["ID_GRAPHBOX_05"] + " " + lang.Author,
+            if (lang.Credit.Length > 0)
+                Ui.Write(n, new Vector2(x, y), lang.F("lang.credit", lang.Credit),
                          11.5f, Ui.Cyan, wInner);
             y += Line + Ui.Px(6);
-            Ui.Write(n, new Vector2(x, y),
-                     "↑↓ or click picks · Enter, Esc or outside closes", 11, Ui.Faint,
-                     wInner);
+            Ui.Write(n, new Vector2(x, y), lang["lang.footer"], 11, Ui.Faint, wInner);
         }
     }
 }

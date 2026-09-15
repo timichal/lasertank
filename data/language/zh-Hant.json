@@ -1,505 +1,266 @@
 {
- "code": "zh-Hant",
- "name": "Traditional Chinese",
- "author": "Roy Chen",
- "sourceDir": "Ct",
- "sourceName": "Traditional Chinese (100% complete)",
- "sourceEncoding": "big5",
- "sourceLines": 235,
- "buttons": {
-  "ButText1": "復 原",
-  "ButText2": "儲 存 位 置",
-  "ButText3": "回 復 位 置",
-  "ButText4": "新遊戲",
-  "ButText5": "<前一關",
-  "ButText6": "下一關>",
-  "ButText7": "提 示",
-  "ButText8": "重新玩",
-  "ButText9": "到 任 一 關"
- },
- "text": {
-  "txt001": "找不到關卡檔案\n請選擇另外一個",
-  "txt002": "關卡檔案 (*.LVL)",
-  "txt004": "挑選 LaserTank 關卡檔案",
-  "txt005": "關卡記錄檔案 (*.LPB)",
-  "txt006": "儲存關卡記錄檔案",
-  "txt007": "LaserTank 錯誤訊息",
-  "txt008": "舊高分記錄 > M:",
-  "txt009": "M: ",
-  "txt010": " S: ",
-  "txt011": " I: ",
-  "txt012": "恭喜，你過關了 !!",
-  "txt013": "播放關卡 : ",
-  "txt014": "\n記錄人 : ",
-  "txt015": "\nC在目前關卡的檔案找不到\n< ",
-  "txt016": "您要繼續記錄 ?",
-  "txt017": "&P播放",
-  "txt018": "&P暫停",
-  "txt019": "記憶體不足 - 復原記錄會被覆蓋",
-  "txt020": "開啟關卡記錄檔案",
-  "txt021": "LaserTank 提示",
-  "txt022": "關卡並未儲存，是否要存檔 ?",
-  "txt023": " - 兒童",
-  "txt024": " - 簡單",
-  "txt025": " - 中等",
-  "txt026": " - 困難",
-  "txt027": " - 難得要死",
-  "txt028": " - [編輯器]",
-  "txt029": "LaserTank 編輯器",
-  "txt031": "不是有效的 LaserTank 畫面設置",
-  "txt032": "找不到 game.bmp 和/或 mask.bmp",
-  "txt033": "開啟關卡記錄檔案以回復",
-  "txt034": "回遊戲",
-  "txt035": "< 這個關卡沒有提示 >",
-  "txt036": "LaserTank 關卡 #",
-  "txt037": "選擇 LaserTank 畫面儲存的目錄",
-  "txt038": "遊戲進行中...",
-  "txt039": "你會失去的遊戲記錄.\n你是否要存檔 ?",
-  "txt040": "過關",
-  "txt041": "全選",
-  "txt042": "完成 %d 於 %d 關",
-  "txt043": "遊戲困難度 = ",
-  "txt044": "KEMHD",
-  "txt045": "找不到 LaserTank 畫面檔案 !",
-  "REC_Title": " LaserTank *** 記錄中 ***",
-  "help01": "編輯器指示",
-  "help02": "版本",
-  "help03": "編輯您自己的關卡",
-  "HelpFileName": "Language\\LaserTankCT.hlp"
- },
- "dialogs": {
-  "ID_ABOUTBOX_00": "關於 LaserTank",
-  "ID_ABOUTBOX_OK": "&O確定",
-  "ID_ABOUTBOX_04": "由 Jim Kindley 製作",
-  "ID_ABOUTBOX_06": "版本",
-  "ID_DEADBOX_UNDO": "&U復原最後動作",
-  "ID_DEADBOX_DEAD": "你死啦 ! ! !",
-  "ID_DEADBOX_RESTART": "&R重新玩",
-  "ID_DIFFBOX_00": "遊戲困難度",
-  "ID_DIFFBOX_01": "&O確定",
-  "ID_DIFFBOX_02": "&K兒童",
-  "ID_DIFFBOX_03": "&E簡單",
-  "ID_DIFFBOX_04": "&M中等",
-  "ID_DIFFBOX_05": "&H困難",
-  "ID_DIFFBOX_06": "&D難得要死",
-  "ID_DIFFBOX_07": "&A全選",
-  "ID_DIFFBOX_08": "選擇",
-  "ID_GRAPHBOX_00": "選擇遊戲畫面",
-  "ID_GRAPHBOX_01": "選一個",
-  "ID_GRAPHBOX_02": "&B預設畫面",
-  "ID_GRAPHBOX_03": "&U你自己的畫面",
-  "ID_GRAPHBOX_04": "&關閉",
-  "ID_GRAPHBOX_05": "作者 :",
-  "ID_GRAPHBOX_06": "LaserTank 畫面描述",
-  "ID_GRAPHBOX_08": "&V查看開啟畫面",
-  "ID_GRAPHBOX_09": "&D改變目錄",
-  "ID_LOADLEV_00": "選擇要玩的關卡",
-  "ID_LOADLEV_01": "&C取消",
-  "ID_LOADLEV_03": "&F過濾器",
-  "ID_LOADLEV_04": " 關卡檔案:",
-  "ID_LOADLEV_05": "- 檔案載入錯誤 -",
-  "ID_LOADLEV_06": "編號     名稱                           作者",
-  "ID_LOADLEV_07": "    直接輸入關卡編號 >>",
-  "ID_HINTBOX_00": "修改提示",
-  "ID_HINTBOX_01": "&O確定",
-  "ID_HINTBOX_02": "&C取消",
-  "ID_SEARCH_00": "過濾關卡",
-  "ID_SEARCH_01": "輸入搜尋字串 :",
-  "ID_SEARCH_02": "尋找",
-  "ID_SEARCH_03": "&T關卡名稱",
-  "ID_SEARCH_04": "&A作者",
-  "ID_SEARCH_05": "&C取消",
-  "ID_SEARCH_06": "&O確定",
-  "ID_SEARCH_08": "&O只找未過關的關卡",
-  "ID_SEARCH_09": "&F依困難度搜尋",
-  "ID_SEARCH_10": "&K兒童",
-  "ID_SEARCH_11": "&E簡單",
-  "ID_SEARCH_12": "&M中等",
-  "ID_SEARCH_13": "&H困難",
-  "ID_SEARCH_14": "&D難得要死",
-  "ID_RETBOX_00": "回遊戲",
-  "ID_WINBOX_00": "&O確定",
-  "ID_WINBOX_01": "您贏啦 ! ! !",
-  "ID_WINBOX_02": "關卡檔案:",
-  "ID_WINBOX_03": "- 錯誤 -",
-  "ID_LOADTID_00": "選擇隧道編號",
-  "ID_LOADTID_03": "&O確定",
-  "ID_LOADTID_04": "輸入隧道編號 :",
-  "ID_HIGHBOX_00": "! 新的高分記錄 !",
-  "ID_HIGHBOX_01": "&O確定",
-  "ID_HIGHBOX_02": "關卡編號:",
-  "ID_HIGHBOX_03": "關卡名稱:",
-  "ID_HIGHBOX_04": "移動數:",
-  "ID_HIGHBOX_05": "射擊數:",
-  "ID_HIGHBOX_10": "原先記錄:",
-  "ID_HIGHBOX_12": "全球記錄:",
-  "ID_HIGHBOX_13": "- 無記錄 -",
-  "ID_HIGHLIST_00": "高分記錄",
-  "ID_HIGHLIST_01": "&O確定",
-  "ID_HIGHLIST_02": "- 檔案載入錯誤 -",
-  "ID_HIGHLIST_03": "編號    名稱                      移動數  射擊數  過關人",
-  "ID_GHIGHLIST_00": "全球高分記錄",
-  "ID_GHIGHLIST_01": "&O確定",
-  "ID_GHIGHLIST_02": "編號    名稱                           移動  射擊 過關人   移動  射擊 過關人",
-  "ID_GHIGHLIST_03": "全球",
-  "ID_GHIGHLIST_04": "本地",
-  "ID_GHIGHLIST_05": "- 無記錄 -",
-  "ID_GHIGHLIST_06": "&B達到",
-  "ID_RECBOX_00": "記錄遊戲",
-  "ID_RECBOX_01": "請輸入您的姓名",
-  "ID_RECBOX_02": "&O確定",
-  "ID_PLAYBOX_00": "播放關卡",
-  "ID_PLAYBOX_01": "&C關閉",
-  "ID_PLAYBOX_02": "&P播放",
-  "ID_PLAYBOX_03": "&R重新開始",
-  "ID_PLAYBOX_04": "&F快",
-  "ID_PLAYBOX_05": "&S慢",
-  "ID_PLAYBOX_06": "&T步進",
-  "ID_PLAYBOX_07": "第:",
-  "ID_PLAYBOX_08": "於",
-  "ID_PLAYBOX_11": "播放速度",
-  "ID_PICKLEVEL_00": "儲存 LaserTank 關卡",
-  "ID_PICKLEVEL_01": "&O確定",
-  "ID_PICKLEVEL_02": "輸入關卡編號",
-  "ID_PICKLEVEL_03": "儲存 :",
-  "ID_PICKLEVEL_06": "= 增加",
-  "ID_PICKLEVEL_08": "&C清除高分記錄"
- },
- "about": [
-  "     LaserTank 是 HelpWare， 您可以免費使用。\n\n",
-  "     在您成為了一個熟練的玩家之後，您可能會想要製作一個或更多新關卡，您可使用關卡編輯器，然後將新關卡和您的關卡記錄檔案 (.LPB) 一起寄給我們。\n\n",
-  "     我們在每次更新軟體時，會加入所有收到的好關卡。您可參考線上說明中有關 \"編輯您自己的關卡\"  和 \"記錄和播放關卡\"  的說明。\n\n",
-  "     (請設法創造新的，而不要重複現有的。)\n\n",
-  "     (在 LaserTank 網站上有很多好玩的關卡。)\n\n",
-  "     如果您達到任何新的高分記錄，請先確定您的全球高分記錄檔案 (.GHS) 是最新的，然後將您達到新高分記錄關卡的關卡記錄檔案和您的LaserTank.hs 檔案包裹成一個壓縮檔案 (.zip) 寄給我們。\n\n",
-  "     您可以 e-mail 您的檔案到 : lasertank@globetrotter.net\n\n",
-  "    您可以在 LaserTanks 網站找到更多關卡、圖形文件，和最新的全球高分記錄檔案，網址 :\nhttp://www.jccontrols.net/laser  (英文網站)\n\n",
-  "     要得到關於這個遊戲軟體的更多協助及資訊，您可以加入或查看雅虎的愛好者組織，網址 : \nhttp://groups.yahoo.com/lasertank  (英文網站)"
- ],
- "menu": {
-  "main": [
-   {
-    "text": "&G遊戲",
-    "items": [
-     {
-      "text": "&N新遊戲",
-      "cmd": 101,
-      "accel": "F2"
-     },
-     {
-      "text": "&L至任一關...",
-      "cmd": 106,
-      "accel": "L"
-     },
-     {
-      "text": "&S至下一關",
-      "cmd": 107,
-      "accel": "S"
-     },
-     {
-      "text": "&P至前一關",
-      "cmd": 119,
-      "accel": "P"
-     },
-     {
-      "text": "至前一個玩過的關卡",
-      "cmd": 118,
-      "accel": "BkSp"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&O開啟關卡檔案...",
-      "cmd": 108,
-      "accel": "O"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&V查看高分記錄",
-      "cmd": 113,
-      "accel": "V"
-     },
-     {
-      "text": "&G全球高分記錄",
-      "cmd": 906,
-      "accel": "G"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&R記錄關卡",
-      "cmd": 123,
-      "accel": "F5"
-     },
-     {
-      "text": "&A儲存記錄",
-      "cmd": 117,
-      "accel": "F6"
-     },
-     {
-      "text": "&C回復記錄",
-      "cmd": 125,
-      "accel": "F8"
-     },
-     {
-      "text": "&B播放關卡...",
-      "cmd": 114,
-      "accel": "F7"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&I列印遊戲畫面",
-      "cmd": 126
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&E離開遊戲",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "&M動作",
-    "items": [
-     {
-      "text": "&R重新玩",
-      "cmd": 105,
-      "accel": "R"
-     },
-     {
-      "text": "&U復原最後移動/射擊",
-      "cmd": 110,
-      "accel": "U"
-     },
-     {
-      "text": "&S儲存位置",
-      "cmd": 111,
-      "accel": "Ctrl+C"
-     },
-     {
-      "text": "&P回復位置",
-      "cmd": 112,
-      "accel": "Crtl+V"
-     },
-     {
-      "text": "&Y重播",
-      "cmd": 124,
-      "accel": "F4"
-     }
-    ]
-   },
-   {
-    "text": "&O選項",
-    "items": [
-     {
-      "text": "&A動畫",
-      "cmd": 104,
-      "accel": "A"
-     },
-     {
-      "text": "&N音效",
-      "cmd": 102,
-      "accel": "N"
-     },
-     {
-      "text": "&R記住最後玩過的關卡",
-      "cmd": 109
-     },
-     {
-      "text": "&K跳過已過關的關卡",
-      "cmd": 116
-     },
-     {
-      "text": "&T自動記錄",
-      "cmd": 115
-     },
-     {
-      "text": "&W關閉警示",
-      "cmd": 127
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&S畫面尺寸",
-      "items": [
-       {
-        "text": "&S小",
-        "cmd": 120
-       },
-       {
-        "text": "&M中",
-        "cmd": 121
-       },
-       {
-        "text": "&L大",
-        "cmd": 122
-       }
-      ]
-     },
-     {
-      "text": "&D遊戲困難度...",
-      "cmd": 225,
-      "accel": "D"
-     },
-     {
-      "text": "&G選擇遊戲畫面...",
-      "cmd": 226,
-      "accel": "Ctrl+G"
-     }
-    ]
-   },
-   {
-    "text": "&E編輯關卡 [F9]",
-    "cmd": 201
-   },
-   {
-    "text": "&H說明",
-    "items": [
-     {
-      "text": "&H提示",
-      "cmd": 301,
-      "accel": "H"
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&I說明主題",
-      "cmd": 902
-     },
-     {
-      "text": "&Q快速說明",
-      "cmd": 907,
-      "accel": "F1"
-     },
-     {
-      "text": "&R更新記錄(歷史)",
-      "cmd": 904
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&A關於...",
-      "cmd": 901
-     }
-    ]
-   }
-  ],
-  "editor": [
-   {
-    "text": "&E編輯",
-    "items": [
-     {
-      "text": "&C清除場地",
-      "cmd": 601,
-      "accel": "Ctrl+C"
-     },
-     {
-      "text": "&L開啟關卡...",
-      "cmd": 602,
-      "accel": "Ctrl+L"
-     },
-     {
-      "text": "&S儲存關卡",
-      "cmd": 603,
-      "accel": "Ctrl+S"
-     },
-     {
-      "text": "&A以另外的檔名儲存...",
-      "cmd": 606
-     },
-     {
-      "text": "&E離開遊戲",
-      "cmd": 103
-     }
-    ]
-   },
-   {
-    "text": "&H提示",
-    "cmd": 605
-   },
-   {
-    "text": "&S調整場地",
-    "items": [
-     {
-      "text": "&R右",
-      "cmd": 710,
-      "accel": "Ctrl+方向鍵"
-     },
-     {
-      "text": "&L左",
-      "cmd": 711
-     },
-     {
-      "text": "&U上",
-      "cmd": 712
-     },
-     {
-      "text": "&D下",
-      "cmd": 713
-     }
-    ]
-   },
-   {
-    "text": "&回到遊戲 [F9]",
-    "cmd": 604
-   },
-   {
-    "text": "&D困難度",
-    "items": [
-     {
-      "text": "&K兒童",
-      "cmd": 701
-     },
-     {
-      "text": "&E簡單",
-      "cmd": 702
-     },
-     {
-      "text": "&M中等",
-      "cmd": 703
-     },
-     {
-      "text": "&H困難",
-      "cmd": 704
-     },
-     {
-      "text": "&D難得要死",
-      "cmd": 705
-     }
-    ]
-   },
-   {
-    "text": "&H說明",
-    "items": [
-     {
-      "text": "&E編輯器簡介",
-      "cmd": 903,
-      "accel": "F1"
-     },
-     {
-      "text": "&W編輯關卡",
-      "cmd": 905
-     },
-     {
-      "separator": true
-     },
-     {
-      "text": "&A關於...",
-      "cmd": 901
-     }
-    ]
-   }
-  ]
- }
+  "code": "zh-Hant",
+  "name": "Chinese (Traditional)",
+  "credit": "",
+  "strings": {
+    "app.titleRecording": "{0} — 錄製中",
+
+    "pill.rec": "錄製中",
+    "pill.playback": "回放",
+    "pill.editor": "編輯器",
+    "pill.muted": "靜音",
+    "pill.still": "無動畫",
+    "pill.snap": "{0} 像素",
+    "pill.snapFit": "{0} 像素 自動調整",
+
+    "info.levelOf": "第 {0} 關 / 共 {1} 關",
+    "info.untitled": "（無標題）",
+    "info.moves": "步數",
+    "info.shots": "射擊",
+    "info.par": "標準",
+    "info.allKeys": "全部按鍵",
+    "info.hint": "提示  ·  H 隱藏",
+
+    "action.undo": "復原",
+    "action.restart": "重玩",
+    "action.hint": "提示",
+    "action.levels": "關卡與紀錄",
+    "action.collections": "關卡集",
+
+    "rank.unrated": "未分級",
+    "rank.kids": "兒童",
+    "rank.easy": "簡單",
+    "rank.medium": "中等",
+    "rank.hard": "困難",
+    "rank.deadly": "致命",
+
+    "status.default": "方向鍵移動 · 空白鍵射擊 · U 復原 · R 重玩 · F1 按鍵表",
+    "status.dead": "坦克已被摧毀  ·  U 復原上一步，R 重玩本關",
+    "status.nothingToUndo": "沒有可復原的步驟了",
+    "status.positionSaved": "已儲存目前局面",
+    "status.noSavedPosition": "本關沒有儲存過局面",
+    "status.gridOn": "格線已開啟",
+    "status.gridOff": "格線已關閉",
+    "status.animationOn": "動畫已開啟",
+    "status.animationOff": "動畫已關閉",
+    "status.autoRecordOn": "每一關都會錄製",
+    "status.autoRecordOff": "不再錄製每一關",
+    "status.noHint": "本關沒有提示",
+    "status.recordingOn": "正在錄製",
+    "status.recordingOff": "錄製已停止",
+    "status.notRecording": "目前沒有錄製 — 按 F5 開始",
+    "status.recordingSaved": "錄影已儲存至 {0}",
+    "status.collectionOpened": "{0} — 共 {1} 關",
+    "status.cannotOpen": "無法開啟 {0}",
+    "status.playing": "正在回放 {0}",
+    "status.noRecording": "本關沒有錄影，out/recordings/ 和 .lvl 檔旁都沒有",
+    "status.noLevel": "未載入任何關卡",
+    "status.packFallback": "{0} — 改用內建圖形",
+
+    "win.solved": "已過關",
+    "win.playback": "回放已抵達旗幟",
+    "win.next": "Enter 進入下一關，F6 儲存錄影",
+    "win.worldBest": "創下新的世界紀錄",
+    "win.personalBest": "你目前的最佳成績",
+    "win.standing": "你的最佳成績仍是 {0}",
+    "win.par": "標準 {0}/{1}",
+    "win.notWritten": "紀錄未能寫入：{0}",
+    "score.record": "{0} 步，{1} 次射擊，{2}",
+
+    "pb.title": "回放  ·  {0}",
+    "pb.recordedBy": "錄製者 {0}",
+    "pb.play": "播放",
+    "pb.pause": "暫停",
+    "pb.reset": "重來",
+    "pb.close": "關閉",
+    "pb.fast": "快速",
+    "pb.slow": "慢速",
+    "pb.step": "單步",
+
+    "help.title": "按鍵",
+    "help.titleEditor": "編輯器按鍵",
+    "help.close": "F1 或 Esc 關閉",
+    "help.groupPlay": "操作",
+    "help.groupLevels": "關卡",
+    "help.groupRecording": "錄製",
+    "help.groupView": "顯示",
+    "help.groupSession": "工作階段",
+    "help.groupPaint": "繪製",
+    "help.groupBoard": "棋盤",
+    "help.groupFile": "檔案",
+
+    "keys.move": "移動坦克",
+    "keys.fire": "射擊",
+    "keys.undo": "復原上一步",
+    "keys.restart": "重玩本關",
+    "keys.hint": "顯示或隱藏提示",
+    "keys.savePos": "儲存目前局面",
+    "keys.restorePos": "回到該局面",
+    "keys.levels": "關卡與紀錄",
+    "keys.collections": "選擇關卡集",
+    "keys.nextLevel": "下一關",
+    "keys.prevLevel": "上一關",
+    "keys.newGame": "重新開始",
+    "keys.record": "開始或停止錄製",
+    "keys.saveRecording": "儲存錄影",
+    "keys.playback": "回放一段錄影",
+    "keys.replay": "重播本關",
+    "keys.autoRecord": "錄製每一關",
+    "keys.snap": "對齊至 24 / 32 / 40 像素",
+    "keys.grid": "A1–P16 座標格線",
+    "keys.interpolate": "坦克平滑或整格移動",
+    "keys.sound": "音效",
+    "keys.animation": "動畫",
+    "keys.graphics": "圖形包",
+    "keys.language": "語言",
+    "keys.editor": "關卡編輯器",
+    "keys.thisList": "這份清單",
+    "keys.quit": "結束 — 會先詢問",
+    "keys.paintLeft": "用左筆刷繪製",
+    "keys.paintRight": "用右筆刷繪製",
+    "keys.rotate": "Shift 加點擊原地旋轉",
+    "keys.swapBrushes": "交換兩支筆刷",
+    "keys.tunnelId": "隧道編號",
+    "keys.shiftBoard": "平移棋盤",
+    "keys.clearField": "清空棋盤",
+    "keys.difficulty": "難度",
+    "keys.saveLevel": "儲存關卡",
+    "keys.fields": "名稱 / 作者 / 提示",
+    "keys.leaveEditor": "離開編輯器",
+
+    "quit.title": "結束 LaserTank？",
+    "quit.body": "目前這一關不會被儲存",
+    "quit.bodyWon": "本關已通過 — 按 S 進入下一關",
+    "quit.yes": "結束",
+    "quit.no": "繼續玩",
+
+    "levels.title": "關卡",
+    "levels.count": "共 {0} 關",
+    "levels.countFiltered": "{1} 關中的 {0} 關",
+    "levels.solved": "已通過 {0} 關",
+    "levels.unreadable": "關卡檔無法讀取",
+    "levels.noMatch": "沒有關卡符合篩選條件",
+    "levels.search": "依名稱或編號搜尋",
+    "levels.byName": "名稱",
+    "levels.byAuthor": "作者",
+    "levels.unsolved": "未通過",
+    "levels.colNumber": "#",
+    "levels.colName": "關卡",
+    "levels.colAuthor": "作者",
+    "levels.colMoves": "步數",
+    "levels.colShots": "射擊",
+    "levels.colWho": "玩家",
+    "levels.groupBest": "世界紀錄",
+    "levels.groupYours": "你的成績",
+    "levels.marks": "·  * 已通過  ** 達標  *** 優於標準",
+    "levels.footerFull": "↑↓ 或滾輪選擇 · Enter 載入 · 輸入即篩選 · Tab 切換名稱/作者 · Ctrl+1-5 難度 · Ctrl+U 未通過 · Esc 關閉",
+    "levels.footerMid": "↑↓ 選擇 · Enter 載入 · 輸入即篩選 · Tab 切換名稱/作者 · Esc 關閉",
+    "levels.footerShort": "輸入即篩選 · Enter 載入 · Esc 關閉",
+
+    "coll.title": "關卡集",
+    "coll.count": "{0} 個關卡檔",
+    "coll.empty": "{0} 下沒有 .lvl 檔",
+    "coll.colName": "關卡集",
+    "coll.colSolved": "已通過",
+    "coll.colWhere": "位置",
+    "coll.more": "還有 {0} 個 · 可捲動",
+    "coll.footerFull": "↑↓ 或滾輪選擇 · Enter 或再點一次開啟 · Esc 或點擊面板外關閉",
+    "coll.footerMid": "↑↓ 或滾輪選擇 · Enter 開啟 · Esc 或點擊面板外關閉",
+    "coll.footerShort": "↑↓ 選擇 · Enter 開啟 · Esc 關閉",
+
+    "shelf.collections": "關卡集",
+    "shelf.collectionsBlurb": "遊戲本體 — 每一關都有一項世界紀錄等著被打破",
+    "shelf.tutorials": "教學",
+    "shelf.tutorialsBlurb": "講解各種物件與技巧的小型關卡檔",
+    "shelf.walkthroughs": "攻略",
+    "shelf.walkthroughsBlurb": "原版中的一個難關，按階段拆開示範",
+    "shelf.yours": "你的關卡",
+    "shelf.yoursBlurb": "編輯器儲存過的一切",
+
+    "note.lasertank": "原始檔案 — Jim Kindley 當年發行的那個版本，至今仍是所有人的起點。",
+    "note.challenge1": "原版玩完之後的去處。另外五個同樣篇幅的檔案，一個也不更溫和。",
+    "note.challenge2": "接續原始檔案的五個檔案中的第二個。",
+    "note.challenge3": "接續原始檔案的五個檔案中的第三個。",
+    "note.challenge4": "接續原始檔案的五個檔案中的第四個。",
+    "note.challenge5": "五個當中的最後一個，也是唯一還在增長的一個 — 新關卡先落在這裡。",
+    "note.beginner1": "被其他檔案以太簡單為由退回的關卡，正因如此這裡是學習的地方。",
+    "note.beginner2": "同類的續篇：整套關卡中最溫和的一端，適合交給孩子。",
+    "note.sokoban1": "推箱子精神的謎題，只是倉庫管理員換成了帶雷射的坦克。",
+    "note.sokoban2": "第二個推箱子檔案。想法相同，迴旋的餘地更小。",
+    "note.gary1": "Gary 的系列，從主檔案中抽出來：一次一個點子，反覆推敲到底。",
+    "note.gary2": "Gary 剩下的關卡，也是十三個檔案中最小的一個。",
+    "note.special1": "邊角料 — 被其他檔案以太長、太雷同或太古怪為由推掉的關卡。",
+    "note.objects": "每個物件一關，每關都附有錄好的解法：遊戲裡每一格各自的作用。",
+    "note.tutorPlaybacks": "初學者課程，每一關都附有錄好的解法。如果這些物件對你是新的，就從這裡開始。",
+    "note.tutor": "技巧的規格說明：每個未寫入文件的行為一關，各自在提示裡解釋清楚。其中大多是作者刻意留下的錯誤。",
+    "note.rotary": "只有旋轉鏡，別無其他，每一關都配有錄影 — 唯一值得獨佔一個檔案的物件。",
+    "note.tricks": "用 Tutor 中的技巧搭出來的關卡，供觀看多過供硬拼。",
+    "note.pono": "Mau 以 Pono 的技巧做的關卡：如何過薄冰而不把它踩碎。",
+    "note.l40": "原版第 40 關《Down the Drain》，一步步拆開示範。作者：「這一關花了我四個小時。」",
+    "note.triangles": "原版第 149 關《The 4 Triangles》，拆成若干階段。",
+    "note.telekinesis": "原版第 173 關《Telekinesis》，附上足以點破它的局面。",
+    "note.inchworm": "原版第 179 關《Being an Inchworm》，附上足以點破它的那個局面。",
+
+    "gfx.title": "圖形",
+    "gfx.author": "作者",
+    "gfx.internal": "內建圖形",
+    "gfx.user": "自訂圖形",
+    "gfx.notFound": "（找不到）",
+    "gfx.snap": "對齊",
+    "gfx.footer": "↑↓ 或點擊選擇 · 1/2/3 或 Z 對齊 · Enter、Esc 或點擊面板外關閉",
+
+    "lang.title": "語言",
+    "lang.credit": "翻譯：{0}",
+    "lang.footer": "↑↓ 或點擊選擇 · Enter、Esc 或點擊面板外關閉",
+
+    "ed.enter": "編輯器  ·  F1 列出編輯器按鍵，F9 離開，Ctrl+S 儲存",
+    "ed.left": "已離開編輯器",
+    "ed.leftModified": "已離開編輯器 — 未儲存的改動仍留在棋盤上",
+    "ed.tunnel": "隧道編號 {0}",
+    "ed.difficulty": "難度：{0}",
+    "ed.cleared": "已清空 — Ctrl+S 會存成新關卡",
+    "ed.saved": "第 {0} 關已儲存至 {1}",
+    "ed.savedCopy": "第 {0} 關已儲存至 {1}  （副本 — data/ 是基準關卡庫）",
+    "ed.saveFailed": "儲存失敗：{0}",
+    "ed.palette": "調色盤",
+    "ed.brushLeft": "左",
+    "ed.brushRight": "右",
+    "ed.fieldName": "名稱",
+    "ed.fieldAuthor": "作者",
+    "ed.fieldHint": "提示",
+    "ed.modified": "已修改",
+    "ed.keys": "編輯器按鍵",
+
+    "obj.dirt": "泥地",
+    "obj.tank": "坦克",
+    "obj.flag": "旗幟",
+    "obj.water": "水",
+    "obj.solid": "實心塊",
+    "obj.block": "可推動方塊",
+    "obj.bricks": "磚牆",
+    "obj.mirrorUL": "鏡子 ↖",
+    "obj.mirrorUR": "鏡子 ↗",
+    "obj.mirrorDR": "鏡子 ↘",
+    "obj.mirrorDL": "鏡子 ↙",
+    "obj.rotoUL": "旋轉鏡 ↖",
+    "obj.rotoUR": "旋轉鏡 ↗",
+    "obj.rotoDR": "旋轉鏡 ↘",
+    "obj.rotoDL": "旋轉鏡 ↙",
+    "obj.onewayUp": "單向門 ↑",
+    "obj.onewayRight": "單向門 →",
+    "obj.onewayDown": "單向門 ↓",
+    "obj.onewayLeft": "單向門 ←",
+    "obj.crystal": "水晶塊",
+    "obj.antitankUp": "反坦克炮 ↑",
+    "obj.antitankRight": "反坦克炮 →",
+    "obj.antitankDown": "反坦克炮 ↓",
+    "obj.antitankLeft": "反坦克炮 ←",
+    "obj.ice": "冰面",
+    "obj.thinIce": "薄冰",
+    "obj.tunnel": "隧道",
+
+    "err.cannotRead": "無法讀取 {0}：{1}",
+    "err.cannotLoadLevel": "無法載入 {1} 的第 {0} 關",
+    "err.playbackMismatch": "「{0}」不是 {2} 的第 {1} 關 — 那一關是「{3}」"
+  }
 }

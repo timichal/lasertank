@@ -35,22 +35,17 @@ namespace LaserTank.Game
 {
     public sealed class GraphicsMenu
     {
-        // ID_GRAPHBOX_00 and _05.  Step 6 replaced the two English constants
-        // that used to be here with the language's own strings; the ids are the
-        // original's (LT32L_US.H:176) and the text now comes from whichever of
-        // the ten translations is loaded.
-        private string Title => _view.Strings["ID_GRAPHBOX_00"];
-        private string AuthorLabel => _view.Strings["ID_GRAPHBOX_05"];
+        private string Title => _view.Strings["gfx.title"];
+        private string AuthorLabel => _view.Strings["gfx.author"];
 
-        /// ID_GRAPHBOX_02 and _03 for the two built-in entries, whose names are
-        /// GraphBox's own radio buttons rather than anything on disk; a .ltg
-        /// keeps the label Packs.Scan built, because a file name is not a
-        /// translatable string.  The `&` mnemonics come off -- there is no
-        /// Windows dialog here to underline a letter.
+        /// The two built-in entries are named here rather than on disk -- they
+        /// are GraphBox's own radio buttons, not files -- so they get a key each.
+        /// A .ltg keeps the label Packs.Scan built out of its file name, because
+        /// a file name is not a translatable string.
         private string LabelOf(Pack p) => p.Mode switch
         {
-            0 => Core.Language.StripAmpersand(_view.Strings["ID_GRAPHBOX_02"]).Trim(),
-            1 => Core.Language.StripAmpersand(_view.Strings["ID_GRAPHBOX_03"]).Trim()
+            0 => _view.Strings["gfx.internal"],
+            1 => _view.Strings["gfx.user"]
                  + " (" + Packs.GameBmp + " + " + Packs.MaskBmp + ")",
             _ => p.Label,
         };
@@ -170,7 +165,19 @@ namespace LaserTank.Game
         {
             if (_packs == null) return;
             Pack sel0 = _packs[_sel];
-            float w = Mathf.Min(Ui.Px(400), host.Size.X - Ui.Px(40));
+            // Measured rather than reserved, for LanguageMenu's reason: the
+            // footer is one line of instruction with nothing in it to shed, and
+            // a flat width is a width that happens to fit English.
+            float want = Mathf.Max(Ui.Width(_view.Strings["gfx.footer"], 11),
+                                   Ui.CapsWidth(Title, 12) + Ui.Px(60));
+            foreach (Pack p in _packs)
+                want = Mathf.Max(want, Ui.Width(LabelOf(p) + "   "
+                                                + _view.Strings["gfx.notFound"], 12.5f));
+            if (sel0.Author.Length > 0)
+                want = Mathf.Max(want,
+                                 Ui.Width(AuthorLabel + " " + sel0.Author, 11.5f));
+            float w = Mathf.Min(Mathf.Max(Ui.Px(400), want + 2 * Pad),
+                                host.Size.X - Ui.Px(40));
             float wInner = w - 2 * Pad;
             float infoH = sel0.Info.Length == 0 ? 0
                 : Mathf.Min(6 * Ui.Px(15),
@@ -211,7 +218,8 @@ namespace LaserTank.Game
             {
                 Pack p = _packs[i];
                 bool cur = i == _sel;
-                string name = LabelOf(p) + (p.Available ? "" : "   (not found)");
+                string name = LabelOf(p)
+                              + (p.Available ? "" : "   " + _view.Strings["gfx.notFound"]);
                 Color tint = !p.Available ? Ui.Faint : cur ? Ui.Text : Ui.Dim;
                 var band = new Rect2(x - Ui.Px(8), y - Line + Ui.Px(4),
                                      wInner + 2 * Ui.Px(8), Line + Ui.Px(3));
@@ -250,12 +258,13 @@ namespace LaserTank.Game
             // so rather than pretending they are the only three.
             y += Ui.Px(8);
             float sx = x;
-            Ui.Write(n, new Vector2(sx, y), "Snap", 11.5f, Ui.Faint, Ui.Px(40));
+            Ui.Write(n, new Vector2(sx, y), _view.Strings["gfx.snap"], 11.5f, Ui.Faint,
+                     Ui.Px(40));
             sx += Ui.Px(44);
             for (int sz = 1; sz <= 3; sz++)
             {
                 bool on = sz == _view.Size;
-                string text = BoardView.CellOf(sz) + " px";
+                string text = _view.Strings.F("pill.snap", BoardView.CellOf(sz));
                 int z = sz;
                 // The three pills are the three size commands (120/121/122), so
                 // they are buttons: the keys 1/2/3 named in the footer are what
@@ -271,9 +280,7 @@ namespace LaserTank.Game
                              on || hot ? Ui.Raised : Ui.Bg);
             }
             Ui.Write(n, new Vector2(x, y + Line), 
-                     "↑↓ or click picks · 1/2/3 or Z snaps · "
-                     + "Enter, Esc or outside closes",
-                     11, Ui.Faint, wInner);
+                     _view.Strings["gfx.footer"], 11, Ui.Faint, wInner);
         }
     }
 }

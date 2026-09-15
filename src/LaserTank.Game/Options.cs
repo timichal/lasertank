@@ -294,11 +294,11 @@ namespace LaserTank.Game
             RecordAuthor = _ini.Get(SecData, PsPBA);
 
             // [DATA] Language.  No default written on load: an absent key means
-            // the base language, and Language.Load resolves an unknown code to
+            // the base language, and Strings.Load resolves an unknown code to
             // it too, so a hand-edited `Language=Klingon` degrades to English
-            // rather than to `[ID_WINBOX_03]` on every label.
+            // rather than to `[quit.title]` on every label.
             LanguageCode = _ini.Get(SecData, PsLang);
-            if (LanguageCode.Length == 0) LanguageCode = Core.Language.BaseCode;
+            if (LanguageCode.Length == 0) LanguageCode = Core.Strings.BaseCode;
         }
 
         /// The original's Yes/No test, which is a `strcmp` against `psYes` and
@@ -414,7 +414,7 @@ namespace LaserTank.Game
 
         public void SetLanguage(string code)
         {
-            LanguageCode = string.IsNullOrEmpty(code) ? Core.Language.BaseCode : code;
+            LanguageCode = string.IsNullOrEmpty(code) ? Core.Strings.BaseCode : code;
             _ini.Set(SecData, PsLang, LanguageCode);
         }
 

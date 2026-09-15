@@ -112,7 +112,7 @@ namespace LaserTank.Game
             if (_s.Rec2.Recording) _s.Rec2.Toggle();       // command 123
             _s.NoHighScore();                             // OKtoHS = FALSE
             _ed.Enter();
-            Status = "editor -- F1 lists the editor keys, F9 leaves, ctrl+S saves";
+            Status = _view.Strings["ed.enter"];
         }
 
         /// Command 604 (LTANK.C:1240).  It does *not* reload the level: the
@@ -133,8 +133,7 @@ namespace LaserTank.Game
                 _s.E.CurRecData.SDiff = _rec.Diff;
                 _s.EditorResume();
             }
-            Status = Modified ? "left the editor -- unsaved changes are still on the board"
-                              : "left the editor";
+            Status = _view.Strings[Modified ? "ed.leftModified" : "ed.left"];
         }
 
         // ---- the mouse, which is the editor's real input ---------------------
@@ -295,7 +294,7 @@ namespace LaserTank.Game
                 // once and shown on the palette's tunnel slot.
                 case Godot.Key.T:
                     _tunnel = (_tunnel + 1) & 7;
-                    Status = "tunnel id " + _tunnel;
+                    Status = _view.Strings.F("ed.tunnel", _tunnel);
                     return true;
 
                 // Swap the two selections, which the original does not have and
@@ -323,7 +322,8 @@ namespace LaserTank.Game
                 // where one gets written.  Plain C is free here: ACC2's own
                 // VK_C is Ctrl+C (601, Clear Field), just above.
                 case Godot.Key.C:
-                    Status = "grid " + (_view.ToggleGrid() ? "on" : "off");
+                    Status = _view.Strings[_view.ToggleGrid() ? "status.gridOn"
+                                                              : "status.gridOff"];
                     return true;
                 case Godot.Key.Escape: Leave(); return true;
             }
@@ -394,7 +394,8 @@ namespace LaserTank.Game
         {
             _rec.Diff = t;
             Modified = true;
-            Status = "difficulty " + new TLEVELINFO { SDiff = t }.DiffName.TrimStart(' ', '-');
+            Status = _view.Strings.F("ed.difficulty",
+                        _view.Strings[new TLEVELINFO { SDiff = t }.RankKey]);
         }
 
         /// Command 601, "Clear Field" (LTANK.C:1135): the board, the two edit
@@ -412,7 +413,7 @@ namespace LaserTank.Game
             _rec.ClearHint();
             Modified = true;
             OkToSave = false;
-            Status = "cleared -- ctrl+S saves it as a new level";
+            Status = _view.Strings["ed.cleared"];
         }
 
         // ---- command 603, and where it is allowed to write --------------------
@@ -437,12 +438,12 @@ namespace LaserTank.Game
                 _rec.Write(dest, _s.Level);
                 Modified = false;
                 OkToSave = true;
-                Status = "saved level " + _s.Level + " to "
-                         + Shorten(dest) + (copied ? "  (a copy -- data/ is the corpus)" : "");
+                Status = _view.Strings.F(copied ? "ed.savedCopy" : "ed.saved",
+                                         _s.Level, Shorten(dest));
             }
             catch (Exception ex)                 // FileError(), LTANK.C:1206
             {
-                Status = "save failed: " + ex.Message;
+                Status = _view.Strings.F("ed.saveFailed", ex.Message);
             }
         }
 
@@ -565,8 +566,9 @@ namespace LaserTank.Game
             float x0 = PanelX, y0 = PanelY;
             float w = panel.Size.X - 2 * Pad;
 
-            Ui.Caps(n, new Vector2(x0, panel.Position.Y + Pad + Ui.Px(9)), "Palette",
-                    Ui.Faint);
+            Strings L = _view.Strings;
+            Ui.Caps(n, new Vector2(x0, panel.Position.Y + Pad + Ui.Px(9)),
+                    L["ed.palette"], Ui.Faint);
 
             for (int i = 0; i <= Obj.MaxObjects + 1; i++)
             {
@@ -596,22 +598,23 @@ namespace LaserTank.Game
             // Which object each brush holds, spelled out: the sprites are 32 px
             // and several pairs (the four mirrors, the four rotos) differ by a
             // diagonal.
-            y2 += Brush(n, x0, y2, w, "left", Label(_ed.CurSelBM_L), Ui.Accent);
-            y2 += Brush(n, x0, y2, w, "right", Label(_ed.CurSelBM_R), Ui.Cyan);
+            y2 += Brush(n, x0, y2, w, L["ed.brushLeft"], Label(L, _ed.CurSelBM_L),
+                        Ui.Accent);
+            y2 += Brush(n, x0, y2, w, L["ed.brushRight"], Label(L, _ed.CurSelBM_R),
+                        Ui.Cyan);
             y2 += Ui.Px(8);
 
             Ui.Rule(n, x0, y2, w);
             y2 += Ui.Px(14);
 
-            y2 = Field(n, x0, y2, w, "name", _name, 1);
-            y2 = Field(n, x0, y2, w, "by", _author, 2);
-            y2 = Field(n, x0, y2, w, "hint", _hint, 3);
+            y2 = Field(n, x0, y2, w, L["ed.fieldName"], _name, 1);
+            y2 = Field(n, x0, y2, w, L["ed.fieldAuthor"], _author, 2);
+            y2 = Field(n, x0, y2, w, L["ed.fieldHint"], _hint, 3);
             y2 += Ui.Px(6);
 
             var info = new TLEVELINFO { SDiff = _rec.Diff };
-            string rank = info.DiffName.TrimStart(' ', '-').Trim();
             Color dc = Ui.Diff[Math.Clamp((int)_rec.Diff, 0, 5)];
-            string rankText = rank == "" ? "unrated" : rank;
+            string rankText = L[info.RankKey];
             // Commands 701..705 are five menu items and the digits 1-5 stand in
             // for them; the chip that shows the answer cycles through the same
             // five, which is the pointer's version of a menu with no menu bar.
@@ -621,7 +624,7 @@ namespace LaserTank.Game
             float px = Ui.Pill(n, x0, y2, rankText, dc,
                                dc * new Color(1, 1, 1, 0.16f));
             if (Modified)
-                Ui.Pill(n, px, y2, "modified", Ui.Accent,
+                Ui.Pill(n, px, y2, L["ed.modified"], Ui.Accent,
                         new Color(0.20f, 0.14f, 0.05f));
 
             // The footer mirrors the play column's: one key, the one that opens
@@ -635,7 +638,7 @@ namespace LaserTank.Game
                                             () => _view.Press(Godot.Key.F1));
                 if (hot) Ui.Hot(n, foot, 8f);
                 float fx = Ui.Keycap(n, x0, fy, "F1") + Ui.Px(9);
-                Ui.Write(n, new Vector2(fx, fy + Ui.Px(15)), "editor keys", 11.5f,
+                Ui.Write(n, new Vector2(fx, fy + Ui.Px(15)), L["ed.keys"], 11.5f,
                          hot ? Ui.Text : Ui.Faint, panel.End.X - fx - Pad);
             }
         }
@@ -693,19 +696,29 @@ namespace LaserTank.Game
             return y + h + Ui.Px(6);
         }
 
-        /// The object names, LTANK.H's own table read top to bottom.  Index 26
-        /// is the tunnel selector and 27 is the slot past the end.
-        private static readonly string[] Names =
+        /// The object names as catalogue keys, LTANK.H's own table read top to
+        /// bottom.  Index 26 is the tunnel selector; 27 is the slot past the end
+        /// and has no name, which is why it draws as its own number.
+        ///
+        /// The four mirrors, the four rotaries, the four one-ways and the four
+        /// anti-tanks differ only by a direction, and this port spells that
+        /// direction with an arrow rather than with `ul`/`rt`: an arrow is the
+        /// same glyph in every language and is what the sprite is actually
+        /// showing.
+        private static readonly string[] NameKeys =
         {
-            "dirt", "tank", "flag", "water", "solid", "block", "bricks",
-            "mirror ul", "mirror ur", "mirror dr", "mirror dl",
-            "roto ul", "roto ur", "roto dr", "roto dl",
-            "one-way up", "one-way rt", "one-way dn", "one-way lt",
-            "crystal", "anti-tank up", "anti-tank rt", "anti-tank dn",
-            "anti-tank lt", "ice", "thin ice", "tunnel", "(27)",
+            "obj.dirt", "obj.tank", "obj.flag", "obj.water", "obj.solid",
+            "obj.block", "obj.bricks",
+            "obj.mirrorUL", "obj.mirrorUR", "obj.mirrorDR", "obj.mirrorDL",
+            "obj.rotoUL", "obj.rotoUR", "obj.rotoDR", "obj.rotoDL",
+            "obj.onewayUp", "obj.onewayRight", "obj.onewayDown", "obj.onewayLeft",
+            "obj.crystal",
+            "obj.antitankUp", "obj.antitankRight", "obj.antitankDown",
+            "obj.antitankLeft",
+            "obj.ice", "obj.thinIce", "obj.tunnel",
         };
 
-        private static string Label(int i) =>
-            i >= 0 && i < Names.Length ? Names[i] : i.ToString();
+        private static string Label(Strings L, int i) =>
+            i >= 0 && i < NameKeys.Length ? L[NameKeys[i]] : i.ToString();
     }
 }

@@ -107,7 +107,7 @@ See [*Finished*](docs/game/history.md).
 (on the class, and on `SoundPlay`, whose body is in `Engine.Sound.cs`). `Engine.Search.cs` has not
 changed since the solver's first layer — **if a solver change seems to need an engine change, that
 is the signal to stop and re-read.** Core also carries four files that are *not* reachable from
-`Tick()` and so cannot move a rule: `GraphicsFile.cs`, `SoundFile.cs`, `Editor.cs`, `Language.cs`.
+`Tick()` and so cannot move a rule: `GraphicsFile.cs`, `SoundFile.cs`, `Editor.cs`, `Strings.cs`.
 `NotPortedException` stays in the tree, wired into `fuzz.py`'s signatures, because the argument
 behind it has not changed: **an unported function must throw rather than no-op**, or it produces a
 plausible wrong trace, which is the one failure mode this whole approach exists to prevent.
@@ -155,13 +155,13 @@ python tools/list_check.py       # list rows + .hs bytes vs Python, ~25 s
 python tools/roundtrip_check.py  # record -> replay -> oracle, 60 cases x 6 runs, ~150 s
 python tools/mouse_check.py      # MouseOperation vs the oracle, 5,000 scripts, ~12 s
 python tools/editor_check.py     # the editor + the .lvl it writes, ~25 s
-python tools/lang_check.py       # 10 languages back to the 2007 bytes, ~25 s
+python tools/strings_check.py    # 11 UI catalogues, both ways against the source, ~20 s
 python tools/collections_check.py  # the 23 collections + command 108's switch, ~20 s
 python tools/chrome_check.py     # the chrome under the mouse + the filter field, ~110 s
 ```
 
 All twelve want Godot; `atlas_check`, `sound_check`'s WAV half, `editor_check`'s third half and
-`lang_check`'s fourth degrade to a loud SKIP without it, `undo_check` and `mouse_check` need only
+`strings_check`'s last two degrade to a loud SKIP without it, `undo_check` and `mouse_check` need only
 the two engines, the rest need Godot outright. Every one that runs the project **rebuilds its C#
 first**, because `godot --path` does not — see
 [*Environment notes*](docs/game/repo.md#environment-notes). None of them touches
@@ -190,14 +190,17 @@ python tools/sweep.py                            # everything on engines.py read
 
 Nothing is blocked. Roughly in the order they are worth doing; each one in full, with what it is
 waiting on and what the finished work beside it already answered, is in
-[`docs/game/next-steps.md`](docs/game/next-steps.md). **Items keep their numbers**, so the gap where
-**2** was is deliberate: the menu bar is [*Finished*](docs/game/history.md), decided against — `F1`
-and step 9 had already taken both halves of what it was for, and the route it still claimed to add
-is a route to commands item 3 has not written yet.
+[`docs/game/next-steps.md`](docs/game/next-steps.md). **Items keep their numbers**, so the gaps
+where **1** and **2** were are deliberate. **1** was i18n and it is
+[*Finished*](docs/game/history.md), step 13: the audit it asked for was run, the rule it was to be
+run on — *a key is read by a widget or it goes* — answered *go* for the 2007 strings as a whole, and
+`data/language/` is eleven catalogues of the port's own text with `tools/strings_check.py` failing
+both ways over them. **2** was a menu bar and it is [*Finished*](docs/game/history.md), decided
+against — `F1` and step 9 had already taken both halves of what it was for, and the route it still
+claimed to add is a route to commands item 3 has not written yet.
 
 | # | what it is | the short of it |
 |---|---|---|
-| **1** | **i18n: actually use the translations** | 23 of the 155 keys per file are wired — nine of them new in step 11, which needed the Search dialog's own labels and took them; the rest describe dialogs and a button strip this port does not have. The job is an audit — a key is read by a widget or it goes — and step 7 is what it was waiting for. Deleting one means editing all ten JSON files *and* `lang_check.py`'s expectation |
 | **3** | **The rest of the original that is still missing** | everything here was named as left out rather than forgotten: two commands blocked on a file dialog, six on a modal prompt (step 8 built the first of those), the DeadBox's own first-turn guard, and a shrinking list of additive dialogs — step 11 took three off it, the Search sub-dialog and `TransListKey`'s type-ahead and the direct level-number entry being the level list's filter bar now |
 | **4** | **The UI redesign, third pass** | steps 9 and 10 closed the pointing half and the *looks generated* half, and step 11 the *unusable at 2,030 rows* half — none of which was on this list until someone played it. Open: web export (closer — the faces are shipped now rather than named), motion, the packs' own `Control.bmp`/`Opening.bmp` (**deliberately declined once** — see step 10), and a drag or two-finger gesture on the *board*, which would be this port's own rather than the original's |
 | **5** | **More fuzzing, indefinitely** | `fuzz.py` on new seeds and on the 12 collections its first campaign never touched, plus `undo_check` / `mouse_check` / `editor_check` as three more campaigns of the same kind |

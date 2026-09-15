@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert the original Language.dat files into UTF-8 JSON the port can read.
+"""Decode the original Language.dat files.  Nothing at runtime reads them.
 
 The 2007 distribution ships ten translations, each a `Language\\Language.dat`
 under `original/src/Setups/<dir>/`.  The format is *positional*: 240 lines,
@@ -8,21 +8,30 @@ comments and blanks skipped, in six fixed sections whose sizes live in
 SIZE_DIALOGS 96, SIZE_ABOUTMSG 14).  Each file is also in a *different* 8-bit
 codepage, chosen by whichever Windows locale the translator happened to run.
 
-Step 6 does not transliterate `LANGUAGE.C`.  The reason is written down in
-PROGRESS.md: nothing about the rules depends on how a UI string reaches the
-screen, and the port will never have to consume a new `.dat` -- these ten files
-are the whole population, frozen in 2007.  So the conversion happens *once*,
-here, and the port reads keyed UTF-8 JSON instead of counting lines.
+**This used to feed the game and no longer does.**  Step 6 converted these ten
+files into `data/language/*.json` and the port drew twenty-three of their 155
+slots; the rest described a Windows menu bar, a nine-button control panel and
+sixteen dialogs this port does not have.  The i18n pass ran next-steps item 1's
+audit -- *a key is read by a widget or it goes* -- and the answer for the file as
+a whole was *go*: `data/language/` now holds the port's own keyed catalogue, in
+eleven languages, written rather than inherited (`Core/Strings.cs` and
+`tools/strings_check.py`).
 
-What this script does NOT do is invent the key names.  Every one is read out of
-the frozen `LT32L_US.H` (`ButText1..9`, `txt001..txt045`, `REC_Title`,
-`help01..03`, `HelpFileName`, and the 96 `ID_*` dialog slots), and the menu
-tree's shape and command ids are read out of the frozen `lt32l_us.inc`.  That
-is what makes the output auditable: `lang_check.py` re-derives all of it and
-round-trips every string back to the original bytes.
+So this script is kept as a **decoder**, not a producer.  It is the executable
+form of two findings that would otherwise survive only as prose: the codepage
+each translator's Windows happened to use (nothing in the distribution records
+them -- they were measured), and the `Setups/` directory names, which are the one
+place the installer's naming meets ISO codes and where `Cs`/`Ct` turn out to be
+Simplified and Traditional Chinese rather than Czech.  It writes nothing unless
+asked, and never into `data/language/`, which is no longer its output.
 
-    python tools/convert_language.py              # -> data/language/*.json
-    python tools/convert_language.py --check      # compare, write nothing
+Nor does it invent the key names.  Every one is read out of the frozen
+`LT32L_US.H` (`ButText1..9`, `txt001..txt045`, `REC_Title`, `help01..03`,
+`HelpFileName`, and the 96 `ID_*` dialog slots), and the menu tree's shape and
+command ids out of the frozen `lt32l_us.inc`.
+
+    python tools/convert_language.py              # decode all ten, report
+    python tools/convert_language.py --out DIR    # ... and write the JSON there
 """
 from __future__ import annotations
 
@@ -36,10 +45,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SETUPS = ROOT / "original" / "src" / "Setups"
 HEADER = ROOT / "original" / "src" / "LT32L_US.H"
 INC = ROOT / "original" / "src" / "lt32l_us.inc"
-OUT = ROOT / "data" / "language"
+#: Where `--out` writes when it is not given a directory.  Deliberately not
+#: `data/language/`, which is the port's own catalogue now: this script decodes
+#: a 2007 artifact and must not be able to stand on top of what replaced it.
+DEFAULT_OUT = ROOT / "out" / "original-language"
 
-# LT32L_US.H:42-48.  These sizes are what makes the file positional, and
-# lang_check.py asserts the boundaries land where the menu lines stop.
+# LT32L_US.H:42-48.  These sizes are what makes the file positional: they are
+# where one section stops and the next begins, and a file that stops early
+# simply leaves the tail of the last one absent.
 SIZE_MMENU, SIZE_EMENU = 49, 24
 SIZE_BUTTON, SIZE_TEXT = 9, 48
 SIZE_DIALOGS, SIZE_ABOUTMSG = 96, 14
@@ -66,8 +79,8 @@ OFFSET_ABOUTMSG = OFFSET_DIALOGS + SIZE_DIALOGS    # 153
 #
 # The codepages are not recorded anywhere in the distribution either.  They
 # were established by decoding every file under every candidate and reading the
-# result; a wrong one now fails loudly, because `read_lines` decodes strictly
-# and `lang_check.py` re-encodes every line back to it and compares bytes.
+# result; a wrong one fails loudly here, because `read_lines` decodes strictly.
+# Establishing them is most of what this script is still for.
 #
 # The display name is the port's, **not** the translator's own banner string.
 # Those read `"English - ( Example )"`, `"Español ( 85% complete !)"`,
@@ -75,9 +88,9 @@ OFFSET_ABOUTMSG = OFFSET_DIALOGS + SIZE_DIALOGS    # 153
 # space, which is a fine thing to write at the top of a file you are editing by
 # hand and a poor thing to put in a picker.  The banner survives verbatim as
 # `sourceName` (with its percentage, which is real information -- four files
-# are labelled 90% or less), and `lang_check.py` checks it against the artifact.
-# It is the English name rather than the endonym because the port draws its UI
-# in `ThemeDB.FallbackFont`, which has no CJK glyphs: `简体中文` would be two boxes.
+# are labelled 90% or less).  The port's own catalogue keeps the same policy and
+# for the same reason: the picker draws in a face with no CJK glyphs, so
+# `简体中文` would be two boxes.
 LANGUAGES = {
     #            dir   display name           codepage     translator
     "en":      ("US", "English",             "cp1252"),  # Jim Kindley
@@ -236,8 +249,8 @@ def convert_escapes(s: str) -> str:
 
     `\\t` becomes a tab and `\\n` becomes CR LF; every other backslash is left
     alone, which is why `HelpFileName` survives as `Language\\LaserTank.hlp`.
-    The CR LF is normalised to a bare newline here -- the port renders text, it
-    does not hand a buffer to GDI -- and lang_check.py inverts exactly this.
+    The CR LF is normalised to a bare newline here -- this decodes text, it
+    does not hand a buffer to GDI.
     """
     out, i = [], 0
     while i < len(s):
@@ -386,33 +399,44 @@ def build(code: str, names: tuple[list[str], list[str], list[str]]) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--check", action="store_true",
-                    help="compare against what is on disk; write nothing")
+    ap.add_argument("--out", nargs="?", const=str(DEFAULT_OUT), default=None,
+                    metavar="DIR",
+                    help="also write the decoded JSON to DIR "
+                         f"(default {DEFAULT_OUT.relative_to(ROOT)})")
     args = ap.parse_args()
 
-    names = slot_names()
-    OUT.mkdir(parents=True, exist_ok=True)
-    stale = []
-    for code in LANGUAGES:
-        doc = build(code, names)
-        blob = json.dumps(doc, ensure_ascii=False, indent=1) + "\n"
-        path = OUT / f"{code}.json"
-        if args.check:
-            old = path.read_text(encoding="utf-8") if path.exists() else None
-            state = "ok" if old == blob else ("MISSING" if old is None else "STALE")
-            if state != "ok":
-                stale.append(code)
-        else:
-            path.write_text(blob, encoding="utf-8", newline="\n")
-            state = "written"
-        print(f"  {code:<7} {doc['sourceDir']}  {doc['name'][:21]:<21} "
-              f"{doc['sourceLines']:>3} lines  {len(blob):>6} B  {state}")
+    out = pathlib.Path(args.out) if args.out else None
+    if out is not None:
+        if out.resolve() == (ROOT / "data" / "language").resolve():
+            print("convert_language: data/language/ is the port's own catalogue "
+                  "now, not this script's output")
+            return 2
+        out.mkdir(parents=True, exist_ok=True)
 
-    if stale:
-        print(f"\nFAIL: {len(stale)} out of date: {' '.join(stale)}"
-              "\n      run tools/convert_language.py to regenerate")
+    names = slot_names()
+    bad = []
+    for code in LANGUAGES:
+        try:
+            doc = build(code, names)
+        except Exception as ex:                      # noqa: BLE001 -- reported
+            bad.append(code)
+            print(f"  {code:<7} FAIL  {ex}")
+            continue
+        blob = json.dumps(doc, ensure_ascii=False, indent=1) + "\n"
+        state = "decoded"
+        if out is not None:
+            (out / f"{code}.json").write_text(blob, encoding="utf-8", newline="\n")
+            state = "written"
+        print(f"  {code:<7} {doc['sourceDir']:<3} {doc['sourceEncoding']:<7} "
+              f"{doc['name'][:21]:<21} {doc['sourceLines']:>3} lines  "
+              f"{len(blob):>6} B  {state}")
+
+    if bad:
+        print(f"\nFAIL: {len(bad)} would not decode: {' '.join(bad)}")
         return 1
-    print(f"\nOK: {len(LANGUAGES)} languages -> {OUT.relative_to(ROOT)}")
+    where = f" -> {out}" if out is not None else ""
+    print(f"\nOK: {len(LANGUAGES)} languages decode from the frozen "
+          f".dat files{where}")
     return 0
 
 

@@ -183,7 +183,7 @@ namespace LaserTank.Game
             }
             catch (Exception ex) when (p.Mode != 0)
             {
-                fallback = ex.Message + " -- using the internal graphics";
+                fallback = Strings.Cur.F("status.packFallback", ex.Message);
                 return Atlas.Load("");
             }
         }

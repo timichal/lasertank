@@ -168,21 +168,16 @@ namespace LaserTank.Game
             return r;
         }
 
-        /// One line of the "old score" text HSBox builds from txt009/010/011
-        /// ("M: ", " S: ", " I: ") -- the three labels with the record's three
-        /// fields.  Step 6 made them the language's; txt008, "Old High Score >
-        /// M:", is the *whole* prefix in the original and is not used here,
-        /// because this port prints the fields after its own sentence rather
-        /// than in HSBox's layout.
+        /// One line of the "old score" text HSBox builds.
         ///
-        /// The labels carry their own spacing in all ten files -- "M: " with a
-        /// trailing space, " S: " with one on each side -- so this concatenates
-        /// and adds nothing.  Trimming them would look tidier in the source and
-        /// wrong on screen.
-        public static string Describe(THSREC r, Language lang) =>
-            r == null ? "-"
-              : lang["txt009"] + r.Moves + lang["txt010"] + r.Shots
-                + lang["txt011"] + r.Name;
+        /// The original assembles it out of three labels -- txt009/010/011,
+        /// `"M: "`, `" S: "`, `" I: "`, each carrying its own spacing so the
+        /// concatenation lines up -- which is a sentence written as a printf.
+        /// This is one string with three placeholders instead (`score.record`),
+        /// because "103 moves, 46 shots, by Duck" is a clause a translator can
+        /// put in their own language's word order and `M:` `S:` `I:` is not.
+        public static string Describe(THSREC r, Strings s) =>
+            r == null ? "-" : s.F("score.record", r.Moves, r.Shots, r.Name);
 
         /// The same three fields with the labels the English file happens to
         /// carry, frozen -- for `--play`'s `highscore` line, which is an

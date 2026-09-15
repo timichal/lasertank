@@ -23,10 +23,12 @@ data/       game content = the regression corpus
               time, each already through the two-engine gate.  A missing .lpb
               means a level has not been re-run, not that it is unsolved
   graphics/   .ltg packs      meta/  changelogs & name indexes
-  language/   the ten translations as keyed UTF-8 JSON, named by ISO code
-              (en fr de nl pt es sv hr zh-Hans zh-Hant), converted once from
-              original/src/Setups/*/Language/Language.dat — whose directory
-              names are NOT those codes; convert_language.LANGUAGES pairs them
+  language/   the port's own UI text, one keyed UTF-8 catalogue per language,
+              named by ISO code (en cs de es fr hr nl pt sv zh-Hans zh-Hant).
+              NOT the 2007 translations: those are still frozen under
+              original/src/Setups/*/Language/Language.dat and are decoded by
+              tools/convert_language.py, which writes nothing here.  See
+              docs/game/ui.md, *i18n as built*
 oracle/     the C reference oracle — see oracle/README.md
   stub/       minimal <windows.h> that shadows the real one
   win32_stub.c  real memory/files/messages, no-op GDI
@@ -43,10 +45,11 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                       GraphicsFile.cs  .ltg + BMP readers, BMSTA/ColorList
                       SoundFile.cs     the .wav reader and lt_sfx.c's id->name table
                       Editor.cs        ChangeGO, the Shifts, Clear Field
-                      Language.cs      the UI strings + both menu trees.  The one
-                                       file here that is NOT a transliteration
+                      Strings.cs       the UI catalogue — keys, per-key fallback,
+                                       {0} formatting.  The one file here that is
+                                       NOT a transliteration of anything
   LaserTank.Cli/    Program.cs TraceWriter.cs — the oracle's CLI, the oracle's trace
-                    EditDriver.cs — `--edit`;  LangDump.cs — `--lang-dump`/`--lang-list`
+                    EditDriver.cs — `--edit`
   LaserTank.Solver/ the batch solver and the interactive driver — see SOLVER.md
   LaserTank.Game/   the Godot 4.7 project
                     BoardView.cs   draws Game.BMF, routes keys, measures the
@@ -75,7 +78,7 @@ src/        the C# port         build.sh -> build/lasertank-{core,solve}.exe
                     EditMode.cs    commands 201/601/603/604/605/701-705/710-713
                                    and the palette
                     Step4Check.cs, Step6Check.cs  the headless dumps list_check.py
-                                   and lang_check.py compare against
+                                   and strings_check.py compare against
                     Paths.cs       finds data/
                     Built by Godot or `dotnet build`, never published into build/
 build/      C# output (gitignored)      LaserTank.slnx  the solution
@@ -102,10 +105,10 @@ docs/       the detail behind the two entry points -- game/ is PROGRESS.md's, on
 | `roundtrip_check.py` | per undo-carrying script, six runs — the script through both engines and through Godot's command path, then the `.lpb` it records through both engines and through Godot's *playback* path |
 | `mouse_check.py` | `MouseOperation` through `--script`'s click tokens, trace-diffed against the oracle's own copy |
 | `editor_check.py` | 3,000 edit scripts against the oracle's own `ChangeGO`; the `.lvl` writer (an untouched level re-saves byte for byte across all 23 collections, the `GetWindowText` widths rebuilt in Python, the gap zero-filled, the saved board tied to the trace, and **the oracle — which *is* the 2010 loader — opening what was written**); and the game's own editor saving the same bytes as the driver |
-| `lang_check.py` | the tab policy; 2,293 source lines rebuilt out of the JSON and compared **as bytes in each file's own codepage**; the key set and both menu trees against the frozen header and `.inc`; `code`/`name`/`sourceDir`/`sourceEncoding` against `convert_language.LANGUAGES` and `sourceName` against the `.dat`'s own banner line (the one string the round trip cannot reach — it sits on a `#` line the original's loader skips); `--lang-dump` and the game's `--check-lang` against a Python rebuild; a synthetic partial language for the fallback; 5 INI checks |
+| `strings_check.py` | the i18n gate, and **the audit rule of next-steps item 1 made permanent**: it fails if a key in `en.json` appears in no source file, and fails if a lookup in the source names a key `en.json` does not have. Plus one key set across the eleven files with no blanks, `{0}` placeholders matching English in every one, and the eleven labels that are placed by *character column* rather than measured held to the width their column leaves them (`WIDTHS`). Then the game's own `--check-strings` for each language against a Python rebuild, and `--check-strings-ini`: the picker's choice surviving a restart, an unknown code degrading to the base, a foreign INI key untouched, and a synthetic partial catalogue for the per-key fallback |
 | `collections_check.py` | the collection picker's 23 rows, rebuilt in Python from the same two directory trees against `--check-collections`; and the switch behind them — all 23 opened in order through one Session, with the `.hs` / `.ghs` / `.lpb` names checked to have followed each one (`AssignHSFile`), the level checked to be 1, an open playback checked to be closed by the change, and a `.lvl` that is not there checked to restore rather than throw |
 | `chrome_check.py` | the third arm of the window proc. Dumps every clickable rectangle of twelve screens (`--dump-hits`) and checks three things a screenshot cannot show: that no target is outside its window or under something drawn later (Hits.Click rewritten in Python), that none is under the finger-sized floor `Ui.Touch` puts them at, and that **clicking a target called `key:U` leaves the game in the same state as pressing U** — `--click` against `--press`, two processes, one comparison. Since step 11 it also types five queries into the level list's filter field (`--type`) and asserts the row count, because that field is the one arm neither of the other two flags can reach. **Its baseline INI is one it writes, not a copy of the player's** — the collection, the sound and the size preset all change what it is looking at (the playback screen needs one of the two collections with `data/demos/`; the `MUTED` pill is a target; every target scales off the window), and inheriting them meant red screens nobody had touched and nobody could reproduce. Needs a real window and says so |
-| `convert_language.py` | the one-time import behind that. `--check` reports staleness without writing |
+| `convert_language.py` | **not a gate and no longer a producer**: it decodes the ten frozen 2007 `Language.dat` files and reports. Kept as the executable form of two findings — the codepages, which were measured and are recorded nowhere in the distribution, and `LANGUAGES`, the one table where the installer's `Setups/` names meet ISO codes (`Cs`/`Ct` are Chinese, not Czech). `--out DIR` writes the JSON somewhere you can read it; it refuses `data/language/` |
 | `bump_rate.py` | classify consumed keys; bumps = desync signature |
 | `dump_level.py` | print a `.lvl` level as ASCII with its hint |
 | `unpack_lpb_txt.py` | decode a Text-Converter `.txt` wrapper back to `.lpb` |
@@ -178,8 +181,9 @@ Everything in `tools/` is stdlib-only. See `README.md` and `data/SOURCES.md` for
   while every output was ASCII; the language dumps are not. On the first byte cp1252 leaves undefined
   the reader thread raises `UnicodeDecodeError`, `subprocess` swallows it in the thread, and
   `p.stdout` comes back **empty** — so four of the ten languages looked like a crashed game rather
-  than a decoding bug. `lang_check.run_godot` captures bytes and decodes UTF-8 explicitly. Any new
-  gate whose output can carry non-ASCII must do the same.
+  than a decoding bug. `strings_check.run_godot` captures bytes and decodes UTF-8 explicitly — it
+  inherited the note along with the trap, and eleven languages including two Chinese ones make it
+  more certain rather than less. Any new gate whose output can carry non-ASCII must do the same.
 - **A backslash does not survive `python - <<'EOF'` in this harness**, and a *doubled* backslash
   arrives as a single one even in `cat > f <<'EOF'` — so escaping for the inner language is exactly
   backwards here. Use the editing tools for anything containing a backslash, or write the
