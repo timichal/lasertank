@@ -418,9 +418,34 @@ namespace LaserTank.Game
         /// making the player ask twice on the level they asked about.
         private bool _hint;
 
+        /// **A throw out of _Ready used to hang the run rather than end it.**
+        /// Godot logs a C# exception and keeps the main loop turning, so the
+        /// rest of Start -- including the branch that calls Quit for --shot --
+        /// never runs, and a scripted run sits there forever having drawn
+        /// nothing and printed nothing but the trace.  The easy way in is a
+        /// --levels value that is not a readable collection (`--levels --shot
+        /// out.png` eats the next flag as the file name and Session's
+        /// constructor throws), but the two "fail loudly" guards in Start throw
+        /// too, and loudly is not what they got.
+        ///
+        /// **An instrument run ends on it**, because a batch that cannot start
+        /// must not outlive its own error message -- a gate reads the exit code
+        /// and a hang has none.  A player's run is left as it was: the window is
+        /// broken either way, and one that stays with the trace behind it says
+        /// more than one that vanishes.
         public override void _Ready()
         {
             string[] args = OS.GetCmdlineUserArgs();
+            try { Start(args); }
+            catch (Exception e)
+            {
+                GD.PrintErr("start failed: " + e);
+                if (Instrument(args)) GetTree().Quit(1);
+            }
+        }
+
+        private void Start(string[] args)
+        {
             if (Array.IndexOf(args, "--check-sheets") >= 0)
             {
                 GetTree().Quit(SheetCheck.Run());
@@ -494,30 +519,7 @@ namespace LaserTank.Game
             // explicit --ini says "this file is yours", which is how
             // tools/options_check.py drives the writing half.
             string ini = ArgStr(args, "--ini");
-            bool instrument = ArgStr(args, "--shot") != null
-                              || Array.IndexOf(args, "--play") >= 0
-                              || ArgStr(args, "--replay") != null
-                              || Array.IndexOf(args, "--check-options") >= 0
-                              || Array.IndexOf(args, "--check-deadbox") >= 0
-                              // **Step 9's three and step 11's belong on this
-                              // list and were not on it.**  They are as much
-                              // instruments as --shot is, and the gap never
-                              // showed because tools/chrome_check.py always
-                              // passes --ini and an explicit --ini makes the
-                              // options live anyway.  What it cost was an
-                              // ad-hoc `--click`/`--dump-hits` run by hand:
-                              // it rewrote the player's LaserTank.ini, and a
-                              // session of them left [DATA] RLLFilename on a
-                              // different collection than the one the player
-                              // had open.  Same rule as everything else here --
-                              // an instrument must not write the player's
-                              // state, and the test is whether it could run
-                              // eight times over and leave the tree as it was.
-                              || ArgStr(args, "--click") != null
-                              || ArgStr(args, "--press") != null
-                              || ArgStr(args, "--type") != null
-                              || Array.IndexOf(args, "--dump-hits") >= 0
-                              || Arg(args, "--tick-rate", 0) > 0;
+            bool instrument = Instrument(args);
             // One rule, used twice: **an explicit --ini makes the options
             // live** -- writable, and allowed to choose the level -- while an
             // instrument left to find the file on its own gets the settings
@@ -969,6 +971,10 @@ namespace LaserTank.Game
         private async void ClickScript(string spec, string press, string typed,
                                        string shot, bool dump)
         {
+            // Named in the order the coroutine runs them, so the message names
+            // a flag the caller actually typed.
+            if (NeedsWindow(press != null ? "--press" : typed != null ? "--type"
+                            : dump ? "--dump-hits" : "--click")) return;
             Measure();
             GD.PrintRaw(ChromeLine());
 
@@ -1119,6 +1125,33 @@ namespace LaserTank.Game
             }
         }
 
+        /// **Is this run an instrument rather than a player?**  Two callers
+        /// want the same list and must not drift apart: the options in Start
+        /// read the INI without writing it for these, and _Ready ends the
+        /// process on a failed start for these.
+        ///
+        /// **Step 9's three and step 11's belong on this list and were not on
+        /// it.**  They are as much instruments as --shot is, and the gap never
+        /// showed because tools/chrome_check.py always passes --ini and an
+        /// explicit --ini makes the options live anyway.  What it cost was an
+        /// ad-hoc `--click`/`--dump-hits` run by hand: it rewrote the player's
+        /// LaserTank.ini, and a session of them left [DATA] RLLFilename on a
+        /// different collection than the one the player had open.  Same rule as
+        /// everything else here -- an instrument must not write the player's
+        /// state, and the test is whether it could run eight times over and
+        /// leave the tree as it was.
+        private static bool Instrument(string[] args)
+            => ArgStr(args, "--shot") != null
+               || Array.IndexOf(args, "--play") >= 0
+               || ArgStr(args, "--replay") != null
+               || Array.IndexOf(args, "--check-options") >= 0
+               || Array.IndexOf(args, "--check-deadbox") >= 0
+               || ArgStr(args, "--click") != null
+               || ArgStr(args, "--press") != null
+               || ArgStr(args, "--type") != null
+               || Array.IndexOf(args, "--dump-hits") >= 0
+               || Arg(args, "--tick-rate", 0) > 0;
+
         private static string ArgStr(string[] args, string name)
         {
             int i = Array.IndexOf(args, name);
@@ -1176,8 +1209,31 @@ namespace LaserTank.Game
             Measure();
         }
 
+        /// **The frame-driven instruments need a window, and now say so
+        /// instead of waiting for one that is never coming.**  --shot waits on
+        /// FramePostDraw for the two frames it captures and ClickScript for the
+        /// frame each click is tested against; the headless rendering driver
+        /// never emits it, so the await never resumes, Quit is never reached,
+        /// and the run hangs until something kills it -- no PNG, no output, no
+        /// exit code.  Four probes in one session were lost to that before it
+        /// was a message.  (--dump-hits is doubly dead headless: the hit list is
+        /// built by _Draw and by nothing else.)
+        ///
+        /// Exit 2, which is what the other usage errors in this file use: the
+        /// arguments were wrong, the game was not.
+        private bool NeedsWindow(string flag)
+        {
+            if (DisplayServer.GetName() != "headless") return false;
+            GD.PrintErr(flag + " needs a window -- the headless driver draws no "
+                        + "frames, so there is nothing to capture and nothing to "
+                        + "click.  Drop --headless.");
+            GetTree().Quit(2);
+            return true;
+        }
+
         private async void Shot(string path)
         {
+            if (NeedsWindow("--shot")) return;
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             Error err = GetViewport().GetTexture().GetImage().SavePng(path);

@@ -296,6 +296,16 @@ which is how the responsive layout is reviewed: there is no fixed board size to 
 more, so "what does it look like at that size" needed an instrument like every other panel.
 Every path after `--` must be **absolute** — see [*Environment notes*](repo.md#environment-notes).
 
+**None of them run under `--headless`, and the refusal is the fix.** `--shot` waits on
+`FramePostDraw` for the two frames it captures and the step-9 four wait on it for the frame each
+click is tested against; the headless rendering driver never emits it, so the await never resumed,
+`Quit` was never reached, and the run hung until something killed it — no PNG, no output, no exit
+code. Four probes in one session were lost to that. They now name the flag and exit 2. The same
+hang had a second door: Godot logs a C# exception out of `_Ready` and keeps the main loop turning,
+so a startup that threw never reached the branch that quits — `--levels` with an unreadable file
+did it, including the `--levels --shot out.png` typo where `--shot` is eaten as the file name. An
+instrument run now prints the trace and exits 1; a player's run is left as it was.
+
 ```bash
 GODOT=$(echo ~/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/*/Godot_v4.7.2-stable_mono_win64_console.exe)
 "$GODOT" --path src/LaserTank.Game                                     # play it
