@@ -1,12 +1,23 @@
 # Next actions — the open items in full
 
-Three items are open. The order and the reasoning behind it are in
+Two items are open. The order and the reasoning behind it are in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run.
 
-Order: **2, 7, 10**. **[Item 4 closed on 2026-09-14](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)**
+Order: **7, 10**.
+**[Item 2 closed on 2026-09-15](history.md#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm)**
+— the fourth pass finished its third arm after six calendar days and it is the largest single result in
+these files: **1,087 of 3,691 (29.5%)** of the levels the shipped chain fails, composite
+**494 → 1,581 of 4,185 (11.8% → 37.8%)**, **2,249 of 2,249 gated**, 67 h 30 m wall. The rehearsal's
+estimate held to within **7.8%** on the union and then **put arms 2 and 3 in the wrong order, and 3.5x
+apart when they are within 1%** — `enables` was written up here at *+4* and nearly dropped, and dropping
+it costs **101 levels**, more than dropping the `layer7` ranked above it (91). That is the limit clause
+*compare unions* was missing: **a stride sizes a union; it cannot order the arms inside it, and it must
+not be used to drop one.** `build/reports/chain5.jsonl` is the new *what is still open* report and is what
+any fifth pass points at.
+**[Item 4 closed on 2026-09-14](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)**
 — the shot rule ships as the driver's default, all three stages are in, and the two instrument defects
 the campaign turned up (an unattended run's stdin could give up on a level; a gate that passed on an
 empty directory) are fixed. It also re-derived `LaserTank` 8 at **305 keys / 1.37x**, which is now what
@@ -27,7 +38,7 @@ level between width 32 and 128, **it is not the length of the record**, and
 to size width in either direction. What *is* real is **cost**: on the 76 levels both widths solve, 32 is
 cheaper on 46 at a median of **1.03M nodes against 1.61M**, and four of its exclusive wins land in 1.8M
 to 3.4M on levels the control burned the whole 40M and failed. Two arms that tie at 40M and differ 1.6x
-in nodes **do not tie at 4M**, so the follow-up is [item 7](#7-2nd--the-solved-vs-budget-curve)'s budget
+in nodes **do not tie at 4M**, so the follow-up is [item 7](#7-1st--the-solved-vs-budget-curve)'s budget
 curve rather than any new width item, and the five banked reports mean any rung of that curve can be read
 without re-running a control. Five-arm union **101 of 138 (73.2%)**.
 [Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width),
@@ -124,27 +135,22 @@ already in a file. **What it does not give is human *routes***: a goal board nam
 the path, so "what did the human do next" stays a question only a recording answers. Three items inherit
 from it and none is blocked on it.
 
-**Item 2 is the machine commitment and everything below it can run beside it** (started 2026-09-10,
-interrupted in session 46 partway through arm 1, resumable — see the item).
-It is a machine commitment rather than a build, and its arms are node-governed, so extra load moves
-wall-clock readings and nothing else. Sessions 42 and 43 spent the whole of items 16, 15 and 13 beside
-it — a two-second replay, an offline sweep, a 63-second corpus pass, a flag and ten seeded runs — and the
-running pass saw none of it except in wall clock, and session 44 spent item 17's build and its five
-benches the same way — four jobs beside the pass's sixteen, ~3.5 min a bench, node-governed throughout.
-**Items 17 and 18 were both spent beside it in session 44** — a build and five benches, then 96 probes
-at four jobs against the pass's sixteen — and it saw neither except in wall clock. **Session 45 spent
-item 5 the same way**: two instruments that cost no search worth speaking of, a build, and ~20 probes at
-one job against the pass's sixteen. **Session 46 is the exception and it is worth naming**: item 14's
-third arm was run with the pass *stopped* rather than beside it, so its wall clock is the only one in
-these files measured on an idle machine. No measured number moves — the arms are node-governed — but
-the four hours of arm 1 that are outstanding are four hours that were not spent. **What is left after
-it is machine time and one default flip.** Session 50 spent items 7 and 10 beside the pass the same way
-and both came back with the thing they were missing: item 7 has `tools/curve_pass.sh` and, from the
-script's own `price`, **45 h of job time / ~7 h wall** instead of an estimate, and item 10's memo is
-**built, gated `IDENTICAL` on three rungs and 1.67x on the arm the pass is running** — `--push-memo`,
-off by default, `bash tools/push_memo.sh`. The one thing session 50 changed about the *list* is that
-item 10's remaining work is no longer a build: it is a one-line default flip, plus an optional second
-memo layer worth ~1.12x more.
+**The machine is free for the first time since 2026-09-10, and the habit the pass forced is worth
+keeping.** Item 2 held sixteen jobs on and off from 2026-09-10 to 2026-09-15 — 67 h 30 m of wall clock
+across seven restarts — and **nine items closed while it did**. Its arms are node-governed, so extra
+load moves wall-clock readings and
+nothing else. Sessions 42 and 43 spent items 16, 15 and 13 that way (a two-second replay, an offline
+sweep, a 63-second corpus pass, a flag and ten seeded runs); session 44 spent items 17 and 18 (a build,
+five benches at ~3.5 min, then 96 probes at four jobs against the pass's sixteen); session 45 spent item
+5 the same way; session 47 ran item 19's whole 138-level arm at four jobs in 100 minutes; and session 50
+came back with the two things the remaining items were missing — `tools/curve_pass.sh` and its own
+`price` for item 7 (**45 h of job time / ~7 h wall**, not an estimate), and item 10's memo **built, gated
+`IDENTICAL` on three rungs and 1.67x on the arm the pass was running**. **Session 46 is the one
+exception and it is worth naming**: item 14's third arm was run with the pass *stopped*, so its wall
+clock is the only reading in these files taken on an idle machine. The rule that made all of that
+possible is the one to carry forward — **a long pass is node-governed, so it costs a cheap item its wall
+clock and none of its numbers** — and with the pass done, both remaining items now have the whole machine
+if they want it. **What is left is one measurement and one default flip.**
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -153,174 +159,7 @@ short.
 
 ---
 
-## 2 (1st) — the fourth pass, and its fourth arm is rehearsed
-
-**Started on this machine 2026-09-10, and interrupted in session 46 with arm 1 four hours from the
-end** — `bash tools/l5_pass.sh`, the recipe under [*The full run*](#the-full-run) below;
-`bash tools/l5_pass.sh status` says where it is. As of the interrupt, `l8fire` is
-**3,092 of 3,691 attempted, 770 solved (24.9%)**, 20 h 29 m wall and 267 h 54 m of job time at 13.1x
-parallelism, ETA **4 h 44 m** to finish the arm; `layer7` and `enables` have not started. **That puts
-arm 1 at ~25 h against the ~18 h the rehearsal priced**, so the ~54 h below is optimistic by about half
-an arm each — call the whole pass ~75 h, and the remaining two arms ~50 h of it. The pass is
-resumable from its own report, so the same command picks up at level 3,093 rather than at the top —
-that is what `RESUME=1` is for and it is the default. **The 24.9% is the solo rate of the best arm on
-the whole population, not the pass's number**, which is `arms_union.py` over three arms at the end; the
-stride rehearsal put the same arm at 25.9% and the three-arm union at 32.9%, so this is tracking.
-
-**Rehearsed and positive; it is a multi-day machine commitment.** The decision pass came out at
-15 of 255 (5.9%) of the levels the shipped chain fails, so the open question was never *whether*
-layer 5 pays but *how much of the corpus is worth spending on it*. One push expansion is a whole
-closure, so this is the one pass budgeted in tens of millions of nodes rather than hundreds of
-thousands.
-
-**All arms were run at `SAMPLE=15`** — a 1-in-15 stride over the whole 3,709-level failure population,
-**255** levels every arm was given, `NODES=40000000 BUDGET_MS=1800000 JOBS=16`, each arm on the whole
-machine in turn. **306 of 306 solutions through the two-engine gate, zero divergences.** Six arms, in
-recomputed greedy order (`tools/arms_union.py` over the banked reports):
-
-**Seven arms now** — `l8fire` was rehearsed in session 33 and it reordered the whole set. Solo, exclusive
-levels and greedy union over the same 255 levels (`tools/arms_union.py` over the banked reports):
-
-| arm | flags on top of `--no-ida --no-beam --push --push-read` | solo | only it | greedy union |
-|---|---|---:|---:|---|
-| l8fire | the layer-8 set plus `--push-eval work --push-fire-tier` | **66** (25.9%) | 3 | 66 |
-| layer7 | `--push-stop 1 --push-shot-run 16 --push-beam 128` | 55 | **8** | +14 → 80 |
-| enables | `--push-enables 8` | 52 | 1 | +4 → **84** |
-| l8none | the layer-8 set plus `--push-eval none` | 37 (14.5%) | 1 | +2 → 86 |
-| l8learned | `--push-reach --push-ferry-match --push-ferry-maze --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --max-keys 5000` | 57 | 1 | +1 → 87 (34.1%) |
-| plain | — | 38 | **0** | +0 → 87 |
-| l8work | the layer-8 set plus `--push-eval work` | 61 (23.9%) | **0** | +0 → 87 |
-
-**`l8work` is retired as an arm, and that is the session-33 result.** It was the best solo arm and the
-head of the greedy chain; against `l8fire` it holds **1** exclusive level to `l8fire`'s 6 (60 levels in
-common), and across all seven arms it contributes **+0** and holds **0** exclusive levels. The fire tier
-is not a fourth arm — **it is a strictly better version of the first**, for +7.3% wall clock (19.98 h of
-job time against 18.62 h; median unsolved level 327 s against 301 s). So the pass stays three arms and
-~54 h, and gets 84 instead of 81.
-
-**Four things the arms say that their solo counts do not:**
-
-* **The best single arm is not the pass.** `l8work` solves 61; the chain of three solves 81. Shipping
-  the winner alone costs a quarter of the result. This is layer 1's founding finding a fourth time, and
-  it is why the instruction is *compare unions*.
-* **Three arms are dead weight — and it took all six to know which.** `plain` contributes **0**
-  exclusive levels and +0 to the union; `l8learned`, second-best solo at 57, adds **+1** because it
-  overlaps `l8work` in 50 of 68; `l8none` adds +2 (`Gary-I` 1541 and `LaserTank` 161, and `l8learned`
-  finds 161 too, so `none`'s unique contribution across all six arms is **one level**). After two arms
-  `plain` still held 4 exclusive levels and after three it held 1. **The full run wants three arms —
-  `l8work`, `layer7`, `enables` — for 81 of the 84.**
-* **`--push-eval work` beats the learned key on the push side over the corpus**, 61 against 57 solo and
-  11 exclusive against 7 head-to-head. `Push.cs:167` mixes `Rank()`'s output with work-unit addends, and
-  this says that mixing is already costing the learned key today, at the shipped weights.
-* **Layers 7 and 8 are validated over the corpus for the first time.** They were carrying two benches
-  and an ablation. Layer 7 is the most complementary arm in the set.
-
-**What the rehearsal does not show, stated plainly:** `Hard` and `Deadly` are **0 of 21 in every arm**,
-so none of this touches the two tiers that have never fallen; and **98.8% of the 171 the union misses
-still stop on `budget`**, so even the best arm is nowhere near a structural ceiling at 40M. Extrapolated
-over the 494 chain's 3,691 failures the three-arm union is **~1,172 levels** and the composite near
-**1,670 of 4,185 (~40%)** against 494 today — a stride-sample estimate from 255 levels, not a promise.
-
-**Read the union against the 5.9% honestly.** The 15/255 was `Beginner-I` alone at ~4M nodes; this is
-all thirteen collections at 40M. Both the population and the budget differ, so what it licenses is *40M
-buys much more than 4M*, not a 5.5x improvement in the searcher.
-
-### The full run
-
-Priced from the rehearsal rather than guessed: an unsolved level at 40M nodes costs a median **275 s** at
-16 jobs (117 s near-solo — the search is bandwidth-bound, and effective parallelism is only ~6.4x at 16
-jobs, so buying more jobs does not recover it). That is **~18 h per arm**, so the three-arm pass is
-**~54 h**.
-
-```bash
-bash tools/l5_pass.sh                   # all three arms in greedy order, ~54 h
-bash tools/l5_pass.sh status            # the table, from any other shell, any time
-tail -f build/reports/l5-run.log        # everything the run has printed
-
-nohup bash tools/l5_pass.sh > /dev/null 2>&1 &   # to survive a closed terminal
-```
-
-**`tools/l5_pass.sh` is the recipe, not a wrapper around it.** It runs the three arms one at a time
-(each wants the whole machine), each into its own report so the union can be recomputed, gates each
-arm through `verify_solutions.py` as it finishes, and ends on `arms_union.py` over the three. The
-flags are the table above plus `--max-keys 5000 --max-keys-record`; `NODES BUDGET_MS JOBS TICK CHAIN
-PREFIX` are the knobs and they default to the rehearsal's values, because the numbers here are only
-comparable at those.
-
-Two things it adds that a hand-rolled loop does not, and both matter at 54 h:
-
-* **It is resumable.** `RESUME=1` goes to `second_pass.sh`, which now drops the levels an arm's own
-  report has already attempted. Ctrl-C, reboot, power cut — start it again with the same command and
-  each arm picks up where it stopped rather than at the top of the corpus. (Solved levels were always
-  skipped, `Plan()` sees the `.lpb`; what resume recovers is the **failures**, which is where all of
-  the time goes.)
-* **It says where it is.** A line every `TICK` seconds (default 300) to stdout and to
-  `build/reports/l5-run.log` — attempted/3,691, solved, wall, job time, ETA — and the full table at
-  every arm boundary. `status` prints that table from any other shell without touching the run, and
-  marks the live arm **stale** if its report has not grown in fifteen minutes, which is how a dead run
-  is told from a slow one.
-
-**`--max-keys 5000 --max-keys-record` on every arm is the one difference from the arms tabled above**,
-and it is not in the rehearsal's numbers: `layer7` and `enables` ran at the default 1,200 and could not
-cross it. It is free and can only raise a cap. (What that cost: `Challenge-IV` 641 is banked at 1,764 and
-1,876 keys by the two `--max-keys 5000` arms and is unreachable *in principle* by the other three, whose
-longest banked solutions are 623, 1,074 and 1,152 — two of them within 15% of a cap they cannot cross.)
-
-The script runs `l8fire` first — it is the largest single result (66 of 255 on the stride), so it
-lands earliest if the run is interrupted. `build/reports/chain.jsonl` is what all three arms are
-pointed at; if it is gone, `tools/chain_union.py`
-rebuilds it. **It now reads 494, not the 476 the rehearsal was measured against**, so the full run
-attacks 18 fewer levels than the rehearsal did and the extrapolation above is very slightly optimistic.
-
-**Interaction with item 7:** that item draws the solved-vs-budget curve for the *chain's* four searchers
-and notes the push rungs become affordable as a fifth pass at 50M. These arms are that fifth pass,
-already measured at 40M — run item 7 first if the question is the production curve, this if the question
-is what layer 5 adds.
-
-### The fourth arm, rehearsed — `--push-fire-tier` ☑ (session 33)
-
-**The answer is yes, and it is not the yes that was expected: the tier does not join the chain, it takes
-over the head of it.** 66 of 255 solo, the best solo arm ever measured on that population; **66 of 66
-through the two-engine gate**; seven-arm union **87 (34.1%)** against six arms' 84; and `l8work`, which it
-replaces, drops to **+0 and 0 exclusive levels**. The three-arm pass is now `l8fire` → `layer7` →
-`enables` for **84 (32.9%)** against the old three's 81, at the same ~54 h.
-
-**The GAUNTLET-tail bench over-reported the *shape* of the win, not its size, and that is worth keeping.**
-The tail said 85 against 76 with 15 exclusive against 6 — a strong complementary arm. Over the corpus
-stride it is 66 against 61 with **6 exclusive against 1** — the same direction, a third of the margin, and
-*less* complementary rather than more: the tier turns out to solve nearly everything `l8work` solves
-(60 of 61 in common) plus six more. So the bench's rule-1 warning fired again, but for once in the
-project's favour — the arm survived the corpus and the thing it lost was its claim to be a *fourth* arm.
-
-**What it still does not do:** `LaserTank.lvl` 10, the level it was derived from, and the ceiling is
-unmoved — of the 168 levels no arm solves, **166 (98.8%) still stop on `budget`**, one on `push-dead-end`
-and one on `push-depth`. Same as the six-arm figure. 40M is nowhere near a structural limit.
-
-The rehearsal as run (2 h 15 m wall clock at 16 jobs, 19.98 h of job time):
-
-```bash
-SAMPLE=15 NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
-    build/reports/chain-s25.jsonl l5-s15/l8fire build/reports/l5-s15-l8fire.jsonl \
-    --no-ida --no-beam --push --push-read \
-    --push-reach --push-ferry-match --push-ferry-maze \
-    --push-dead 20 --push-fire 8 --push-shot-run 16 \
-    --push-beam 128 --max-keys 5000 --push-eval work --push-fire-tier
-python tools/verify_solutions.py build/l5-s15/l8fire
-python tools/arms_union.py l8work=build/reports/l5-s15-l8work.jsonl \
-    layer7=build/reports/l5-s15-layer7.jsonl enables=build/reports/l5-s15-enables.jsonl \
-    l8fire=build/reports/l5-s15-l8fire.jsonl \
-    l8none=build/reports/l5-s15-l8none.jsonl \
-    l8learned=build/reports/l5-s15-l8learned.jsonl plain=build/reports/l5-s15-plain.jsonl
-```
-
-Three things in that command are the point of it: `SAMPLE=15`, and **`chain-s25.jsonl`** rather than
-`chain.jsonl` so a new arm is comparable with the six already banked (the 494 chain's stride sample is a
-different 253 levels and would have been comparable with nothing), and the `l5-s15` naming
-`arms_union.py` globs. Budget: **2 h 15 m at 16 jobs, median 316 s a level, 40M nodes on 216 of the 255.**
-
----
-
-## 7 (2nd) — the solved-vs-budget curve
+## 7 (1st) — the solved-vs-budget curve
 
 **This is the production number the whole project is measured by, and it has never been run above 150k
 except by accident.** Every number in these files is quoted at 150k so that layers can be *attributed*;
@@ -405,12 +244,24 @@ appended after `coarse` → `learned` it adds 0. The three searchers the shipped
 `second_pass.sh` re-attacks a report's failures, so this is the whole 3,691 and `--order ghs` (the
 default) puts the short records first; `SAMPLE=` or a list through `bench.sh` if only the ≤ 60 population
 is wanted. Report the solved count per budget as a table in `SOLVER.md`'s *Status*. **Keep 150k for
-attribution; this is a different question.** At 50M the push rungs (item 2's arms) become affordable as
-a fifth pass.
+attribution; this is a different question.**
+
+**Closed item 2 sharpened what this item is for, and made it a comparison rather than a curve.** The
+fifth pass has now *run* — three push arms at 40M over the whole 3,691, **+1,087 for 67 h 30 m of wall
+clock** — so "what does a big budget buy?" is answered for the push family and the open question is the
+one this curve owns: **does the same wall clock buy more when it is spent raising the chain's own
+budget instead?** The arithmetic off `price` says the two are the same order: the 50M rung is 519 s of
+job time a level over the stride's 253, which over all 3,691 is ~532 h of job time and **~41 h of wall
+clock at the 13.0x the pass actually sustained** — cheaper than item 2's three arms, on a different
+family of searchers, for an unknown number of levels. That comparison is worth more than either number
+on its own, and it is why this item is now first.
 
 **Carry `--max-keys 5000 --max-keys-record` from 10M up:** at these budgets a solution can outrun the
 default 1,200 cap. 1,367 of the chain's 3,691 failures have a record long enough to lift them past 1,200
-and 302 past 5,000, and `Challenge-IV` 641 needed 1,876 keys against a record of 143.
+and 302 past 5,000, and `Challenge-IV` 641 needed 1,876 keys against a record of 143. **Item 2 measured
+what that is worth over a population: 11 of its 1,087 solutions are longer than 1,200 keys** — ten in
+`Special-I`, longest 4,681 — **and none came within 300 keys of 5,000**, so the raise buys about 1% of a
+pass and the new cap is not binding either.
 
 ---
 
@@ -436,12 +287,17 @@ table.)
 ### Instrumented in session 49 — and the profiler the item asked for was the wrong one ☑
 
 **Where this sits: in the working tree, unstaged.** `--push-time` is `Push.cs`, `Heuristic.cs`,
-`Search.cs` and `Program.cs`, built and checked but not committed, and `build/lasertank-solve.exe` does
-*not* have it — item 2's pass holds that file open, so the only build of the flag is the project's own
-`src/LaserTank.Solver/bin/Release/net8.0/lasertank-solve.exe` (`LT_SOLVE`, the same route
-`bor_campaign.sh` takes). Rebuild it with
-`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`. Nothing below is banked in a
-report: these are single runs kept in this file, and every one of them was taken beside the pass.
+`Search.cs` and `Program.cs`, built and checked but not committed, and `build/lasertank-solve.exe` did
+*not* have it — item 2's pass held that file open for six days, so the only build of the flag was the
+project's own `src/LaserTank.Solver/bin/Release/net8.0/lasertank-solve.exe` (`LT_SOLVE`, the same route
+`bor_campaign.sh` takes), rebuilt with
+`dotnet build src/LaserTank.Solver/LaserTank.Solver.csproj -c Release`. **That is no longer the situation:
+the pass finished on 2026-09-15, `build/` was republished, and both flags are in the published binary.**
+The republish was gated against the pass's own banked output rather than against a second binary — five
+levels from five collections at the `l8fire` arm's flags and 40M budget, **node-, key-, depth- and
+`.lpb`-byte-identical** — so the flags are inert when not asked for and every report in `build/reports/`
+still controls the current binary. **Nothing here is blocked on a build any more.** Nothing below is banked in a report: these are single runs kept in
+this file, and every one of them was taken beside the pass.
 
 **`dotnet-trace` cannot measure this loop, and the way it fails is worth keeping.** It was installed
 for this (`dotnet tool install --global dotnet-trace`) and the answer it gave was an artefact — do not
@@ -611,6 +467,14 @@ expansion, which is most of what separates the two rungs but not all of it.
 
 ## Further out, and only after the numbers above have moved
 
+- **`--push-depth` is not a backstop on the `enables` arm, and this is the cheapest unclaimed thing
+  here.** Closed item 2 turned it up without asking: `enables` is the only arm that stops on `push-depth`
+  at scale — **177 levels of 3,691**, against `l8fire`'s 6 and `layer7`'s 3 — and those stops leave a
+  median **10M of the 40M nodes unspent** (p50 30.1M used). The flag is documented as *a backstop only*
+  at 1,200 board changes; on that arm, at that budget, it is the thing that ends the search. Raising it
+  is one number on one arm and the population that would answer it is already banked, so this is an hour
+  of machine time, not a day — but it is a *fifth*-pass question and the items above are fourth-pass
+  ones, which is why it is here and not numbered.
 - **A FESS-shaped rung for the Sokoban/ferry half of the corpus.** FERRY + SOKOBAN is 53% of the sample
   at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region where every
   successor of every held board is worse* — is the textbook failure of beam search on Sokoban. The

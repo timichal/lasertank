@@ -320,6 +320,11 @@ campaign.sh       one solver campaign over all 13 collections into one report.
                     exists for the engine (PROGRESS)
 second_pass.sh    re-attack a campaign's unsolved levels with a different searcher,
                     into the same solutions dir.  SAMPLE=N takes every Nth failure
+l5_pass.sh        the fourth pass: three push arms at 40M over every level the chain
+                    fails, one arm at a time, each gated as it finishes and ending on
+                    arms_union.py.  Resumable from the arms' own reports -- `status`
+                    prints the table from any other shell.  67 h 30 m as run; closed
+                    item 2 is the result
 bench.sh          one labelled configuration over one banked level list.  Its header
                     repeats the warning: a bench picks parameters, a campaign ships
 gauntlet_tail.sh  the two-arm A/B over bench/gauntlet-tail.txt -- the 138 unsolved
@@ -335,7 +340,9 @@ report_stats.py   read a campaign .jsonl: per-tier and per-collection rates, sto
                     matched.  --diff compares two layers
 chain_union.py    union the chain's four per-pass reports into chain.jsonl -- the
                     shipped chain's per-level state, and what the fourth pass has
-                    to be pointed at.  Was a sentence in SOLVER.md until session 25
+                    to be pointed at.  Was a sentence in SOLVER.md until session 25.
+                    The same tool over chain.jsonl plus the three arm reports gives
+                    chain5.jsonl (1,581), which is what a *fifth* pass points at
 arms_union.py     compare several arms of one pass by what each *adds*: solo count,
                     levels only it solves, the cumulative union in greedy order, the
                     pairwise overlap matrix.  Built because the instruction to

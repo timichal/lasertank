@@ -1170,8 +1170,15 @@ exclusives are `Challenge-III`.
 the tier is for, so +9 solo and +15 exclusive is what it is worth **where it applies** and says nothing yet
 about the corpus. It is a much stronger fourth-arm candidate than `--push-eval none` was — that one was 37
 solo against `plain`'s 38 and one exclusive level in six arms — but the lesson of `none` is that a filtered
-population over-reports complementarity, and 138 GAUNTLETs is a filtered population. The corpus test is
-[`next-actions.md`](next-actions.md) item 2's fourth arm.)*
+population over-reports complementarity, and 138 GAUNTLETs is a filtered population. The corpus test was
+item 2's fourth arm, and it **survived twice**: over the 255-level stride it was the best solo arm ever
+measured there (66, 25.9%) and retired `l8work` outright, and over the whole 3,691 it is the pass's first
+arm at **805 solo and 173 exclusive levels** — but the bench's rule-1 warning fired on the *shape* both
+times: the tail said 15 exclusive levels against 6, the stride said 6 against 1 — the same direction, a
+third of the margin — and what the tier lost on the way through was its claim to be a *fourth* arm rather
+than a better version of the first. `l8work` was never run over the corpus, so the corpus says nothing
+about that pair; what it says is that the tier is the pass's largest arm and its most exclusive.
+[Closed item 2](history.md#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm).)*
 
 **It does not solve `LaserTank.lvl` 10, and that is worth stating first rather than last.** The level the
 derivation came from is still unsolved at 400M nodes: the traced run reaches d=48 in 37m47s with `best=`
