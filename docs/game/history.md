@@ -1227,3 +1227,83 @@ names through the panel and asserts the four-character cut, and `strings_check` 
 more keys across eleven languages. The four fidelity gates cannot have moved and were run anyway —
 nothing in `src/LaserTank.Core/` was touched — and every presentation gate is green, `editor_check`
 included, which is the one that would have noticed if the fields' new length cap had reached a file.
+
+---
+
+## ~~Item 3's additive list~~ — **read through and emptied, 2026-09-15**
+
+Item 3 of [*Next steps*](next-steps.md) carried a paragraph headed *Additive, nothing blocking*:
+seven things named as left out of the original at the time rather than forgotten. It was never
+worked through, only carried, and reading it out loud on 2026-09-15 turned out to be most of the
+work — **three of the seven were items in their own right, three were declined, and one was not
+what the list said it was.** What is left of item 3 is two INI keys.
+
+| what it was | outcome |
+|---|---|
+| `Backspace[]`'s ten-level history (118) | item **9**, and unbounded |
+| Resume Recording (125) | item **10** |
+| "View Opening Screen" (`ID_GRAPHBOX_08`) | item **11**, as a new screen |
+| `LaserTank.hlp` / WinHelp | item **12** |
+| Print (126) | declined, below |
+| "Change Directory" (`ID_GRAPHBOX_09`) | declined, below |
+| per-language `Control.bmp` / `Opening.bmp` | declined, below |
+
+**The one that was not what the list said it was is 118.** *Ten-level history* reads as *ten levels
+of undo*, and it is nothing of the kind: undo is command 110, bound to `U`, repeating while held,
+ported since Phase 2. 118 is a stack of level **numbers** — `LoadNextLevel` pushes `CurLevel`
+whenever the level changes (`LTANK2.C:1045`), `Backspace` pops one (`LTANK.C:1000`) — so it is
+*navigation*, not history of play. Ten is `int Backspace[10]` (`LTANK2.C:94`) and nothing more: a
+fixed array walked as a ring, which is why the pop leaves a zero behind it so the wrap cannot loop.
+The bound was never a decision, so item 9 does not inherit it.
+
+**And one line of item 3 was simply wrong**, which is the reason to write this entry rather than
+just delete the paragraph. It read *command 907 is WinHelp in the original*. 907 is the Quick About
+Box (`LTANK.C:1368`), which sets `QHELP` and paints `Opening.bmp` over the board while a `RETBOX`
+dialog is up. WinHelp is 902 (`HELP_INDEX`) and 903/904/905 (`HELP_KEY` on `help01`/`02`/`03`).
+Conflating them merged two features into one entry: the opening screen (item 11) and the help
+(item 12). `BoardView.cs` carried the same error in its `F1` comment and it is corrected there too.
+What *is* true, and is why one panel could answer both, is that `F1` is 907 in ACC1 and 903 in ACC2
+— two help ids for one key.
+
+### ~~Print (126)~~ — **decided against**
+
+`x = Game_On; GameOn(FALSE); Print(); GameOn(x);` — a 1996 program printing the board to paper.
+There is no argument to have here and the entry exists only so the command is not looked up twice.
+Nothing in the port is a document, the level list and the collection catalogue are both searchable
+on screen, and a screenshot is the modern form of the request. **The clock-stopping is the only
+interesting line in it** and it is already ported six other places (106, 108, 225, 901, 907 and the
+DeadBox all do `GameOn(FALSE)` around a surface), so nothing is lost by dropping the case.
+
+### ~~"Change Directory" (`ID_GRAPHBOX_09`)~~ — **decided against**
+
+A shell folder browser in the Graphics dialog: `Browse(Dialog, GraphDN, txt037)`, then re-scan for
+`.ltg` files and write `[SCREEN]` `Graphics_Dir` to the INI (`LTANK_D.C:1308`). **It is the
+*graphics* directory, not a data directory** — worth saying because the name does not.
+
+It is declined because the port already answers it twice over and better: the packs live in a known
+place in the repo, `Packs` enumerates them, `--gfx-dir` moves the root for anyone who needs it moved,
+and the key is persisted regardless. What is genuinely lost is an in-app way to point at a pack
+downloaded to some other folder. **If that ever comes back it comes back as a file dialog**, which is
+item 10's and item 8's problem already — a second, older, modal folder browser is not the way to get
+there.
+
+### ~~The packs' own `Control.bmp` and `Opening.bmp`~~ — **decided against, a second time**
+
+`LoadImageFile` ships these per language *and* per pack and nothing in the port reads them. They
+were declined once as the answer to step 10 and the reasoning was kept in item 4 rather than here;
+this closes them for good and moves the reasoning where declined things live, because it is exactly
+the kind that gets re-derived by whoever next opens a pack and sees them.
+
+**`Control.bmp` is the info column's own ancestor** — a tiled brick wall out of the sprite sheet,
+sunken Win3.1 wells for the readouts, a serif display face, hard corners, no shadows. It is a
+complete and genuinely unmistakable design language that no template could accidentally produce, and
+it would have been the **safest possible fix for "this looks generated"**, which was step 10's whole
+problem. That is why it keeps being offered.
+
+**It was turned down because it makes the chrome a costume.** The port's argument is that the rules
+are sacred and the interface is not; a pastiche of the original's panel blurs exactly that line, and
+it fights the resizable layout step 7 built besides. **If this is ever taken up, the thing to take is
+the *materials*** — the sheet's own tiles as a texture — **and not the 1996 panel's layout.**
+
+`Opening.bmp` goes the same way and for the same reason, and item 11 is what replaces it: an opening
+screen this port designs rather than one it reproduces.

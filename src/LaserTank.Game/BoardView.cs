@@ -391,10 +391,13 @@ namespace LaserTank.Game
         /// `I`: on by default, not persisted.
         private bool _grid = true;
 
-        /// Command 907 (VK_F1, lt32l_us.inc:141) -- the help, which the original
-        /// answers with WinHelp and `LaserTank.hlp`.  There is no .hlp here, so
-        /// F1 is the key list instead: the same question, the answer this port
-        /// can actually give.  See DrawHelp.
+        /// F1, which is command 907 in ACC1 (lt32l_us.inc:145) and 903 in ACC2
+        /// -- two help ids for one key.  **Only 903 is WinHelp**: 907 is the
+        /// Quick About Box, which sets QHELP and paints Opening.bmp over the
+        /// board (LTANK.C:1368), and the real help is 902 (HELP_INDEX) plus
+        /// 903/904/905 (HELP_KEY on help01/02/03).  Neither ships here, so F1
+        /// is the key list instead: the answer this port can actually give,
+        /// and the one F1 is most often asked for.  See DrawHelp.
         private bool _help;
 
         /// Esc, and the one thing in this UI that stands between the player and
@@ -1805,9 +1808,9 @@ namespace LaserTank.Game
                         _hint = !_hint;
                     break;
 
-                // Command 907, Help (VK_F1).  The original's is WinHelp on
-                // LaserTank.hlp, which this port does not ship; the keys are
-                // what it can answer with.
+                // F1: command 907 here, 903 in the editor.  903 is WinHelp on
+                // LaserTank.hlp and 907 is the Quick About Box -- neither ships,
+                // and the keys are what this port can answer with.
                 case Key.F1: _help = true; break;
                 // Command 115, "Auto Record" (LTANK.C:978), which also turns the
                 // recorder itself on or off.
@@ -3588,7 +3591,10 @@ namespace LaserTank.Game
                 new("F6", "keys.saveRecording", Key.F6),        // 117
                 new("F7", "keys.playback", Key.F7),             // 114
                 new("F4", "keys.replay", Key.F4),               // 124
-                new("F8", "keys.autoRecord", Key.F8),           // 125
+                // 115, and **not** the original's F8, which is 125, Resume
+                // Recording -- a command this port has not built yet and which
+                // will arrive to find its key taken.  See next-steps.md item 10.
+                new("F8", "keys.autoRecord", Key.F8),           // 115
             }),
             ("help.groupView", new Binding[]
             {
