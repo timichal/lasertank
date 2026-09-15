@@ -385,15 +385,20 @@ from the pair.
 **`--push-memo` is on by default as of session 51, and on the arm the fourth pass runs it is 1.67x.**
 Three rungs, the same level list and the same node budget under both arms, `bash tools/push_memo.sh`:
 
-| rung | job time, memo off | on | speedup | nodes/s off → on | memo hit rate |
-|---|---:|---:|---:|---|---:|
-| `rung8` — the shipped rung, width 8 | 16.8 s | 12.0 s | **1.40x** | 166,627 → 232,698 | 98.3% |
-| `l8fire` — the pass's arm, width 128 | 177.4 s | 106.5 s | **1.67x** | 103,594 → 172,647 | 84.8% |
-| `layer7` — the one arm with `--push-stop` | 111.4 s | 78.5 s | **1.42x** | 152,744 → 216,604 | 84.6% |
+| rung | speedup | memo hit rate |
+|---|---:|---:|
+| `rung8` — the shipped rung, width 8 | **1.40x** | 98.3% |
+| `l8fire` — the pass's arm, width 128 | **1.67x** | 84.8% |
+| `layer7` — the one arm with `--push-stop` | **1.42x** | 84.6% |
 
-50 levels of `bench/deep-levels.txt` at 400k nodes, four jobs beside item 2's pass. The `166,627` is
-this item's own opening number reproduced to three figures, which is the cheapest evidence that the two
-measurements are of the same thing. On `LaserTank.lvl` 10 at 6M nodes and one thread the expansion goes
+**This table had `job time` and `nodes/s` columns and they have been struck rather than corrected** —
+they reconciled against nothing and their run's reports no longer exist. See
+[*the two struck columns*](#the-two-struck-columns-and-why-they-were-not-re-derived) below; the
+speedups and hit rates are unaffected, being ratios and counters within a pair, and the seconds this
+section needs are in the re-gate table that follows it.
+
+50 levels of `bench/deep-levels.txt` at 400k nodes, four jobs beside item 2's pass. On `LaserTank.lvl`
+10 at 6M nodes and one thread the expansion goes
 **53.50 s → 31.31 s** on `l8fire` (1.71x), **34.18 s → 24.20 s** at width 8 (1.41x) and **41.46 s →
 27.16 s** on `layer7` (1.53x) — so the bench and the single level agree, and the item's predicted
 "**~1.8x** on the push rung" and "capped below 2x" were both right.
@@ -451,11 +456,26 @@ expensive half of the build (the early-exit Dijkstra and the six side effects ar
 `ApplyKey`'s 24%, the read's 20% and the expansion's own 41% are untouched by any of it and are what caps
 the item below 2x, exactly as this item said.
 
-**Two things not to read into the numbers above.** They were taken beside item 2's pass, so the seconds
-are a loaded machine's; the ratios are the point and both arms carried the same load. And the memo is
-**off by default** — flipping it on is a one-line change and the gate above is the evidence for it, but
-nothing in these files has been re-measured with it on, and the seconds in every table above it are the
-searcher without it.
+**Two reasons that ~1.12x is an upper bound rather than an estimate, both read off the code in session 52
+and neither measured.** The 4.2x is 207,139 misses over 50,029 distinct boards — **4.14 misses a board** —
+and that ratio is only collectable where the term has no early exit. `BuildFire` and `BuildAlive` have
+none and would collect all of it. **The Dijkstra does**: `WorkDistance` returns the moment it settles the
+tank's cell, or the first cell of the safe flood under `--push-reach` (`Heuristic.cs:447`), so a table
+shared across a board's 4.14 hats has to run to completion. At only 2x for completion the route term's
+reuse falls to ~2.1x, and the saving falls from ~2.8 s to ~2.4 s — the rung lands nearer **1.08x** than
+1.12x. **And the entry is not a scalar.** The pose cell is 56 bytes; a board entry is `_fire`, `_alive`,
+`_cost[256]` and `_pred[256]`, about **2.5 KB** — 45x — and this file's own sizing note records that
+16,384 pose slots at 918 KB a worker already cost more in shared cache across sixteen workers than the
+1.8 points of hit rate they bought. **So the first thing this build wants is not the build**: one run with
+the early exit removed and `--push-time` on, one level, one thread, prices the completion penalty for a
+minute of one core, and the slot count has to be swept against the cache the way the pose table's was.
+
+**Two things not to read into the numbers above, as this section stood at the end of session 50.** They
+were taken beside item 2's pass, so the seconds are a loaded machine's; the ratios are the point and both
+arms carried the same load. And the memo was then **off by default** — flipping it on is a one-line change
+and the gate above is the evidence for it, but nothing in these files had been re-measured with it on, and
+the seconds in every table above it are the searcher without it. **The next section is that flip**, so the
+second caveat is spent; the first is not, and it is why session 51 re-gated on an idle machine.
 
 ### The default flip — done in session 51, and the gate had to be fixed to stay honest ☑
 
@@ -474,31 +494,52 @@ and `pushH` back at **42-47%** of the expansion, the on arm prints the hit rate 
 **Re-gated after the flip, on an idle machine** — the first reading of this bench not taken beside item
 2's pass:
 
-| rung | job time, `--no-push-memo` | default | speedup | verdict |
-|---|---:|---:|---:|---|
-| `rung8` — the shipped rung, width 8 | 48.4 s | 36.9 s | **1.31x** | `IDENTICAL` |
-| `l8fire` — the pass's arm, width 128 | 93.0 s | 59.5 s | **1.56x** | `IDENTICAL` |
-| `layer7` — the one arm with `--push-stop` | 60.9 s | 45.9 s | **1.33x** | `IDENTICAL` |
+| rung | job time, `--no-push-memo` | default | speedup | nodes | nodes/s off → on | verdict |
+|---|---:|---:|---:|---:|---|---|
+| `rung8` — the shipped rung, width 8 | 48.4 s | 36.9 s | **1.31x** | 16.7M | 345k → 452k | `IDENTICAL` |
+| `l8fire` — the pass's arm, width 128 | 93.0 s | 59.5 s | **1.56x** | 18.4M | 198k → 309k | `IDENTICAL` |
+| `layer7` — the one arm with `--push-stop` | 60.9 s | 45.9 s | **1.33x** | 17.0M | 280k → 371k | `IDENTICAL` |
 
-Same 50 levels, 13 / 6 / 10 solved, every `.lpb` byte-identical, 16.7M / 18.4M / 17.0M nodes a rung
-identical across the pair. **The ratios are 0.06 to 0.11 below session 50's** (1.40 / 1.67 / 1.42) and
+Same 50 levels, 13 / 6 / 10 solved, every `.lpb` byte-identical, and the node count identical across each
+pair. **Every column of this table is re-derivable from `build/reports/memo-{rung}-{off,on}-best.jsonl`**
+by summing `ms` and `nodes` over the 50 rows — checked in session 52, and it is the only table in this
+item of which that is true. **The ratios are 0.06 to 0.11 below session 50's** (1.40 / 1.67 / 1.42) and
 the ordering is the same, which is the shape to expect when the control is the arm that suffers most from
 a loaded machine: session 50 measured beside sixteen jobs, this one measured alone.
 
-**One thing in the table above this section does not reconcile, and it is the table rather than the
-memo.** Session 50's `job time` and `nodes/s` columns say `rung8` off is **16.8 s at 166,627 nodes/s**,
-which implies **2.8M nodes**; the reports that run banks sum to **16.7M nodes at 345k nodes/s** over the
-same 50 levels at the same 400k cap, and `bench/deep-levels.txt` has not changed since 2026-09-07. So
-those two columns are not measuring the bench the row names — most likely the single-level `time` split
-(`LaserTank.lvl` 10, 6M nodes, one thread) read into a bench row. **The speedup and hit-rate columns are
-unaffected** — they are ratios within a pair — and the gate verdict is untouched, which is what licenses
-the flip. Worth re-deriving before that table's absolute seconds are quoted anywhere else.
-
 **Both alternative explanations for the 166k are already ruled out**, which is why this item is now the
 whole of the wall-clock story rather than one of three guesses at it: `--push-eval none` runs at 171k
-against `coarse`'s 163k (but see the mismatch above); and `sterile=` is 0.05%, so wasted expansions are
-not the cost either. **The 8.4x gap to layer 0 is `PushH` itself** — measured at 41-48% of the
-expansion, which is most of what separates the two rungs but not all of it.
+against `coarse`'s 163k (but see *the two struck columns* below); and `sterile=` is 0.05%, so wasted
+expansions are not the cost either. **The 8.4x gap to layer 0 is `PushH` itself** — measured at 41-48% of
+the expansion, which is most of what separates the two rungs but not all of it.
+
+### The two struck columns, and why they were not re-derived
+
+**Session 50's bench table carried `job time` and `nodes/s` columns that reconciled against nothing, and
+session 52 struck them instead of recovering them, because they cannot be recovered.** The row said
+`rung8` off was **16.8 s at 166,627 nodes/s**, which implies **2.8M nodes**; the same bench re-gated is
+**16.7M nodes at 345k nodes/s** over the same 50 levels at the same 400k cap, and
+`bench/deep-levels.txt` has not changed since 2026-09-07.
+
+**The explanation this file offered for them is itself wrong, and that is why the columns are struck
+rather than relabelled.** It supposed "most likely the single-level `time` split read into a bench row" —
+but that split is **34.18 → 24.20 s** at width 8, **53.50 → 31.31** on `l8fire` and **41.46 → 27.16** on
+`layer7`, and the struck rows are 16.8 → 12.0, 177.4 → 106.5 and 111.4 → 78.5. Neither the seconds nor
+the ratios (1.41 / 1.71 / 1.53 against 1.40 / 1.67 / 1.42) match. The `166,627` *does* reproduce this
+item's opening single-level number (6M nodes / 36.2 s = 165,746) to three figures — but `16.8 s` matches
+no run in these files, so the two struck columns are not even from the same run **as each other**.
+
+**And the reports that would settle it are gone**: `build/reports/memo-*.jsonl` are overwritten by every
+`push_memo.sh` run, and the session 51 re-gate overwrote them on 2026-09-15. So session 50's absolute
+seconds have no evidence behind them and are not retrievable by re-reading anything; the only way back to
+a number is to re-run the bench, which measures today's binary and not that one.
+
+**Nothing that rests on that table moves.** The speedups and hit rates are ratios and counters within a
+pair, the gate verdict that licensed the flip is untouched, and the seconds the section needs are in the
+re-gate table above, where they now carry their own node counts. **The rule this is the fourth instance
+of: a table of absolute seconds whose reports have been overwritten is a claim, not a measurement** — the
+other three are the unattended run's stdin, the gate that passed on an empty directory, and the control
+arm that became the memo after the flip.
 
 ---
 
