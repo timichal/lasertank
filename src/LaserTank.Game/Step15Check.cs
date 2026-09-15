@@ -10,13 +10,13 @@
 //   level `--level` names, and prints one line per stop until the walk runs
 //   out.  `--advance-dir -1` walks it the way 119 does.  The mask and the skip
 //   come from the same place the game reads them -- `Options`, which means
-//   `--difficulty` and `--skip-completed` steer it, and so does a real INI.
+//   `--difficulty` and `--skip-completed` steer it, and so does a real store.
 //
-// It is an instrument, so it writes nothing: the INI is forced read-only for
-// the duration, which stops `[DATA] RLLLevel` following the walk and stops the
-// Session posting a score it did not earn.  The test the rest of the gates are
-// held to applies here too -- run it eight times in parallel and the tree is as
-// it was.
+// It is an instrument, so it writes nothing: the settings store is forced
+// read-only for the duration, which stops the remembered level following the
+// walk and stops the Session posting a score it did not earn.  The test the
+// rest of the gates are held to applies here too -- run it eight times in
+// parallel and the tree is as it was.
 //
 // The output is deliberately the *numbers* and not a verdict.  What
 // tools/options_check.py asserts against it is built in Python out of the same
@@ -41,11 +41,11 @@ namespace LaserTank.Game
                                        int steps, Options opt)
         {
             var inv = CultureInfo.InvariantCulture;
-            bool wasReadOnly = opt.Ini.ReadOnly;
+            bool wasReadOnly = opt.ReadOnly;
             // **An instrument must not write the player's state**, and a walk
             // is the one check here that would: every stop is a Load, and Load
             // remembers the level it landed on when [OPT] RLL is on.
-            opt.Ini.ReadOnly = true;
+            opt.ReadOnly = true;
             try
             {
                 var s = new Session(lvlPath, opt);
@@ -83,7 +83,7 @@ namespace LaserTank.Game
                 GD.PrintRaw("advance end=steps\n");
                 return 0;
             }
-            finally { opt.Ini.ReadOnly = wasReadOnly; }
+            finally { opt.ReadOnly = wasReadOnly; }
         }
     }
 }

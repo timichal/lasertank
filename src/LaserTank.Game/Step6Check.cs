@@ -14,12 +14,16 @@
 //   through, rather than calling Strings.Load itself -- a check that built its
 //   own object would pass while the UI drew eleven languages of nothing.
 //
-//   `--check-strings-ini DIR` is the INI half, and is untouched in substance:
-//   the picker's choice has to survive a restart, an unknown code has to degrade
-//   to the base language rather than to `[quit.title]` on every label, and a
-//   foreign key in the file has to come back untouched.  Same shape as
-//   options_check's INI half, and it runs in a directory the tool hands it,
-//   because **an instrument must not write the player's state.**
+//   `--check-strings-ini DIR` is the persistence half, and **step 16 split it
+//   in two the way it split the thing under it**: the language is now imported
+//   from a `LaserTank.ini` on the first run and lives in the typed store after
+//   that, so this checks the importer (a 2010 file's `[DATA] Language` is
+//   honoured, and the file is never written) and the store (the picker's choice
+//   survives a restart, an unknown code degrades to the base language rather
+//   than to `[quit.title]` on every label, and once the store exists the INI
+//   stops mattering).  Same shape as options_check's own half, and it runs in a
+//   directory the tool hands it, because **an instrument must not write the
+//   player's state.**
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -86,10 +90,10 @@ namespace LaserTank.Game
         /// `-- --check-strings-ini DIR`
         ///
         /// One `ini <name> <detail> ok|FAIL` line per check.  Every one goes
-        /// through Options, not through Ini, because the question is not
-        /// whether a key can be written -- options_check settled that -- but
-        /// whether the language the picker sets is the language the next run
-        /// loads.
+        /// through `Options`, not through `Ini` or `SettingsStore`, because the
+        /// question is not whether a value can be stored -- options_check
+        /// settled that -- but whether the language the picker sets is the
+        /// language the next run loads.
         public static int CheckStringsIni(string dir)
         {
             if (!Directory.Exists(dir))
@@ -97,21 +101,25 @@ namespace LaserTank.Game
                 GD.PrintErr("check-strings-ini: no such directory: " + dir);
                 return 2;
             }
-            string path = Path.Combine(dir, Ini.FileName);
             string langDir = Paths.Data(Strings.DirName);
             var results = new List<string>();
 
             void Check(string name, string detail, bool ok)
                 => results.Add($"ini\t{name}\t{detail}\t{(ok ? "ok" : "FAIL")}");
 
-            // 1. A file with no [DATA] Language at all resolves to the base.
-            var fresh = new Options(new Ini(path));
-            Check("default", fresh.LanguageCode,
-                  fresh.LanguageCode == Strings.BaseCode);
+            // Each case gets its own INI *stem*, because the store is named
+            // after it (Paths.SettingsBeside) and a shared store would let one
+            // case's write decide the next case's defaults.
+            Options Open(string stem) =>
+                Options.Open(Paths.SettingsBeside(Path.Combine(dir, stem + ".ini")),
+                             Path.Combine(dir, stem + ".ini"), readOnly: false);
 
-            // 2. The picker's write, and what the *next run* reads back.  Two
-            //    Options objects over one file is the restart: the second one
-            //    parses the bytes the first one wrote.
+            // 1. Nothing on disk at all -- no store, no INI -- resolves to the
+            //    base language.
+            Options blank = Open("default");
+            Check("default", blank.LanguageCode,
+                  blank.LanguageCode == Strings.BaseCode);
+
             List<LanguageInfo> have = Strings.Available(langDir);
             string other = null;
             foreach (LanguageInfo li in have)
@@ -123,17 +131,50 @@ namespace LaserTank.Game
                 return 1;
             }
 
-            fresh.SetLanguage(other);
-            var restarted = new Options(new Ini(path));
+            // 2. **The importer.**  A `LaserTank.ini` with nothing but the
+            //    invented `[DATA] Language` in it, and no store beside it, is a
+            //    first run: the key is read and the game comes up in that
+            //    language.
+            string imp = Path.Combine(dir, "import.ini");
+            byte[] seed = Encoding.Latin1.GetBytes(
+                "[DATA]\r\nLanguage=" + other + "\r\nMystery=keep me\r\n");
+            File.WriteAllBytes(imp, seed);
+            Options imported = Open("import");
+            Check("import", $"{other} -> {imported.LanguageCode}",
+                  imported.LanguageCode == other);
+
+            // 3. **And the INI is never written.**  This is what replaced the
+            //    old "a foreign key survives a rewrite" check, and it is the
+            //    stronger claim: not that the port puts the line back, but that
+            //    it never touched the file at all.  The write that would have
+            //    done it is right here -- SetLanguage, twice.
+            imported.SetLanguage(Strings.BaseCode);
+            imported.SetLanguage(other);
+            bool untouched = ByteEqual(File.ReadAllBytes(imp), seed);
+            Check("untouched", Ini.FileName, untouched);
+
+            // 4. The picker's write, and what the *next run* reads back.  Two
+            //    Options over one store is the restart: the second one parses
+            //    what the first one wrote.
+            Options restarted = Open("import");
             Check("restart", $"{other} -> {restarted.LanguageCode}",
                   restarted.LanguageCode == other);
 
-            // 3. And the catalogue really loads under that code.
+            // 5. **One-way, demonstrated.**  With a store in place the INI is
+            //    not consulted again: editing it to a language that exists
+            //    changes nothing, because the first run is over.
+            File.WriteAllBytes(imp, Encoding.Latin1.GetBytes(
+                "[DATA]\r\nLanguage=" + Strings.BaseCode + "\r\n"));
+            Options sticky = Open("import");
+            Check("one-way", $"ini={Strings.BaseCode} store={sticky.LanguageCode}",
+                  sticky.LanguageCode == other);
+
+            // 6. And the catalogue really loads under that code.
             Strings loaded = Strings.Load(langDir, restarted.LanguageCode);
             Check("load", loaded == null ? "-" : loaded.Code,
                   loaded != null && loaded.Code == other);
 
-            // 4. An unknown code degrades to the base language.  This is the
+            // 7. An unknown code degrades to the base language.  This is the
             //    one that matters for a hand-edited file: Strings.Load returns
             //    the base rather than null, so nothing downstream has to guard.
             restarted.SetLanguage("Klingon");
@@ -141,7 +182,7 @@ namespace LaserTank.Game
             Check("unknown", bogus == null ? "null" : bogus.Code,
                   bogus != null && bogus.Code == Strings.BaseCode);
 
-            // 5. The per-key fallback, which the shipped corpus never exercises
+            // 8. The per-key fallback, which the shipped corpus never exercises
             //    because the gate holds all eleven files to one key set.  So the
             //    check builds the file the corpus does not contain: a catalogue
             //    with one key blanked and one removed outright, both of which
@@ -151,16 +192,15 @@ namespace LaserTank.Game
             Check("fallback", FallbackProbe(langDir, out string why), why == null);
             if (why != null) results[results.Count - 1] += "  " + why;
 
-            // 6. A key this port does not know survives being rewritten -- the
-            //    same promise options_check makes for the rest of the file.
-            File.AppendAllText(path, "\r\n[DATA]\r\nMystery=keep me\r\n");
-            var again = new Options(new Ini(path));
-            again.SetLanguage(other);
-            bool kept = File.ReadAllText(path).Contains("Mystery=keep me");
-            Check("foreign", "Mystery", kept);
-
             foreach (string r in results) GD.PrintRaw(r + "\n");
             return results.Exists(r => r.Contains("\tFAIL")) ? 1 : 0;
+        }
+
+        private static bool ByteEqual(byte[] a, byte[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+            return true;
         }
 
         /// Writes a deliberately partial `zz.json` into a scratch directory

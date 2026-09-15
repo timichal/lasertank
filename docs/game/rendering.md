@@ -1,7 +1,7 @@
-# Rendering, audio, and the options file
+# Rendering, audio, and the settings
 
 Everything decoded out of the original's presentation layer: the atlas geometry, the mask rule, the
-laser bar, the monophonic sound, and the `LaserTank.ini` the player's choices live in. **None of it
+laser bar, the monophonic sound, and where the player's choices live. **None of it
 is a rule** — the line is drawn in [`engine.md`](engine.md): a Godot node reads `Game.BMF` and draws
 it, and never decides anything. What the UI built on top of this looks like is
 [`ui.md`](ui.md).
@@ -94,35 +94,68 @@ walked once by hand. If the audio path is ever refactored, that hop has to be wa
 
 ---
 
-## Options: `LaserTank.ini`
+## Settings: `user://settings.json`, and the INI as an importer
 
-`Options.cs` is the file, in the file and under the key names the original persists them under
-(`LTANK.H:113-128`). `Ini` is a stand-in for the three profile-string calls rather than an INI
-library:
+**Two files, and only one of them is ever written.** Step 2 put the options where the original puts
+them; step 16 split that into the job it was doing well and the job it was doing by accident.
+
+### The store — `Settings.cs`
+
+The port's settings are one typed record, serialised through `System.Text.Json` to
+`user://settings.json` (`%APPDATA%\Godot\app_userdata\LaserTank\` on Windows, IndexedDB in a web
+export). `$LT_SETTINGS` and `--settings FILE` override the path; `--ini FILE` moves it too, to
+`FILE`'s sibling `<name>.settings.json`, so a scratch directory full of probe INIs is a directory
+full of independent stores.
+
+- **`user://` rather than beside the exe.** The INI was written to the repo root, which is the
+  install directory in an exported build — unwritable in every `Program Files` install, and not a
+  filesystem at all in a browser. This was a real bug independent of the format.
+- **A `version` field**, and a `Migrate()` hook that has nothing to do yet. Adding the field later
+  would have meant guessing what a file without one was. Growing the record needs no version bump:
+  an unknown field is ignored on read and an absent one keeps its default.
+- **Every default is the original's**, in one place — `Settings`' field initialisers. `Size` is
+  **1**, the 24 px board (`LTANK.C:1567`); `Graphics_Mode` is 0; `Sound`, `Animation` and `RLL` are
+  on; `Auto_Record` and `SkipComLev` are off.
+- **Written through a temporary and moved into place.** The INI did not bother; JSON has to, because
+  a half-written object does not parse at all. A store that will not parse is treated as one that is
+  not there: the port says so on stderr, imports again, and rewrites.
+- **Not Godot's `ConfigFile`** — it is INI-shaped anyway, so the trade would have been gate-pinned
+  lines we own for an engine class. **Not a `Resource`/`.tres`** — it binds the save format to
+  engine classes and is miserable to diff.
+
+### The importer — `Ini` and `IniImport` in `Options.cs`
+
+On the **first run only** — when there is no usable store — a `LaserTank.ini` is read and folded
+into the record. After that it is never opened again: editing it changes nothing, and **nothing in
+the port writes it, ever**. It is found at `$LT_INI`, at `--ini`, or beside the repo root.
+
+`Ini` is still a stand-in for the Win32 profile calls rather than an INI library, and everything
+that made it a *finding* about the 2010 binary survives, pinned by `options_check.py`:
 
 - **first match wins**; sections and keys match case-insensitively;
 - integers follow **`atoi`** — a present-but-junk value reads as 0, and only a *missing* key gives
   the default;
-- **a write preserves every other line in the file.** Load-bearing, not politeness: the 2010 binary
-  keeps a dozen keys in this same file, and a rewrite that dropped them would silently reset the
-  player's other settings.
-
-The defaults are the original's, and one of them is easy to get wrong: `Size` defaults to **1**, the
-24 px board (`LTANK.C:1567`). `Graphics_Mode` defaults to 0.
-
-**The Yes/No test is the original's, case and all.** `if (strcmp(temps, psYes)) Sound_On = FALSE;`
-(`LTANK.C:411`) means **exactly `Yes` or the sound is off** — a hand-edited `Sound=yes` really does
-mute the 2010 binary. Kept for `Sound`, `Animation` and `RLL`. `Auto_Record` is the mirror image
-(`strcmp(...) == 0`, default **No**), so a missing key means off rather than on. Step 2 read `RLL`
-with the looser sense and its gate now pins that; the two idioms disagreeing is recorded here rather
-than harmonised by guess.
+- **the Yes/No test is a `strcmp`, case and all.** `if (strcmp(temps, psYes)) Sound_On = FALSE;`
+  (`LTANK.C:411`) means **exactly `Yes` or the sound is off** — a hand-edited `Sound=yes` really
+  does mute the 2010 binary. Same for `Animation` and `RLL`. `Auto_Record` and `SkipComLev` are the
+  mirror image (`strcmp(...) == 0`, default **No**), so a missing key means off rather than on. The
+  two layers compose and are worth keeping apart: the *comparison* is strict, and the *reader*
+  trims, so `RLL=Yes ` is still on while `Yes!` is not.
 
 Keys read: `[SCREEN] Size`, `Graphics_Mode`, `Graphics_File`, `Graphics_Dir`; `[OPT] Sound`,
-`Animation`, `Auto_Record`, `RLL`; `[DATA] RLLFilename`, `RLLLevel`, `Player`, `Record Author`, and
-the invented `Language`.
+`Animation`, `Auto_Record`, `RLL`, `SkipComLev`; `[DATA] RLLFilename`, `RLLLevel`, `Player`,
+`Record Author`, `Diff_Setting`, and the invented `Language`.
 
-**`--ini` is what makes the options live.** A run left to find `LaserTank.ini` on its own gets it
-read-only and starts on whatever level it was told to: eight parallel gate jobs must not race over
-one file, and a screenshot must not change what the next player sees. Passing `--ini` says "this file
-is yours" and turns both halves back on.
+**What retired with the write half** is interop with a live 2010 install: the preserve-every-other-
+line rule, and step 14's write of the one name into both `[DATA] Record Author` and `[DATA] Player`.
+Nothing in this tree has ever been pointed at a real install, and that possibility was the
+justification for the most awkward code in the class. The *reads* stay — either key still names the
+player, long one first — and so does `Initials`, which is the half that was ever load-bearing
+because it is what reaches a `.hs` and a `.lpb` header.
 
+**`--ini` or `--settings` is what makes the settings live.** A run left to find them on its own gets
+them read-only and starts on whatever level it was told to: eight parallel gate jobs must not race
+over one file, and a screenshot must not change what the next player sees. Passing either says "this
+state is yours" and turns both halves back on. The list of runs that count as instruments is
+`BoardView.Instrument`, and it has been found short twice — step 9's four pointer flags, and step
+16's `--edit` / `--save`.

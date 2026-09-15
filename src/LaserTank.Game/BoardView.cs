@@ -529,15 +529,26 @@ namespace LaserTank.Game
             // screenshot must not change what the next player sees.  An
             // explicit --ini says "this file is yours", which is how
             // tools/options_check.py drives the writing half.
+            // **Two paths since step 16, not one.**  `--ini` names the file the
+            // *importer* reads on a first run; `--settings` names the typed
+            // store the game actually lives in.  Either one given explicitly
+            // says "this state is yours".  When only `--ini` is given the store
+            // is its sibling, so every instrument that used to hand the game a
+            // scratch INI still gets a scratch settings file with it -- see
+            // Paths.SettingsBeside.
             string ini = ArgStr(args, "--ini");
+            string settings = ArgStr(args, "--settings");
             bool instrument = Instrument(args);
-            // One rule, used twice: **an explicit --ini makes the options
-            // live** -- writable, and allowed to choose the level -- while an
-            // instrument left to find the file on its own gets the settings
-            // read-only and starts wherever it was told to.  That is what keeps
-            // `--shot` reproducible and lets the gate exercise both halves.
-            bool live = !instrument || ini != null;
-            _opt = new Options(new Ini(ini ?? Paths.Ini, readOnly: !live));
+            // One rule, used twice: **an explicit --ini or --settings makes the
+            // options live** -- writable, and allowed to choose the level --
+            // while an instrument left to find the files on its own gets the
+            // settings read-only and starts wherever it was told to.  That is
+            // what keeps `--shot` reproducible and lets the gate exercise both
+            // halves.
+            bool live = !instrument || ini != null || settings != null;
+            _opt = Options.Open(
+                settings ?? (ini != null ? Paths.SettingsBeside(ini) : Paths.Settings),
+                ini ?? Paths.Ini, readOnly: !live);
 
             string gfxDir = ArgStr(args, "--gfx-dir");
             if (gfxDir != null && gfxDir != _opt.GraphicsDir) _opt.SetGraphicsDir(gfxDir);
@@ -571,7 +582,7 @@ namespace LaserTank.Game
             // The language before anything that could want a label.  --lang
             // overrides the INI for this run only, the way --pack and --zoom do;
             // the player's way in is Ctrl+L, which has no command id in the
-            // original because the original has no such dialog (Options.PsLang).
+            // original because the original has no such dialog (IniImport.PsLang).
             _lang = LoadLanguage(ArgStr(args, "--lang") ?? _opt.LanguageCode);
             _langMenu = new LanguageMenu(this);
             _nameMenu = new NameMenu(this);
@@ -612,7 +623,7 @@ namespace LaserTank.Game
             // menu does.  Without it an override is for this run only.
             if (Array.IndexOf(args, "--save-options") >= 0)
             {
-                _opt.Ini.ReadOnly = false;
+                _opt.ReadOnly = false;
                 _opt.SetSize(_size);
                 if (soundArg.HasValue) _opt.SetSound(soundArg.Value);
                 if (skipArg.HasValue) _opt.SetSkipCompleted(skipArg.Value);
@@ -1220,6 +1231,17 @@ namespace LaserTank.Game
         /// everything else here -- an instrument must not write the player's
         /// state, and the test is whether it could run eight times over and
         /// leave the tree as it was.
+        ///
+        /// **`--edit` and `--save` were the next two off the same list**, found
+        /// by step 16 for the same reason step 9's were found late: nothing was
+        /// looking.  `editor_check.py`'s game arm drives the editor with
+        /// `--editor --edit SCRIPT --save --levels <a copy in /tmp>`, none of
+        /// which was an instrument flag -- so six runs of it left the player's
+        /// remembered level pointing at a temp file that no longer exists.  The
+        /// game degrades gracefully from that (Start checks File.Exists before
+        /// it reopens), which is exactly why nobody noticed.  Bare `--editor`
+        /// is deliberately *not* here: opening the editor is something a player
+        /// might reasonably ask for on a command line, and driving it is not.
         private static bool Instrument(string[] args)
             => ArgStr(args, "--shot") != null
                || Array.IndexOf(args, "--play") >= 0
@@ -1230,6 +1252,8 @@ namespace LaserTank.Game
                || ArgStr(args, "--press") != null
                || ArgStr(args, "--type") != null
                || Array.IndexOf(args, "--dump-hits") >= 0
+               || ArgStr(args, "--edit") != null
+               || Array.IndexOf(args, "--save") >= 0
                || Arg(args, "--tick-rate", 0) > 0;
 
         private static string ArgStr(string[] args, string name)
@@ -1413,7 +1437,7 @@ namespace LaserTank.Game
         }
 
         /// `--check-options`: what the options layer resolved to, for
-        /// tools/options_check.py to compare against the INI it wrote.  The
+        /// tools/options_check.py to compare against the files it wrote.  The
         /// sheet hash is the part that proves the *pixels* followed the option
         /// and not just the label -- it is the same sha256 --check-sheets
         /// prints, so an external pack unpacked out of a .ltg must match that
@@ -1423,7 +1447,7 @@ namespace LaserTank.Game
             byte[] h = System.Security.Cryptography.SHA256.HashData(_atlas.Sheet.Rgba);
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             GD.PrintRaw(string.Format(inv,
-                "options ini={0}\n" +
+                "options ini={0} settings={20}\n" +
                 "options size={1} cell={2} laser_offset={3}\n" +
                 "options graphics_mode={4} graphics_file={5} graphics_dir={6}\n" +
                 "options pack={7} label={8} sha256={9}\n" +
@@ -1441,8 +1465,9 @@ namespace LaserTank.Game
                 // is the *option*: [SCREEN] Size, and the cell it means.  Since
                 // step 7 that is a preset the window snaps to rather than the
                 // only size the board can be, so it is read straight off the
-                // size the same way the INI wrote it.
-                _opt.Ini.Path, _size, CellOf(_size), LaserOffsetFor(CellOf(_size)),
+                // size the same way the store holds it.
+                _opt.ImportedFrom ?? "-", _size, CellOf(_size),
+                LaserOffsetFor(CellOf(_size)),
                 _pack.Mode, _pack.File.Length > 0 ? _pack.File : "-", _opt.GraphicsDir,
                 _pack.Mode == 1 ? "external" : _pack.Mode == 0 ? "internal" : _pack.File,
                 _atlas.Label, Convert.ToHexString(h).ToLowerInvariant(),
@@ -1457,11 +1482,17 @@ namespace LaserTank.Game
                 _opt.AnimationOn ? "Yes" : "No", _opt.AutoRecord ? "Yes" : "No",
                 _opt.Name.Length > 0 ? _opt.Name : "-",
                 _opt.Initials.Length > 0 ? _opt.Initials : "-",
-                // Item 3's two.  The mask is printed as the number the INI
+                // Item 3's two.  The mask is printed as the number the file
                 // carries rather than as five names, because what the gate is
-                // checking is the *key* -- that a 2010 binary's Diff_Setting
-                // round-trips, and that the 0 it can hold reads as all five.
-                _opt.SkipCompleted ? "Yes" : "No", _opt.Difficulty));
+                // checking is the *value* -- that a 2010 binary's Diff_Setting
+                // imports, and that the 0 it can hold reads as all five.
+                _opt.SkipCompleted ? "Yes" : "No", _opt.Difficulty,
+                // **Both paths, because they are two different files now**:
+                // `ini=` is what this run imported from, or `-` when it
+                // imported from nothing, and `settings=` is the store it
+                // actually reads and writes.  A gate that wants to know whether
+                // the importer ran at all asks the first one.
+                _opt.StorePath));
             // What the level resolution above settled on -- the collection and
             // the number this run would have opened.
             GD.PrintRaw(string.Format(inv, "options start_file={0} start_level={1}\n",

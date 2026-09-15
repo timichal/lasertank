@@ -15,6 +15,9 @@
 /data/**/*.hs
 /*.hs
 /*.ini
+# The typed settings store lives in user:// and never lands here -- but a
+# `--ini <path>` run at the repo root drops its sibling store next to it.
+/*.settings.json
 
 # --- our build output ---
 /oracle/build/

@@ -99,13 +99,13 @@ namespace LaserTank.Game
         public bool OkToHS { get; private set; } = true;
 
         /// **A Session with no Options never writes a .hs**, which is the same
-        /// rule `Ini.ReadOnly` is and for the same reasons: eight parallel gate
+        /// rule `SettingsStore.ReadOnly` is and for the same reasons: eight parallel gate
         /// jobs must not race over one file, and an instrument run must not
         /// change what the next player sees.  `PlayMode` builds its Sessions
         /// without Options, so `tick_check.py` replaying all 208 winning
         /// recordings posts nothing -- it wrote `.hs` files across six
         /// collections of `data/` once, which is how this got noticed.  A
-        /// read-only INI (`--shot`, `--check-*`) is held to the same rule.
+        /// read-only store (`--shot`, `--check-*`) is held to the same rule.
         private readonly bool _postScores;
 
         /// The `HS` global (LTANK.H:239), which outlives a level for a reason --
@@ -114,7 +114,7 @@ namespace LaserTank.Game
 
         /// `options` is the persisted state (Phase 5, step 2) and may be null --
         /// PlayMode's synthetic player has none, because a gate must not write
-        /// the player's INI.  All it is used for here is [DATA] RLLFilename /
+        /// the player's settings.  All it is used for here is [DATA] RLLFilename /
         /// RLLLevel, which LoadLevel writes (LTANK2.C:1035).
         public Session(string lvlPath, Options options = null)
         {
@@ -123,7 +123,7 @@ namespace LaserTank.Game
             _levelCount = LevelFile.CountLevels(lvlPath);
             Files = new ScoreFiles(lvlPath);
             Rec2 = new Recorder(options);
-            _postScores = options != null && !options.Ini.ReadOnly;
+            _postScores = options != null && !options.ReadOnly;
         }
 
         public string LevelPath => _lvlPath;

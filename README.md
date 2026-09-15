@@ -125,6 +125,8 @@ artifact that must not drift. Total repo ≈ 24 MB, and it barely changes. See t
 `original/bin/lasertank.exe` runs standalone on Windows. It looks for level files next to itself,
 so point it at `data/levels/` through *Game → Open Data File*; it remembers the path in a
 `LaserTank.ini` it writes beside the exe (gitignored, along with the `.hs` score files it creates).
+The port **reads** such a file once, on its first run, and keeps its own settings in
+`user://settings.json` after that — it never writes a `LaserTank.ini`.
 
 ## Provenance
 

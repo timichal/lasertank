@@ -5,14 +5,25 @@ laser's width.
 Four checks, all of them things a human clicking around would notice only if
 they knew what to look for:
 
-  ini     the profile-string stand-in behaves like GetPrivateProfileInt /
-          WritePrivateProfileString.  No file at all -> Size 1 and graphics mode
-          0, the original's own defaults (LTANK.C:1567, LTANK2.C:1780).  A write
-          keeps every other key in the file, including the dozen the 2010 binary
-          puts there and this port knows nothing about -- a rewrite that dropped
-          them would silently reset the player's other settings.  And the round
-          trip: run the game once with overrides and --save-options, once with
-          nothing, and the second run must report what the first wrote.
+  ini     **the importer and the typed store**, which step 16 split apart.
+
+          The importer is `Ini` + `IniImport`, and it still behaves exactly like
+          GetPrivateProfileInt: no file at all -> Size 1 and graphics mode 0, the
+          original's own defaults (LTANK.C:1567, LTANK2.C:1780); atoi's rules;
+          and the `strcmp(temps, psYes)` test that makes a hand-edited
+          `Sound=yes` mute the 2010 binary.  What it no longer does is *write* --
+          so the check that a rewrite kept the dozen foreign keys the 2010 binary
+          leaves in that file is now the stronger one that the file comes back
+          **byte for byte** after a run that changed every setting it has.  And
+          it is one-way: once the store exists the INI is not read again, which
+          is checked by editing it and watching nothing happen.
+
+          The store is `user://settings.json` (here, a scratch file `--ini`
+          names the sibling of).  Round trip: run the game once with overrides
+          and --save-options, once with nothing, and the second run must report
+          what the first wrote -- plus that the file it wrote is JSON with a
+          `version` in it, and that a corrupt one costs the player the settings
+          rather than the game.
 
   packs   every entry the graphics menu offers loads, and **the external pair
           and the .ltg it came out of render byte-identical pixels.**  That is
@@ -63,14 +74,17 @@ they knew what to look for:
 The laser and size checks open a real window (three, briefly): --shot needs a
 rendering device, so they cannot run headless.  Everything else is headless.
 
-Nothing here writes the player's own LaserTank.ini -- every run is given its own
---ini under the scratch directory, and the game refuses to write an INI it was
-not handed explicitly when it is running as an instrument anyway.
+Nothing here touches the player's own settings -- every run is given its own
+--ini under the scratch directory, and its store is that INI's sibling, so a
+directory of probe INIs is a directory of independent stores.  The game refuses
+to write settings it was not handed explicitly when it is running as an
+instrument anyway.
 
 Exit: 0 clean, 1 a check failed, 2 environment (no Godot, no packs).
 """
 import argparse
 import hashlib
+import json
 import pathlib
 import re
 import shutil
@@ -156,47 +170,65 @@ def ok(what, detail=""):
 
 
 # ---------------------------------------------------------------------------
+def store_of(ini):
+    """What `--ini FILE` makes the game use as its settings store --
+    Paths.SettingsBeside.  Named after the INI so that a scratch directory full
+    of probe files is a directory full of independent stores."""
+    return ini.with_suffix(".settings.json")
+
+
 def check_ini(tmp):
-    """GetPrivateProfileInt / WritePrivateProfileString semantics, and the round
-    trip a player gets: pick something in the menu, restart, still there."""
+    """The importer, the store, and the line between them: what a LaserTank.ini
+    still decides, what it can no longer touch, and what a restart remembers."""
     good = True
 
-    # -- defaults, with no file at all.  LTANK.C:1567 passes 1 as the default
-    # size and LTANK2.C:1780 passes 0 as the default graphics mode.
+    # -- defaults, with neither file.  LTANK.C:1567 passes 1 as the default size
+    # and LTANK2.C:1780 passes 0 as the default graphics mode.
     ini = tmp / "absent.ini"
     rc, out = run(["--ini", ini, "--check-options"])
     o = options(out)
     if rc != 0 or o.get("size") != "1" or o.get("graphics_mode") != "0":
         good = fail("defaults with no ini", "rc=%d size=%s mode=%s"
                     % (rc, o.get("size"), o.get("graphics_mode")))
+    elif o.get("ini") != "-":
+        good = fail("defaults with no ini", "claims it imported %s" % o.get("ini"))
     else:
         good &= ok("defaults with no ini", "Size 1 (24 px), graphics mode 0")
 
-    # -- a write preserves every other line.  These are real keys the 2010
-    # binary leaves in the file; none of them is this port's business.
+    # -- **the INI is read and then never written again.**  This replaced step
+    # 2's "a write keeps every other key": the port no longer writes this file
+    # at all, which is a stronger promise and a cheaper one to check.  The seed
+    # is real keys the 2010 binary leaves behind, none of them this port's
+    # business, plus the two it does read -- and the run changes every setting
+    # it has, with --save-options, so anything that still wrote here would show.
     ini = tmp / "foreign.ini"
     seed = ("[DATA]\r\nPlayer=MZ\r\nDiff_Setting=31\r\n"
             "RLLFilename=nowhere.lvl\r\n"
             "[SCREEN]\r\nPosX=52\r\nPosY=52\r\nSize=3\r\n"
-            "[OPT]\r\nSound=No\r\n")
-    ini.write_bytes(seed.encode("latin-1"))
+            "[OPT]\r\nSound=No\r\n").encode("latin-1")
+    ini.write_bytes(seed)
     pack = sorted(GRAPHICS.glob("*.ltg"))[0]
-    rc, out = run(["--ini", ini, "--pack", pack.name, "--save-options",
+    rc, out = run(["--ini", ini, "--pack", pack.name, "--name", "Someone Else",
+                   "--sound", "yes", "--zoom", "40", "--save-options",
                    "--check-options"])
     o = options(out)
-    text = ini.read_text("latin-1")
-    missing = [k for k in ("Player=MZ", "Diff_Setting=31", "PosX=52", "PosY=52",
-                           "Sound=No") if k not in text]
-    if rc != 0 or missing:
-        good = fail("a write keeps foreign keys",
-                    "rc=%d lost %s" % (rc, ", ".join(missing) or "-"))
+    if rc != 0:
+        good = fail("the ini is imported, not written", "rc=%d" % rc)
+    elif ini.read_bytes() != seed:
+        good = fail("the ini is imported, not written",
+                    "the file changed: %r" % ini.read_text("latin-1"))
+    elif o.get("ini") != str(ini):
+        good = fail("the ini is imported, not written",
+                    "imported from %s" % o.get("ini"))
     elif o.get("size") != "3":
-        good = fail("Size=3 is read back", "size=%s" % o.get("size"))
+        good = fail("the ini is imported, not written",
+                    "Size=3 was not honoured: size=%s" % o.get("size"))
     else:
-        good &= ok("a write keeps foreign keys", "5 kept, Size=3 honoured")
+        good &= ok("the ini is imported, not written",
+                   "byte-identical after a run that changed five settings")
 
-    # -- and the round trip: what --save-options wrote is what the next launch
-    # reports, with no overrides at all.
+    # -- and the round trip, which is the *store's* now: what --save-options
+    # wrote is what the next launch reports, with no overrides at all.
     rc, out = run(["--ini", ini, "--check-options"])
     o2 = options(out)
     if rc != 0 or o2.get("graphics_mode") != "2" or o2.get("graphics_file") != pack.name:
@@ -206,9 +238,59 @@ def check_ini(tmp):
         good &= ok("the choice survives a restart",
                    "mode 2, %s" % o2.get("graphics_file"))
 
+    # -- the file it wrote: JSON, versioned, and where --check-options said.
+    st = store_of(ini)
+    try:
+        doc = json.loads(st.read_text("utf-8"))
+    except Exception as exc:                                # noqa: BLE001
+        doc = None
+        good = fail("the store is versioned json", str(exc))
+    if doc is not None:
+        if o2.get("settings") != str(st):
+            good = fail("the store is versioned json",
+                        "the game says %s, the file is %s" % (o2.get("settings"), st))
+        elif doc.get("version") != 1 or doc.get("size") != 3:
+            good = fail("the store is versioned json",
+                        "version=%r size=%r" % (doc.get("version"), doc.get("size")))
+        else:
+            good &= ok("the store is versioned json",
+                       "%d keys, version %d" % (len(doc), doc["version"]))
+
+    # -- **one-way.**  With a store beside it the INI is not consulted again, so
+    # editing it changes nothing.  This is the whole of what "importer" means
+    # and the one property a player could otherwise be surprised by.
+    ini.write_bytes(b"[SCREEN]\r\nSize=1\r\n")
+    rc, out = run(["--ini", ini, "--check-options"])
+    o = options(out)
+    if rc != 0 or o.get("size") != "3" or o.get("ini") != "-":
+        good = fail("the import happens once",
+                    "rc=%d size=%s ini=%s" % (rc, o.get("size"), o.get("ini")))
+    else:
+        good &= ok("the import happens once", "Size=1 in the ini, Size 3 in the game")
+
+    # -- a store that will not parse is the same case as one that is not there:
+    # import again and rewrite, because refusing to start would cost the player
+    # every setting over one stray brace.
+    bad = tmp / "corrupt.ini"
+    bad.write_bytes(b"[SCREEN]\r\nSize=3\r\n")
+    store_of(bad).write_text("{ this is not json", encoding="utf-8")
+    rc, out = run(["--ini", bad, "--check-options"])
+    o = options(out)
+    try:
+        rewritten = json.loads(store_of(bad).read_text("utf-8")).get("size")
+    except Exception:                                       # noqa: BLE001
+        rewritten = None
+    if rc != 0 or o.get("size") != "3" or rewritten != 3:
+        good = fail("a corrupt store re-imports",
+                    "rc=%d size=%s rewritten=%r" % (rc, o.get("size"), rewritten))
+    else:
+        good &= ok("a corrupt store re-imports",
+                   "read the ini again, rewrote the store")
+
     # -- the size the menu sets, persisted on its own (SetGameSize's write).
-    rc, out = run(["--ini", ini, "--zoom", "24", "--save-options", "--check-options"])
-    rc2, out2 = run(["--ini", ini, "--check-options"])
+    zoom = tmp / "zoom.ini"
+    rc, out = run(["--ini", zoom, "--zoom", "24", "--save-options", "--check-options"])
+    rc2, out2 = run(["--ini", zoom, "--check-options"])
     o3 = options(out2)
     if rc or rc2 or o3.get("size") != "1" or o3.get("cell") != "24":
         good = fail("Size survives a restart", "size=%s cell=%s"
@@ -216,44 +298,44 @@ def check_ini(tmp):
     else:
         good &= ok("Size survives a restart", "Size 1 -> 24 px cells")
 
-    # -- **one name, two keys.**  [DATA] Player and [DATA] Record Author are
-    # one value in this port (Options.Name), because HSBox and RecordBox are
-    # the same question asked twice -- so the thing to pin is that the merge
-    # does not cost the interop the two keys are there for: what the port
-    # writes, the 2010 binary still finds under both of its own names, and the
-    # four characters `.hs` can hold are cut from the same string rather than
-    # asked for separately.
+    # -- **one name, and the four characters cut from it.**  [DATA] Player and
+    # [DATA] Record Author are one value in this port (Options.Name), because
+    # HSBox and RecordBox are the same question asked twice.
+    #
+    # **Step 16 retired the write half of that merge** -- the port no longer
+    # writes either key, so what is pinned here is the half that was ever
+    # load-bearing: the name round-trips through the store, and `Initials` is
+    # still cut from the same string rather than asked for separately, because
+    # that is what reaches a `.hs` record and a `.lpb` header.
     name = tmp / "name.ini"
     rc, out = run(["--ini", name, "--name", "Michal Zlatkovsky", "--save-options",
                    "--check-options"])
     rc2, out2 = run(["--ini", name, "--check-options"])
     o = options(out2)
-    text = name.read_text("latin-1")
     if rc or rc2:
-        good = fail("one name into both keys", "rc=%d/%d" % (rc, rc2))
-    elif "Record Author=Michal Zlatkovsky" not in text or "Player=Mich" not in text:
-        good = fail("one name into both keys",
-                    "the file says %r" % text.replace("\r\n", " | "))
+        good = fail("the name, and its initials", "rc=%d/%d" % (rc, rc2))
     elif o.get("name") != "Michal Zlatkovsky" or o.get("initials") != "Mich":
-        good = fail("one name into both keys",
-                    "read back name=%s initials=%s"
-                    % (o.get("name"), o.get("initials")))
+        good = fail("the name, and its initials",
+                    "read back name=%s initials=%s" % (o.get("name"), o.get("initials")))
+    elif name.exists():
+        good = fail("the name, and its initials",
+                    "it wrote a LaserTank.ini: %r" % name.read_text("latin-1"))
     else:
-        good &= ok("one name into both keys",
-                   "Record Author + Player=Mich, and back")
+        good &= ok("the name, and its initials", "stored whole, posted as Mich")
 
     # And the read the other way: a file the 2010 binary wrote has only the
-    # initials in it, because HSBox is the dialog it opens first -- so Player
-    # is the fallback, and nothing is rewritten by a run that merely reads it.
+    # initials in it, because HSBox is the dialog it opens first -- so Player is
+    # the fallback, and importing it writes nothing back.
     old_ini = tmp / "name_2010.ini"
-    old_ini.write_bytes(b"[DATA]\r\nPlayer=MZ\r\n")
+    old_seed = b"[DATA]\r\nPlayer=MZ\r\n"
+    old_ini.write_bytes(old_seed)
     rc, out = run(["--ini", old_ini, "--check-options"])
     o = options(out)
     if rc or o.get("name") != "MZ" or o.get("initials") != "MZ":
         good = fail("Player alone is the name",
                     "rc=%d name=%s initials=%s" % (rc, o.get("name"), o.get("initials")))
-    elif "Record Author" in old_ini.read_text("latin-1"):
-        good = fail("Player alone is the name", "reading it wrote Record Author")
+    elif old_ini.read_bytes() != old_seed:
+        good = fail("Player alone is the name", "reading it changed the file")
     else:
         good &= ok("Player alone is the name", "MZ, and the file is untouched")
 
@@ -268,7 +350,7 @@ def check_ini(tmp):
     o = options(out)
     if rc or rc2 or o.get("rll_level") != "42":
         good = fail("the last level is remembered",
-                    "rc=%d/%d RLLLevel=%s" % (rc, rc2, o.get("rll_level")))
+                    "rc=%d/%d rll_level=%s" % (rc, rc2, o.get("rll_level")))
     elif o.get("start_level") != "42" or o.get("start_file") != str(pack_lvl):
         good = fail("the last level is remembered",
                     "would start at %s of %s" % (o.get("start_level"), o.get("start_file")))
@@ -303,13 +385,24 @@ def check_ini(tmp):
     # strips surrounding whitespace and quotes before anything sees the value,
     # so `RLL=Yes ` is "Yes" and stays on -- while `Yes!` and any change of case
     # reach the strcmp intact and turn it off.
-    for value, want_rll in (("yes", "No"),     # lower case really does turn it off
-                            ("YES", "No"),
-                            ("Yes!", "No"),    # reaches the strcmp and fails it
-                            ("Yes ", "Yes"),   # trimmed by the reader, so still on
-                            ("Yes", "Yes")):
-        strict = tmp / ("strict_%s_%d.ini" % (value.strip().lower().strip("!"),
-                                              len(value)))
+    #
+    # **All of it is import now**, which is the point: these are recorded
+    # findings about the 2010 binary's file and they outlived the port's use of
+    # it.  Step 16 moved them from Options' constructor to IniImport and changed
+    # nothing else about them.
+    #
+    # **One probe file per case, numbered.**  The old naming derived a stem from
+    # the value, and three of the five collided -- `yes`/`Yes` and `Yes!`/`Yes `
+    # -- which cost nothing while each run re-read the INI it had just been
+    # handed, and costs two false greens now that a store beside it would
+    # outrank the file on the second run.  Numbering is the whole fix.
+    for i, (value, want_rll) in enumerate((
+            ("yes", "No"),     # lower case really does turn it off
+            ("YES", "No"),
+            ("Yes!", "No"),    # reaches the strcmp and fails it
+            ("Yes ", "Yes"),   # trimmed by the reader, so still on
+            ("Yes", "Yes"))):
+        strict = tmp / ("strict_%d.ini" % i)
         strict.write_bytes(("[OPT]\r\nRLL=%s\r\nSound=%s\r\nAnimation=%s\r\n"
                             "Auto_Record=%s\r\n" % (value, value, value, value))
                            .encode("latin-1"))
@@ -321,15 +414,15 @@ def check_ini(tmp):
         got = (o.get("rll"), o.get("sound"), o.get("animation"),
                o.get("auto_record"))
         want = (want_rll, want_rll, want_rll, want_arec)
-        good &= (ok("exactly \"Yes\": %-5r" % value,
+        good &= (ok('exactly "Yes": %-5r' % value,
                     "rll/sound/animation=%s auto_record=%s" % (want_rll, want_arec))
                  if rc == 0 and got == want
-                 else fail("exactly \"Yes\": %-5r" % value,
+                 else fail('exactly "Yes": %-5r' % value,
                            "rc=%d got %s want %s" % (rc, got, want)))
 
     # -- the file the 2010 binary actually left behind, read through a copy so
     # the player's own is never touched.  Its Size=3 and Graphics_Dir are the
-    # two keys we share with it.
+    # two keys we share with it, and the copy has to come back unchanged.
     real = ROOT / "original" / "bin" / "LaserTank.ini"
     if real.exists():
         mine = tmp / "from2010.ini"
@@ -350,9 +443,11 @@ def check_ini(tmp):
         elif o4.get("size") != want.get("size", "1"):
             good = fail("the 2010 binary's own ini",
                         "size %s, file says %s" % (o4.get("size"), want.get("size")))
+        elif mine.read_bytes() != real.read_bytes():
+            good = fail("the 2010 binary's own ini", "the copy was modified")
         else:
             good &= ok("the 2010 binary's own ini",
-                       "Size=%s read the same by both" % o4.get("size"))
+                       "Size=%s read the same by both, untouched" % o4.get("size"))
     else:
         print("  %-34s SKIP original/bin/LaserTank.ini is not there"
               % "the 2010 binary's own ini")
@@ -482,20 +577,28 @@ def check_advance(tmp):
         good &= ok("Diff_Setting=255 is masked to 31", "128 cannot collide")
 
     # -- the round trip, through the same flags the panel's two chips use.
-    rc, _ = run(["--ini", ini, "--difficulty", "13", "--skip-completed", "yes",
+    # Step 16: both values go to the typed store, so what is asserted is that
+    # they come back and that the INI they were *imported* from did not move.
+    trip = tmp / "walk_trip.ini"
+    shutil.copyfile(ini, trip)
+    seed = trip.read_bytes()
+    rc, _ = run(["--ini", trip, "--difficulty", "13", "--skip-completed", "yes",
                  "--save-options", "--check-options"])
-    rc2, out = run(["--ini", ini, "--check-options"])
+    rc2, out = run(["--ini", trip, "--check-options"])
     o = options(out)
-    text = ini.read_text("latin-1")
+    doc = json.loads(store_of(trip).read_text("utf-8"))
     if rc or rc2 or o.get("difficulty") != "13" or o.get("skip_completed") != "Yes":
-        good = fail("both keys survive a restart", "difficulty=%s skip=%s"
+        good = fail("both settings survive a restart", "difficulty=%s skip=%s"
                     % (o.get("difficulty"), o.get("skip_completed")))
-    elif "Diff_Setting=13" not in text or "SkipComLev=Yes" not in text:
-        good = fail("both keys survive a restart",
-                    "written under the wrong names")
+    elif doc.get("difficulty") != 13 or doc.get("skipCompleted") is not True:
+        good = fail("both settings survive a restart",
+                    "the store says difficulty=%r skipCompleted=%r"
+                    % (doc.get("difficulty"), doc.get("skipCompleted")))
+    elif trip.read_bytes() != seed:
+        good = fail("both settings survive a restart", "the ini was written")
     else:
-        good &= ok("both keys survive a restart",
-                   "[DATA] Diff_Setting=13, [OPT] SkipComLev=Yes")
+        good &= ok("both settings survive a restart",
+                   "difficulty 13 and the skip, and the ini untouched")
 
     # ---- the walk itself.
     solved = {2, 3, 5, 8, 13}
@@ -555,23 +658,26 @@ def check_advance(tmp):
         good &= ok("SDiff 0 is unfilterable", "stops on it with mask 16")
 
     # -- and the walk must not write the player's state.  RLL on, a walk over
-    # 40 levels, and [DATA] RLLLevel is where it was.
+    # 40 levels, and the remembered level is where it was.
     rll = tmp / "walk_rll.ini"
     rll.write_bytes(b"[OPT]\r\nRLL=Yes\r\n[DATA]\r\nRLLLevel=7\r\n"
                     b"RLLFilename=nowhere.lvl\r\n")
-    # One run first, because Options' constructor fills an empty Graphics_Dir
-    # in and writes it back ("we only do this once", LTANK2.C:1785) -- that is
-    # the *first* launch writing, not the walk, and the claim here is about the
-    # walk.  Snapshot after it has happened.
+    # One run first, because the first launch is the one that imports and
+    # writes the store at all -- and it fills an empty Graphics_Dir in on the
+    # way ("we only do this once", LTANK2.C:1785).  That is the first launch
+    # writing, not the walk, and the claim here is about the walk.  Snapshot
+    # after it has happened.
     run(["--ini", rll, "--check-options"])
-    before = rll.read_bytes()
+    before, before_ini = store_of(rll).read_bytes(), rll.read_bytes()
     rc, _ = run(["--ini", rll, "--levels", lvl, "--level", 1, "--check-advance"])
-    if rc != 0 or rll.read_bytes() != before:
+    after, after_ini = store_of(rll).read_bytes(), rll.read_bytes()
+    if rc != 0 or after != before or after_ini != before_ini:
         good = fail("the walk writes nothing",
-                    "rc=%d, the ini %s" % (rc, "moved" if rll.read_bytes() != before
-                                           else "is fine"))
+                    "rc=%d, the store %s, the ini %s"
+                    % (rc, "moved" if after != before else "is fine",
+                       "moved" if after_ini != before_ini else "is fine"))
     else:
-        good &= ok("the walk writes nothing", "RLLLevel still 7")
+        good &= ok("the walk writes nothing", "lastLevel still 7")
     return good
 
 
