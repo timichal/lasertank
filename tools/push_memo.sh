@@ -10,10 +10,11 @@
 #   RUNGS=l8fire bash tools/push_memo.sh   # one rung instead of three
 #
 # **What it measures and why both halves are one run.**  Each rung is run twice
-# over the same level list at the same node budget, once without --push-memo and
-# once with it, and the pair answers both questions at once: the reports have to
-# agree field for field and the .lpb files byte for byte (the memo is a pure
-# function of what PushH already reads, so anything else is a bug), and the job
+# over the same level list at the same node budget, once with --no-push-memo and
+# once with the default (on since session 51), and the pair answers both
+# questions at once: the reports have to agree field for field and the .lpb
+# files byte for byte (the memo is a pure function of what PushH already
+# reads, so anything else is a bug), and the job
 # seconds are then the only thing that may differ.  A run that changed a number
 # is not a slower or faster run, it is a wrong one, so the gate is reported
 # first and the table says nothing if it fails.
@@ -104,7 +105,7 @@ run_arm () {
   rung=$1; arm=$2; rep=$3
   out="build/$PREFIX/$rung-$arm"
   report="build/reports/$PREFIX-$rung-$arm.jsonl"
-  extra=""; [ "$arm" = on ] && extra="--push-memo"
+  extra="--no-push-memo"; [ "$arm" = on ] && extra=""
   rm -rf "$out"; rm -f "$report"
   mkdir -p "$out"
   "$exe" --levels "$LEVELS" --levels-list "$LIST" --out "$out" --report "$report" \
@@ -256,7 +257,7 @@ if [ "$what" = all ] || [ "$what" = time ]; then
   echo "the --push-time split, LaserTank.lvl $TIME_LEVEL at $TIME_NODES nodes, one thread"
   for rung in $RUNGS; do
     for arm in off on; do
-      extra=""; [ "$arm" = on ] && extra="--push-memo"
+      extra="--no-push-memo"; [ "$arm" = on ] && extra=""
       echo "--- $rung, memo $arm ---"
       "$exe" --levels data/levels/LaserTank.lvl --level "$TIME_LEVEL" \
              --jobs 1 --nodes "$TIME_NODES" --budget-ms "$BUDGET_MS" \
