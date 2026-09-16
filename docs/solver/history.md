@@ -8,8 +8,8 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 19 is done
-except 7, and nine of those closed *negative* or half-negative** — which is the ordering rule
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 19 is done,
+and ten of those closed *negative* or half-negative** — which is the ordering rule
 paying off rather than failing. The largest of the positives is
 [item 2](#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm),
 which took the corpus from **494 to 1,581 of 4,185** and is the only item here that cost days of machine
@@ -1395,6 +1395,137 @@ python tools/harvest.py complete            # ~65 min, and it rewrites bench/goa
 python tools/harvest.py complete --report --all
 ```
 
+### 7. The solved-vs-budget curve — run, and it saturates below 10M.
+
+**Closed in session 54, negative on the question it was written to answer, and negative in the cheapest
+way available: the run cost a quarter of its price because the thing it was measuring had already
+stopped.** `tools/curve_pass.sh` put the chain's four searchers through **1M, 10M and 50M** nodes over
+the 1-in-15 stride's **253** levels — item 2's own stride, the same 253 at every rung — on 2026-09-15
+from 21:22 to 23:01.
+
+    bash tools/curve_pass.sh          # the whole curve, three rungs, resumable
+    bash tools/curve_pass.sh status   # the table, from any other shell
+
+**1 h 39 m of wall clock and 11 h 09 m of job time, against the `price` run's ~7 h and 45 h.** Session
+50's projection was built per level rather than per median precisely because a level that dies on a dead
+end does not burn a bigger budget; what it could not know in advance was *how many* levels that would be
+at 50M, and the answer is nearly all of them. The run sustained only **6.7x** parallelism against the
+pass's 13.0x — three rungs of an hour cannot keep sixteen jobs fed through their own tails — so **the job
+time is the honest number here and the wall clock is a flattering one**.
+
+| budget | stage | attempted | solved | at the node cap | job time | wall |
+|---|---|---:|---:|---:|---:|---:|
+| **1M** | `l0` — `--no-ida` | 253 | 5 | 150 of 248 | 0h32m | 0h02m |
+| | `l3` — `--sg-eval coarse` | 248 | 5 | 234 of 243 | 0h20m | 0h01m |
+| | `l4` — `--sg-eval learned` | 243 | 2 | 233 of 241 | 0h21m | 0h01m |
+| | `l1` — `--macro --macro-first` | 241 | **0** | 0 of 241 | 0h02m | 0h00m |
+| **10M** | `l0` | 253 | 10 | 20 of 243 | 1h32m | 0h12m |
+| | `l3` | 243 | 9 | 69 of 234 | 1h19m | 0h08m |
+| | `l4` | 234 | 1 | 58 of 233 | 1h14m | 0h08m |
+| | `l1` | 233 | **0** | 0 of 233 | 0h04m | 0h00m |
+| **50M** | `l0` | 253 | 10 | **0 of 243** | 1h35m | 0h13m |
+| | `l3` | 243 | 10 | 17 of 233 | 2h09m | 0h23m |
+| | `l4` | 233 | 1 | 13 of 232 | 1h56m | 0h23m |
+| | `l1` | 232 | **0** | 0 of 232 | 0h05m | 0h01m |
+
+| budget | added | of 253 | rate | of those, **new** |
+|---|---:|---:|---:|---:|
+| 150k — the shipped chain | 0 | 253 | — by construction | — |
+| **1M** | **12** | 253 | 4.7% | **1** |
+| **10M** | **20** | 253 | 7.9% | **1** |
+| **50M** | **21** | 253 | 8.3% | **1** |
+
+**21 of 21 solutions through the two-engine gate, zero divergences**, and the three rungs are **strictly
+nested** — no level solved at a smaller budget is lost at a bigger one, which a beam does not owe anyone
+and which is worth having checked rather than assumed.
+
+**The item's question was *does the same wall clock buy more when it is spent raising the chain's own
+budget instead of running a fourth pass?* and the answer is no, by a margin that does not need a
+projection.** Of the 21 levels the whole curve buys, **20 are already inside item 2's 1,087**. The
+curve's entire marginal contribution over the fourth pass, at every rung, is **one level** —
+`Challenge-IV` 736 — and it is had at the **cheapest** rung, in `l0`, in **3.8 seconds at 1M**. Raising
+the chain's budget is not a cheaper fourth pass; it is a **subset** of one, bought at a rung where 50M is
+37M of nothing. *(One level out of 253 is a stride reading of n = 1: what it supports is "at or below
+0.4% of the population", not a corpus count. The 20-of-21 overlap is the load-bearing half, and that one
+is n = 21.)*
+
+**Scaled to the 3,691 the fourth pass actually ran over, for the comparison the item was written to
+make:**
+
+| | job time | levels | levels per 100 h of job time |
+|---|---:|---:|---:|
+| item 2, three push arms at 40M | **879 h** | **1,087** | 124 |
+| this curve's 1M rung | ~18 h | ~175 | 960 |
+| this curve's 10M rung | ~61 h | ~292 | 483 |
+| this curve's 50M rung | ~84 h | ~306 | 365 |
+| any of these rungs, **new** levels only | — | **~15** | **~80 at best** |
+
+**Budget-raising wins the first column and loses the only one that matters.** It is three to eight times
+more efficient per job-hour than the fourth pass at finding *a* solution, and what it is finding is the
+fourth pass's solutions again. On levels nothing else has, even the cheapest rung is **below** item 2's
+rate.
+
+**No solution in the entire run needed more than 13.2M nodes.** The single level the 50M rung adds over
+10M is `Challenge-I` 1901, at **13,177,778**. So the curve is over by 20M, and the top rung — 36.5 h of
+the 45 h `price` quoted, and the reason this item was scheduled as a seven-hour job — was **the only rung
+that could not pay**. The honest form of this whole measurement is three rungs at 1M, 5M and 20M.
+
+**Where it saturates is visible in the stop reasons a rung before it is visible in the solve counts.**
+The chain stops being budget-bound between 1M and 10M, and after that more nodes are handed to searchers
+that have already stopped searching:
+
+| budget | `l0` | `l3` | `l4` | `l1` |
+|---|---|---|---|---|
+| **1M** | `budget` **147**, `beam-dead-end` 101 | `budget` **234**, dead-end 5, depth 4 | `budget` **233**, dead-end 5, depth 3 | `macro-dead-end` 142, `budget` 98 |
+| **10M** | `beam-dead-end` **223**, `budget` 20 | **`subgoal-depth` 142**, `budget` 68, dead-end 24 | **`subgoal-depth` 151**, `budget` 58, dead-end 24 | `macro-dead-end` **229**, `budget` 4 |
+| **50M** | `beam-dead-end` **243**, `budget` **0** | **`subgoal-depth` 156**, dead-end 60, `budget` 17 | **`subgoal-depth` 163**, dead-end 57, `budget` 12 | `macro-dead-end` **232**, `budget` 0 |
+
+**`l0`'s misses have the same median node count at 10M and at 50M — 1,323,180, to the node.** The beam
+runs out of frontier at exactly the same place and the extra 40M is never touched; at 50M **not one of
+its 243 misses reaches the node cap**. `l4`'s misses are the same story one layer up: **2,883,858 at both
+10M and 50M**. Two of the chain's four searchers are, above ~10M, *provably indifferent to the budget*,
+and the third — `l1` — was already known to be: **the macro beam solved 0 levels at every rung**, exactly
+as `price` predicted from 0 of 30 priced levels reaching the cap, and it costs 2 to 5 minutes of job time
+to keep saying so.
+
+**What binds instead is a depth cap documented as a backstop, and that is the item this one hands the
+list.** `--sg-depth`'s help text reads *"subgoal steps, default 400 — a backstop, the node budget binds
+long before it"* (`Program.cs:190`). At 50M that sentence is false on **156 of 233** `l3` misses and
+**163 of 232** `l4` misses, against 17 and 12 that stop on budget. `Subgoal.cs:159` sets the stop after
+`for (int step = 0; step < _opt.SgDepth && frontier.Count > 0; step++)` falls out, so `subgoal-depth`
+means 400 steps walked **with a live frontier and the budget still in hand** — and the hand is full:
+those levels use a median of **2.78M of 50M nodes, 94% unspent**, and stop after a median **13.8 s**.
+That is the same shape as [item 20](next-actions.md#20-1st--push-depth-on-the-enables-arm)'s
+`--push-depth` on the `enables` arm, one flag over and one searcher across, and it is written up as
+[item 25](next-actions.md#25-2nd--sg-depth-on-the-chains-subgoal-passes). The nuance that keeps it
+binary: `--sg-slack` successors are steps that removed nothing, so a beam can spend 400 steps without
+400 obstacles gone, and *raise the cap* and *stop wasting steps* are different fixes. **Run it uncapped
+and find out which** — the banked rung is the control.
+
+**Two honesty checks the recipe wrote for itself, both clean.** `BUDGET_MS`'s 30-minute guard never
+bound: the slowest level in the whole run is `Gary-I` 186 at **146 s** against 1,800, so every reading
+here is a node reading and no column is quietly measuring a clock. And the one deliberate deviation —
+carrying `--max-keys 5000 --max-keys-record` on *every* rung rather than from 10M up, so that the three
+rungs are the same searcher — **bought nothing and cost nothing**: the longest solution in the run is
+**403 keys** against the 1,200 default it was raised from. That is item 2's ~1% finding again on a second
+population, and it retires the worry rather than the flag.
+
+**What this does not answer, and it is the half
+[item 19](#19-the-narrow-beam--run-on-a-population-at-last-and-it-ties) handed over.** Item 19 closed on
+two push arms that tie at 40M and differ **1.6x in nodes** on the levels they share, and said the
+follow-up was a rung of this curve. It is not: this curve ran the **chain's** four searchers, and
+`--push-beam 32` against 128 is the push family, a different population (the 138 GAUNTLETs) and a
+different control (five banked reports). That question is untouched and stays open. What this run *does*
+lend it is a warning about its own shape — **two searchers that stop on structure rather than on nodes
+will tie at every budget you can afford** — so the width question should be asked at budgets *below* 40M,
+where item 19's own cost finding says they separate, and not above.
+
+**What it leaves.** `tools/curve_pass.sh` stays, with its `price`, its resume and its `status`: it is the
+instrument for *is this searcher still searching?*, and it answered that in 100 minutes. **150k remains
+the attribution budget and nothing about the chain changes.** The composite stands at 1,581 of 4,185 —
+`Challenge-IV` 736 is the one level this run could add to it, and it is not banked, because a curve is a
+measurement and the levels it touches are a stride rather than a pass.
+
 ### 8. Level 10, one traced run — and it answered a question the item did not ask.
 
 The item was *is level 10 budget-limited or ranking-limited?* The trace settled it and then found the
@@ -1757,8 +1888,10 @@ hit — and 256 slots against 50,029 distinct boards in an expansion is a thin t
 **So the sum is: ~1.08x, for the expensive half of the build, in the footprint that was already shown not
 to pay.** `ApplyKey`'s 24%, the read's 20% and the expansion's own 41% are untouched by any of it and are
 what cap this item below 2x, exactly as it said of itself from the first table. **The 8.4x gap to layer 0
-does not close here**, and this item is not where the tree's next levels come from —
-[item 7](next-actions.md#7-1st--the-solved-vs-budget-curve) is.
+does not close here**, and this item is not where the tree's next levels come from. It named
+[item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) as the place they would, and item 7 has since run and
+said no: a bigger budget for the chain buys the fourth pass's own levels back. Neither of these items is
+where the next levels come from.
 
 **The measurement this section chose not to take is on the record too**, because declining one is worth
 as much as taking one: one run with the early exit at `Heuristic.cs:447` removed and `--push-time` on,
@@ -2220,8 +2353,12 @@ nodes**: when narrow works it works at roughly a twelfth of the budget. Routes a
 
 **So the follow-up is a budget question, not a width question.** Two arms that tie at 40M and separate
 by 1.6x in nodes on the levels they share are two arms that do **not** tie at 4M or 10M, and that curve
-is [item 7](next-actions.md#7-1st--the-solved-vs-budget-curve) rather than a new item. The five reports
+is [item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) rather than a new item. The five reports
 are banked, so any budget rung can be read against them without re-running a control.
+**Item 7 ran in session 54 and did not carry this question with it** — it curved the *chain's* four
+searchers, not the push arms — so what is written above is still open, with one caveat its result adds:
+ask it **below** 40M, because two searchers that stop on structure rather than on nodes tie at every
+budget.
 
 **What it leaves.** `--push-beam 32` is not a new default — 84 is not 85. It is a **second arm** on a
 population where the union says arms are worth more than settings, and it costs a twelfth of the budget
@@ -2427,6 +2564,11 @@ rebases:
   `build/l5/{arm}/` holding their **805 / 726 / 718 gated solutions**; `l5-run.log` is everything the run
   printed over six days and `l5-run.stamps` is the per-arm wall clock the resume and the `status` table
   are computed from. All of it is in gitignored `build/` and all of it is re-derivable — for 67 h 30 m.
+- **The budget curve is `build/reports/curve-{1000000,10000000,50000000}-l{0,3,4,1}.jsonl`** — twelve
+  reports, 253 rows in the first stage of each rung and fewer thereafter, with `build/curve-{budget}/`
+  holding their **12 / 20 / 21** gated solutions. `curve-run.log` is everything the run printed,
+  `curve-run.stamps` is the per-stage wall clock `status` reads, and the `.done` files are the resume
+  stamps. Session 50's `price` run is beside them as `curve-price-*`. Re-derivable for 1 h 39 m.
 - The push benches live in `build/bench/{ferry,deep}-{coarse,learned,work,none,hs128,hs157}.jsonl`.
 
 ---
@@ -3039,6 +3181,27 @@ down in the closed item *as not taken and why*, because a declined measurement t
 gets proposed again. `push_memo.sh` also stopped overwriting its own reports, which is what made session
 50's two columns unrecoverable. **The open list is six items: 7 and 20-24.**
 
+**session 54 — item 7 ran, and the last item on the fourth-pass list closed negative in 100 minutes.**
+`tools/curve_pass.sh` curved the chain's four searchers at 1M, 10M and 50M over item 2's own 1-in-15
+stride: **12 / 20 / 21 of 253**, strictly nested, 21 of 21 gated. It cost **1 h 39 m wall and 11 h 09 m
+of job time against a priced 45 h**, and the underrun is the finding rather than a lucky break — the
+levels were not burning their budgets, because **above ~10M the chain has stopped being budget-bound**.
+`l0`'s misses have the same median node count at 10M and 50M (**1,323,180**, to the node) and **0 of 243
+reach the cap at 50M**; `l3`/`l4` stop on `subgoal-depth` **156 and 163** times against 17 and 12 on
+budget; `l1`'s macro beam solved **0** at every rung, as `price` had predicted. **The item's own question
+gets a clean no**: 20 of the 21 levels the curve buys are already inside item 2's 1,087, so the whole
+curve's marginal contribution over the fourth pass is **one level** — `Challenge-IV` 736, had at the
+*cheapest* rung in 3.8 s — and no solution in the run needed more than **13.2M** nodes, which prices the
+50M rung's 36.5 h at nothing. **Raising the chain's budget is not a cheaper fourth pass; it is a subset of
+one.** What it hands the list is item 25: `--sg-depth`'s help text calls 400 *a backstop, the node budget
+binds long before it*, and at 50M that is false on two thirds of the subgoal misses, which stop with a
+median **94% of the budget unspent** after 13.8 s. That is item 20's shape a flag over and a searcher
+across, so the two run in one sitting. Two self-checks came back clean: the 30-minute `BUDGET_MS` guard
+never bound (slowest level **146 s**) so every reading is a node reading, and `--max-keys 5000` carried on
+every rung bought nothing (longest solution **403 keys** against the 1,200 default). **Item 19's second
+question was not answered** — this curve ran the chain, not the push arms — and it keeps a caveat on its
+way back to the list: ask it below 40M. **The open list is six items: 20-25.**
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -3047,7 +3210,7 @@ and this is the map:
 
 | # | what it was | where it is now |
 |---|---|---|
-| 1 | spend the budget where the record says the level is short | [next-actions](next-actions.md#7-1st--the-solved-vs-budget-curve) item 7 |
+| 1 | spend the budget where the record says the level is short | [closed item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) — **run and refused**: above ~10M the chain stops on structure, not on budget |
 | 2 | the node budget hides most of a push rung's wall clock | closed item 10 above — **half-negative**, 1.31-1.56x |
 | 3 | a lossless prune the push beam does not take | closed item 11 above — **negative**, 0.05% |
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |

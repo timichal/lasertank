@@ -50,7 +50,7 @@ reproducible).
 | `bench-levels.txt` | input | 60 `Beginner-I` levels layer 0 failed; GAUNTLET-heavy |
 | `deep-levels.txt` | input | 50 `Beginner-I` levels with a `.ghs` total of 40-150 |
 | `ferry-levels.txt` | input | 50 levels the chain fails that the read calls FERRY or SOKOBAN |
-| `short-record-failures.txt` | input | 687 levels the 494 chain fails whose `.ghs` record is <= 60 — *Next actions* item 7's population |
+| `short-record-failures.txt` | input | 687 levels the 494 chain fails whose `.ghs` record is <= 60 — written for [closed item 7](../docs/solver/history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m), which **ran on the 1-in-15 stride instead** so that its rungs were comparable with item 2's arms. Still the list to hand `bench.sh` for a short-record pass; nothing has been measured on it |
 | `gauntlet-tail.txt` | input | 138 levels the 494 chain fails that `--analyze` calls GAUNTLET with a `.ghs` record of <= 60 — layer 9's population, and the one the fire tier is measured on |
 | `seed-weights.txt` | input | layer 4's equivalence check: `WorkDistance` written in `Feat`, in `Eval.Scale` fixed point |
 | `goal-tiles.json` | input | closed item 6: `tile hash → PF` for anything in a blogspot screenshot the game's own sheet cannot draw. Hand input, so nothing re-derives it — but **almost nothing is left in it**, see below |
