@@ -1,284 +1,55 @@
 # Next actions — the open items in full
 
-**One item is open — 24, and it is parked on a trigger that has not fired.** It is what is left of the
-six written on 2026-09-15 out of a section called *Further out*, whose gate — *only after the numbers
-above have moved* — was met when item 2's fourth pass ran and item 10 closed. **None of them was new
-work.** What was new is that each carried a recipe, a cost, and the measurement that would refuse it,
-which is what the rest of this file means by an item; four turned out to have a falsifier costing
-minutes that nobody had run, **all four have now been run, and all four were refused by it** — items 17,
-19 and 22 outright, and item 23 in two stages on one day, its free half coming back positive and the
-half that needed code refusing it. That is the argument for writing a bullet out as an
-item rather than leaving it as one: the cheap test is what separates them, and it does so in both
-directions — and item 23 is the case for **writing down what a measurement cannot say at the same time
-as what it does**, because that sentence is what the next session ran. The reasoning behind the list is
-in [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the
-evidence. Items keep their numbers because these files refer to them by number — the finished ones are
-in [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including
-the negative results, because a negative result that is deleted gets re-run. **20-25 were new numbers**,
-not reused ones; 20, 25, 21, 22 and 23 all closed on 2026-09-17, and what is left is the one that was
-never about a constant or about a bench.
+**This file is what is open. What has closed is in [`history.md`](history.md#closed-items--the-measurements-including-the-negative-ones),
+including the negative results** — a negative result that is deleted gets re-run, which is why that file
+is long and this one is not. Items keep their numbers because these files refer to them by number. The
+reasoning behind the list is in [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the
+recipes, the costs and the evidence.
 
-**All of it runs on the solver machine.** The two halves split on 2026-09-08, and every recipe below
-reads a report out of `build/reports/`, which is gitignored — so a checkout on the
-game machine has all of the tools and none of the inputs, and the one item that has to be built and
-gated *there* says so in its own entry (item 24). **Nothing left on this list wants the machine for
-hours at all** — items 7, 20 and 25, the three that did, have all run and closed — so the habit sessions
-42-51 proved is now a convenience rather than a constraint: a node-governed pass costs a cheap item its
-wall clock and none of its numbers, and there is no longer a pass here for it to cost anything against.
-**What is left is not a measurement at all**: item 23's second half ran on 2026-09-17 and refused it, and
-item 24 is parked on a trigger that has not fired.
-
-**[Item 23 closed on 2026-09-17](history.md#23-the-fess-rung--the-space-separates-levels-or-moves-inside-one-and-never-both),
-negative, and it is the first item here refused by the *second* half of its own falsifier.** The free
-half ran that morning and did not refuse it; the half that needed code — the features computed per
-node, which is what FESS actually cycles over — did. `--push-fess-trace` is the artefact, one
-`TankRegion` flood a successor and no `Restore`, gated over `bench/ferry-levels.txt` at **0 report
-fields differing and 13 of 13 solutions byte-identical**. **The answer is a scissors:** as the bins go
-finer the per-level separation collapses (z **21.9 → 4.1 → 2.6 → 0.4** at log2 / 4 / 2 / raw) and the
-per-node movement rises (**2% → 9% → 14% → 20%**), so `blocks x region` separates levels *or* moves
-inside one and never both — at log2, the only binning where it is demonstrably two separating features,
-a depth occupies **3.5** cells of which the trim was already keeping **2.2**, and **18 of 50** levels
-never leave their starting cell. Counting the columns apart gives the mechanism: **`region` moves (p50
-19%) and carries no signal test 3 will keep, `blocks` carries the signal and never moves at all on 22 of
-50 levels, 15 of them unsolved.** And there is no third column, which is what closes it rather than
-deferring it — `Mobility` is a flood per block and `water` is per-expansion, so of the six near-FESS
-columns only these two are affordable per node and **the item picked the only pair it could afford**.
-**FESS's shape is not refuted**; what is spent is this pair. The two instruments that would qualify
-another are now symmetric and cheap — `fess_project.py --pairs --bin N` at ~10 s and `--push-fess-bin N`
-over a bench at ~4 minutes — and **a candidate has to pass both at the same `N`**, which is the bar no
-pair has been shown to clear.
-
-**[Item 22 closed on 2026-09-17](history.md#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on) in four seconds of machine time, refused by the
-arithmetic it had carried as a note since it was written.** The read names the count the item assumed —
-**6** subgoals on level 6, **10** on level 10 — and then the depths refuse it: **6 of 6 subgoals on level
-6 run 18 to 34 board changes** against a sized ≤6, so **one ordering costs 54.8M** against the item's own
-20M and the driver's 40M cap, and there are 6! orderings. Level 10's arithmetic *passes* (17.3M) and its
-**shape** does not. Two findings came with the price and neither is closed item 5's negative:
-**20 of level 6's 168 changes are exact there-and-back pairs** — the tank crossing a staircase of blocks
-— which leave the board identical and move only the tank, and `Subgoal.Offer` is a **board** test, so it
-cannot name either half; and level 10's line **interleaves**, returning to anti-tanks #1 and #2 four
-times each, which an outer search over *orderings* cannot express. They land on opposite halves of the
-design — the inner test and the outer search — which is why shrinking either one does not save it. **The
-goal-board bank does not rescue it**: it supplies destinations, and what the sizing got wrong is the
-distance between two consecutive ones. `tools/subgoal_arith.py` re-derives every number in about four
-seconds and prints the refusal in its last line.
-
-**[Item 21 closed on 2026-09-17](history.md#21-the-two-bench-1-lists-through-one-binary--they-separate-and-the-read-explains-two-thirds-of-it) in under a minute of machine time, and the two bench-1 lists
-are not interchangeable.** Over each list's own layer-0 remainder the chain's three searchers score
-**11 of 60 on the reconstruction against 17 of 41 on the original** (Fisher **p = 0.014**), and **two
-thirds of that gap is the read**: the reconstruction's remainder is FERRY 30 of 60 where the original's
-is GAUNTLET 14 of 41, and standardising by the pooled per-verdict rates closes 16 of the 23 points.
-**Where the code is what varies the two agree exactly** — `--no-ida` +1 on both, the learned key −1 on
-both. **The recipe's first step was the wrong one**, and that is the part that transfers: *stop if they
-separate at layer 0* would have stopped on 0 of 60 against 19 of 60, and the 0 is forced, because the
-reconstruction was cut by the arm being measured. **A list selected by a failure cannot be asked about
-that failure.** The held-out GAUNTLET use refused itself for free — the chain leaves **8** of the
-original's 18, **6** of them held out from `bench/gauntlet-tail.txt` — so the fire tier's +9 still rests
-on one population.
-**[Item 20 closed on 2026-09-17](history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy), positive, and it is the smallest positive in these files.**
-The 177 `enables` rows that stopped on `push-depth` were re-attacked with the cap lifted to 100,000 and
-**3 solved, 3 of 3 gated** — `Challenge-II` 291 *Full insight*, `Gary-I` 1051 *SlipBridge-325*,
-`Sokoban-I` 991 *The marathon* — of which **2 are new to the composite**, taking it to
-**1,583 of 4,185 (37.8%)**. The cap is gone as a stop: **177 → 0**, with 170 moving to `budget` and 4 to
-`push-dead-end`, and **174 of 177 now reach the 40M node cap** against a median 30.1M before. So
-`--push-depth 1200` **was** binding rather than backstopping, and the flag's own documentation was
-wrong — but it was the wall on **1.7%** of the levels it was ending and a symptom on the rest, which is
-the answer the item wanted and the smaller half of it. **The cap cost 1.41x the nodes to lift and bought
-1.13% of the population.** What it hands the list is nothing new: the 174 at the cap are budget-bound and
-[closed item 7](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) has already
-priced more budget at one level per 36 hours. **Spent in session 60**: the documentation is corrected,
-the global stays at 1,200, and `Auto.Uncap` lifts it to 100,000 for the driver — where a depth stop was
-not costing nodes but idling a core every round after it.
-**[Item 25 closed on 2026-09-17 too](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price), positive on the flag
-and worth nothing to the corpus.** `--sg-depth 400` is the same claim one searcher across — *a backstop,
-the node budget binds long before it* — and against closed item 7's banked 50M rung the uncapped arm
-scores **14 of 243 against 10, a strict superset, 14 of 14 gated**, with `subgoal-depth` **156 → 0** and
-the control stopping on `subgoal-depth` on **all four** levels gained. It cost **3.66x the nodes** (2 h 09 m
-of job time became 11 h 57 m, **161 of 243 now burn the whole 50M**), and **all 14 are already inside item
-2's 1,087** — the population is item 2's own stride, so this item could not have moved the composite
-whatever it found. It also resolves the `--sg-slack` fork it set itself, against slack. **Its first arm
-was void**: the recipe named `NODES` and not `BUDGET_MS`, so it ran at `second_pass.sh:141`'s 60-second
-default against a control with 1,800 and **202 of 243 rows stopped on the clock**. The rule that cost is
-in the closed entry and is the session's most portable result. **Spent in session 60** on the same split
-as item 20's: documentation corrected, `SgDepth` stays at 400, `Auto.Uncap` lifts it for the driver's two
-subgoal rungs.
-**[Item 10 closed on 2026-09-15](history.md#10-wall-clock-on-the-push-rungs--the-memo-shipped-and-the-layer-underneath-it-is-declined)**
-— positive on its build and negative on the piece left over. `PushH` is **41-48% of the expansion**, which
-is the whole of the 166k-against-1.4M gap this item was written about, and `--push-memo` collects
-**1.31x / 1.56x / 1.33x** on the three rungs — `IDENTICAL` on all three and **on by default since session
-51**. The second, board-keyed layer underneath it is **declined rather than deferred**: its key is free
-(`MemoProbe` already computes the board hash before mixing in the tank cell), but its entry is **2.5 KB
-against the pose cell's 56**, and the pose table's own sizing measurement is that 918 KB a worker across
-sixteen workers costs more in shared cache than it returns. ~1.08x, for the expensive half of the build,
-in the footprint already shown not to pay.
-**[Item 2 closed on 2026-09-15](history.md#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm)**
-— the fourth pass finished its third arm after six calendar days and it is the largest single result in
-these files: **1,087 of 3,691 (29.5%)** of the levels the shipped chain fails, composite
-**494 → 1,581 of 4,185 (11.8% → 37.8%)**, **2,249 of 2,249 gated**, 67 h 30 m wall. The rehearsal's
-estimate held to within **7.8%** on the union and then **put arms 2 and 3 in the wrong order, and 3.5x
-apart when they are within 1%** — `enables` was written up here at *+4* and nearly dropped, and dropping
-it costs **101 levels**, more than dropping the `layer7` ranked above it (91). That is the limit clause
-*compare unions* was missing: **a stride sizes a union; it cannot order the arms inside it, and it must
-not be used to drop one.** `build/reports/chain5.jsonl` is the new *what is still open* report and is what
-any fifth pass points at.
-**[Item 4 closed on 2026-09-14](history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)**
-— the shot rule ships as the driver's default, all three stages are in, and the two instrument defects
-the campaign turned up (an unattended run's stdin could give up on a level; a gate that passed on an
-empty directory) are fixed. It also re-derived `LaserTank` 8 at **305 keys / 1.37x**, which is now what
-`data/solutions/` holds.
-
-**Items 14 and 19 both closed on the same 138 levels, and between them they
-retire per-level width from both sides.** Item 14 swept the beam *wider* (raise-only is what the flag
-allows) at the calibration's own p25 / p50 / p75 and lost every arm — **76 / 78 / 78 against a banked
-control's 85 of 138**, at median chosen widths of 854 to 6,820 against the global 128. Item 19 then ran
-the one arm in the narrowing direction, `--push-beam 32`, against that same control in session 47, and
-**tied: 84 of 138**, 84/84 gated, 100 min wall at four jobs beside item 2's pass.
-
-**The tie is not the finding; the failed prediction is.** Item 19 was written on four measurements that
-all said a narrow beam should hold the **deep** levels — the ones whose record is long. Its 8 exclusive
-levels split **4 long / 4 short** about the population's median `ghs_shots` of 13, so whatever decides a
-level between width 32 and 128, **it is not the length of the record**, and
-`budget / (poses x ghs_shots x F)` — the free per-level estimate that survived item 14 — is not the way
-to size width in either direction. What *is* real is **cost**: on the 76 levels both widths solve, 32 is
-cheaper on 46 at a median of **1.03M nodes against 1.61M**, and four of its exclusive wins land in 1.8M
-to 3.4M on levels the control burned the whole 40M and failed. Two arms that tie at 40M and differ 1.6x
-in nodes **do not tie at 4M**, so the follow-up is a budget curve rather than any new width item, and the
-five banked reports mean any rung of it can be read without re-running a control. Five-arm union
-**101 of 138 (73.2%)**. **[Item 7](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) was that curve, and it did not carry this
-question with it** — it curved the *chain's* four searchers, not the push arms — so this is still open
-and is not on the list below as an item, with one caveat item 7's result adds to it: **ask it below 40M**,
-because two searchers that stop on structure rather than on nodes tie at every budget you can afford.
-[Closed item 14](history.md#14-per-level-width-from-the-record--built-swept-and-beaten-by-the-global-width),
-[closed item 19](history.md#19-the-narrow-beam--run-on-a-population-at-last-and-it-ties).
-
-**Item 5 closed in session 45 and it closed negative on its own example**,
-which is the second time running that the item at the front of the list has been refused by a falsifier
-it built for itself (item 17 was the first). The decomposition is real — `--push-phases`, a phase
-terminated by a **milestone** rather than sized by a constant, and `LaserTank.lvl` 6's 168-change line
-comes apart into **six phases of 18 to 34 board changes against a horizon of 50**, every one inside the
-reach already measured on that level. The chain then commits to the *right* board — its first fill is
-(9,14), the same cell the human fills first — and **phase 2 never lands at width 32, 128 or 512, and
-not from the human's own board either**. So the phases are short, the commitment is sound, and the search
-still cannot walk the middle of the line: what defeats level 6 is **not** the length of its line, which
-is the premise this item was written on.
-[Closed item 5](history.md#5-level-6s-decomposition--built-and-refused-by-the-falsifier-it-set-itself).
-
-**Two things came out of it that are worth more than the item was, and the first one became item 19 and
-has now closed.** `tools/phase_reach.py` solves level 6 from **K = 102, 66 board changes from the end, at
-width 32 on 3.4M nodes**, where item 18 measured its horizon of **50** at width 512 on 40M — the narrow
-arm goes deeper on a twelfth of the budget, so **the horizon is width-dependent and 50 is not the
-searcher's best**. Item 18's number stands as measured; what it no longer supports is "50 is the reach".
-Item 19 then took that reading to a population and it **half survived**: width 32 does not solve more
-levels than 128, but it solves the ones it solves at a twelfth to two-thirds of the nodes, which is the
-same shape as level 6's result and the first time it has been seen off that level.
-And phase 2's trace is `best=137` flat for 237
-depths, the *same signature* as level 10's GAUNTLET: a beam ranking distinct boards by a key that has
-stopped discriminating. **What is binding in the middle of a Sokoban is the ranking, not the depth.**
-That is layers 4 and 6's territory and it is not on this list as an item, because nothing has measured it
-on a population yet — and item 14's sweep did not touch it, because changing a beam's width does not
-change what its ranking key discriminates.
-
-**Items 17 and 18 closed in session 44.** Item 17 is the cleanest negative these files hold (below);
-item 18 is the measurement item 5 was built on, and it inverted what item 15's number looked like. The
-horizon — the board changes of suffix the search can close — runs **2 to 50 over the 12 recordings the
-arm cannot solve unseeded, a 25x spread**, so it is *not* the searcher's own reach; it is not a constant
-fraction of the line either (0.07 to 0.78); and it is not a function of the line's length, which two
-levels refute outright (`LaserTank.lvl` 9 and 23 both have 27 board changes and horizons of **2 and
-21**). **Level 6's 50 is the deepest horizon measured anywhere** — level 8 solves its whole 52-change
-recording from the root — so the reach on level 6 is the best the search achieves and what beats the
-level is a line **3.4x** that reach. A decomposition sized from a global constant was therefore refuted
-before it was built, and item 5 duly built one that is sized by nothing.
-[Closed item 18](history.md#18-the-horizon-per-level--a-level-property-and-not-a-searchers-reach).
-
-**Items 16, 15 and 13 closed in session 43** and they are the clearest run this list's ordering rule has
-had: three items whose falsifiers cost minutes were spent beside item 2's machine time, and they came
-back **one column that ships with the sign inverted** (FMO mobility predicts the rate, and freer blocks
-are *harder*), **one derivation refused** (the per-carry constant changes no level's ascent), **one
-horizon measured** (level 6 finishes from 50 board changes out and not from 51) and **one free report
-column** (the shot test). Their measurements are in
-[closed items 13, 15 and 16](history.md#closed-items--the-measurements-including-the-negative-ones).
-**Item 17 then closed in session 44, on the bench it set itself**, and it is the cleanest negative this
-list has produced: the derivation with the largest lift the read has ever measured (**3.15x**) is
-**-2 on ferry with zero exclusive levels and -1 on deep** as a tier, because its 5.1%-of-successors
-selectivity was a property of the twenty hand recordings and not of the population the chain fails — on
-four of five ferry levels probed it names **0%**. The code ships off by default and the table is in
-[closed item 17](history.md#17-the-rarity-tier--built-and-refused-on-the-bench-it-set-itself).
-Items 13-16 were all new in session 37 and all came from one source — the harvest
-blog's ten-post *Lyf Series* on how a strong human plays, read against the layers in
-[`human-strategy.md`](human-strategy.md). **They were not a wish list, and the way they closed is the
-argument for reading prose against a codebase**: of the six derivations the reading proposed, two shipped
-as measured distributions, two were refused on their own falsifiers, one turned into a report column and
-one became item 17 — which has itself now closed as the sixth. What the ordering rule did to item 5 is
-the part worth keeping: it **moved from 2nd to 6th and gained a cheap falsifier it did not have** (item
-15), rose back to the front as the items ahead of it closed, and then closed *negative* on that
-falsifier's descendant. It would have been built either way; what the demotion bought was that it was
-built after item 18 had refuted a global phase size, so what got built is sized by nothing and the
-negative is about the search rather than about a constant. Items 4, 7 and 10 keep their relative order
-and their reasoning; only their ordinals moved.
-
-**The goal-board bank is done, and it is an input now rather than an item.** `bench/goal-boards.json`
-carries **6,030 levels / 7,622 goal boards**, decoded from the blog's whole 6,218-post index with **0
-unknown tiles**, 0 codebook/derivation clashes and **nothing waiting on a human** — the 38 posts the
-decode does not finish on its own are all read and all intentional. It is committed, because re-deriving
-it needs nine years of blog. Item 6 built it (session 36) and sessions 37-41 took it to corpus scale; the
-measurements, the four instrument bugs the last pass found, and the reasoning behind every refusal are in
-[closed item 6](history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key) and
-[session 41](history.md#session-41--the-filenames-the-harvester-could-not-read-and-the-four-readers-that-assumed-the-graphics).
-Re-deriving it needs no network — every image is cached:
-
-```bash
-python tools/harvest.py complete --offline   # -> bench/goal-boards.json, ~85 min
-python tools/harvest.py complete --report    # its table again, free
-python tools/harvest.py sheet                # the goal residual, ~41 min; tiles' 2nd gate reads it
-```
-
-**What the bank gives the open items, and the one thing it does not.** `--goal-board` is a
-**hint-assisted** instrument — gated, and none of it in the headline rate — so what it produces is a
-supply of **real recordings on off-distribution long levels**: the sample layer 4 is fit on and
-`--profile` / `basin.py`'s only input, which is 20 hand recordings today. Item 16's falsifiers are all
-measured over those same 20, so a wider bank widens every one of them. **What it does not give is human
-*routes***: a goal board names the destination, not
-the path, so "what did the human do next" stays a question only a recording answers. **Closed item 22 is
-what that limit costs**, and it is the one place the bank has been asked for something it does not hold:
-the per-flag boards are a subgoal sequence, so the bank looked like a supply of acceptance tests — but
-the acceptance tests were never the scarce half, and what refused that item was the **distance between
-two consecutive destinations**, which is a route. Closed item 23 never asked the bank for anything and
-was refused on a different axis entirely, so the bank now has no open item pointing at it.
-
-**The machine is free for the first time since 2026-09-10, and the habit the pass forced is worth
-keeping.** Item 2 held sixteen jobs on and off from 2026-09-10 to 2026-09-15 — 67 h 30 m of wall clock
-across seven restarts — and **nine items closed while it did**. Its arms are node-governed, so extra
-load moves wall-clock readings and
-nothing else. Sessions 42 and 43 spent items 16, 15 and 13 that way (a two-second replay, an offline
-sweep, a 63-second corpus pass, a flag and ten seeded runs); session 44 spent items 17 and 18 (a build,
-five benches at ~3.5 min, then 96 probes at four jobs against the pass's sixteen); session 45 spent item
-5 the same way; session 47 ran item 19's whole 138-level arm at four jobs in 100 minutes; and session 50
-came back with the two things the remaining items were missing — `tools/curve_pass.sh` and its own
-`price` for item 7 (**45 h of job time / ~7 h wall**, not an estimate), and item 10's memo **built, gated
-`IDENTICAL` on three rungs and 1.67x on the arm the pass was running**. **Session 46 is the one
-exception and it is worth naming**: item 14's third arm was run with the pass *stopped*, so its wall
-clock is the only reading in these files taken on an idle machine. The rule that made all of that
-possible is the one to carry forward — **a long pass is node-governed, so it costs a cheap item its wall
-clock and none of its numbers**. **The flip landed in session 51 and re-gated `IDENTICAL`; session 53
-then declined the board-keyed second layer off the code and closed item 10, so what was left was one
-measurement** — item 7 — **and session 54 spent it in 100 minutes**: it wanted the whole machine and
-[used a quarter of its price](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m), because the searchers it was buying nodes for had
-already stopped searching. **Nothing on this list costs hours any more**: items 20 and 25, the last two
-that did, both ran in session 55 and closed — and the three that had a price at all spent almost none of
-it: item 21 took under a minute in session 56, item 22 four seconds in session 57, and item 23's
-projection ten seconds in session 58, on a table that already existed. **Item 23 is the one that needed
-a second session**, because its cheap falsifier came back positive and the half that could refuse it
-needed code; session 59 built that half and spent it in about fifteen minutes of machine time — a
-50-level gate at four jobs, then the same bench once per binning at one job. **Item 24 is all that is
-left, and it is parked on a trigger.**
-
-**`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
-phases and that the search cannot walk two of them from *any* board, the human's included, so the line
-being 3.4x the reach turns out not to be
-short.
+**The rule the list is ordered by is *cheapest falsifier first, whatever kind of work it is*.** Second
+key: **prefer work that produces a property or a level over work that produces a number** — twenty-five
+hours of machine time once went into items that report percentages while the two levels in front of the
+project did not move and one banked solution got worse. The corollary is what makes an item an item
+rather than a bullet: **each one carries a recipe, a cost, and the measurement that would refuse it.**
+Of the items this list has held, four turned out to have a falsifier costing minutes that nobody had
+run, and all four were refused by it — which is the argument for writing a bullet out in full.
 
 ---
 
+## Iteration 1 is running, and the next items come out of it
+
+**The autosolver is on its first pass over the whole 20,914-level corpus, and nothing is proposed here
+until it finishes.** The driver's configuration is versioned rather than passed: `Auto.Iteration` and
+`Auto.IterationMaxRound` in [`src/LaserTank.Solver/Auto.cs`](../../src/LaserTank.Solver/Auto.cs), declared
+together so that changing the settings without changing the number is an edit somebody has to make on
+purpose. **Iteration 1 is `--max-round 2`** — three rounds ending at 6.4M nodes, 8.5M cumulative per
+rung, which is past the point where
+[closed item 7](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m)'s curve
+flattens: 1M / 10M / 50M bought 12 / 20 / 21 levels of 253, so round 2 buys all but one level of what
+round 5 would, at a sixteenth of the nodes. Over 20,914 levels that is the difference between weeks and
+a year, and **a first pass that does not finish is not a first pass**.
+
+```bash
+bash tools/iteration.sh                 # the pass; rerun the same command to resume
+bash tools/iteration.sh status          # the table, free, no solver
+python tools/ledger.py data/reports/solutions.jsonl --stops    # why the unsolved fail
+python tools/ledger.py data/reports/solutions.jsonl --ladder   # what every rung was set to
+```
+
+**The ledger is the state.** `data/reports/solutions.jsonl` is append-only, one row per level with the
+last row winning, and it carries the per-rung detail of each level's last round — so an interrupted pass
+resumes instead of re-running the unsolved remainder, and the question *how did this level fail* has an
+answer without re-running anything. `SOLUTIONS.md` is a view of it, regenerated after every collection
+and overwritten in full; the ledger is what to read from, not the document.
+
+**What picks iteration 2 is `--stops`.** It counts the last round's stop reason per rung over the
+unsolved levels: a rung ending on `push-dead-end` everywhere is asking for width, one ending on `budget`
+everywhere is asking for a better ranking, and item 7 has already priced the third answer. Bumping
+`Auto.Iteration` is the act of saying *this is a new approach* — every level still unsolved is attempted
+again, every level already solved stays solved. **Until there is a ledger to read, the only open item is
+the parked one below.**
+
+---
 ## 24 (parked, and the only open item) — parent pointers instead of copied keystreams
 
 **Kept numbered because it has a trigger, and parked because the trigger has fired exactly once.**

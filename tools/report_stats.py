@@ -30,6 +30,12 @@ def load(path):
             if not line:
                 continue
             r = json.loads(line)
+            # A row with no level is the driver's header: one per run under
+            # --iteration, carrying the ladder's tuning at every round so the
+            # level rows do not each have to (Auto.Header).  Every reader of a
+            # report skips it by keying on the fields it does not have.
+            if "level" not in r or "collection" not in r:
+                continue
             rows[(r["collection"], r["level"])] = r
     return rows
 

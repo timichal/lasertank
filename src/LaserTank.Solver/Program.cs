@@ -105,8 +105,11 @@ namespace LaserTank.Solver
 "                         pass banked at 5,000.  Raises only, never lowers\n" +
 "    --ida-depth N        IDA* bound cap, default 24   --no-ida / --no-beam\n" +
 "    --jobs N             parallel workers, default = processor count\n" +
-"    --lanes N            interactive only: levels to work on at once,\n" +
-"                         default 1; every lane draws on the --jobs slots\n" +
+"    --lanes N            interactive only: levels to work on at once; every\n" +
+"                         lane draws on the same --jobs slots.  Default is\n" +
+"                         --jobs / 5, i.e. five slots a lane: a lane is ten\n" +
+"                         searchers and several finish in milliseconds, so one\n" +
+"                         lane cannot keep the machine full\n" +
 "    --best-of-round [R]  interactive only: the RATIO rule on its own, instead\n" +
 "                         of the shot rule that now ships on.  A win does not\n" +
 "                         end the round -- every\n" +
@@ -155,14 +158,42 @@ namespace LaserTank.Solver
 "                         pressed -- reporting \"not yet\" and keeping the\n" +
 "                         banked file, which is the honest answer but not a\n" +
 "                         terminating one\n" +
-"    --max-round N        interactive only: give up on a level after round N\n" +
-"                         instead of never.  Rounds are numbered from 0 and\n" +
-"                         round r gets 4^r x --nodes, so --max-round 3 is four\n" +
-"                         rounds ending at 25.6M and --max-round 5 ends at\n" +
-"                         409.6M.  This is what makes the driver runnable\n" +
-"                         unattended: without it a lane stays on its level\n" +
-"                         until a key is pressed.  Levels it gives up on are\n" +
-"                         listed at the end, the same as the ones you skip\n" +
+"    --max-round N        interactive only: give up on a level after round N.\n" +
+"                         Rounds are numbered from 0 and round r gets 4^r x\n" +
+"                         --nodes, so --max-round 2 is three rounds ending at\n" +
+"                         6.4M and --max-round 5 ends at 409.6M.  Levels it\n" +
+"                         gives up on are listed at the end, the same as the\n" +
+"                         ones you skip.  The default is the iteration's (see\n" +
+"                         below); -1 never stops, which is what it was before\n" +
+"                         iterations.  **5 is the ceiling worth asking for:**\n" +
+"                         every rung's width stops changing at r = 5 (beam is\n" +
+"                         600 << r capped at 19200; the push rungs' last step\n" +
+"                         is r >= 5 ? 2048), the extra restarts each round\n" +
+"                         buys are gated on a *dead-end* stop and a level that\n" +
+"                         stops on budget never draws on them, and from r = 5\n" +
+"                         the round's one-hour clock expires long before the\n" +
+"                         node budget.  Round 6 is round 5 re-derived node for\n" +
+"                         node\n" +
+"    --iteration N        which iteration of the autosolver this is.  Normally\n" +
+"                         you do not pass it: it is a constant in Auto.cs,\n" +
+"                         declared beside the settings that define it, and\n" +
+"                         bumping it there is how you say *this is a new\n" +
+"                         approach*.  It is stamped on every ledger row, and\n" +
+"                         the ledger then skips -- on a sweep, not when you\n" +
+"                         name one level -- any level whose last row says\n" +
+"                         solved, and any this same iteration already failed.\n" +
+"                         So an interrupted pass resumes instead of re-running\n" +
+"                         the unsolved remainder, and bumping the constant\n" +
+"                         re-attempts every level still unsolved.  0 turns the\n" +
+"                         skip off\n" +
+"    --no-report          do not write the ledger.  It is on by default at\n" +
+"                         data/reports/solutions.jsonl -- one file for the\n" +
+"                         whole corpus, appended, last row per level winning.\n" +
+"                         One writer per file: two drivers appending to one\n" +
+"                         report lose rows on Windows, so use --lanes for\n" +
+"                         parallelism rather than a second process.\n" +
+"                         tools/ledger.py renders it, --stops picks what to\n" +
+"                         change for the next iteration\n" +
 "\n" +
 "  layer 1 -- macro-actions (Goto + Shoot).  OFF by default: it wins on levels\n" +
 "  the raw beam cannot solve and loses over the corpus, so it belongs in a\n" +
@@ -588,8 +619,32 @@ namespace LaserTank.Solver
             public string Config = "";
             public int From = 1, To = int.MaxValue, Limit = int.MaxValue;
             public int Jobs = Environment.ProcessorCount;
-            public int Lanes = 1;
-            public int MaxRound = int.MaxValue;
+            /// 0 means "size it from --jobs", which is what an unattended pass
+            /// wants and what `Auto.Run` does: see LanesFor.  An explicit
+            /// --lanes N is kept exactly.
+            public int Lanes;
+            /// The iteration's, and a negative `--max-round` restores the old
+            /// behaviour of never stopping.
+            ///
+            /// **5 is the ceiling no iteration has a reason to pass, because
+            /// round 6 is a replay of round 5.**  Rounds change three things
+            /// and all three stop changing there.  Width: `beam` is 600 &lt;&lt; r
+            /// capped at 19200, which it reaches at exactly r = 5, and every
+            /// push rung's last step is `r >= 5 ? 2048` (Auto.Ladder).
+            /// Restarts: `PushRestarts += 6 * r` feeds a loop gated on
+            /// `r.Stop == "push-dead-end" &amp;&amp; !OutOfBudget` (Push.cs:603,
+            /// Restart.cs:137), so on a level that stops on *budget* -- which
+            /// is what a hard level does -- the counter rises and nothing ever
+            /// draws on it.  Budget: from r = 5 the round's 1-hour clock
+            /// (Auto.Round) expires long before the node budget, so the printed
+            /// budget stops being what ends the round.  What is left is a
+            /// deterministic search (`_rng = 1`, `_jitter = 0` on attempt 0)
+            /// re-derived node for node, for an hour a rung.
+            public int MaxRound = LaserTank.Solver.Auto.IterationMaxRound;
+            /// Which iteration of the autosolver this run is -- `Auto.Iteration`
+            /// and the settings declared beside it.  `--iteration N` overrides
+            /// it for a one-off, and 0 turns the ledger's skip off entirely.
+            public int Iteration = LaserTank.Solver.Auto.Iteration;
             public bool MaxKeysRecord;
             // ON by default, and the rule is the shot test -- item 4's campaign
             // measured both against a control on two populations and the shot
@@ -617,7 +672,7 @@ namespace LaserTank.Solver
             public bool BestOfShots = true;
             public double ShotRatio = 3.0;
             public double TrimRatio = 10.0;
-            public bool Force, Quiet, Verbose, ByNumber;
+            public bool Force, Quiet, Verbose, ByNumber, NoReport;
             public bool Polish = true;
             public bool DoReplan = true;
             public int ReplanWidth = 8;
@@ -731,7 +786,18 @@ namespace LaserTank.Solver
                         case "--stride": a.Stride = Math.Max(1, int.Parse(V())); break;
                         case "--jobs": a.Jobs = Math.Max(1, int.Parse(V())); break;
                         case "--lanes": a.Lanes = Math.Max(1, int.Parse(V())); break;
-                        case "--max-round": a.MaxRound = Math.Max(0, int.Parse(V())); break;
+                        case "--max-round":
+                        {
+                            // Negative is "no last round", which is what the
+                            // default was before it became 5.  Math.Max(0, ..)
+                            // used to fold it to 0 -- a single round -- so
+                            // there was no way to ask for the old behaviour.
+                            int v = int.Parse(V());
+                            a.MaxRound = v < 0 ? int.MaxValue : v;
+                            break;
+                        }
+                        case "--iteration": a.Iteration = Math.Max(0, int.Parse(V())); break;
+                        case "--no-report": a.NoReport = true; break;
                         case "--trim-ratio": a.TrimRatio = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--budget-ms": a.Opt.TimeBudgetMs = int.Parse(V()); break;
                         case "--nodes": a.Opt.NodeBudget = long.Parse(V()); a.NodesGiven = true; break;
@@ -1277,6 +1343,41 @@ namespace LaserTank.Solver
             public string Config, Rung;
             public string Method = "-", Stop = "-";
 
+            /// Which pass over the corpus produced this row -- `--iteration`.
+            public int Iteration;
+
+            /// **Every rung of the last round, not just the one that won.**
+            /// `Emit` writes one row per level and on a failure that row was a
+            /// synthetic Outcome carrying a give-up string and nothing else, so
+            /// a ledger of 13,000 unsolved levels could not say *how* any of
+            /// them failed -- which is the only question a next approach is
+            /// designed from.  `Round` already reads every task's Outcome to
+            /// pick the winner (the loop that deletes the losers' .lpb files);
+            /// this keeps what it was throwing away.
+            ///
+            /// The last round only.  The rounds below it are the same searchers
+            /// on smaller budgets and their stops are the same stops, so
+            /// carrying all of them multiplies the file by six to say it again.
+            public List<Attempt> Attempts;
+
+            /// One rung's end, for `Attempts`.
+            ///
+            /// **What a rung was configured as is not here, and that is the
+            /// point.** `Tuned` is a function of (rung, round) and nothing
+            /// else, so writing it on every attempt of every level repeated
+            /// ~1.2 KB of identical text 20,914 times -- half the ledger. It
+            /// goes in the run's header row instead (`Auto.Header`), which
+            /// satisfies ConfigString's rule once rather than per level: a row
+            /// still traces back to a command, via the header above it.
+            internal sealed class Attempt
+            {
+                public string Name, Stop;
+                public bool Solved;
+                public int Keys, Depth, Restarts;
+                public long Nodes;
+                public double Ms;
+            }
+
             /// Non-null when this level was solved with something the solver
             /// did not derive.  "goal-board" is the only value so far; see
             /// Goal.cs.  It is written into the report row so that a rate
@@ -1355,6 +1456,28 @@ namespace LaserTank.Solver
                     w.WriteNumber("ms", Math.Round(Ms, 1));
                     if (Hint != null) w.WriteString("hint", Hint);
                     if (Error != null) w.WriteString("error", Error);
+                    // Both follow Width's rule -- written only when set, so a
+                    // batch report stays byte-identical to one written before
+                    // these fields existed.
+                    if (Iteration > 0) w.WriteNumber("iteration", Iteration);
+                    if (Attempts != null && Attempts.Count > 0)
+                    {
+                        w.WriteStartArray("attempts");
+                        foreach (Attempt at in Attempts)
+                        {
+                            w.WriteStartObject();
+                            w.WriteString("rung", at.Name);
+                            w.WriteBoolean("solved", at.Solved);
+                            w.WriteString("stop", at.Stop ?? "-");
+                            if (at.Keys > 0) w.WriteNumber("keys", at.Keys);
+                            if (at.Depth > 0) w.WriteNumber("depth", at.Depth);
+                            if (at.Restarts > 0) w.WriteNumber("restarts", at.Restarts);
+                            w.WriteNumber("nodes", at.Nodes);
+                            w.WriteNumber("ms", Math.Round(at.Ms, 1));
+                            w.WriteEndObject();
+                        }
+                        w.WriteEndArray();
+                    }
                     w.WriteEndObject();
                 }
                 return Encoding.UTF8.GetString(ms.ToArray());

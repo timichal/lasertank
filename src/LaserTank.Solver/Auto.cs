@@ -43,7 +43,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using LaserTank.Core;
@@ -52,6 +54,36 @@ namespace LaserTank.Solver
 {
     internal static class Auto
     {
+        // ---- the autosolver's iteration ------------------------------------
+        //
+        // **A version number for this driver's own configuration, and the
+        // configuration it names, in one place.**  Not a counter the caller
+        // keeps: nobody running a pass over 20,914 levels should have to
+        // remember which pass it is, and a number typed on a command line is a
+        // number that will eventually be typed wrong -- which here means a
+        // pass silently skipping the levels of a *different* pass.
+        //
+        // **What bumping it means.**  `Iteration` is stamped on every ledger
+        // row, and the ledger skips a level whose last row is this same
+        // iteration.  So raising it is the act of saying *this is a new
+        // approach*: every level still unsolved is attempted again, and every
+        // level already solved stays solved.  Change the settings below
+        // without raising it and a resumed pass will skip the levels the old
+        // settings failed -- so the two move together, which is why they are
+        // declared together.
+        //
+        // **Iteration 1: `--max-round 2`.**  Rounds are 4^r x 400k, so this is
+        // three rounds ending at 6.4M nodes and 8.5M cumulative per rung.
+        // Closed item 7 measured the solved-vs-budget curve at 1M / 10M / 50M
+        // and got 12 / 20 / 21 levels of 253: the curve is flat above ~10M, so
+        // round 2 buys all but one level of what round 5 would, at a sixteenth
+        // of the nodes.  Over the whole corpus that is the difference between
+        // weeks and a year, and a first pass that does not finish is not a
+        // first pass.  The levels this leaves are what iteration 2 is for, and
+        // `tools/ledger.py --stops` is how it gets chosen.
+        internal const int Iteration = 1;
+        internal const int IterationMaxRound = 2;
+
         // Layer 0's campaign budget, and about a second of work: small enough
         // that an easy level is solved before the status line has repainted.
         private const long BaseNodes = 400000;
@@ -504,8 +536,150 @@ namespace LaserTank.Solver
             /// finishing together would otherwise interleave two json lines
             /// into neither.
             public StreamWriter Report;
+            /// The ledger as it stood when the run started: the last row for
+            /// each level of this collection, which is the same rule
+            /// report_stats.py's `load` reads it by.  Empty without --report.
+            public Dictionary<int, Ledger> Had = new Dictionary<int, Ledger>();
+            /// More than one level in the plan -- see the ledger skip.
+            public bool Sweep;
             public int Solved, Skipped, Already, Rejected, Worse;
             public readonly List<int> Unsolved = new List<int>();
+        }
+
+        /// How many levels to work on at once, when `--lanes` did not say.
+        ///
+        /// **One lane is right in front of one level and wrong for a pass.**
+        /// The interactive default was 1 because somebody watching wants the
+        /// whole machine on the level they are looking at; a pass over 20,914
+        /// of them wants the machine *full*, and a single lane cannot fill it
+        /// -- a lane is `Ladder.Length` searchers and several of them finish in
+        /// milliseconds, so the slots they leave go to nobody.
+        ///
+        /// Five slots a lane, which is the ratio that has been run by hand:
+        /// a lane's ten rungs then queue for five and run in two waves, so a
+        /// rung that ends early is replaced by one from its own lane rather
+        /// than idling a core.  Oversubscribing on purpose -- the alternative,
+        /// a lane per ten slots, leaves the machine half empty for exactly as
+        /// long as the ladder's fast rungs take to finish.
+        private static int LanesFor(Program.Args a, int jobs)
+            => a.Lanes > 0 ? a.Lanes : Math.Max(1, jobs / 5);
+
+        /// **The run's own row: every rung at every round, written once.**
+        ///
+        /// `Program.ConfigString`'s rule is that a row which does not say how
+        /// the search was configured cannot be traced back to a command, and
+        /// this project has lost two of its best routes to exactly that.  The
+        /// rule is kept here rather than on each attempt because a rung's
+        /// tuning depends only on (rung, round): on the corpus that is the same
+        /// 1.2 KB of text on 20,914 rows, half the ledger, saying one thing.
+        ///
+        /// It is written whole -- including the rounds this run never reaches,
+        /// which is the half a reader cannot reconstruct from the attempts --
+        /// and it carries no `collection` or `level`, so every reader of a
+        /// report skips it without being taught to (report_stats.load and
+        /// tools/ledger.load both key on those fields).
+        private static void Header(Ctx ctx)
+        {
+            StreamWriter w = ctx.Report;
+            if (w == null || ctx.A.Iteration <= 0) return;
+            int last = Math.Min(ctx.A.MaxRound, 12);
+            using MemoryStream ms = new MemoryStream();
+            using (Utf8JsonWriter j = new Utf8JsonWriter(ms))
+            {
+                j.WriteStartObject();
+                j.WriteString("run", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
+                j.WriteNumber("iteration", ctx.A.Iteration);
+                j.WriteString("collections", ctx.Collection);
+                j.WriteString("config", ctx.A.Config);
+                j.WriteNumber("max_round", ctx.A.MaxRound);
+                j.WriteStartArray("ladder");
+                for (int r = 0; r <= last; r++)
+                {
+                    long nodes = (ctx.A.NodesGiven ? ctx.A.Opt.NodeBudget : BaseNodes)
+                                 << (2 * r);
+                    for (int i = 0; i < Ladder.Length; i++)
+                    {
+                        // Exactly what Round() does, so the string here is the
+                        // string that run would produce: every searcher off,
+                        // the rung's Tune on top, then Uncap.
+                        SolveOptions o = Program.Clone(ctx.A.Opt);
+                        o.RunIda = o.RunBeam = o.RunMacro = o.RunSubgoal = false;
+                        o.NodeBudget = nodes;
+                        o.TimeBudgetMs = (int)Math.Min((long)BaseMs << r, MaxMs);
+                        SolveOptions before = Program.Clone(o);
+                        Ladder[i].Tune(o, r);
+                        Uncap(ctx.A, o);
+                        j.WriteStartObject();
+                        j.WriteNumber("round", r);
+                        j.WriteString("rung", Ladder[i].Name);
+                        j.WriteNumber("nodes", nodes);
+                        j.WriteNumber("ms", o.TimeBudgetMs);
+                        j.WriteString("tuned", Tuned(before, o));
+                        j.WriteEndObject();
+                    }
+                }
+                j.WriteEndArray();
+                j.WriteEndObject();
+            }
+            string line = Encoding.UTF8.GetString(ms.ToArray());
+            lock (w) { w.WriteLine(line); w.Flush(); }
+        }
+
+        /// One level's last word in the ledger.
+        private readonly struct Ledger
+        {
+            public readonly bool Solved;
+            public readonly int Iteration;
+            public Ledger(bool solved, int iteration)
+            { Solved = solved; Iteration = iteration; }
+        }
+
+        /// **The report is the state, so ask the report.**
+        ///
+        /// A pass over 20,914 levels is weeks of wall clock and will be
+        /// interrupted many times.  A banked `.lpb` already makes a *solved*
+        /// level free to skip (the File.Exists test in the worker loop), but an
+        /// unsolved one left no trace at all, so every restart re-ran the whole
+        /// unsolved remainder -- which at iteration 1's settings is the
+        /// expensive 62% of the corpus.  This reads the rows the run already
+        /// wrote and lets the worker skip what this same iteration has already
+        /// tried.
+        ///
+        /// **Last row wins**, which is closed item 18's rule arriving from a new
+        /// direction and the same rule report_stats.py reads by: a level
+        /// re-solved says what it says now, not what it said in the pass before.
+        /// A row this parser cannot read is skipped rather than raised on -- a
+        /// truncated last line is what an interrupted append looks like on
+        /// Windows, and refusing to start because of one is refusing to do the
+        /// thing the file exists for.
+        ///
+        /// **One writer.** Two driver processes appending to one ledger is the
+        /// non-atomic-append defect item 18 paid for twice; there it lost a row
+        /// and read as a failed probe, here it would lose a level's only record
+        /// of having been attempted.  One process, `--lanes` for parallelism.
+        private static Dictionary<int, Ledger> LoadLedger(string path, string collection)
+        {
+            Dictionary<int, Ledger> had = new Dictionary<int, Ledger>();
+            if (path == null || !File.Exists(path)) return had;
+            foreach (string line in File.ReadLines(path))
+            {
+                if (line.Length == 0 || line[line.Length - 1] != '}') continue;
+                try
+                {
+                    using JsonDocument d = JsonDocument.Parse(line);
+                    JsonElement r = d.RootElement;
+                    if (!r.TryGetProperty("collection", out JsonElement c)
+                        || c.GetString() != collection) continue;
+                    if (!r.TryGetProperty("level", out JsonElement lv)) continue;
+                    bool solved = r.TryGetProperty("solved", out JsonElement s)
+                                  && s.GetBoolean();
+                    int it = r.TryGetProperty("iteration", out JsonElement i)
+                             ? i.GetInt32() : 0;
+                    had[lv.GetInt32()] = new Ledger(solved, it);
+                }
+                catch (JsonException) { }
+            }
+            return had;
         }
 
         // What Ctrl+C sets.  Static because the handler has to reach every lane
@@ -629,8 +803,8 @@ namespace LaserTank.Solver
 
             // No more lanes than there are levels to put in them: an empty lane
             // is a painted line that never says anything.
-            int lanes = Math.Max(1, Math.Min(a.Lanes, plan.Count));
             int jobs = Math.Max(1, a.Jobs);
+            int lanes = Math.Max(1, Math.Min(LanesFor(a, jobs), plan.Count));
 
             Lane[] pool = new Lane[lanes];
             for (int i = 0; i < lanes; i++)
@@ -692,11 +866,35 @@ namespace LaserTank.Solver
             // adds to it rather than losing what it had.  The reader takes the
             // last line for a level (report_stats.py's `load`), so a re-solve
             // says what it says now.
+            // **The ledger is on by default, because a run nobody recorded is a
+            // run nobody can build on.**  Every finding in docs/solver came out
+            // of a report file and the two routes this project lost were the
+            // two nobody wrote one for (bench/recovered/README.md).  It is one
+            // file for the whole corpus, appended, last row per level winning,
+            // and it lives under data/ rather than build/reports/ because it is
+            // the record rather than an experiment -- build/reports is
+            // gitignored and this is the thing to still have in a year.
+            // `--no-report` turns it off; `--report PATH` puts it elsewhere.
+            if (a.Report == null && !a.NoReport)
+            {
+                a.Report = Path.Combine(root, "data", "reports", "solutions.jsonl");
+                Directory.CreateDirectory(Path.GetDirectoryName(a.Report));
+            }
+
+            // Read before the writer opens, so the run's own rows are never in
+            // what it believes it inherited.
+            Dictionary<int, Ledger> had = LoadLedger(a.Report, collection);
+            if (a.Iteration > 0 && had.Count > 0)
+                Console.WriteLine(Ansi.Dim(string.Format(CultureInfo.InvariantCulture,
+                    "  ledger: {0} rows for {1}, {2} solved -- iteration {3}",
+                    had.Count, collection, had.Values.Count(static h => h.Solved),
+                    a.Iteration)));
             StreamWriter report = a.Report == null ? null
                 : new StreamWriter(a.Report, append: true, new UTF8Encoding(false));
             Ctx ctx = new Ctx
             {
                 A = a, Count = count, Lanes = lanes, OutDir = outDir, Work = work,
+                Had = had, Sweep = plan.Count > 1,
                 Ghs = ghsPath, Python = python, Gate = gate, Root = root,
                 Slots = new SemaphoreSlim(jobs),
                 Collection = collection, Report = report,
@@ -706,6 +904,9 @@ namespace LaserTank.Solver
                     return i < plan.Count ? plan[i] : -1;
                 },
             };
+
+            // Above the rows it explains, and before any lane can write one.
+            Header(ctx);
 
             Task[] workers = new Task[lanes];
             for (int i = 0; i < lanes; i++)
@@ -768,6 +969,31 @@ namespace LaserTank.Solver
                         + Ansi.Dim("already solved -- --force re-solves it"));
                     continue;
                 }
+                // The ledger's half of the same test: a level this iteration
+                // has already failed is not attempted again by a restart of it,
+                // and bumping Auto.Iteration re-attempts every one of them.
+                // Deliberately not keyed on the config string -- settings that
+                // changed without the iteration changing is the mistake the
+                // iteration exists to make visible, and having the file quietly
+                // work around it would hide exactly that.
+                //
+                // **Only on a sweep.**  `Iteration` is a constant now rather
+                // than something the caller passes, so this test is live on
+                // every run -- including somebody sitting in front of one level
+                // that iteration 1 already failed, where refusing to search is
+                // the opposite of what they asked for.  Pointing at a single
+                // level *is* the instruction to run it.
+                if (!ctx.A.Force && ctx.Sweep && ctx.A.Iteration > 0
+                    && ctx.Had.TryGetValue(lv, out Ledger had)
+                    && (had.Solved || had.Iteration == ctx.A.Iteration))
+                {
+                    Interlocked.Increment(ref ctx.Already);
+                    Say(Head(lv, ctx.Count, info) + "  " + Ansi.Dim(
+                        had.Solved ? "already solved in the ledger"
+                        : "iteration " + ctx.A.Iteration
+                          + " already tried this level -- raise --iteration to retry"));
+                    continue;
+                }
 
                 LevelFile.ReadHighScore(ctx.Ghs, lv, out ushort gm, out ushort gs);
 
@@ -794,6 +1020,9 @@ namespace LaserTank.Solver
                 // to read it -- the result line reports the winner's own nodes.
                 long spent = 0;
                 Program.Outcome kept = null;
+                // The last round's rungs, for the ledger row.  Overwritten
+                // each round on purpose -- see Outcome.Attempts.
+                List<Program.Outcome.Attempt> attempts = null;
                 // Set the first time a round is refused for being longer than
                 // the banked route.  From then on the level's rounds are held
                 // open regardless of `--best-of-round`, because a refusal is
@@ -813,7 +1042,8 @@ namespace LaserTank.Solver
                 {
                     rounds = round + 1;
                     Program.Outcome o = Round(ctx, lane, info, lv, round, lt0,
-                                              beatTarget, out long roundNodes);
+                                              beatTarget, out long roundNodes,
+                                              out attempts);
                     spent += roundNodes;
                     if (o == null) continue;                       // nobody won
 
@@ -924,7 +1154,8 @@ namespace LaserTank.Solver
                 lane.Cur = null;
                 Emit(ctx, info, lv, gm, gs, kept, rounds, spent,
                      (DateTime.UtcNow - lt0).TotalMilliseconds,
-                     _quit ? "stopped" : lane.Skip ? "skipped" : "rounds");
+                     _quit ? "stopped" : lane.Skip ? "skipped" : "rounds",
+                     attempts);
                 Say(block);
             }
             lane.Cur = null;
@@ -940,9 +1171,11 @@ namespace LaserTank.Solver
         /// file is the one the gate is handed; the rest are deleted here.
         private static Program.Outcome Round(Ctx ctx, Lane lane, TLEVEL info,
                                              int lv, int round, DateTime lt0,
-                                             int beatTarget, out long spent)
+                                             int beatTarget, out long spent,
+                                             out List<Program.Outcome.Attempt> attempts)
         {
             spent = 0;
+            attempts = new List<Program.Outcome.Attempt>();
             Program.Args a = ctx.A;
 
             // Quadrupling has to stop being taken literally at some point or
@@ -1116,6 +1349,23 @@ namespace LaserTank.Solver
             {
                 Program.Outcome o = tasks[i].Result;
                 spent += o.Nodes;
+                // Kept before the winner is picked, because the losers' rows
+                // are the half of this the ledger is for.  The name comes from
+                // Ladder rather than from `o.Method`, which is the *layer*:
+                // three rungs answer to "push" and the row has to say which.
+                // What each one was configured as is in the header row -- see
+                // Outcome.Attempt.
+                attempts.Add(new Program.Outcome.Attempt
+                {
+                    Name = Ladder[i].Name,
+                    Solved = o.Solved,
+                    Stop = o.Stop,
+                    Keys = o.Solved ? o.Keys : 0,
+                    Depth = o.Depth,
+                    Restarts = o.Restarts,
+                    Nodes = o.Nodes,
+                    Ms = o.Ms,
+                });
                 if (o.Error != null && !o.Solved)
                     Say("  " + Ansi.Red("error") + " " + o.Error);
                 if (o.Solved && (win == null || o.Keys < win.Keys))
@@ -1211,12 +1461,15 @@ namespace LaserTank.Solver
         /// `gate`.
         private static void Emit(Ctx ctx, TLEVEL info, int lv, ushort gm, ushort gs,
                                  Program.Outcome won, int rounds, long spent,
-                                 double ms, string how)
+                                 double ms, string how,
+                                 List<Program.Outcome.Attempt> attempts)
         {
             StreamWriter w = ctx.Report;
             if (w == null) return;
             Program.Outcome o = won
                 ?? new Program.Outcome { Stop = how, Config = ctx.A.Config };
+            o.Iteration = ctx.A.Iteration;
+            o.Attempts = attempts;
             o.J ??= new Program.Job
             {
                 Level = lv, Name = info.LName, Author = info.Author,
