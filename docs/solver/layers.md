@@ -551,7 +551,10 @@ paid for by a measurement:
 | *layer 0, for scale* | — | *13/50* |
 
 Narrow and deep for the third time in this project. `--push-depth` went to `MaxKeys` after seven of the
-ferry bench's fifty stopped at the old 400 cap. And the restart had to buy width *only*: doubling the
+ferry bench's fifty stopped at the old 400 cap — and
+[item 20](history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy)
+later found that 1,200 binds too, so the driver lifts it to 100,000 (`Auto.Uncap`) while the batch
+default stays where this table measured it. And the restart had to buy width *only*: doubling the
 per-board cap with it had level 1 running at width 128 over eight distinct boards by the fourth restart
 — the duplicates quietly back. **40/40 verified through both engines** across those two benches, and
 the old configuration still reproduces its own two numbers from its flags, so the delta is the change

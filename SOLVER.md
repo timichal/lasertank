@@ -234,6 +234,33 @@ These are the reason the numbers in these files can be trusted.
 | What the rehearsal got right, and what it could not do | The 1-in-15 stride **priced** the pass — 84 of 255 was written up as ~1,172 union and ~40% composite against the real 1,087 and 37.8%, **7.8% and 5.6% optimistic on a 67-hour run** — and then **put arms 2 and 3 in the wrong order and 3.5x apart when they are within 1%**. Greedy on the stride: `l8fire` +66 → `layer7` +14 → `enables` +4. On the corpus, in that same order, `layer7` adds **+181** and `enables` **+101**; greedily, `enables` adds **+191** and `layer7` **+91** — the union is 1,087 either way and ten levels decide the pick. Their exclusive counts invert (**15 / 11 / 4** against **173 / 91 / 101**), and **dropping the arm the stride wrote off at +4 costs 101 levels, more than dropping the one ranked above it (91)**. So *compare unions* gets a limit clause: **a stride sizes a union; it cannot order the arms inside it, and it must not be used to drop one** |
 | `LaserTank.lvl` 1-10 | **1-5 and 7-9 solved**, banked in `data/solutions/`; **6 and 10 open**. Level 9 is banked at **115 keys / 1.9x** — the driver's own unattended round-5 run with `--best-of-round`, twelve keys shorter than the hand-run recipe that preceded it and one key off the 114 that was lost with `build/w/` — **recovered and gated in session 48** as `bench/recovered/LaserTank/00009.lpb`, and **level 8 is now banked at 305 keys / 1.37x** — item 4's stage `acc` seeded the driver with that recovered 308 as an acceptance bar for `--beat-banked` and the ladder beat it, byte-identically in all four arms, so the 305 is **re-derived rather than restored** and thirty keys under the 335 it replaced ([closed item 4](docs/solver/history.md#4-the-campaign-that-decided-that---best-of-round-is-a-default--and-the-shot-rule-won-it)). **Level 10 now has a named candidate** (session 34): it is a GAUNTLET, so `--push-read` finds a barrier on **0 of 63,454 expansions** and the whole layer-6/7/8 stack is inert; the fire tier that diagnosis prescribed is built, is worth +9 on the GAUNTLET tail, and leaves the level unsolved at 400M and d=48. Not budget, not the closure, not width, not the read — a traced run reached **d=63 on 399M nodes in 26m53s** with `trunc=0` throughout, past the 53 board changes of the hand line. What was missing is a *gradient*, and the harvested goal board supplies one: the blog's line wins in 179 moves / 52 shots by **pushing six of the ten anti-tanks and destroying none**, minimum total push distance 30, and it names the cells they end on — so it separates the three root pushes `--analyze` offers and cannot rank. **Level 6 "Cascade" has no post** and gains nothing from the bank, and **session 45 closed item 5 on it, negative**: its 168-change line comes apart into **six phases of 18 to 34 board changes**, every one inside the horizon of 50 already measured there, and `--push-phases` commits to the *right* first board — the fill at (9,14), the same cell the human fills first — and then **cannot reach phase 2 at width 32 or 128, nor from the human's own board**. Four of the six phases are reachable and the two that are not are the *middle*, though they are shorter than the three at the end. So the line's length is not what defeats the level; `tools/phase_reach.py`'s trace says `best=137` flat for 237 depths, which is level 10's GAUNTLET signature — **a ranking that has stopped discriminating, in the middle of a Sokoban** |
 
+### The two caps the driver lifts, and why the globals did not move
+
+**Items 20 and 25 measured two depth constants and found two bounds; the answer is not the same in the
+two halves of the tree, so it is not the same default.** `Auto.Uncap` lifts `--push-depth` to 100,000 on
+the six push rungs and `--sg-depth` to 100,000 on the two subgoal rungs, and raises `--max-keys` to a
+floor of 5,000 on all eight — the same 5,000 the three ferry rungs had been carrying by hand since
+session 22, now in one place and as a *floor*, so a caller raising it is no longer quietly lowered by a
+rung. A caller who names any of the three on argv gets the number they typed, and the lift is reported
+in the `rung` column like any other setting.
+
+**In a campaign the lift is a bill and the globals stay at 1,200 and 400.** The two items priced it at
+**1.41x and 3.66x the nodes** for 1.7% and 1.6% of their own populations, and both handed the list
+nothing — every level either of them gained was already inside item 2's 1,087. A node-capped pass pays
+that and buys a rounding error.
+
+**In the driver the capped version is broken rather than merely expensive, and that is the asymmetry.**
+Only `push-dead-end` and `subgoal-dead-end` restart (`Push.cs:601`, `Restart.cs:137`): a rung that ends
+on a *depth* returns with a live frontier and its budget unspent, so the next round hands it four times
+the nodes it cannot spend and six more restarts that cannot fire. Eight of the ten rungs, on every later
+round, for as long as the lane holds the level — which is the one consumer in this tree with unbounded
+budget and a core per rung. The campaign's own numbers say the same thing from the other side: item 20's
+median stop left **10M of 40M** unspent and item 25's left **47.2M of 50M**.
+
+**The flag documentation both items called wrong is corrected** (`Program.cs`, `Search.cs`): neither is a
+backstop, both carry their measurement, and both say the driver lifts them and a batch pass has to ask.
+The rungs themselves are in [`docs/solver/driver.md`](docs/solver/driver.md).
+
 **A missing `.lpb` under `data/solutions/` is not a missing solution.** Michal deletes a banked
 `.lpb` on purpose in order to re-run the solver by hand and watch the replay, and re-banks it
 afterwards. That is the normal working loop, not a lost result — so a level named as banked here may
@@ -406,8 +433,11 @@ whole 50M** against 17 before. **Its marginal contribution to the corpus is zero
 no result it could have produced would have moved the composite. It resolves the `--sg-slack` fork it set
 itself, against slack: the cap was a real constraint, so the follow-up is not slack, and it is not budget
 either. **With item 20 it makes one reading — two searchers, two constants nobody sized, 1.7% and 1.6% of
-their own populations** — and what is left is a decision rather than a measurement: `PushDepth = 1200` and
-`SgDepth = 400` are both now measured and both wrong as defaults.
+their own populations** — and what was left was a decision rather than a measurement. **That decision was
+taken the same day and it splits**: both globals stay where they are, because the bill the two items
+priced (1.41x and 3.66x the nodes) lands on a node-capped pass that gained nothing from paying it, and
+**the interactive driver lifts both for itself** — see [*The two caps the driver
+lifts*](#the-two-caps-the-driver-lifts-and-why-the-globals-did-not-move) below.
 [Closed item 25](docs/solver/history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price).
 
 **Item 20 closed on 2026-09-17, positive, and it is the smallest positive in these files.** The 177
@@ -420,6 +450,8 @@ before, at **1.41x the nodes**. So `--push-depth`'s *backstop* documentation was
 was a bound; what it was **not** is a wall, on 98% of the searches it was ending. **A default should be a
 measurement** — `PushDepth`'s 1,200 never was, and neither is `SgDepth`'s 400, which is item 25.
 The predicted bug report did not materialise: no level stopped on `push-depth` again at 100,000.
+The documentation the item called wrong has been corrected and the driver lifts the cap; the global
+default has not moved, for the reason under item 25 above.
 [Closed item 20](docs/solver/history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy).
 
 **Item 7 closed on 2026-09-16, negative, in 100 minutes, and it is the last of the fourth-pass list.**

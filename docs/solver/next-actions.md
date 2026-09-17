@@ -86,7 +86,9 @@ wrong — but it was the wall on **1.7%** of the levels it was ending and a symp
 the answer the item wanted and the smaller half of it. **The cap cost 1.41x the nodes to lift and bought
 1.13% of the population.** What it hands the list is nothing new: the 174 at the cap are budget-bound and
 [closed item 7](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) has already
-priced more budget at one level per 36 hours.
+priced more budget at one level per 36 hours. **Spent in session 60**: the documentation is corrected,
+the global stays at 1,200, and `Auto.Uncap` lifts it to 100,000 for the driver — where a depth stop was
+not costing nodes but idling a core every round after it.
 **[Item 25 closed on 2026-09-17 too](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price), positive on the flag
 and worth nothing to the corpus.** `--sg-depth 400` is the same claim one searcher across — *a backstop,
 the node budget binds long before it* — and against closed item 7's banked 50M rung the uncapped arm
@@ -97,7 +99,9 @@ of job time became 11 h 57 m, **161 of 243 now burn the whole 50M**), and **all 
 whatever it found. It also resolves the `--sg-slack` fork it set itself, against slack. **Its first arm
 was void**: the recipe named `NODES` and not `BUDGET_MS`, so it ran at `second_pass.sh:141`'s 60-second
 default against a control with 1,800 and **202 of 243 rows stopped on the clock**. The rule that cost is
-in the closed entry and is the session's most portable result.
+in the closed entry and is the session's most portable result. **Spent in session 60** on the same split
+as item 20's: documentation corrected, `SgDepth` stays at 400, `Auto.Uncap` lifts it for the driver's two
+subgoal rungs.
 **[Item 10 closed on 2026-09-15](history.md#10-wall-clock-on-the-push-rungs--the-memo-shipped-and-the-layer-underneath-it-is-declined)**
 — positive on its build and negative on the piece left over. `PushH` is **41-48% of the expansion**, which
 is the whole of the 166k-against-1.4M gap this item was written about, and `--push-memo` collects

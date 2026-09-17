@@ -2471,8 +2471,21 @@ banked into `data/solutions/`, on
 [item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m)'s precedent. The 174 levels now
 at the node cap are budget-bound, and that question is already answered — **more budget is one level per
 36 hours** — so this item hands the list nothing. **A default should be a measurement**: `PushDepth`'s
-1,200 was never one, and neither was `SgDepth`'s 400, which is
-[item 25](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price)'s question and still open.
+1,200 was never one, and neither was `SgDepth`'s 400, which
+[item 25](#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price) closed the
+same day with the same answer.
+
+**Where the correction landed, session 60.** *Correcting the documentation is most of the value* was
+this entry's own reading, and it has been done: `Program.cs`'s `--push-depth` help and `Search.cs:291`
+no longer call 1,200 a backstop and both carry the numbers above. **The global default did not move and
+the driver's did** — `Auto.Uncap` lifts the cap to this item's own 100,000 on all six push rungs, with
+`--max-keys` floored at the 5,000 the arm ran at (`l5_pass.sh:55`). The split is the two items' own
+price: 1.41x the nodes for 1.7% of a population is a bill a node-capped pass should not pay for a
+rounding error, and the driver was not paying it — it was *losing* to the cap, because only
+`push-dead-end` restarts (`Push.cs:601`), so a depth stop came back with a live frontier and every later
+round handed the rung four times a budget it could not spend. A caller who names the flag still gets
+what they typed (`Args.PushDepthGiven`). See
+[`driver.md`](driver.md#the-interactive-driver) and [`SOLVER.md`](../../SOLVER.md#the-two-caps-the-driver-lifts-and-why-the-globals-did-not-move).
 
 ### 21. The two bench-1 lists through one binary — they separate, and the read explains two thirds of it.
 
@@ -2762,6 +2775,16 @@ cap was not the constraint — the slack was.* It solved four, so the cap **was*
 [closed item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) already prices that at one
 level per 36 hours, and 161 levels at the cap is that finding again. **This item hands the list nothing**,
 which is what a constant that has now been measured should hand it.
+
+**Where the correction landed, session 60 — the same split as item 20's.** `--sg-depth`'s help text
+(`Program.cs`) and `Search.cs:165` no longer call 400 a backstop and both carry the numbers above.
+**`SgDepth = 400` stays**, because 3.66x the nodes — two and a half times item 20's price — for four
+levels already inside the fourth pass is the clearest case in these files of a bill a node-capped pass
+should not pay. **`Auto.Uncap` lifts it to 100,000 on the driver's two subgoal rungs**, where the
+arithmetic inverts: only `subgoal-dead-end` restarts (`Restart.cs:137`), so the 156 searches this item
+found cut at 400 steps were coming back with a live frontier and a median **47.2M of 50M** unspent, and
+in a ladder whose budget quadruples every round that is not an expensive rung but an idle core. A caller
+who names the flag still gets what they typed (`Args.SgDepthGiven`).
 
 **`l4` was not run.** The item cited `l4`'s 163 `subgoal-depth` misses beside `l3`'s 156 and the recipe
 only ever carried the `l3` arm; `l3` is the pass that answers *does this cap bind*, and running the second
@@ -3663,6 +3686,23 @@ promised `--bin` in its docstring since it was written and hardcoded log2, and i
 comparable across binnings — at width 2 `region x mob_sum` prints the table's highest V on a chi-square
 *below* its own df, so a `z` column went in beside it. **The open list is one item: 24, and it is
 parked.**
+
+**session 60 — items 20 and 25 spent, in the one place their measurement was worth paying for.** No new
+measurement: the two closed entries had left a decision, and the decision splits. **The globals stay at
+1,200 and 400** — 1.41x and 3.66x the nodes for 1.7% and 1.6% of populations that were already inside
+item 2's 1,087 is a bill a node-capped pass should not pay — and **`Auto.Uncap` lifts both to 100,000 for
+the interactive driver**, with `--max-keys` floored at the 5,000 both arms ran at. **What made the
+asymmetry worth acting on is not the price, it is that the caps were not merely expensive in a ladder,
+they were broken in one**: only `push-dead-end` and `subgoal-dead-end` restart, so a depth stop returns
+with a live frontier, and the next round then hands eight of the ten rungs four times a budget they
+cannot spend and six more restarts that cannot fire — for as long as the lane holds the level.
+**A constant measured on a node-capped population does not carry to an uncapped one by its own numbers,
+and can invert**: the campaign reads the lift as a cost, the driver as a core recovered, off the same
+two runs. The three hand-written `MaxKeys = 5000`s on the ferry rungs became one floor in `Uncap` on the
+way, which fixes a wart nobody had reported — a caller passing `--max-keys 8000` was being quietly
+*lowered* on three rungs — and the three flags now carry `*Given` on `NodesGiven`'s precedent, so a
+caller who names a cap still gets it. The documentation item 20 called wrong is corrected in both places
+it was wrong. **The open list is unchanged: one item, 24, still parked.**
 
 ## Where session 26's twelve pointers went
 

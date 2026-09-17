@@ -29,7 +29,9 @@ all eight (`Auto.Uncap`, and it is the mechanism the three ferry rungs used to c
 three were called backstops and all three are bounds:
 [item 20](history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy)
 and [item 25](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price)
-measured the first two on a population each and the third has been known since session 22.
+measured the first two on a population each, and
+[item 12](history.md#12-per-level-maxkeys-from-the-record----max-keys-record) had already found the
+third — `MaxKeys`'s 1,200 is a *silent* cap, a state past it dropped and the level reporting `budget`.
 **In a campaign the lift is a bill** — 1.41x and 3.66x the nodes for 1.7% and 1.6% of a population, which
 is why the global defaults have not moved. **Here the capped version is broken rather than merely
 expensive.** Only `push-dead-end` and `subgoal-dead-end` restart (`Push.cs:601`, `Restart.cs:137`), so a
