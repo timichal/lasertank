@@ -1,10 +1,10 @@
 # Next actions — the open items in full
 
-**Four items are open — 21-24, written on 2026-09-15 out of what used to be a section called *Further
+**Three items are open — 22-24, written on 2026-09-15 out of what used to be a section called *Further
 out*.** The
 *Further out* gate — *only after the numbers above have moved* — was met when item 2's fourth pass ran
 and item 10 closed, and what it had been holding back were fifth-pass questions behind a fourth-pass
-list. **None of 21-24 is new work.** What is new is that each carries a recipe, a cost, and the
+list. **None of 22-24 is new work.** What is new is that each carries a recipe, a cost, and the
 measurement that would refuse it, which is what the rest of this file means by an item; three of them
 turned out to have a falsifier costing minutes that nobody had run, which is the argument for writing a
 bullet out as an item rather than leaving it as one. The reasoning behind the list is in
@@ -12,17 +12,29 @@ bullet out as an item rather than leaving it as one. The reasoning behind the li
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run. **20-25 were new numbers**, not
-reused ones; 20 and 25 closed on 2026-09-17 and what is left is the four that were never about a
-constant.
+reused ones; 20, 25 and 21 all closed on 2026-09-17, and what is left is the three that were never
+about a constant or about a bench.
 
 **All of it runs on the solver machine.** The two halves split on 2026-09-08, and every recipe below
-except item 21's reads a report out of `build/reports/`, which is gitignored — so a checkout on the
+reads a report out of `build/reports/`, which is gitignored — so a checkout on the
 game machine has all of the tools and none of the inputs, and the one item that has to be built and
 gated *there* says so in its own entry (item 24). **Nothing left on this list wants the machine for
 hours at all** — items 7, 20 and 25, the three that did, have all run and closed — so the habit sessions
 42-51 proved is now a convenience rather than a constraint: a node-governed pass costs a cheap item its
 wall clock and none of its numbers, and there is no longer a pass here for it to cost anything against.
 
+**[Item 21 closed on 2026-09-17](history.md#21-the-two-bench-1-lists-through-one-binary--they-separate-and-the-read-explains-two-thirds-of-it) in under a minute of machine time, and the two bench-1 lists
+are not interchangeable.** Over each list's own layer-0 remainder the chain's three searchers score
+**11 of 60 on the reconstruction against 17 of 41 on the original** (Fisher **p = 0.014**), and **two
+thirds of that gap is the read**: the reconstruction's remainder is FERRY 30 of 60 where the original's
+is GAUNTLET 14 of 41, and standardising by the pooled per-verdict rates closes 16 of the 23 points.
+**Where the code is what varies the two agree exactly** — `--no-ida` +1 on both, the learned key −1 on
+both. **The recipe's first step was the wrong one**, and that is the part that transfers: *stop if they
+separate at layer 0* would have stopped on 0 of 60 against 19 of 60, and the 0 is forced, because the
+reconstruction was cut by the arm being measured. **A list selected by a failure cannot be asked about
+that failure.** The held-out GAUNTLET use refused itself for free — the chain leaves **8** of the
+original's 18, **6** of them held out from `bench/gauntlet-tail.txt` — so the fire tier's +9 still rests
+on one population.
 **[Item 20 closed on 2026-09-17](history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy), positive, and it is the smallest positive in these files.**
 The 177 `enables` rows that stopped on `push-depth` were re-attacked with the cap lifted to 100,000 and
 **3 solved, 3 of 3 gated** — `Challenge-II` 291 *Full insight*, `Gary-I` 1051 *SlipBridge-325*,
@@ -205,8 +217,9 @@ then declined the board-keyed second layer off the code and closed item 10, so w
 measurement** — item 7 — **and session 54 spent it in 100 minutes**: it wanted the whole machine and
 [used a quarter of its price](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m), because the searchers it was buying nodes for had
 already stopped searching. **Nothing on this list costs hours any more**: items 20 and 25, the last two
-that did, both ran in session 55 and closed. Item 23 refuses itself in ~3 minutes, item 21 in minutes,
-item 22 is free to refuse, and item 24 is parked on a trigger.
+that did, both ran in session 55 and closed. Item 23 refuses itself in ~3 minutes, item 22 is free to
+refuse, and item 24 is parked on a trigger — and item 21, the one that had a price at all, spent under a
+minute of it in session 56.
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -215,47 +228,7 @@ short.
 
 ---
 
-## 21 (1st) — the two bench-1 lists through one binary
-
-**Minutes, and it decides whether a whole class of number in these files can be read at all.** Session
-48 brought back the **originals** of all three level lists from the game machine's `build/` —
-`bench/recovered/{bench,deep,ferry}-levels.txt`, the ones `bench/bench-levels.txt`'s header calls gone.
-They rebase nothing and restore nothing: every pre-session-25 number was measured against those levels
-*by a solver that no longer exists*, so re-running them today compares two code versions, not two
-lists. The committed reconstructions stay the lists current numbers are quoted against.
-
-What the pair makes possible is the one measurement neither list could make alone — **the same binary
-over both bench-1 lists, which isolates the population from the code.** Every bench-1 delta this
-project has ever argued about confounds the two. Both files are 60 Beginner-I levels and `bench.sh`
-defaults to that collection, so neither run needs `LEVELS`:
-
-```bash
-bash tools/bench.sh b1-recon bench/bench-levels.txt           150000 --no-macro
-bash tools/bench.sh b1-orig  bench/recovered/bench-levels.txt 150000 --no-macro
-```
-
-150k is the campaign's own budget and `--no-macro` is layer 0, which is the configuration both lists
-were cut by — 60 levels of it is minutes. **If the two separate at layer 0, stop there**: they are
-different populations and that is the answer. If they do not, the same pair through the chain's three
-searchers (`--no-ida`; `--no-beam --subgoal --sg-eval coarse`; then `learned`) says whether they stay
-together where the numbers people actually argue about were measured.
-
-**It has already retired one guess for free.** `bench/bench-levels.txt`'s header supposes the
-original's GAUNTLET-heavy label "was a pre-fix read", and read **today**, post-barrier-fix, the
-original is still **GAUNTLET 18 / FERRY 7** against the reconstruction's **8 / 30** — the difference is
-the population, not the read. That is the *read* agreeing with itself across the pair; this item asks
-the same question of the *searcher*.
-
-**The second use is held-out and it is the weaker of the two.** Those 18 GAUNTLETs are **16 disjoint
-from `bench/gauntlet-tail.txt`**, so they are a near-independent GAUNTLET population for a fire tier
-whose +9 has been measured on exactly one — but they are *layer-0* failures, not *chain* failures, so
-how many the chain still fails is unknown until a report says so, and the standing rule applies: two
-fifty-level lists agreeing is not a population. **Ask the cheap question first**; the held-out one
-needs `chain.jsonl` and a filter before it means anything.
-
----
-
-## 22 (2nd) — subgoal chaining over board changes
+## 22 (1st) — subgoal chaining over board changes
 
 **The pieces exist, the acceptance test is already in a file, and the first step is free.** Both open
 levels ask for layer 2's decomposition one level out. The acceptance test in `Subgoal.Offer`
@@ -296,7 +269,7 @@ a test.
 
 ---
 
-## 23 (3rd) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
+## 23 (2nd) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
 
 **The largest build on this list, and it has a free falsifier nobody has run.** FERRY + SOKOBAN is 53%
 of the sample at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region

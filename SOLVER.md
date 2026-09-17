@@ -320,10 +320,11 @@ searchers literally stop on when nothing else is in their way. [Closed item 7](d
 
 ## What is open
 
-**Four items — 21-24, the old *Further out* bullets written out on 2026-09-15.** None is new work; each
+**Three items — 22-24, the old *Further out* bullets written out on 2026-09-15.** None is new work; each
 one carries a recipe, a cost and the measurement that would refuse it. The gate that section carried (*only after the numbers above have
 moved*) was met when item 2's fourth pass ran and item 10 closed. **Nothing on this list costs hours any
-more** — items 20 and 25, the last two that did, both ran on 2026-09-17 and closed. Numbers are kept
+more** — items 20 and 25, the last two that did, both ran on 2026-09-17 and closed, and item 21 closed
+the same day in eight four-second bench runs. Numbers are kept
 because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
@@ -331,10 +332,27 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **21** | **1st** | **The two bench-1 lists through one binary.** Session 48 recovered the original 60-level bench 1 beside the committed reconstruction, and the pair makes possible the one measurement neither could make alone — **the population isolated from the code**, which every bench-1 delta this project has argued about confounds. If they separate at layer 0 that is the answer; the held-out GAUNTLET use is weaker and comes second | **minutes** — 60 levels at 150k, twice |
-| **22** | 2nd | **Subgoal chaining over board changes.** The acceptance test is already in `Subgoal.Offer`, and the first step is not a build: run the arithmetic against `--analyze` on levels 6 and 10 — how many subgoals, how deep each is on the hand line — because 20M nodes is the sizing and a deeper read makes it a number the driver does not have. **Closed item 5 is what it has to beat**: level 6's phases are short, the commitment is right, and the beam still cannot walk phase 2 from any board | **free** to refuse; a build to confirm |
-| **23** | 3rd | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
+| **22** | **1st** | **Subgoal chaining over board changes.** The acceptance test is already in `Subgoal.Offer`, and the first step is not a build: run the arithmetic against `--analyze` on levels 6 and 10 — how many subgoals, how deep each is on the hand line — because 20M nodes is the sizing and a deeper read makes it a number the driver does not have. **Closed item 5 is what it has to beat**: level 6's phases are short, the commitment is right, and the beam still cannot walk phase 2 from any board | **free** to refuse; a build to confirm |
+| **23** | 2nd | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
 | **24** | parked | **Parent pointers instead of copied keystreams.** `Snapshot` copies the whole key prefix and `Restore` copies it back, which is why 76,800 wide was 1.1 GB. **The trigger is written down**: a run bounded by memory rather than nodes, which has happened once (level 9) and which items 14 and 19 between them argue against wanting again. It is also the one item that changes Core, so it is built and gated on the **game** machine before the solver machine trusts the binary | — |
+
+**Item 21 closed on 2026-09-17 in under a minute of machine time, and the answer is the population.** Over
+each list's own layer-0 remainder — which makes both *levels this binary's layer 0 misses* — the chain's
+three searchers score **11 of 60 on the committed reconstruction against 17 of 41 on the recovered
+original**, Fisher two-sided **p = 0.014**; only 3 levels are common to the two lists. **Two thirds of
+that gap is the read**: the reconstruction's remainder is **FERRY 30 of 60** where the original's is
+**GAUNTLET 14 of 41**, FERRY is the worst verdict the arms face (**6 of 37**) and GAUNTLET among the best
+(**8 of 22**), and standardising by the pooled per-verdict rates closes **16 of the 23 points**. **Where
+the code is what varies the two lists agree exactly** — `--no-ida` is +1 on both and the learned key −1
+on both, on two disjoint populations. **The recipe's own first step was the wrong one and that is the
+transferable half**: *stop if they separate at layer 0* would have stopped on **0 of 60 against 19 of
+60**, and the 0 is forced — `bench/bench-levels.txt` was *cut* by the arm being measured
+(`STRIDE=5 NODES=150000 --no-macro`, `tools/bench.sh`'s configuration to the flag), so **a list selected
+by a failure cannot be asked about that failure**. The committed reconstruction stays the list current
+numbers are quoted against and the pre-session-25 numbers stay uncorrectable. The held-out GAUNTLET use
+refused itself for free: the chain leaves **8** of the original's 18 and **6** are disjoint from
+`bench/gauntlet-tail.txt`, so the fire tier's +9 still rests on one population.
+[Closed item 21](docs/solver/history.md#21-the-two-bench-1-lists-through-one-binary--they-separate-and-the-read-explains-two-thirds-of-it).
 
 **Item 25 closed on 2026-09-17 beside its twin, positive on the flag and worth nothing to the corpus.**
 `--sg-depth 400` carries the same *backstop* claim one searcher across, and against closed item 7's

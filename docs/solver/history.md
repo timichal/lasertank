@@ -8,8 +8,8 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 20 is done, and
-25 with them, and ten of those closed *negative* or half-negative** — which is the ordering rule
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 21 is done, and
+25 with them, and eleven of those closed *negative* or half-negative** — which is the ordering rule
 paying off rather than failing. Items 20 and 25 are the two smallest positives and they are one reading:
 **two depth constants documented as backstops, both binding, worth 1.7% and 1.6% of their own
 populations** and nothing at all to the corpus in 25's case. The largest of the positives is
@@ -2470,6 +2470,67 @@ at the node cap are budget-bound, and that question is already answered — **mo
 1,200 was never one, and neither was `SgDepth`'s 400, which is
 [item 25](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price)'s question and still open.
 
+### 21. The two bench-1 lists through one binary — they separate, and the read explains two thirds of it.
+
+**Closed in session 56 for well under a minute of machine time: eight 60-level bench runs at 150k, the
+two that were timed at 3.9 s and 4.3 s.** The question was the one neither list could answer alone — *is a bench-1 delta a
+population or the code* — and the answer is **population**, with the reconstruction the harder of the
+two lists by a wide margin. Only **3 levels** are common to the pair (976, 1041, 1141), so this is very
+nearly two disjoint samples of the same tier.
+
+**The recipe's own first step is the one thing in it that was wrong, and it is worth saying why.** *If
+the two separate at layer 0, stop there* — they do separate, **0 of 60 against 19 of 60**, and that
+reading is worthless. `bench/bench-levels.txt`'s header records the rule that cut it: the Beginner-I
+levels unsolved in the layer-0 campaign at `STRIDE=5 NODES=150000 --no-macro`, which is `bench.sh`'s
+configuration to the flag. **The reconstruction is a fixed point of the arm it is being measured with**,
+so its 0 is forced and carries no information; the original's 19 is a *code* delta, because it was cut
+by a solver that no longer exists. A list selected by a failure cannot be asked about that failure.
+
+**What can be asked is the layer above it, on each list's own layer-0 remainder** — which makes both
+populations *levels this binary's layer 0 misses*, 60 of the reconstruction and 41 of the original, and
+leaves the population as the only thing that differs:
+
+| arm | reconstruction (of 60) | original (of 41) |
+|---|---:|---:|
+| `--no-ida` (l1) | 1 (1.7%) | 1 (2.4%) |
+| `--no-ida --no-beam --subgoal --sg-eval coarse` (l3) | 9 (15.0%) | **15 (36.6%)** |
+| the same with `--sg-eval learned` (l4) | 8 | 15 |
+| **union of the three** | **11 (18.3%)** | **17 (41.5%)** |
+
+**Fisher two-sided p = 0.014 on the union and 0.017 at l3**, so the separation survives at these sample
+sizes — which is not the usual outcome when this file compares two sixty-level lists, and is only
+available because the gap is wide.
+
+**Two thirds of that gap is the read, and that is the finding worth keeping.** The two remainders are
+composed differently in exactly the way the lists' headers have always said: the reconstruction's 60 are
+**FERRY 30**, the original's 41 are **GAUNTLET 14 / FERRY 7**. Pooled over both lists, FERRY is the
+worst verdict the chain arms face (**6 of 37, 16%**) and GAUNTLET among the best (**8 of 22, 36%**).
+Standardising each remainder by the pooled per-verdict rates predicts **24.7% against 32.1%** where the
+lists actually score 18.3% and 41.5% — so composition accounts for about **16 of the 23 points**, and
+what is left over is not significant at n = 60 and 41. **The two lists differ because the read says they
+do**, which is the reconstruction's header agreeing with the searcher rather than only with itself.
+
+**Where the code is the same, the two lists agree exactly.** `--no-ida` is worth **+1 on both**, and the
+learned key is worth **−1 on both** — the same sign and the same magnitude on two disjoint populations.
+`tools/bench.sh`'s header still says the learned evaluation is *worth +1 here*; on both bench-1 lists
+today it is worth −1, which is a note for whoever quotes that line next and not a defect (the +30 it is
+really about was a corpus number).
+
+**So the committed reconstruction stays the list current numbers are quoted against, and the two are not
+interchangeable.** A bench-1 figure from before session 25 and one from after are separated by a
+population that is roughly **twice as hard for layer 3**, on top of a solver that changed underneath
+them — neither correction is available, which is what the recovered list was always going to establish
+rather than repair.
+
+**The second use — the held-out GAUNTLET population — refuses itself, and more cheaply than the item
+priced it.** The item wanted the original's **18 GAUNTLETs** as a near-independent population for the
+fire tier whose +9 has only ever been measured on `bench/gauntlet-tail.txt`, and noted that it needed
+`chain.jsonl` and a filter first because these are layer-0 failures, not chain failures. The arms above
+answer it directly: of the 18, today's layer 0 solves **4** and the chain arms solve **6**, leaving
+**8** — and **6 of those 8** are disjoint from the tail. **Six levels is not a population**, so the fire
+tier's +9 still rests on one list and this item does not change that. Nothing here is banked; the
+solutions are in `build/bench/` on closed item 7's precedent.
+
 ### 25. `--sg-depth` was a bound too — four levels, at two and a half times item 20's price.
 
 **Closed in session 55, positive on the flag and worth nothing to the corpus, which is the pair of
@@ -3360,6 +3421,22 @@ not only the one the question is about, and check the finished report's max `ms`
 reading a node column. **What is left is a decision rather than a measurement**: `PushDepth = 1200`
 (`Search.cs:291`) and `SgDepth = 400` (`Program.cs:190`) are now both measured and both wrong as
 defaults, and changing them moves every future run. **The open list is four items: 21-24.**
+
+**session 56 — item 21, and a list that cannot be compared with the list it replaced.** Eight bench
+runs of about four seconds each answered the question the recovered bench 1 was brought back for: the two lists
+**separate**, and it is the population rather than the code — **11 of 60 against 17 of 41** over the
+chain's three searchers on each list's own layer-0 remainder, Fisher **p = 0.014**. **Two thirds of the
+gap is the read**: the reconstruction's remainder is FERRY 30 of 60 where the original's is GAUNTLET 14
+of 41, FERRY is the worst verdict the arms face (16%) and GAUNTLET among the best (36%), and
+standardising by the pooled per-verdict rates closes 16 of the 23 points. **Where the code is what
+varies, the two agree exactly** — `--no-ida` +1 on both, the learned key −1 on both. **The recipe's own
+first step was the wrong one and that is the transferable part**: *stop if they separate at layer 0*
+would have stopped on **0 of 60 against 19 of 60**, and the 0 is forced, because the reconstruction was
+*cut* by the arm being measured (`STRIDE=5 NODES=150000 --no-macro`, `bench.sh`'s configuration to the
+flag). **A list selected by a failure cannot be asked about that failure** — the layer above it is the
+cheapest question that is not circular. The second use closed negative for free: of the original's 18
+GAUNTLETs the chain leaves **8**, **6** of them held out from `bench/gauntlet-tail.txt`, so the fire
+tier's +9 still rests on one population. **The open list is three items: 22-24.**
 
 ## Where session 26's twelve pointers went
 
