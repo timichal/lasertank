@@ -113,7 +113,16 @@ python tools/fess_project.py                      # the four tests and the cross
 python tools/fess_project.py --pairs              # every pair of the six near-FESS columns
 python tools/fess_project.py --x water --y alive  # any two columns
 python tools/fess_project.py --chain build/reports/chain.jsonl   # against another report
+python tools/fess_project.py --bin 4              # ...in a different space; raw is also a value
 ```
+
+**`--bin` is the flag that turns this from one test into a family of them**, and until session 59 the
+docstring promised it and the code hardcoded log2. It matters because the binning *is* the feature
+space: log2 is what the item's **V 0.375** was measured in and is still the default, so a bare run
+reproduces that number, but `--bin raw` and `--bin N` ask the same four questions of a finer one. Read
+the answers against section 2c, which asks whether a *search* can move inside the space a given binning
+makes — the two have to be asked at the same `--bin` or the comparison is an inference rather than a
+measurement.
 
 **Four tests, and the last two are the ones that catch things.** 1 and 2 are the item's own refusals:
 do the failures all land in one cell, and do the cells all solve at the same rate (permutation p, labels
@@ -125,7 +134,47 @@ has been measured is that bigger levels are harder.
 
 **It is a root-state, per-level projection and it cannot be anything else** — `--analyze-tsv` reads the
 authored board. It can say a space is not degenerate over a population; it cannot say a state *moves*
-between cells as a search pushes a block, which needs the features computed per node.
+between cells as a search pushes a block, which needs the features computed per node. That is 2c.
+
+### 2c. Then ask whether a search can move inside it, which is the other half
+
+`--push-fess-trace` computes the same two columns at **every node** the push beam emits and reports, per
+depth, what the beam and its width trim do to the space. `blocks` is one scan of the playfield and
+`region` is `Heuristic.TankRegion`, the flood whose own comment already claims to be "affordable once
+per successor inside a beam" — so the projection costs one flood a successor and no `Restore`, because
+at every emission site the engine is already standing on the successor.
+
+```bash
+# one level at a time: the level line goes to stderr and --jobs 4 interleaves them
+build/lasertank-solve.exe --levels data/levels/Beginner-I.lvl --level 601 \
+  --out build/fx --report build/reports/fx.jsonl --jobs 1 --nodes 2000000 --quiet --force \
+  --no-ida --no-beam --push --push-read --push-reach --push-ferry-match --push-ferry-maze \
+  --push-dead 20 --push-fire 8 --push-shot-run 16 --push-beam 128 --push-eval work \
+  --push-fire-tier --push-fess-trace 2>&1 | grep fess
+build/lasertank-solve.exe ... --push-fess-bin 4     # the same, in 2b's --bin 4 space
+```
+
+**Every line carries both binnings, and that is the whole design.** `cells= kept= lost= moved=` are
+2b's space (log2, or `--push-fess-bin N`); `raw= kept= lost= moved=` are the unbinned counts. A binned
+reading of *the feature never moves* has two readings — the feature does not move, or the bin is too
+coarse to see it move — and only the raw column tells them apart. On `LaserTank.lvl` 6 they read **3.3
+cells a depth against 24.2**, and **1% moved against 5%**, which is what the second pair of columns was
+added for.
+
+**The four numbers and what each one refuses.** `moved=` is successors whose cell differs from their
+parent's: **near zero refuses a FESS-shaped build outright**, because a feature the search cannot move
+cannot be cycled. `cells=` is how many distinct cells a depth offered, counted at *emission* so the
+intra-depth trim cannot hide one; `kept=` how many survive the width trim; `lost=` how many were offered
+and hold no survivor. **`lost=0` refuses it from the other side** — the beam is already spread across
+the space, so cycling restores nothing. The build is worth its price on the gap between `cells` and
+`kept`, and on nothing else.
+
+**It is an instrument and it is gated as one.** The cell is carried on the `Node` beside `Swept`, is
+read only by the report, and is read by no ranking key, no `Cut` and no closed set. Gated over
+`bench/ferry-levels.txt` in session 59: **50 levels, 0 report fields differ, 13 of 13 solutions byte for
+byte identical** against the same run without the flag. Re-run that gate after touching `Fess.cs` — two
+arms, diff the reports and the `.lpb` bytes — because the moment this orders anything it stops being
+able to explain the run it is in.
 
 ## 3. Ask where the *searcher* loses it, which is a different question
 

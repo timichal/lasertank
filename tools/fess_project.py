@@ -69,6 +69,13 @@ NEAR_FESS = [
 ]
 
 
+# Which binning is in force.  Set once from --bin in main(); everything below
+# goes through BIN/BINLABEL rather than calling log2bin directly, so that a run
+# cannot mix two binnings in one table.
+BIN = None
+BINLABEL = None
+
+
 def log2bin(n):
     return 0 if n <= 0 else int(math.log2(n)) + 1
 
@@ -78,6 +85,38 @@ def binlabel(b):
         return "0"
     lo, hi = 1 << (b - 1), (1 << b) - 1
     return str(lo) if lo == hi else "%d-%d" % (lo, hi)
+
+
+def set_bin(spec):
+    """--bin log2 | raw | <width>.
+
+    log2 is what ran on 2026-09-17 and is what the item's V 0.375 was measured
+    in; it is the default so that a bare run still reproduces that number.
+    The other two exist because the *per-node* half of item 23
+    (--push-fess-trace, src/LaserTank.Solver/Fess.cs) measured the same two
+    columns inside a single level's search and found the log2 cell far too
+    coarse to steer one -- 3.5 occupied cells a depth against 23.7 unbinned,
+    and 18 of 50 levels whose state never leaves its starting bin.  A space
+    that separates across levels and a space a search can be steered by are
+    different requirements, and until this flag existed there was no way to
+    ask whether one space can meet both.
+    """
+    global BIN, BINLABEL
+    if spec == "log2":
+        BIN, BINLABEL = log2bin, binlabel
+        return "log2"
+    if spec == "raw":
+        BIN, BINLABEL = (lambda n: n), (lambda b: str(b))
+        return "raw (unbinned)"
+    try:
+        w = int(spec)
+    except ValueError:
+        raise SystemExit("--bin wants log2, raw or an integer width; got %r" % spec)
+    if w < 1:
+        raise SystemExit("--bin width must be >= 1")
+    BIN = lambda n: max(0, n) // w
+    BINLABEL = lambda b: str(b * w) if w == 1 else "%d-%d" % (b * w, b * w + w - 1)
+    return "fixed width %d" % w
 
 
 def load_analyze(path):
@@ -124,6 +163,21 @@ def chi2(cells):
 
 def cramers_v(x, n, df):
     return math.sqrt(x / n) if df and n else 0.0   # 2 columns -> min(r-1,c-1)=1
+
+
+def excess_z(x, df):
+    """Chi-square in units of its own null spread: (chi2 - df) / sqrt(2 df).
+
+    **The column to read when --bin varies, and V is the column not to.**  A
+    chi-square's null expectation is its df, so a finer binning buys apparent
+    association for free: at `--bin 2` the pair `region x mob_sum` scores
+    chi2 1150.7 on 1176 df -- literally less than chance -- and still prints
+    the highest V in the table, because V divides by n and not by df.  Under
+    the null this is ~N(0, 1) for df of any size, so it is comparable across
+    binnings and V is not.  Within *one* binning the two rank the same and V
+    stays, because every number these files have quoted so far is a V.
+    """
+    return (x - df) / math.sqrt(2 * df) if df > 0 else 0.0
 
 
 def chi2_within(strata, keys, solved):
@@ -186,9 +240,9 @@ def tally(keys, solved):
 
 def table(bs, rs, cells, out):
     """The cross-tab: unsolved/total and the solve rate in each cell."""
-    out("        " + "".join("%14s" % ("r " + binlabel(r)) for r in rs) + "%14s" % "tot")
+    out("        " + "".join("%14s" % ("r " + BINLABEL(r)) for r in rs) + "%14s" % "tot")
     for b in bs:
-        line = "%7s |" % ("b " + binlabel(b))
+        line = "%7s |" % ("b " + BINLABEL(b))
         for r in rs:
             n, k = cells.get((b, r), (0, 0))
             line += "%9s%5.0f" % ("%d/%d" % (n - k, n), 100 * k / n) if n else "%14s" % "-"
@@ -217,7 +271,12 @@ def main(argv=None):
                          "(default poses; '' to skip)")
     ap.add_argument("--pairs", action="store_true",
                     help="also score every other pair of near-FESS columns")
+    ap.add_argument("--bin", default="log2",
+                    help="log2 (default, and what the item's V 0.375 was "
+                         "measured in), raw, or an integer bin width -- see "
+                         "set_bin for why the other two exist")
     args = ap.parse_args(argv)
+    binning = set_bin(args.bin)
 
     for p in (args.analyze, args.chain):
         if not os.path.exists(p):
@@ -241,14 +300,14 @@ def main(argv=None):
     print("FESS feature projection -- item 23's free falsifier")
     print("  read      %s" % os.path.relpath(args.analyze, ROOT).replace("\\", "/"))
     print("  against   %s" % os.path.relpath(args.chain, ROOT).replace("\\", "/"))
-    print("  bins      log2")
+    print("  bins      %s" % binning)
     print("  population  %s rows: %d of %d (%.1f%%), %d solved (%.1f%%), %d failed"
           % ("+".join(VERDICTS), n, len(pop), 100 * n / len(pop),
              nsol, 100 * nsol / n, n - nsol))
     print()
 
-    X = [log2bin(int(a[args.x])) for r, a in sel]
-    Y = [log2bin(int(a[args.y])) for r, a in sel]
+    X = [BIN(int(a[args.x])) for r, a in sel]
+    Y = [BIN(int(a[args.y])) for r, a in sel]
     keys = list(zip(X, Y))
     cells = tally(keys, solved)
     fails = collections.Counter(k for k, s in zip(keys, solved) if not s)
@@ -265,7 +324,7 @@ def main(argv=None):
     print("   cells holding a failure     %d" % len(ordered))
     print("   largest                     %d of %d failures (%.1f%%) at (%s, %s)"
           % (ordered[0][1], nf, 100 * ordered[0][1] / nf,
-             binlabel(ordered[0][0][0]), binlabel(ordered[0][0][1])))
+             BINLABEL(ordered[0][0][0]), BINLABEL(ordered[0][0][1])))
     print("   cells holding half of them  %d" % half)
     print("   cells holding 90%% of them   %d" % ninety)
     print("   -> NO" if len(ordered) > 1 and ordered[0][1] < nf / 2
@@ -279,14 +338,15 @@ def main(argv=None):
     rates = sorted((100 * c[1] / c[0], k) for k, c in big.items())
     p = permute_p(lambda lab: chi2(tally(keys, lab))[0], solved, args.reps)
     print("2. do solved and unsolved land in the same cells at the same rate?")
-    print("   chi-square                  %.1f on %d df, Cramer's V %.3f" % (x2, df, v))
+    print("   chi-square                  %.1f on %d df, Cramer's V %.3f, z %.1f"
+          % (x2, df, v, excess_z(x2, df)))
     if p is not None:
         print("   permutation p               %s (%d reps, labels shuffled over the "
               "whole population)" % (fmt_p(p, args.reps), args.reps))
     print("   rate over the %d cells with n >= %d:  %.0f%% at (%s, %s)  to  %.0f%% at (%s, %s)"
-          % (len(big), args.min_cell, rates[0][0], binlabel(rates[0][1][0]),
-             binlabel(rates[0][1][1]), rates[-1][0], binlabel(rates[-1][1][0]),
-             binlabel(rates[-1][1][1])))
+          % (len(big), args.min_cell, rates[0][0], BINLABEL(rates[0][1][0]),
+             BINLABEL(rates[0][1][1]), rates[-1][0], BINLABEL(rates[-1][1][0]),
+             BINLABEL(rates[-1][1][1])))
     print("   population rate             %.0f%%" % (100 * nsol / n))
     print("   -> NO" if p is not None and p < 0.05
           else "   -> YES, refused" if p is not None
@@ -308,7 +368,7 @@ def main(argv=None):
 
     # --- is any of it more than 'bigger levels are harder'? ---------------
     if args.control:
-        C = [log2bin(int(a[args.control])) for r, a in sel]
+        C = [BIN(int(a[args.control])) for r, a in sel]
         cx, cdf = chi2(tally(C, solved))
         wx, wdf = chi2_within(C, keys, solved)
         wp = permute_p(lambda lab: chi2_within(C, keys, lab)[0],
@@ -334,21 +394,25 @@ def main(argv=None):
     print()
 
     if args.pairs:
-        print("supplementary -- every pair of the near-FESS columns, by Cramer's V")
-        print("  %-20s %8s %6s %6s" % ("pair", "chi2", "df", "V"))
+        print("supplementary -- every pair of the near-FESS columns")
+        print("  rank on z when comparing binnings, on V only within one: see excess_z")
+        print("  %-20s %8s %6s %6s %7s" % ("pair", "chi2", "df", "V", "z"))
+        rows = []
         for i, (ca, _) in enumerate(NEAR_FESS):
             for cb, _ in NEAR_FESS[i + 1:]:
-                ks = [(log2bin(int(a[ca])), log2bin(int(a[cb]))) for r, a in sel]
+                ks = [(BIN(int(a[ca])), BIN(int(a[cb]))) for r, a in sel]
                 cx, cdf = chi2(tally(ks, solved))
-                print("  %-20s %8.1f %6d %6.3f"
-                      % ("%s x %s" % (ca, cb), cx, cdf, cramers_v(cx, n, cdf)))
+                rows.append(("%s x %s" % (ca, cb), cx, cdf))
+        for name, cx, cdf in sorted(rows, key=lambda t: -excess_z(t[1], t[2])):
+            print("  %-20s %8.1f %6d %6.3f %7.1f"
+                  % (name, cx, cdf, cramers_v(cx, n, cdf), excess_z(cx, cdf)))
         print()
-        print("  %-20s %8s %6s %6s" % ("single column", "chi2", "df", "V"))
+        print("  %-20s %8s %6s %6s %7s" % ("single column", "chi2", "df", "V", "z"))
         for ca, what in NEAR_FESS:
-            ks = [log2bin(int(a[ca])) for r, a in sel]
+            ks = [BIN(int(a[ca])) for r, a in sel]
             cx, cdf = chi2(tally(ks, solved))
-            print("  %-20s %8.1f %6d %6.3f   %s" % (ca, cx, cdf,
-                                                    cramers_v(cx, n, cdf), what))
+            print("  %-20s %8.1f %6d %6.3f %7.1f   %s"
+                  % (ca, cx, cdf, cramers_v(cx, n, cdf), excess_z(cx, cdf), what))
     return 0
 
 

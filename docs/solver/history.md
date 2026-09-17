@@ -8,17 +8,21 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 21 is done, and
-25 with them, and eleven of those closed *negative* or half-negative** — which is the ordering rule
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 23 is done, and
+25 with them, and twelve of those closed *negative* or half-negative** — which is the ordering rule
 paying off rather than failing. Items 20 and 25 are the two smallest positives and they are one reading:
 **two depth constants documented as backstops, both binding, worth 1.7% and 1.6% of their own
 populations** and nothing at all to the corpus in 25's case. The largest of the positives is
 [item 2](#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm),
 which took the corpus from **494 to 1,581 of 4,185** and is the only item here that cost days of machine
-time rather than hours. Two of the negatives (17, then 5) are items that reached
+time rather than hours. Three of the negatives (17, then 5, then 23) are items that reached
 the front of the list and were **refused by falsifiers they built for themselves**, which is the rule
 working at its most expensive and most useful; item 14 is the third kind, an item whose decision run
 came back clean and negative, and which **handed the list a better-aimed successor on its way out**.
+**Item 23 is the one that took two sessions to refuse**, because its falsifier had two halves and only
+the free one could be run before the build — the cheap half came back *positive* in session 58 and the
+half that needed code refused it in 59, which is the case for writing down what a measurement cannot
+say at the same time as what it does.
 
 ### 1. Layer 4's learned evaluation did not act. Two defects, both fixed.
 
@@ -2621,6 +2625,90 @@ transferable rule is the one the item already carried and this is the fourth ite
 5, 17 and 19 were the first three: **run the arithmetic before writing a line of it.** Here the
 arithmetic cost two `--analyze` runs, exactly as the item predicted it would.
 
+### 23. The FESS rung — the space separates levels or moves inside one, and never both.
+
+**Closed in session 59, negative, and it is the first item here refused by the *second* half of its own
+falsifier.** Session 58 ran the free half — `blocks x region` over the fourth pass's report — and
+neither of the two refusals the item wrote landed: **V 0.375, p < 0.0005** over 2,234 FERRY + SOKOBAN
+rows, two features rather than one twice, and clean of the size confound in both directions. That
+measurement named its own limit in its own docstring: `--analyze-tsv` reads the **authored board**, so it
+is one point per level and it cannot say whether a state *moves* between cells as a search pushes a
+block. **FESS cycles cells over the states of one level, so that is not a footnote to the premise, it is
+the premise.** This session computed the features per node and asked.
+
+**The instrument is `--push-fess-trace`** (`src/LaserTank.Solver/Fess.cs`), and it is cheap for the
+reason the item's column choice was lucky: `blocks` is one scan of `PF` and `region` is
+`Heuristic.TankRegion`, whose own comment already promised to be *"affordable once per successor inside
+a beam"*. At every emission site the engine is already standing on the successor, so the projection
+costs one flood and no `Restore`. It orders nothing — the cell rides on the `Node` beside `Swept` and is
+read by no ranking key, no `Cut` and no closed set — and it is **gated as an instrument**: over
+`bench/ferry-levels.txt`, 50 levels, **0 report fields differ and 13 of 13 solutions are byte for byte
+identical** against the same run without the flag.
+
+**The finding is a scissors, and it took making `--bin` real to see it.** `tools/fess_project.py`'s
+docstring had promised `--bin` since it was written and the code hardcoded log2; with the flag built,
+the same four tests run in any space, and the per-node half takes `--push-fess-bin N` so that both
+halves can be asked in **one** space rather than compared across two. Over the same 50 levels at 2M
+nodes each:
+
+| binning | per-level `blocks x region` | per-node, median over 50 levels |
+|---|---|---|
+| **log2** | **z 21.9** — two features, survives `poses` | cells/depth **3.5**, kept 2.2, lost 0.6, **moved 2%**, and **18 of 50** levels never leave their starting cell |
+| width 4 | z 4.1, but **test 3 fails**: `region` inside `blocks` strata p = **0.216** | cells/depth 6.6, kept 4.5, lost 1.9, moved 9%, 6 of 50 never move |
+| width 2 | z 2.6, test 3 marginal: p = **0.081** | cells/depth 12.3, kept 6.2, lost 3.9, moved 14%, 3 of 50 never move |
+| raw | **z 0.4** — **test 2 fails**, permutation p = **0.212** | cells/depth 23.7, kept 10.8, lost 7.6, moved 20%, 1 of 50 never moves |
+
+**Monotone, in opposite directions, over the whole range.** The only binning in which the pair is
+demonstrably two separating features is the one in which a search barely moves through it: a cycle over
+3.5 occupied cells of which the width trim was already keeping 2.2 is not a rung, it is the beam with
+bookkeeping. Every escape to a finer space is closed from the other side — first `region` stops adding
+anything inside `blocks` strata, then the cell stops separating at all.
+
+**`z` is new and it is the transferable half.** Cramer's V divides by `n` and not by `df`, so a finer
+binning buys apparent association for free: at width 2 the pair `region x mob_sum` prints the highest V
+in the table (**0.718**) at chi-square **1150.7 on 1176 df** — literally below chance. `(chi2 - df) /
+sqrt(2 df)` is ~N(0,1) under the null at any df, so it is the column to rank on when `--bin` varies, and
+V stays because every number these files have quoted so far is a V. **The `--pairs` ranking is not
+binning-invariant either**: `blocks x region` is top at log2 and second at width 4, behind
+`region x alive`.
+
+**Then the two columns were counted apart, and that is the mechanism.** Test 3 can retire one half of a
+pair, so which half *moves* stops being a detail:
+
+| over 50 levels | p50 | p75 | levels where it never moves at all |
+|---|---:|---:|---:|
+| `blocks` moves | **1%** | 4% | **22 of 50** (15 of them unsolved) |
+| `region` moves | 19% | 47% | 3 of 50 |
+
+**They are in exactly opposite positions.** `region` is the column that moves and the column test 3
+retires at every binning fine enough to move in; `blocks` is the column that carries the separation and
+the one the search does not advance — it changes only when a hole is filled, and on **22 of 50** of
+these levels the search never fills one. A rarely-advancing progress axis is not by itself fatal to FESS
+— *boxes packed* is meant to advance rarely, and the point of a cell is that the rare state which
+advances it gets expanded whatever its rank — but an axis that never advances at all on nearly half the
+population it is aimed at is a cycle with one occupied cell, and **the levels where it is frozen are
+disproportionately the unsolved ones**, which is the population this item exists for.
+
+**And there is no third column to try, which is what closes it rather than deferring it.** Of the six
+shipped columns nearest FESS's features, only `blocks` and `region` are affordable per node:
+`Heuristic.Mobility` — which is `alive`, `mob_max` and `mob_sum` — runs `BuildAlive` plus a 256-cell
+flood *per block*, and `water` on the route comes off the frontier pass over the pose closure, which is
+per-expansion. At 4,185 levels those cost 63 s; at ~400k successors a level they are not an instrument,
+they are the search. **The item picked the only pair it could afford, and that pair splits into a
+column that separates and a column that moves.**
+
+**What survives, and it is not nothing.** FESS's *shape* is not refuted — nothing here says cycling
+occupied feature cells is the wrong idea, only that these two features cannot carry it. What the session
+leaves behind is the pair of instruments that would qualify a replacement: `fess_project.py --pairs
+--bin N` for the per-level half at ~10 s, and `--push-fess-bin N` over a bench for the per-node half at
+~4 minutes. **A candidate pair has to pass both at the same `N`**, and that is the bar no pair has been
+shown to clear. Anyone reaching for FESS again should start there and not with a build.
+
+**A note on budget, because the bench ran at 2M and the fourth pass runs at 40M.** Three levels re-run
+at 20M move the numbers in the *unhelpful* direction rather than the hopeful one: on 601 `moved` falls
+80% → 63% raw and 33% → 3% binned, on 1581 49% → 23% and 23% → 6%, on 901 it stays at 1%. A deeper beam
+converges into fewer cells, so more budget does not rescue the binned space.
+
 ### 25. `--sg-depth` was a bound too — four levels, at two and a half times item 20's price.
 
 **Closed in session 55, positive on the flag and worth nothing to the corpus, which is the pair of
@@ -3557,6 +3645,25 @@ FESS-specific: any two columns, any report, four tests. **What it explicitly can
 moves between cells during a search** — it reads the authored board — so item 23 stays open on its build
 and stays unpriced. **The open list is still two items: 23-24.**
 
+**session 59 — item 23 closed negative, refused by the half of its own falsifier that session 58 could
+not run.** The missing half was never a footnote: FESS cycles cells over the states of *one level*, and
+`--analyze-tsv` reads the authored board, so the positive result of session 58 was about levels and the
+premise is about states. Building the per-node projection cost the cheap half of the build itself —
+`--push-fess-trace`, one `TankRegion` flood a successor and no `Restore`, gated over
+`bench/ferry-levels.txt` at **0 report fields differing and 13 of 13 solutions byte-identical**. **The
+answer is a scissors and neither end of it is the refusal the item wrote.** As the bins go finer the
+per-level separation collapses (z **21.9 → 4.1 → 2.6 → 0.4**) and the per-node movement rises (**2% →
+9% → 14% → 20%**), so the space separates levels or moves inside one and never both. Counting the two
+columns apart gives the mechanism: **`region` moves (p50 19%) and carries no signal test 3 will keep;
+`blocks` carries the signal and never moves at all on 22 of 50 levels, 15 of them unsolved.** There is
+no third column to try — `Mobility` is a flood per block and `water` is per-expansion, so of the six
+near-FESS columns only these two are affordable per node, and **the item picked the only pair it could
+afford.** Two instrument defects were fixed on the way and both were real: `fess_project.py` had
+promised `--bin` in its docstring since it was written and hardcoded log2, and its `V` column is not
+comparable across binnings — at width 2 `region x mob_sum` prints the table's highest V on a chi-square
+*below* its own df, so a `z` column went in beside it. **The open list is one item: 24, and it is
+parked.**
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -3571,10 +3678,10 @@ and this is the map:
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |
 | 5 | level 10: the file's arithmetic and the machine disagree | closed item 8 above — **the pointer was right about the depth and wrong about the key** |
 | 6 | the driver cannot be run unattended | closed item 9 above — `--max-round` |
-| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#23-1st--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus) item 23 |
+| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [closed item 23](#23-the-fess-rung--the-space-separates-levels-or-moves-inside-one-and-never-both), negative |
 | 8 | subgoal chaining over board changes | [closed item 22](#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on) — **refused by its own arithmetic**: 18-34 changes a subgoal against a sized 6 |
 | 9 | `MaxKeys` from the record, not from a global | closed item 12 above — `--max-keys-record` |
-| 10 | the width ceiling is memory, and the memory is keystreams | [next-actions](next-actions.md#24-parked--parent-pointers-instead-of-copied-keystreams) item 24, parked |
+| 10 | the width ceiling is memory, and the memory is keystreams | [next-actions](next-actions.md#24-parked-and-the-only-open-item--parent-pointers-instead-of-copied-keystreams) item 24, parked |
 | 11-12 | the three *checked, and not opportunities* items | [next-actions](next-actions.md#checked-and-not-opportunities) |
 
 **One pointer is worth re-reading as a lesson rather than as an item.** Pointer 5 read level 10's first

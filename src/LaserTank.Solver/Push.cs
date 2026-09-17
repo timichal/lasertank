@@ -621,6 +621,7 @@ namespace LaserTank.Solver
             r.Restarts = attempts;
             r.Width = sized;
             TimeReport();
+            FessReport();
             return r;
         }
 
@@ -697,7 +698,10 @@ namespace LaserTank.Solver
 
             List<Node> frontier = new List<Node>
             {
-                new Node { S = CopyOf(root), G = 0, H = TimedH() },
+                // The engine stands on the root here, so the root's own cell
+                // costs no Restore either -- and depth 0's `moved=` is
+                // meaningless without it.
+                new Node { S = CopyOf(root), G = 0, H = TimedH(), Cell = FessNow() },
             };
             List<Node> next = new List<Node>();
             HashSet<ulong> layer = new HashSet<ulong>();
@@ -710,6 +714,7 @@ namespace LaserTank.Solver
                 {
                     if (OutOfBudget) { r.Stop = "budget"; Recycle(frontier, next); return r; }
                     long tx = _opt.PushTime ? Tick() : 0;
+                    int fxFirst = next.Count;
                     bool won = ExpandPush(parent.S, seen, layer, next);
                     if (_opt.PushTime) { _ptExpand += Tick() - tx; _ptExpandN++; }
                     if (won)
@@ -717,6 +722,10 @@ namespace LaserTank.Solver
                         Recycle(frontier, next);
                         return Won(r);
                     }
+                    // Item 23, and before the intra-depth cut below on purpose:
+                    // `offered` is what this expansion put on the table, not
+                    // what survived being on it beside somebody else's.
+                    if (_opt.PushFessTrace) FessExpanded(parent, next, fxFirst);
                     // One expansion offers a successor per (pose x direction),
                     // so a full layer would be width x closure snapshots live at
                     // once.  Trim as we go, exactly as layer 1 does: later
@@ -728,6 +737,7 @@ namespace LaserTank.Solver
                 LineBefore(depth, next, _pushWidth);
                 TimedCut(next, _pushWidth);
                 LineAfter(depth, next);
+                if (_opt.PushFessTrace) FessDepth(depth, next);
                 if (_opt.PushTrace)
                 {
                     Console.Error.WriteLine(
@@ -889,6 +899,7 @@ namespace LaserTank.Solver
                 {
                     S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = TimedH(), Hash = after,
                     Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
+                    Cell = FessNow(),
                 });
             }
 
@@ -1047,6 +1058,7 @@ namespace LaserTank.Solver
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = TimedH(), Hash = h,
                         Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
+                        Cell = FessNow(),
                     });
 
                 if (k >= _opt.PushRun) return false;
@@ -1096,6 +1108,7 @@ namespace LaserTank.Solver
                     {
                         S = _e.Snapshot(Take()), G = (int)_e.Game.RecP, H = TimedH(), Hash = h,
                         Tier = _lastDead ? TierLost : EmitTier, Swept = SweptNow(),
+                        Cell = FessNow(),
                     });
 
                 if (k >= _opt.PushShotRun) return false;
@@ -1168,6 +1181,11 @@ namespace LaserTank.Solver
                 {
                     S = _e.Snapshot(Take()), G = s.KeyLen, H = TimedH(), Hash = h,
                     Tier = TierPose,
+                    // The hatch is projected like any other successor: a
+                    // pure-movement escape is exactly the successor that
+                    // changes `region` without changing `blocks`, and leaving
+                    // it out would bias the one column that has to move.
+                    Cell = FessNow(),
                 });
             }
         }

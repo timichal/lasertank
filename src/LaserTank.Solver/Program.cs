@@ -491,6 +491,22 @@ namespace LaserTank.Solver
 "                         read, the fire tier, and what is left over.  It also\n" +
 "                         prints how many timestamps it took and what one of\n" +
 "                         them costs, so its own share can be subtracted\n" +
+"    --push-fess-trace    item 23's instrument: project every successor into\n" +
+"                         `blocks x region` binned log2 -- the feature space\n" +
+"                         tools/fess_project.py measured per *level* -- and\n" +
+"                         report per depth how many cells were offered, how\n" +
+"                         many the width trim kept, how many it lost outright\n" +
+"                         and how many successors changed cell at all.  It\n" +
+"                         orders nothing: the run searches what the same run\n" +
+"                         without it searches.  `moved=0%` refuses FESS (a\n" +
+"                         feature the search does not move cannot be cycled)\n" +
+"                         and so does `lost=0` (the beam is already spread\n" +
+"                         across the space).  See Fess.cs\n" +
+"    --push-fess-bin N    ...and bin the `cells=` columns to fixed width N\n" +
+"                         instead of log2, so that the per-node half and\n" +
+"                         tools/fess_project.py --bin N ask in one space.\n" +
+"                         Implies --push-fess-trace; `raw=` is unbinned\n" +
+"                         whatever N is\n" +
 "    --no-push-memo       turn item 10's memo off.  It is *on* by default:\n" +
 "                         PushH is memoised on (playfield, tank cell, and\n" +
 "                         PF2 under --push-stop), which is every input it\n" +
@@ -784,6 +800,8 @@ namespace LaserTank.Solver
                         case "--push-enables-poses": a.Opt.PushEnablesPoses = int.Parse(V()); break;
                         case "--push-trace": a.Opt.PushTrace = true; break;
                         case "--push-time": a.Opt.PushTime = true; break;
+                        case "--push-fess-trace": a.Opt.PushFessTrace = true; break;
+                        case "--push-fess-bin": a.Opt.PushFessTrace = true; a.Opt.PushFessBin = int.Parse(V()); break;
                         case "--push-memo": a.Opt.PushMemo = true; break;
                         case "--no-push-memo": a.Opt.PushMemo = false; break;
                         case "--push-share": a.Opt.PushShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
@@ -1831,6 +1849,8 @@ namespace LaserTank.Solver
             PushHandScale = s.PushHandScale,
             PushTrace = s.PushTrace,
             PushTime = s.PushTime,
+            PushFessTrace = s.PushFessTrace,
+            PushFessBin = s.PushFessBin,
             PushMemo = s.PushMemo,
             PushCloseOnExpand = s.PushCloseOnExpand,
             PushFerry = s.PushFerry,

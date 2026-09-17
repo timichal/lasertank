@@ -414,6 +414,22 @@ namespace LaserTank.Solver
         public bool PushCloseOnExpand = true;  // see PushFresh in Push.cs
         public bool PushTrace = false;     // per-depth diagnostics to stderr
         public bool PushTime = false;      // --push-time: item 10's seconds
+
+        /// --push-fess-trace: item 23's feature space, projected per node
+        /// rather than per level.  An instrument -- it orders nothing and
+        /// closes nothing, so a run carrying it searches what the same run
+        /// without it searches, one TankRegion flood per emitted successor
+        /// dearer.  See Fess.cs for the four numbers and what each refuses.
+        public bool PushFessTrace = false;
+
+        /// --push-fess-bin: the binning the `cells=` columns use, as a fixed
+        /// width; 0 means log2, which is what tools/fess_project.py's V 0.375
+        /// was measured in.  The `raw=` columns are unbinned whatever this is,
+        /// so one run always carries both ends of the range.  It exists for the
+        /// same reason the tool's own --bin does: the per-level and the
+        /// per-node halves of item 23 have to be askable in *one* space, or a
+        /// scissors between them is an inference rather than a measurement.
+        public int PushFessBin = 0;
         // --push-memo: item 10's fix.  PushH is a pure function of the
         // playfield, the tank's cell and -- only when --push-stop is on, which
         // is the one term that reads PF2 -- what is underneath, so the hats one
@@ -709,6 +725,13 @@ namespace LaserTank.Solver
             /// tier can compare it against the parent's without a second scan;
             /// left at 0 by every other layer and by every other flag.
             public int Swept;
+
+            /// Item 23's feature cell -- `blocks x region`, binned log2 and
+            /// packed -- for this successor's state.  Filled in at emission by
+            /// layer 5 when --push-fess-trace is on and 0 otherwise, which is
+            /// a value no real state has; see Fess.cs.  Read by the report and
+            /// by nothing that orders anything.
+            public int Cell;
         }
 
         /// When a beam closes a state -- and it is a policy, not a bug, which

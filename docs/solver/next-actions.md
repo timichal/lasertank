@@ -1,22 +1,22 @@
 # Next actions — the open items in full
 
-**Two items are open — 23 and 24, what is left of the six written on 2026-09-15 out of a section called
-*Further out*.** The
-*Further out* gate — *only after the numbers above have moved* — was met when item 2's fourth pass ran
-and item 10 closed, and what it had been holding back were fifth-pass questions behind a fourth-pass
-list. **None of 23-24 is new work.** What is new is that each carries a recipe, a cost, and the
-measurement that would refuse it, which is what the rest of this file means by an item; four of them
-turned out to have a falsifier costing minutes that nobody had run, **all four have now been run, and
-three of the four were refused by it** — items 17, 19 and 22, against item 23, which survived its own on
-2026-09-17 and is the only one of the four still standing. That is the argument for writing a bullet out
-as an item rather than leaving it as one: the cheap test is what separates them, and it does so in both
-directions. The reasoning behind the list is in
-[`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
-Items keep their numbers because these files refer to them by number — the finished ones are in
-[*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
-negative results, because a negative result that is deleted gets re-run. **20-25 were new numbers**, not
-reused ones; 20, 25 and 21 all closed on 2026-09-17 and 22 on the same day, and what is left is the two
-that were never about a constant or about a bench.
+**One item is open — 24, and it is parked on a trigger that has not fired.** It is what is left of the
+six written on 2026-09-15 out of a section called *Further out*, whose gate — *only after the numbers
+above have moved* — was met when item 2's fourth pass ran and item 10 closed. **None of them was new
+work.** What was new is that each carried a recipe, a cost, and the measurement that would refuse it,
+which is what the rest of this file means by an item; four turned out to have a falsifier costing
+minutes that nobody had run, **all four have now been run, and all four were refused by it** — items 17,
+19 and 22 outright, and item 23 in two stages on one day, its free half coming back positive and the
+half that needed code refusing it. That is the argument for writing a bullet out as an
+item rather than leaving it as one: the cheap test is what separates them, and it does so in both
+directions — and item 23 is the case for **writing down what a measurement cannot say at the same time
+as what it does**, because that sentence is what the next session ran. The reasoning behind the list is
+in [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the
+evidence. Items keep their numbers because these files refer to them by number — the finished ones are
+in [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including
+the negative results, because a negative result that is deleted gets re-run. **20-25 were new numbers**,
+not reused ones; 20, 25, 21, 22 and 23 all closed on 2026-09-17, and what is left is the one that was
+never about a constant or about a bench.
 
 **All of it runs on the solver machine.** The two halves split on 2026-09-08, and every recipe below
 reads a report out of `build/reports/`, which is gitignored — so a checkout on the
@@ -25,8 +25,28 @@ gated *there* says so in its own entry (item 24). **Nothing left on this list wa
 hours at all** — items 7, 20 and 25, the three that did, have all run and closed — so the habit sessions
 42-51 proved is now a convenience rather than a constraint: a node-governed pass costs a cheap item its
 wall clock and none of its numbers, and there is no longer a pass here for it to cost anything against.
-**What is left is not a measurement**: item 23's measurement ran on 2026-09-17 and did not refuse it, so
-what that item now holds is a build, and item 24 is parked on a trigger that has not fired.
+**What is left is not a measurement at all**: item 23's second half ran on 2026-09-17 and refused it, and
+item 24 is parked on a trigger that has not fired.
+
+**[Item 23 closed on 2026-09-17](history.md#23-the-fess-rung--the-space-separates-levels-or-moves-inside-one-and-never-both),
+negative, and it is the first item here refused by the *second* half of its own falsifier.** The free
+half ran that morning and did not refuse it; the half that needed code — the features computed per
+node, which is what FESS actually cycles over — did. `--push-fess-trace` is the artefact, one
+`TankRegion` flood a successor and no `Restore`, gated over `bench/ferry-levels.txt` at **0 report
+fields differing and 13 of 13 solutions byte-identical**. **The answer is a scissors:** as the bins go
+finer the per-level separation collapses (z **21.9 → 4.1 → 2.6 → 0.4** at log2 / 4 / 2 / raw) and the
+per-node movement rises (**2% → 9% → 14% → 20%**), so `blocks x region` separates levels *or* moves
+inside one and never both — at log2, the only binning where it is demonstrably two separating features,
+a depth occupies **3.5** cells of which the trim was already keeping **2.2**, and **18 of 50** levels
+never leave their starting cell. Counting the columns apart gives the mechanism: **`region` moves (p50
+19%) and carries no signal test 3 will keep, `blocks` carries the signal and never moves at all on 22 of
+50 levels, 15 of them unsolved.** And there is no third column, which is what closes it rather than
+deferring it — `Mobility` is a flood per block and `water` is per-expansion, so of the six near-FESS
+columns only these two are affordable per node and **the item picked the only pair it could afford**.
+**FESS's shape is not refuted**; what is spent is this pair. The two instruments that would qualify
+another are now symmetric and cheap — `fess_project.py --pairs --bin N` at ~10 s and `--push-fess-bin N`
+over a bench at ~4 minutes — and **a candidate has to pass both at the same `N`**, which is the bar no
+pair has been shown to clear.
 
 **[Item 22 closed on 2026-09-17](history.md#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on) in four seconds of machine time, refused by the
 arithmetic it had carried as a note since it was written.** The read names the count the item assumed —
@@ -218,8 +238,8 @@ the path, so "what did the human do next" stays a question only a recording answ
 what that limit costs**, and it is the one place the bank has been asked for something it does not hold:
 the per-flag boards are a subgoal sequence, so the bank looked like a supply of acceptance tests — but
 the acceptance tests were never the scarce half, and what refused that item was the **distance between
-two consecutive destinations**, which is a route. Item 23 inherits from the bank and is not blocked on
-it.
+two consecutive destinations**, which is a route. Closed item 23 never asked the bank for anything and
+was refused on a different axis entirely, so the bank now has no open item pointing at it.
 
 **The machine is free for the first time since 2026-09-10, and the habit the pass forced is worth
 keeping.** Item 2 held sixteen jobs on and off from 2026-09-10 to 2026-09-15 — 67 h 30 m of wall clock
@@ -242,8 +262,11 @@ measurement** — item 7 — **and session 54 spent it in 100 minutes**: it want
 already stopped searching. **Nothing on this list costs hours any more**: items 20 and 25, the last two
 that did, both ran in session 55 and closed — and the three that had a price at all spent almost none of
 it: item 21 took under a minute in session 56, item 22 four seconds in session 57, and item 23's
-projection ten seconds in session 58, on a table that already existed. **Item 23 is the one that did not
-close**, because its falsifier came back positive; item 24 is still parked on a trigger.
+projection ten seconds in session 58, on a table that already existed. **Item 23 is the one that needed
+a second session**, because its cheap falsifier came back positive and the half that could refuse it
+needed code; session 59 built that half and spent it in about fifteen minutes of machine time — a
+50-level gate at four jobs, then the same bench once per binning at one job. **Item 24 is all that is
+left, and it is parked on a trigger.**
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -252,87 +275,7 @@ short.
 
 ---
 
-## 23 (1st) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
-
-**The largest build on this list, and it has a free falsifier nobody has run.** FERRY + SOKOBAN is 53%
-of the sample at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region
-where every successor of every held board is worse* — is the textbook failure of beam search on
-Sokoban. The textbook answer is **FESS** (Shoham & Schaeffer, *The FESS Algorithm: A Feature Based
-Approach to Single-Agent Search*, IEEE CoG 2020), the first solver to clear all 90 XSokoban levels. The
-shape: project states into a small **feature space** (boxes packed, connectivity = the number of
-regions the player is cut into, room connectivity, boxes out of plan); advance by *cycling through the
-occupied feature cells* and expanding the best state in each; weight moves by "advisors" that say which
-pushes serve which feature.
-
-**Two things about it belong here.** It is the general form of two devices these files arrived at by
-measurement — the per-board cap (diversity across boards) and *commit to one block-and-hole pair* (a
-progress cell searched on its own) — so the fit is not speculative. And it respects the fidelity rule:
-the engine still generates every state; the features are `Heuristic.cs` quantities that already exist
-(holes filled, `TankRegion`, ferry-maze distance, `RouteDead`), and the advisors are the read's
-derivations under another name.
-
-**The free step ran on 2026-09-17 and it did not refuse the item** — the first of this list's cheap
-falsifiers to come back positive. It was free because the columns already exist: `--analyze-tsv` carries
-`work route_obst poses region barrier water blocks threats effects shots indirect on_barrier toward
-opens flag_reachable alive mob_max mob_sum`, joinable against any report on `(collection, level)`, so
-the feature space was *projected* before any search was written. `tools/fess_project.py` re-derives
-every number below in about ten seconds:
-
-```bash
-# regenerate the projection first if it predates the binary -- the ~3-minute loop is in instruments.md
-python tools/fess_project.py --pairs
-```
-
-**The population is 2,234 of the 4,185 stride rows** — FERRY + SOKOBAN, **53.4%**, the 53% the item was
-written on — of which the fourth pass fails **1,475**; the shipped chain fails **2,115** of them, a
-**5.3%** solve rate, which is this item's 5.1% re-derived. Binned log2, `blocks x region` occupies
-**66 cells**, and both of the refusals the item wrote for itself miss:
-
-| the refusal the item wrote | what ran | |
-|---|---|---|
-| *the levels the chain fails all land in one cell* | **64** of the 66 cells hold a failure; the largest holds **69 of 1,475 (4.7%)**; **13** cells hold half of them and **36** hold 90% | **no** |
-| *solved and unsolved land in the same cells at the same rate* | chi-square **314.2** on 65 df, Cramer's **V = 0.375**, permutation **p < 0.0005**; over the 38 cells with n >= 20 the solve rate runs **12% to 73%** about a population 34% | **no** |
-
-**Two tests the item did not write, because a pair that fails either one is not a pair.** Each column has
-to separate at a fixed value of the other — `region` within `blocks` strata is **186.0 on 56 df** and
-`blocks` within `region` strata **224.4 on 58 df**, both p < 0.0005, against **133.7** and **100.4** for
-the columns alone — so this is two features and not one of them twice. And it has to survive the
-confound these files keep catching, because both columns are counts that grow with the level. **It
-survives that cleanly, and the size proxy does not survive it.** Inside strata of `poses` the cell still
-separates (**350.7 on 191 df, p < 0.0005**); inside strata of the cell, `poses` is **140.0 on 133 df,
-p = 0.50** — its own degrees of freedom, which is nothing. *The cell is not a proxy for how big the
-level is; how big the level is was a proxy for the cell.*
-
-**The item also picked the right two columns, which was not obvious when it was written.** Of all fifteen
-pairs of the six shipped columns nearest FESS's features, `blocks x region` is the strongest
-(**V 0.375**) and `blocks x mob_sum` second (0.356); single columns top out at **V 0.248** (`alive`), so
-the pairing is worth more than either half of it. The full table is `--pairs`, and the run of record is
-`build/reports/fess-project.txt`.
-
-**What none of it says, and what only the build can.** Every number here is a **root-state, per-level**
-projection, because `--analyze-tsv` reads the authored board. It says the space is not degenerate over
-the population it is aimed at — exactly what the item asked, and no more. FESS cycles cells over the
-*states of one level*, and whether a state **moves** between cells as the search pushes a block needs the
-features computed per node. **That is the build, and this measurement has not priced it.**
-
-**Its second gift is the packing order**, derived backwards from the goal: which hole must be filled
-before which, from where a block can still be pushed *after* the others are down. `--push-ferry-match`
-is the forward half of that; the backward half is what level 6's strip of six holes wants.
-**Independent confirmation from the human record**, which is worth something for a device chosen out of
-a paper: the series' advice for a level you cannot crack is to work *"either forward from the starting
-position or backwards from the ending position"*, and its author — ~70 records, 120 Deadly levels
-solved — names pure Sokoban with no clear phases as the shape he is personally worst at. Our
-worst-solved non-trivial class is that one. See [`human-strategy.md`](human-strategy.md).
-
-**Measured as a union, like every rung before it**, against the banked FERRY + SOKOBAN failures in
-`build/reports/chain5.jsonl`: a rung that adds levels the five banked reports do not already hold, or
-it does not ship. **No wall clock is quoted here and that is deliberate** — it is the one item on this
-list whose build is larger than its run, and pricing a build before the projection above has run would
-be the kind of number these files exist to avoid.
-
----
-
-## 24 (parked) — parent pointers instead of copied keystreams
+## 24 (parked, and the only open item) — parent pointers instead of copied keystreams
 
 **Kept numbered because it has a trigger, and parked because the trigger has fired exactly once.**
 `Snapshot` copies the whole consumed key prefix (`Engine.Search.cs:194`,
