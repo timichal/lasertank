@@ -23,6 +23,22 @@ gets six more restarts, and the push rungs step their widths where a level has p
 
 **The ladder is ten rungs.** Nine before `push-fire` (Layer 9) was added.
 
+**The driver lifts three caps the batch harness leaves alone** — `--push-depth` to 100,000 on the six
+push rungs, `--sg-depth` to 100,000 on the two subgoal rungs, and `--max-keys` to a floor of 5,000 on
+all eight (`Auto.Uncap`, and it is the mechanism the three ferry rungs used to carry by hand). All
+three were called backstops and all three are bounds:
+[item 20](history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy)
+and [item 25](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price)
+measured the first two on a population each and the third has been known since session 22.
+**In a campaign the lift is a bill** — 1.41x and 3.66x the nodes for 1.7% and 1.6% of a population, which
+is why the global defaults have not moved. **Here the capped version is broken rather than merely
+expensive.** Only `push-dead-end` and `subgoal-dead-end` restart (`Push.cs:601`, `Restart.cs:137`), so a
+rung that ends on a *depth* comes back with a live frontier and its budget unspent — and the next round
+hands it four times the nodes it cannot spend and six more restarts that cannot fire. Eight of the ten
+rungs, on every later round, for as long as the lane holds the level. A caller who names any of the
+three on argv gets the number they typed; the lift shows up in the report's `rung` column like any
+other setting.
+
 **The round's winner is the shortest solution, not the first one in ladder order.** More than one rung
 crossing the line in the same round is common — the stop bit is polled every 120 ms and a rung already
 past its search and inside `Clean()` never sees it — and the routes they bring back are not equally

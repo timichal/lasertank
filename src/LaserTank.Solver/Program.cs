@@ -187,8 +187,13 @@ namespace LaserTank.Solver
 "  not because a heuristic went down.  --subgoal enables it\n" +
 "    --sg-width N         subgoal-steps kept per depth, default 4 (narrow and\n" +
 "                         deep is the point; 12 measured worse)\n" +
-"    --sg-depth N         subgoal steps, default 400 -- a backstop, the node\n" +
-"                         budget binds long before it\n" +
+"    --sg-depth N         subgoal steps, default 400 -- and it is a *bound*,\n" +
+"                         not the backstop it was called until item 25\n" +
+"                         measured it: 156 of 233 misses were cut here while\n" +
+"                         holding a median 2.78M of 50M nodes, and lifting it\n" +
+"                         to 100,000 solved 4 more of 243 for 3.66x the nodes.\n" +
+"                         The interactive driver lifts it for itself; a batch\n" +
+"                         pass has to ask\n" +
 "    --sg-closure N       states in one movement closure, default 400\n" +
 "    --sg-closure-depth N movement keys in one closure, default 32\n" +
 "    --sg-candidates N    derived obstacles treated as targets, default 64\n" +
@@ -321,9 +326,14 @@ namespace LaserTank.Solver
 "    --push-restarts N    extra attempts after a dead-end, default 6, each\n" +
 "                         doubling the width; 0 is off.  A dead-end here\n" +
 "                         forfeits its remaining budget, so this is free\n" +
-"    --push-depth N       board changes in a solution, default 1200 -- a\n" +
-"                         backstop only, and MaxKeys because at 400 it was\n" +
-"                         binding at the narrow widths that measured best\n" +
+"    --push-depth N       board changes in a solution, default 1200 -- and it\n" +
+"                         is a *bound*, not the backstop it was called until\n" +
+"                         item 20 measured it: it ended 177 of 177 searches\n" +
+"                         with the node budget not binding behind it (median\n" +
+"                         stop 30.1M of 40M), and lifting it to 100,000 solved\n" +
+"                         3 for 1.41x the nodes.  MaxKeys bounds it whatever\n" +
+"                         it says.  The interactive driver lifts it for\n" +
+"                         itself; a batch pass has to ask\n" +
 "    --push-closure N     poses in one closure, default 4000 -- above the\n" +
 "                         pose count, so truncation means something is odd\n" +
 "    --push-closure-depth N  movement keys to reach one, default 64\n" +
@@ -613,6 +623,11 @@ namespace LaserTank.Solver
             public int ReplanWidth = 8;
             public long ReplanNodes = 1500000;
             public bool Auto, NodesGiven, OutGiven;
+            /// Whether the caller named the three caps the driver lifts for
+            /// itself (Auto.Uncap).  `NodesGiven`'s precedent, and for the
+            /// same reason: a default the driver overrides is a default, but a
+            /// number the caller typed is an instruction.
+            public bool MaxKeysGiven, PushDepthGiven, SgDepthGiven;
             public int Stride = 1;
             public readonly HashSet<int> Difficulty = new HashSet<int>();
             public HashSet<int> Only;      // --levels-list, null when unused
@@ -721,7 +736,7 @@ namespace LaserTank.Solver
                         case "--budget-ms": a.Opt.TimeBudgetMs = int.Parse(V()); break;
                         case "--nodes": a.Opt.NodeBudget = long.Parse(V()); a.NodesGiven = true; break;
                         case "--beam": a.Opt.BeamWidth = int.Parse(V()); break;
-                        case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); break;
+                        case "--max-keys": a.Opt.MaxKeys = int.Parse(V()); a.MaxKeysGiven = true; break;
                         case "--max-keys-record": a.MaxKeysRecord = true; break;
                         // Spelling it out asks for the ratio rule *on its own*,
                         // which is not the default any more: it is how the
@@ -770,7 +785,7 @@ namespace LaserTank.Solver
                             a.Opt.PushWidthRecord = double.Parse(V(), CultureInfo.InvariantCulture);
                             break;
                         case "--push-per-board": a.Opt.PushPerBoard = int.Parse(V()); break;
-                        case "--push-depth": a.Opt.PushDepth = int.Parse(V()); break;
+                        case "--push-depth": a.Opt.PushDepth = int.Parse(V()); a.PushDepthGiven = true; break;
                         case "--push-closure": a.Opt.PushClosureNodes = int.Parse(V()); break;
                         case "--push-closure-depth": a.Opt.PushClosureDepth = int.Parse(V()); break;
                         case "--push-run": a.Opt.PushRun = int.Parse(V()); break;
@@ -812,7 +827,7 @@ namespace LaserTank.Solver
                         case "--subgoal-first": a.Opt.SubgoalLast = false; break;
                         case "--subgoal-share": a.Opt.SubgoalShare = double.Parse(V(), CultureInfo.InvariantCulture); break;
                         case "--sg-width": a.Opt.SgWidth = int.Parse(V()); break;
-                        case "--sg-depth": a.Opt.SgDepth = int.Parse(V()); break;
+                        case "--sg-depth": a.Opt.SgDepth = int.Parse(V()); a.SgDepthGiven = true; break;
                         case "--sg-closure": a.Opt.SgClosureNodes = int.Parse(V()); break;
                         case "--sg-closure-depth": a.Opt.SgClosureDepth = int.Parse(V()); break;
                         case "--sg-candidates": a.Opt.SgCandidates = int.Parse(V()); break;

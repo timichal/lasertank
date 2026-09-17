@@ -262,7 +262,9 @@ namespace LaserTank.Solver
             // this population: `LaserTank.lvl` 6's own hand recording is 904
             // keypresses and a solver route is longer than a human's, so the
             // search was dropping states near the end of the level and reporting
-            // budget.
+            // budget.  It is raised in Uncap() now rather than here -- the same
+            // 5,000, on every push and subgoal rung rather than these three,
+            // and as a floor so that a caller's own --max-keys survives it.
             ("push-ferry", static (o, r) =>
             {
                 o.RunPush = true;
@@ -293,7 +295,6 @@ namespace LaserTank.Solver
                 // is the instrument here: level 8's human line survives to
                 // board change 7 at width 128 and to 15 at 512.
                 o.PushBeamWidth = r >= 5 ? 2048 : r >= 3 ? 512 : 128;
-                o.MaxKeys = 5000;
                 o.PushRestarts += 6 * r;
             }),
             // The same searcher ranked by WorkDistance instead of layer 4's
@@ -342,7 +343,6 @@ namespace LaserTank.Solver
                 // is the instrument here: level 8's human line survives to
                 // board change 7 at width 128 and to 15 at 512.
                 o.PushBeamWidth = r >= 5 ? 2048 : r >= 3 ? 512 : 128;
-                o.MaxKeys = 5000;
                 o.PushRestarts += 6 * r;
             }),
             // The same rung again with the fire map promoted from a price to a
@@ -391,10 +391,52 @@ namespace LaserTank.Solver
                 o.PushFireTier = true;
                 o.PushShotRun = 16;
                 o.PushBeamWidth = r >= 5 ? 2048 : r >= 3 ? 512 : 128;
-                o.MaxKeys = 5000;
                 o.PushRestarts += 6 * r;
             }),
         };
+
+        /// The three caps the driver lifts for itself, applied after `Tune` so
+        /// that the report's `rung` column records them like any other setting.
+        ///
+        /// **All three are bounds rather than backstops, and two of them were
+        /// measured as such in session 55.**  `--push-depth`'s 1,200 ended one
+        /// search in twenty on
+        /// [item 20](../../docs/solver/history.md)'s 177-level population with the
+        /// node budget *not* binding behind it -- the median stop left 10M of
+        /// 40M unspent -- and lifting it solved 3; `--sg-depth`'s 400 cut 156
+        /// of item 25's 233 misses at a median 2.78M of 50M nodes, and lifting
+        /// it solved 4 more, a strict superset, 14 of 14 gated.  `MaxKeys`'s
+        /// 1,200 is the same shape and was already being lifted by hand on the
+        /// three ferry rungs, for the reason written above `push-ferry`.
+        ///
+        /// **Why this is the driver's default and not the batch harness's.**
+        /// The two items priced the lift at 1.41x and 3.66x the nodes, which in
+        /// a node-capped campaign is a real bill for 1.7% and 1.6% of a
+        /// population -- both items handed the list nothing and neither asked
+        /// for the global default to move.  Here it is closer to free and the
+        /// capped version is actively broken: only `push-dead-end` and
+        /// `subgoal-dead-end` restart (`Push.cs:601`, `Restart.cs:137`), so a
+        /// rung that ends on a *depth* returns with a live frontier and its
+        /// budget unspent -- and then every later round hands it four times the
+        /// nodes it cannot spend and six more restarts that cannot fire.  Eight
+        /// of the ten rungs are push or subgoal rungs, so on a level that hits
+        /// the caps the ladder was spending most of the machine re-running the
+        /// same truncated search at ever larger budgets.
+        ///
+        /// 100,000 rather than unbounded is item 20's own arm, and `MaxKeys`
+        /// bounds it anyway -- a board change costs at least one keypress.
+        /// 5,000 is what both arms ran at (`l5_pass.sh:55`, `curve_pass.sh:74`),
+        /// and it is a floor rather than an assignment so that a caller raising
+        /// `--max-keys` is not quietly lowered by a rung, which is what the
+        /// hand-written 5,000s did.  A caller who names any of the three gets
+        /// the number they typed: that is what `*Given` is for.
+        private static void Uncap(Program.Args a, SolveOptions o)
+        {
+            if (!o.RunPush && !o.RunSubgoal) return;
+            if (!a.MaxKeysGiven) o.MaxKeys = Math.Max(o.MaxKeys, 5000);
+            if (o.RunPush && !a.PushDepthGiven) o.PushDepth = Math.Max(o.PushDepth, 100000);
+            if (o.RunSubgoal && !a.SgDepthGiven) o.SgDepth = Math.Max(o.SgDepth, 100000);
+        }
 
         // ---- lanes ---------------------------------------------------------
 
@@ -944,6 +986,7 @@ namespace LaserTank.Solver
                 // Program.ConfigString.
                 SolveOptions before = Program.Clone(o);
                 Ladder[i].Tune(o, r);
+                Uncap(a, o);
                 string tuned = Tuned(before, o);
 
                 Program.Job job = new Program.Job

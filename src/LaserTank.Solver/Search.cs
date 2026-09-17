@@ -162,8 +162,14 @@ namespace LaserTank.Solver
         // and a successor is kept because it made one of them cheaper.
         public bool RunSubgoal = false;
         public int SgWidth = 4;            // subgoal-steps kept per depth
-        public int SgDepth = 400;          // subgoal steps; a backstop, since the
-                                           // node budget binds long before this
+        // Subgoal steps.  Called a backstop until item 25 measured it and found
+        // a bound: on closed item 7's 50M rung it cut 156 of 233 misses at a
+        // median 2.78M nodes, and lifting it to 100,000 solved four more, a
+        // strict superset, at 3.66x the nodes.  Left at 400 because that bill
+        // falls on a node-capped pass which gained nothing from paying it; the
+        // interactive driver, which has budget to burn and wastes a core on a
+        // depth stop, lifts it in Auto.Uncap.
+        public int SgDepth = 400;
         public int SgClosureNodes = 400;   // states in one movement closure
         public int SgClosureDepth = 32;    // movement keys in one closure
         public int SgCandidates = 64;      // frontier obstacles treated as targets
@@ -282,12 +288,20 @@ namespace LaserTank.Solver
         /// Every duplicate then costs a whole closure (~4,500 ApplyKey calls)
         /// to expand into the successors its twin already produced.
         public int PushPerBoard = 1;
-        // Board changes in a solution.  A backstop and nothing else, so it is
-        // MaxKeys: at 400 it was binding at the narrow widths that turned out
-        // to be the good ones (7 of the ferry bench's 50 stopped at push-depth
-        // at width 4), and a cap that stops a search which is still descending
-        // is a cap in the wrong place.  A board change costs at least one
-        // keypress, so MaxKeys cannot be exceeded.
+        // Board changes in a solution.  Set to MaxKeys because at 400 it was
+        // binding at the narrow widths that turned out to be the good ones (7
+        // of the ferry bench's 50 stopped at push-depth at width 4), and a cap
+        // that stops a search which is still descending is a cap in the wrong
+        // place.  A board change costs at least one keypress, so MaxKeys cannot
+        // be exceeded.
+        //
+        // **It was called a backstop here too, and 1,200 is a bound as well.**
+        // Item 20 re-attacked the 177 rows that ended on it with the cap at
+        // 100,000: none of them reached the new one, the node budget had not
+        // been binding behind the old one (median stop 30.1M of 40M) and three
+        // levels fell, for 1.41x the nodes.  Left at 1,200 for the reason
+        // SgDepth is left at 400 -- the bill lands on a node-capped pass that
+        // gained nothing -- and lifted for the driver in Auto.Uncap.
         public int PushDepth = 1200;
         public int PushClosureNodes = 4000;// poses in one PF-preserving closure
         public int PushClosureDepth = 64;  // movement keys to reach one
