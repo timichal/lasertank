@@ -1,19 +1,20 @@
 # Next actions — the open items in full
 
-**Three items are open — 22-24, written on 2026-09-15 out of what used to be a section called *Further
-out*.** The
+**Two items are open — 23 and 24, what is left of the six written on 2026-09-15 out of a section called
+*Further out*.** The
 *Further out* gate — *only after the numbers above have moved* — was met when item 2's fourth pass ran
 and item 10 closed, and what it had been holding back were fifth-pass questions behind a fourth-pass
-list. **None of 22-24 is new work.** What is new is that each carries a recipe, a cost, and the
-measurement that would refuse it, which is what the rest of this file means by an item; three of them
-turned out to have a falsifier costing minutes that nobody had run, which is the argument for writing a
-bullet out as an item rather than leaving it as one. The reasoning behind the list is in
+list. **None of 23-24 is new work.** What is new is that each carries a recipe, a cost, and the
+measurement that would refuse it, which is what the rest of this file means by an item; four of them
+turned out to have a falsifier costing minutes that nobody had run, and **three of those four have now
+been refused by it** — items 17, 19 and 22 — which is the argument for writing a bullet out as an item
+rather than leaving it as one. The reasoning behind the list is in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
 negative results, because a negative result that is deleted gets re-run. **20-25 were new numbers**, not
-reused ones; 20, 25 and 21 all closed on 2026-09-17, and what is left is the three that were never
-about a constant or about a bench.
+reused ones; 20, 25 and 21 all closed on 2026-09-17 and 22 on the same day, and what is left is the two
+that were never about a constant or about a bench.
 
 **All of it runs on the solver machine.** The two halves split on 2026-09-08, and every recipe below
 reads a report out of `build/reports/`, which is gitignored — so a checkout on the
@@ -22,6 +23,21 @@ gated *there* says so in its own entry (item 24). **Nothing left on this list wa
 hours at all** — items 7, 20 and 25, the three that did, have all run and closed — so the habit sessions
 42-51 proved is now a convenience rather than a constraint: a node-governed pass costs a cheap item its
 wall clock and none of its numbers, and there is no longer a pass here for it to cost anything against.
+
+**[Item 22 closed on 2026-09-17](history.md#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on) in four seconds of machine time, refused by the
+arithmetic it had carried as a note since it was written.** The read names the count the item assumed —
+**6** subgoals on level 6, **10** on level 10 — and then the depths refuse it: **6 of 6 subgoals on level
+6 run 18 to 34 board changes** against a sized ≤6, so **one ordering costs 54.8M** against the item's own
+20M and the driver's 40M cap, and there are 6! orderings. Level 10's arithmetic *passes* (17.3M) and its
+**shape** does not. Two findings came with the price and neither is closed item 5's negative:
+**20 of level 6's 168 changes are exact there-and-back pairs** — the tank crossing a staircase of blocks
+— which leave the board identical and move only the tank, and `Subgoal.Offer` is a **board** test, so it
+cannot name either half; and level 10's line **interleaves**, returning to anti-tanks #1 and #2 four
+times each, which an outer search over *orderings* cannot express. They land on opposite halves of the
+design — the inner test and the outer search — which is why shrinking either one does not save it. **The
+goal-board bank does not rescue it**: it supplies destinations, and what the sizing got wrong is the
+distance between two consecutive ones. `tools/subgoal_arith.py` re-derives every number in about four
+seconds and prints the refusal in its last line.
 
 **[Item 21 closed on 2026-09-17](history.md#21-the-two-bench-1-lists-through-one-binary--they-separate-and-the-read-explains-two-thirds-of-it) in under a minute of machine time, and the two bench-1 lists
 are not interchangeable.** Over each list's own layer-0 remainder the chain's three searchers score
@@ -192,11 +208,14 @@ python tools/harvest.py sheet                # the goal residual, ~41 min; tiles
 **hint-assisted** instrument — gated, and none of it in the headline rate — so what it produces is a
 supply of **real recordings on off-distribution long levels**: the sample layer 4 is fit on and
 `--profile` / `basin.py`'s only input, which is 20 hand recordings today. Item 16's falsifiers are all
-measured over those same 20, so a wider bank widens every one of them, and the per-flag boards are a
-subgoal sequence nothing reads yet — [item 22](#22-2nd--subgoal-chaining-over-board-changes), whose
-acceptance test is already in a file. **What it does not give is human *routes***: a goal board names the destination, not
-the path, so "what did the human do next" stays a question only a recording answers. Three items inherit
-from it and none is blocked on it.
+measured over those same 20, so a wider bank widens every one of them. **What it does not give is human
+*routes***: a goal board names the destination, not
+the path, so "what did the human do next" stays a question only a recording answers. **Closed item 22 is
+what that limit costs**, and it is the one place the bank has been asked for something it does not hold:
+the per-flag boards are a subgoal sequence, so the bank looked like a supply of acceptance tests — but
+the acceptance tests were never the scarce half, and what refused that item was the **distance between
+two consecutive destinations**, which is a route. Item 23 inherits from the bank and is not blocked on
+it.
 
 **The machine is free for the first time since 2026-09-10, and the habit the pass forced is worth
 keeping.** Item 2 held sixteen jobs on and off from 2026-09-10 to 2026-09-15 — 67 h 30 m of wall clock
@@ -217,9 +236,9 @@ then declined the board-keyed second layer off the code and closed item 10, so w
 measurement** — item 7 — **and session 54 spent it in 100 minutes**: it wanted the whole machine and
 [used a quarter of its price](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m), because the searchers it was buying nodes for had
 already stopped searching. **Nothing on this list costs hours any more**: items 20 and 25, the last two
-that did, both ran in session 55 and closed. Item 23 refuses itself in ~3 minutes, item 22 is free to
-refuse, and item 24 is parked on a trigger — and item 21, the one that had a price at all, spent under a
-minute of it in session 56.
+that did, both ran in session 55 and closed. Item 23 refuses itself in ~3 minutes and item 24 is parked
+on a trigger — and the two that had a price at all spent almost none of it: item 21 took under a minute
+in session 56, and item 22 took four seconds in session 57 and closed.
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -228,48 +247,7 @@ short.
 
 ---
 
-## 22 (1st) — subgoal chaining over board changes
-
-**The pieces exist, the acceptance test is already in a file, and the first step is free.** Both open
-levels ask for layer 2's decomposition one level out. The acceptance test in `Subgoal.Offer`
-(`Subgoal.cs:344`) is a board test; for a gauntlet the board test is *the safe flood gained a named
-route cell* (`--push-reach`'s flood, set inclusion rather than count), and for a Sokoban it is *block b
-stands on the next cell of its maze path* (`--push-ferry-maze`'s BFS already produces the path).
-
-**Run the arithmetic before writing a line of it**, which is what items 5, 17 and 19 were each closed
-by and what this item has carried as a note since it was written:
-
-```bash
-build/lasertank-solve.exe --levels data/levels/LaserTank.lvl \
-      --levels-list <(printf '6\n10\n') --analyze
-```
-
-— how many subgoals does the read name on each level, and how deep is each one on the hand line? The
-sizing that makes the item worth building is that a sub-search for one subgoal on level 10 is width 64
-x depth <= 6 x ~5,100 nodes per expansion ~= **2M nodes**; ten shields is 20M, the budget one round of
-the driver already spends. The outer search is over the *order* of subgoals, depth-first with
-backtracking, re-deriving the read after each — at most 6! orderings on level 6 and mostly pruned by
-the matching. **What refuses the item at this step, for the price of two `--analyze` runs:** a read
-that names materially more subgoals than that, or a hand line whose subgoals run deeper than ~6 board
-changes each, turns 20M into a number the driver does not have.
-
-**Closed item 5 is the thing this has to beat, and it is the reason this is 4th rather than 2nd.**
-Level 6's line does come apart into six short phases, `--push-phases` does commit to the right first
-board — its first fill is (9,14), the cell the human fills first — and **phase 2 never lands at width
-32, 128 or 512, and not from the human's own board either.** A subgoal chain is a better decomposition
-than a phase, but it is still a decomposition, and what beat level 6 was the **ranking** in the middle
-of a phase: `best=137` flat for 237 depths, the same signature as level 10's GAUNTLET. Build this
-knowing that, or it will re-derive item 5's negative at a higher price.
-
-**What it inherits that it did not have when it was written:** the goal-board bank's per-flag boards
-are a subgoal sequence nothing reads yet — `bench/goal-boards.json`, **6,030 levels / 7,622 goal
-boards**, 0 unknown tiles — which is a supply of acceptance tests rather than the two levels this item
-was sized on. The bank is hint-assisted and outside the rate, which is the right side of that line for
-a test.
-
----
-
-## 23 (2nd) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
+## 23 (1st) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
 
 **The largest build on this list, and it has a free falsifier nobody has run.** FERRY + SOKOBAN is 53%
 of the sample at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region

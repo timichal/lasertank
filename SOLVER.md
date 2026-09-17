@@ -320,11 +320,12 @@ searchers literally stop on when nothing else is in their way. [Closed item 7](d
 
 ## What is open
 
-**Three items — 22-24, the old *Further out* bullets written out on 2026-09-15.** None is new work; each
+**Two items — 23 and 24, what is left of the old *Further out* bullets written out on 2026-09-15.** Neither
+is new work; each
 one carries a recipe, a cost and the measurement that would refuse it. The gate that section carried (*only after the numbers above have
 moved*) was met when item 2's fourth pass ran and item 10 closed. **Nothing on this list costs hours any
-more** — items 20 and 25, the last two that did, both ran on 2026-09-17 and closed, and item 21 closed
-the same day in eight four-second bench runs. Numbers are kept
+more** — items 20 and 25, the last two that did, both ran on 2026-09-17 and closed; item 21 closed the
+same day in eight four-second bench runs, and item 22 closed in four seconds without a build. Numbers are kept
 because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
@@ -332,9 +333,26 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **22** | **1st** | **Subgoal chaining over board changes.** The acceptance test is already in `Subgoal.Offer`, and the first step is not a build: run the arithmetic against `--analyze` on levels 6 and 10 — how many subgoals, how deep each is on the hand line — because 20M nodes is the sizing and a deeper read makes it a number the driver does not have. **Closed item 5 is what it has to beat**: level 6's phases are short, the commitment is right, and the beam still cannot walk phase 2 from any board | **free** to refuse; a build to confirm |
-| **23** | 2nd | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
+| **23** | **1st** | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
 | **24** | parked | **Parent pointers instead of copied keystreams.** `Snapshot` copies the whole key prefix and `Restore` copies it back, which is why 76,800 wide was 1.1 GB. **The trigger is written down**: a run bounded by memory rather than nodes, which has happened once (level 9) and which items 14 and 19 between them argue against wanting again. It is also the one item that changes Core, so it is built and gated on the **game** machine before the solver machine trusts the binary | — |
+
+**Item 22 closed on 2026-09-17 in four seconds, refused by the arithmetic it had carried as a note since
+it was written — no build, no search.** The read names exactly the count the item assumed (**6** subgoals
+on `LaserTank.lvl` 6, **10** on level 10), so the first of its two refusal conditions does not fire and
+the second does: cut by the item's own acceptance tests, **6 of 6 subgoals on level 6 run 18 to 34 board
+changes** against a sized ≤ 6, which makes **one ordering 54.8M nodes** against the item's 20M and the
+driver's 40M cap — and the outer search is over 6! of them. **Two structural findings came with the
+price and neither is closed item 5's negative.** **20 of level 6's 168 changes are exact there-and-back
+pairs** — the tank shoving a staircase of blocks aside and back to cross it — which leave the board
+*identical* and move only the tank; `Subgoal.Offer` is a **board** test, so it cannot name either half,
+and no refinement of the test can. And level 10, whose arithmetic *passes* at 17.3M, **interleaves**:
+8 of its 10 anti-tanks in 14 stretches, returning to #1 and #2 four times each, which an outer search
+over *orderings* — permutations, i.e. contiguous blocks — cannot express. The two objections land on
+opposite halves of the design, the inner test and the outer search, which is why shrinking either one
+does not save it. **The goal-board bank does not rescue it**: it supplies destinations, and what the
+sizing got wrong is the distance between two consecutive ones, which is a route.
+`tools/subgoal_arith.py` re-derives all of it and prints the refusal in its last line.
+[Closed item 22](docs/solver/history.md#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on).
 
 **Item 21 closed on 2026-09-17 in under a minute of machine time, and the answer is the population.** Over
 each list's own layer-0 remainder — which makes both *levels this binary's layer 0 misses* — the chain's
@@ -567,12 +585,15 @@ inferred from a scratch recording),
 [41](docs/solver/history.md#session-41--the-filenames-the-harvester-could-not-read-and-the-four-readers-that-assumed-the-graphics)
 (the filenames, the 21 posts naming another level, and the four readers above).
 
-Nothing on the list is blocked on any of it and three items inherit from it — `--goal-board`'s
+Nothing on the list is blocked on any of it and what is left inherits from it — `--goal-board`'s
 hint-assisted bootstrap becomes a corpus-scale supply of real recordings on long levels, which is the
-off-distribution sample layer 4 is fit on and `--profile` / `basin.py`'s only input; the per-flag boards
-are a subgoal sequence for item 22's chaining; and every falsifier items 15-17 were measured
-on reads only the 20 hand recordings. **What it does not supply is human routes** — a goal board names the
-destination, not the path.
+off-distribution sample layer 4 is fit on and `--profile` / `basin.py`'s only input, and every falsifier
+items 15-17 were measured on reads only the 20 hand recordings. **What it does not supply is human
+routes** — a goal board names the
+destination, not the path — and closed item 22 is what that limit costs: the per-flag boards are a
+subgoal sequence, so the bank looked like a supply of acceptance tests for the chaining, but the
+acceptance tests were never the scarce half and the distance between two consecutive destinations is a
+route.
 
 **Item 6 took three sessions and closed in session 36; the whole record is
 [closed item 6](docs/solver/history.md#6-the-blogspot-goal-board-harvester-and-the-goal-board-as-a-ranking-key).**

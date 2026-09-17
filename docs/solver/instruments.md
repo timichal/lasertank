@@ -179,6 +179,7 @@ python tools/phases.py              # the free half: where a hand line's phases 
 python tools/phases.py --verbose    # ...and what each milestone consumed
 python tools/phase_reach.py 6       # the paid half: can the beam walk one?
 python tools/phase_reach.py 6 status
+python tools/subgoal_arith.py       # closed item 22: the same cut, priced
 ```
 
 - **`phases.py` costs no search at all.** It reads `--push-line`'s replay at `--nodes 1` and cuts each
@@ -193,6 +194,16 @@ python tools/phase_reach.py 6 status
   (its fills are second on their row) and **every DEMOLITION read as having no milestone at all**, which
   is exactly the shape of error that looks like a finding. The pose prefix is now cut off before the
   fields are split, and an unparsed field raises rather than being skipped.
+- **`subgoal_arith.py` is `phases.py`'s cut with a price on it**, and it is what closed item 22. Same
+  instrument, same `--nodes 1` replay, same unit — but the cut comes from the *item's* acceptance tests
+  rather than from a consumable census, which matters because **`phases.py` cuts level 10 into nothing at
+  all**: its hand line shoves anti-tanks 53 times and consumes none of them, so a milestone census is
+  empty on the level and the item's own test has to supply the boundary. The two agree exactly where both
+  apply — level 6's six carries are `phases.py`'s six segments, 18, 26, 28, 30, 32, 34 — which is the
+  check that the second cut is not a new unit. It also reports the two things a length cannot: how many
+  changes inside a segment the acceptance test **cannot name** (20 of level 6's are board-identical
+  there-and-back pairs), and whether the human **interleaves** segments (level 10 returns to two
+  anti-tanks four times each).
 - **`phase_reach.py` is a real run of the real chain**, `--push-phases --push-trace` seeded at each
   milestone, and the answer is read off the trace's own commit line rather than off a win. So a YES is
   the searcher doing the thing the flag does. Rows are `hint=push-seed:K` like item 18's and keyed on
@@ -362,6 +373,11 @@ phases.py         closed item 5's free half: cut each hand line at its *mileston
                     a board change after which some consumable object is strictly
                     rarer -- and report the phase lengths against horizon.py's number.
                     No search: it reads --push-line's replay at --nodes 1
+subgoal_arith.py  closed item 22's whole measurement, ~4 s: the subgoal count from
+                    --analyze against the depths from --push-line, cut by the item's
+                    own acceptance tests -- carries on a SOKOBAN, one-anti-tank
+                    stretches on a GAUNTLET -- and priced at the item's own
+                    width x depth x nodes.  Prints its refusal in its last line
 phase_reach.py    closed item 5's paid half, and the falsifier: seed at each milestone
                     and ask whether the beam reaches the next one.  Where horizon.py
                     asks for a *win* and so only ever measures the end of a line, this

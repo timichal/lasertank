@@ -2531,6 +2531,96 @@ answer it directly: of the 18, today's layer 0 solves **4** and the chain arms s
 tier's +9 still rests on one list and this item does not change that. Nothing here is banked; the
 solutions are in `build/bench/` on closed item 7's precedent.
 
+### 22. Subgoal chaining — refused by its own arithmetic, on both of the levels it was sized on.
+
+**Closed in session 57 for the price of two `--analyze` runs and two one-node replays — no search, no
+build.** The item proposed layer 2's decomposition one level out: an **outer** search over the *order* of
+the subgoals the read names, an **inner** sub-search for one subgoal accepted by a board test
+(`Subgoal.Offer`, `Subgoal.cs:344`). Its sizing was one line — *width 64 x depth ≤ 6 x ~5,100 nodes per
+expansion ≈ 2M a subgoal, ten of them 20M, a budget one round of the driver already spends* — and it
+wrote its own refusal against that line: **a read that names materially more subgoals than that, or a
+hand line whose subgoals run deeper than ~6 board changes each.** The first condition does not fire. The
+second fires on both levels. `tools/subgoal_arith.py` is the whole measurement and re-derives every
+number below.
+
+**The count the read names is exactly what the item assumed**, which is worth stating because it is the
+half that survived: `--analyze` names **6** subgoals on `LaserTank.lvl` 6 (`SOKOBAN x6`, six water cells
+and six blocks) and **10** on level 10 (`GAUNTLET`, ten anti-tanks covering the route). Six and ten
+against the item's six and ten. Nothing about the read is wrong here.
+
+**Level 6, cut by the item's own SOKOBAN test** — *block b stands on the next cell of its maze path*, with
+the carried block identified backwards from each fill:
+
+| carry | changes | advancing | setup | sub-search at the item's rate |
+|---|---:|---:|---:|---:|
+| 1 | 18 | 13 | 5 | 5.9M |
+| 2 | 26 | 18 | 8 | 8.5M |
+| 3 | 28 | 22 | 6 | 9.1M |
+| 4 | 30 | 26 | 4 | 9.8M |
+| 5 | 32 | 30 | 2 | 10.4M |
+| 6 | 34 | 34 | 0 | 11.1M |
+
+**Six of six subgoals run deeper than six board changes — 18 to 34, 3x to 5.7x the sizing — and one
+ordering costs 54.8M nodes**, against the 20M the item budgeted and the 40M the driver caps a level at.
+The outer search is over orderings and there are 6! of them; the *first* one is already 1.37x the cap.
+That is the refusal, and it is arithmetic rather than a search result. The segment lengths are the same
+six numbers [`tools/phases.py`](../../tools/phases.py) prints for closed item 5 (18, 26, 28, 30, 32, 34),
+which is the check that the two cuts agree: on a level whose only consumable is water, *fill a hole* and
+*finish a carry* are the same boundary.
+
+**The `setup` column is the part that is not arithmetic, and it is the finding.** **25 of the 168 changes
+advance no block toward any hole**, and **20 of those 25 are exact there-and-back pairs on a block that
+is not the one being carried** — d19 `(12,2)->(11,2)` undone by d20 `(11,2)->(12,2)`, four such pairs in
+carry 2, three in carry 3, two in carry 4, one in carry 5. The five blocks sit on a diagonal
+staircase across the tank's route to the sixth, so every carry shoves each surviving block aside, drives
+through, and shoves it back. **A there-and-back pair returns the board to where it found it.** The only
+thing it changes is where the tank stands. Layer 5's states are board-plus-closure so the search can
+represent them, but **`Subgoal.Offer` is a board test, as the item itself says, and no board test can
+name a change that leaves the board unchanged** — neither the item's maze-path test nor any other. The
+count falls 5, 8, 6, 4, 2, 0 as the staircase is consumed, which is why the *advancing* fraction rises
+to 34 of 34 on the last carry and why the level gets easier exactly where it is already won.
+
+**Level 10 refuses it from the other side, and its arithmetic passes.** The `GAUNTLET` test is *the safe
+flood gained a named route cell*; the flood is not printed per depth and `--analyze` reads the authored
+board however it is seeded (checked: `--push-seed 00010.lpb:10 --analyze` prints the same 18 cells / 208
+poses as K=0), so the cut used is the coarser thing the flood is a proxy for — a maximal stretch of
+consecutive changes spent on one anti-tank. That is **generous** to the item, since it can only make the
+subgoals look shorter and more numerous. The line never destroys anything — **53 changes, all shoves, and
+`tools/phases.py` cuts this level into nothing at all** — and it lands on **8 of the 10 named anti-tanks
+in 14 stretches**:
+
+| | |
+|---|---|
+| stretches, in order | #1(12) #2(9) #3(2) #2(3) #4(3) #5(2) #1(3) #2(4) #6(2) #1(3) #7(2) #2(3) #8(2) #1(3) |
+| per anti-tank | #1:**21**, #2:**19**, #3:2, #4:3, #5:2, #6:2, #7:2, #8:2 |
+
+**One ordering costs 17.3M, inside the item's own 20M** — level 10's cost is fine. What is not fine is
+that **#1 and #2 are each returned to four separate times**, after other subgoals have been started. An
+outer search over *orderings* enumerates permutations; a permutation is a sequence of contiguous blocks,
+and **the human's line is not one**. And the two subgoals that carry the level are **21 and 19 changes**,
+3.2x and 3.5x the sized depth, so even the generous cut leaves 2 of 8 over.
+
+**What this adds over closed item 5, which the item was told to beat.** Item 5 measured that level 6's
+phases are short, that `--push-phases` commits to the right first board, and that phase 2 never lands
+from any board. It did not price a decomposition and it did not look at level 10's line at all. The two
+things here are new and neither is item 5's negative: **a board-identical change the acceptance test
+cannot see** (level 6) and **an interleaved line the ordering search cannot express** (level 10). They
+are different objections and they land on different halves of the design — the inner test and the outer
+search — which is why the item does not survive by shrinking either one.
+
+**The goal-board bank does not rescue it**, which is the inheritance the item was written to collect.
+`bench/goal-boards.json`'s per-flag boards are a supply of *acceptance tests*, and the acceptance tests
+were never the scarce half: the read already names the right number of subgoals on both levels. What the
+bank cannot supply is the distance between two consecutive destinations, and that distance — 18 to 34 on
+level 6, 19 and 21 on level 10 — is what the sizing got wrong. A goal board names a destination, not a
+route, and this item needed the route.
+
+**Nothing was built and nothing ships.** `tools/subgoal_arith.py` is the only artefact, it runs in about
+four seconds against `build/lasertank-solve.exe`, and it prints the refusal in its own last line. The
+transferable rule is the one the item already carried and this is the fourth item to close on it — items
+5, 17 and 19 were the first three: **run the arithmetic before writing a line of it.** Here the
+arithmetic cost two `--analyze` runs, exactly as the item predicted it would.
+
 ### 25. `--sg-depth` was a bound too — four levels, at two and a half times item 20's price.
 
 **Closed in session 55, positive on the flag and worth nothing to the corpus, which is the pair of
@@ -3438,6 +3528,19 @@ cheapest question that is not circular. The second use closed negative for free:
 GAUNTLETs the chain leaves **8**, **6** of them held out from `bench/gauntlet-tail.txt`, so the fire
 tier's +9 still rests on one population. **The open list is three items: 22-24.**
 
+**session 57 — item 22, refused by its own arithmetic in four seconds of machine time.** The item at the
+front of the list wrote its refusal down when it was written — *a hand line whose subgoals run deeper
+than ~6 board changes each* — and nobody had run it. The read names the right count on both levels (**6**
+on level 6, **10** on level 10), and then **6 of 6 subgoals on level 6 run 18 to 34 changes deep, one
+ordering of 54.8M against a 40M cap**, and level 10's two load-bearing subgoals run **21 and 19**. Two
+structural findings came with the price: **20 of level 6's 168 changes are exact there-and-back pairs**
+that leave the board identical and move only the tank, which `Subgoal.Offer` is a board test and
+therefore cannot name; and level 10's line **interleaves**, returning to anti-tanks #1 and #2 four times
+each, which an outer search over *orderings* cannot express. Neither is closed item 5's negative, and
+they land on opposite halves of the design. The goal-board bank does not rescue it — it supplies
+destinations and the sizing was wrong about the distance between them.
+`tools/subgoal_arith.py` re-derives all of it. **The open list is two items: 23-24.**
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -3452,8 +3555,8 @@ and this is the map:
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |
 | 5 | level 10: the file's arithmetic and the machine disagree | closed item 8 above — **the pointer was right about the depth and wrong about the key** |
 | 6 | the driver cannot be run unattended | closed item 9 above — `--max-round` |
-| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#23-3rd--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus) item 23 |
-| 8 | subgoal chaining over board changes | [next-actions](next-actions.md#22-2nd--subgoal-chaining-over-board-changes) item 22 |
+| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#23-1st--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus) item 23 |
+| 8 | subgoal chaining over board changes | [closed item 22](#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on) — **refused by its own arithmetic**: 18-34 changes a subgoal against a sized 6 |
 | 9 | `MaxKeys` from the record, not from a global | closed item 12 above — `--max-keys-record` |
 | 10 | the width ceiling is memory, and the memory is keystreams | [next-actions](next-actions.md#24-parked--parent-pointers-instead-of-copied-keystreams) item 24, parked |
 | 11-12 | the three *checked, and not opportunities* items | [next-actions](next-actions.md#checked-and-not-opportunities) |
