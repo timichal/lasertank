@@ -8,9 +8,11 @@ is open is in [`next-actions.md`](next-actions.md); the design record is in [`la
 
 ## Closed items — the measurements, including the negative ones
 
-Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 19 is done,
-and ten of those closed *negative* or half-negative** — which is the ordering rule
-paying off rather than failing. The largest of the positives is
+Numbered as [`next-actions.md`](next-actions.md) refers to them. **Every item from 1 to 20 is done, and
+25 with them, and ten of those closed *negative* or half-negative** — which is the ordering rule
+paying off rather than failing. Items 20 and 25 are the two smallest positives and they are one reading:
+**two depth constants documented as backstops, both binding, worth 1.7% and 1.6% of their own
+populations** and nothing at all to the corpus in 25's case. The largest of the positives is
 [item 2](#2-the-fourth-pass-run-over-the-corpus--1087-levels-and-the-stride-ranked-the-wrong-second-arm),
 which took the corpus from **494 to 1,581 of 4,185** and is the only item here that cost days of machine
 time rather than hours. Two of the negatives (17, then 5) are items that reached
@@ -1495,9 +1497,9 @@ long before it"* (`Program.cs:190`). At 50M that sentence is false on **156 of 2
 `for (int step = 0; step < _opt.SgDepth && frontier.Count > 0; step++)` falls out, so `subgoal-depth`
 means 400 steps walked **with a live frontier and the budget still in hand** — and the hand is full:
 those levels use a median of **2.78M of 50M nodes, 94% unspent**, and stop after a median **13.8 s**.
-That is the same shape as [item 20](next-actions.md#20-1st--push-depth-on-the-enables-arm)'s
+That is the same shape as [item 20](#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy)'s
 `--push-depth` on the `enables` arm, one flag over and one searcher across, and it is written up as
-[item 25](next-actions.md#25-2nd--sg-depth-on-the-chains-subgoal-passes). The nuance that keeps it
+[item 25](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price). The nuance that keeps it
 binary: `--sg-slack` successors are steps that removed nothing, so a beam can spend 400 steps without
 400 obstacles gone, and *raise the cap* and *stop wasting steps* are different fixes. **Run it uncapped
 and find out which** — the banked rung is the control.
@@ -2408,6 +2410,137 @@ it.
 *Worth the paragraph because the naive reading of 25.2%-vs-7.0% would have killed a live hypothesis and
 the naive reading of 26.2% would have oversold it.*
 
+### 20. `--push-depth` was the wall on three levels, and a symptom on a hundred and seventy.
+
+**Closed in session 55, positive, and it is the smallest positive in these files — which is the
+result.** The 177 rows of `build/reports/l5-enables.jsonl` that stopped on `push-depth` are the whole
+population, every one of them a failure, so the control is **0 of 177** by construction. Re-attacked with
+the cap lifted from 1,200 board changes to 100,000 and the arm otherwise identical to
+`l5_pass.sh`'s own `enables`:
+
+| | control (capped) | arm (`--push-depth 100000`) |
+|---|---:|---:|
+| solved | **0 of 177** | **3 of 177** (1.7%) |
+| stops on `push-depth` | 177 | **0** |
+| stops on `budget` | 0 | 170 |
+| stops on `push-dead-end` | 0 | 4 |
+| at the 40M node cap | 0 | **174 of 177** |
+| median nodes | 30.1M | **40.0M** |
+| total nodes | 5,004M | 7,042M (**1.41x**) |
+| job time | 9 h 52 m | 10 h 25 m |
+
+**Three levels, all three through the two-engine gate, and two of them new to the composite:**
+
+| level | name | tier | keys | ratio | nodes |
+|---|---|---|---:|---:|---:|
+| `Challenge-II` 291 | Full insight | Easy | 249 | 2.90x | 26.7M |
+| `Gary-I` 1051 | SlipBridge-325 | Medium | 237 | 4.84x | 28.4M |
+| `Sokoban-I` 991 | The marathon | Easy | 429 | 2.57x | 26.9M |
+
+`Sokoban-I` 991 is already inside item 2's 1,087 — another arm had it — so **the composite goes
+1,581 → 1,583 of 4,185**. The population was 16 Kids / 111 Easy / 34 Medium / 14 Hard / 2 Deadly and the
+three wins came out of the two tiers holding 82% of it, so **nothing here reaches a tier the fourth pass
+had not already reached**.
+
+**The flag's documentation is wrong, and correcting it is most of the value.** `Search.cs:291` sets
+`PushDepth = 1200` and `Program.cs:324` calls it *a backstop*; on this arm, at this budget, it was ending
+one search in twenty and the node budget was **not** binding behind it — the median stop left 10M of 40M
+unspent, and lifting the cap spent it (median nodes 30.1M → the full 40M, 174 of 177 at the cap). So the
+backstop was a bound. **What it was not is a wall.** 170 of the 177 walked further and still lost, 4
+walked to a genuinely empty frontier, and the cap was the last thing standing between the search and a
+solution on **three**. An arm that ends on a constant nobody sized is worth fixing on principle; this one
+was worth **3 levels of 177** in practice, and **2** once the other arms of the fourth pass are counted.
+
+**The intermediate outcome the item predicted did not happen, and that is a clean negative on the bug
+report.** The recipe said in advance: *if any level stops on `push-depth` again at 100,000, the cap is not
+the quantity anyone thinks it is and this is a bug report rather than a measurement.* None did. The
+frontier loop at `Push.cs:705` consumes the bound exactly as documented; only its default was wrong.
+
+**Two honesty checks, both clean.** `BUDGET_MS`'s 30-minute guard never bound — the slowest level in the
+run is **365 s** against 1,800 — so every column here is a node reading. And nothing came near
+`--max-keys 5000`: the longest solution is `Sokoban-I` 991 at **429 keys**, which is item 2's ~1% finding
+on a third population.
+
+**What it leaves, and what it does not hand on.** `build/reports/l5-enables-depth-out.jsonl` and the
+filtered population beside it are banked; the three solutions are in `build/l5/enables-depth` and are not
+banked into `data/solutions/`, on
+[item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m)'s precedent. The 174 levels now
+at the node cap are budget-bound, and that question is already answered — **more budget is one level per
+36 hours** — so this item hands the list nothing. **A default should be a measurement**: `PushDepth`'s
+1,200 was never one, and neither was `SgDepth`'s 400, which is
+[item 25](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price)'s question and still open.
+
+### 25. `--sg-depth` was a bound too — four levels, at two and a half times item 20's price.
+
+**Closed in session 55, positive on the flag and worth nothing to the corpus, which is the pair of
+readings.** `--sg-depth`'s help text says *"subgoal steps, default 400 — a backstop, the node budget
+binds long before it"* (`Program.cs:190`), and `Subgoal.cs:159` sets the `subgoal-depth` stop when the
+step loop falls out with a **live frontier**. Closed item 7's banked 50M rung is the control: 10 of 243,
+with **156 of its 233 misses cut at 400 steps** holding a median 2.78M of 50M nodes. Re-run with the cap
+lifted to 100,000 and everything else — including `BUDGET_MS=1800000` and `--max-keys 5000` — copied off
+`curve_pass.sh`:
+
+| | control (`--sg-depth 400`) | arm (100,000) |
+|---|---:|---:|
+| solved | 10 of 243 | **14 of 243**, a strict superset |
+| gated | — | **14 of 14**, zero divergences |
+| stops on `subgoal-depth` | 156 | **0** |
+| stops on `budget` | 17 | 161 |
+| stops on `subgoal-dead-end` | 60 | 68 |
+| at the 50M node cap | 17 | **161** |
+| median nodes | 2.90M | **50.0M** |
+| total nodes | 2,585M | 9,456M (**3.66x**) |
+| job time | 2 h 09 m | **11 h 57 m** |
+
+**The four the cap was holding, and the control stopped on `subgoal-depth` on every one of them** — which
+is as direct as this kind of attribution gets:
+
+| level | name | tier | keys | ratio | nodes | control |
+|---|---|---|---:|---:|---:|---|
+| `Beginner-I` 191 | problems2 | Kids | 94 | 1.62x | 3.5M | cut at 7.3 s |
+| `Sokoban-II` 546 | without haggle | Easy | 138 | 1.41x | 8.3M | cut at 2.7 s |
+| `Challenge-I` 1071 | Ranger | Easy | 153 | 1.47x | 22.1M | cut at 6.0 s |
+| `LaserTank` 391 | Río de la Muerte | Easy | 133 | 2.51x | 21.8M | cut at 17.8 s |
+
+**So the documentation is wrong here exactly as it was wrong on `--push-depth`, and the two items make
+one reading rather than two.** Two independent searchers, two constants nobody sized, two populations,
+and the same answer at almost the same rate — **3 of 177 (1.7%)** on the push arm against **4 of 243
+(1.6%)** on the subgoal beam. What differs is the bill: item 20 paid **1.41x** the nodes for its three and
+this paid **3.66x** for its four, because past 400 steps the subgoal beam is budget-bound — **161 of 243
+now burn the whole 50M** against 17 before.
+
+**Its marginal contribution to the corpus is zero, and that is structural rather than bad luck.** All
+**14** are already inside item 2's 1,087: the population here is item 2's own 1-in-15 stride, which the
+fourth pass swept at 40M with three push arms, so this item could not have added a level to the composite
+whatever it found. **It measures the searcher, not the corpus**, and the composite stands where closed
+item 20 left it at **1,583 of 4,185**. The solutions are in `build/solutions/sgdepth` and are not banked,
+on [item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m)'s precedent.
+
+**The `--sg-slack` fork resolves against slack, which is the one prediction the item got to make.** The
+recipe said: *if lifting the cap converts `subgoal-depth` into `budget` **without** solving anything, the
+cap was not the constraint — the slack was.* It solved four, so the cap **was** a constraint and
+`--sg-slack` is not the follow-up. Neither is a bigger budget:
+[closed item 7](#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) already prices that at one
+level per 36 hours, and 161 levels at the cap is that finding again. **This item hands the list nothing**,
+which is what a constant that has now been measured should hand it.
+
+**`l4` was not run.** The item cited `l4`'s 163 `subgoal-depth` misses beside `l3`'s 156 and the recipe
+only ever carried the `l3` arm; `l3` is the pass that answers *does this cap bind*, and running the second
+one would price a 12-hour arm to re-confirm a binary. **It is not open work.**
+
+**The run this replaces, and the rule that cost.** The first arm, run the same day, named `NODES` and not
+`BUDGET_MS`, so it took `second_pass.sh:141`'s **60-second** default against a control `curve_pass.sh` had
+given **1,800** — **202 of its 243 rows stopped on the clock**, max 31.3M nodes, **0 at the 50M cap**, and
+it read as net +1 with a level *lost*. At the right clock nothing is lost and the arm is a strict superset.
+**A second-pass arm inherits `second_pass.sh`'s defaults, not its control's**: copy every env var the
+control's runner set, not only the one the question is about, and check the finished report's max `ms`
+against the guard before reading any node column — here it is **364 s** against 1,800, so every column
+above is a node reading. **One wrinkle from that false start is in the numbers and is sound**: the re-run
+skipped 11 levels the void arm had already solved, because `Plan()` sees the `.lpb`, so 232 of the 243
+rows are the re-run's and 11 are completed searches from the 60-second arm. A *solved* row is a search
+that finished — its nodes and ms are real, not truncated — and a node-governed search that wins inside 39 s
+wins inside 1,800, so the union is the arm's and only the two cost columns carry those 11 cheap rows.
+
 ### The original per-tier attribution, kept as history
 
 The 150k per-pass curve as first measured. Its per-pass columns are the pre-`4765ae9` searchers and two of
@@ -3202,6 +3335,32 @@ every rung bought nothing (longest solution **403 keys** against the 1,200 defau
 question was not answered** — this curve ran the chain, not the push arms — and it keeps a caveat on its
 way back to the list: ask it below 40M. **The open list is six items: 20-25.**
 
+**session 55 — both depth constants measured, both bounds, and neither worth much.** The twins ran in
+one sitting as planned and **20 and 25 both close positive**, which between them is one reading rather
+than two: **two independent searchers stopped by a constant nobody sized, documented as a backstop in
+both cases, and worth 1.7% and 1.6% of their own populations.** Item 20 re-attacked the 177 `enables`
+rows that stopped on `push-depth` at a cap of 100,000: **3 solved, 3 of 3 gated** — `Challenge-II` 291,
+`Gary-I` 1051, `Sokoban-I` 991 — of which **2 are new, so the composite is 1,583 of 4,185**. The stop
+went **177 → 0**, **174 of 177** now reach the 40M node cap against a median 30.1M before, and it cost
+**1.41x** the nodes; the predicted bug report did not materialise, because **no level stopped on
+`push-depth` again at 100,000**. Item 25 did the same to `--sg-depth` on the chain's `l3` pass against
+closed item 7's banked 50M rung: **14 of 243 against 10, a strict superset, 14 of 14 gated**,
+`subgoal-depth` **156 → 0**, and the control stopped on `subgoal-depth` on **all four** of the levels it
+gained. It cost **3.66x** the nodes — 2 h 09 m of job time became 11 h 57 m, and **161 of 243 now burn
+the whole 50M** — and its **marginal contribution to the corpus is zero**, because its population is item
+2's own 1-in-15 stride and all 14 are already inside the fourth pass's 1,087. That also resolves the
+`--sg-slack` fork the item set itself: it solved four, so the cap was a real constraint and slack is not
+the follow-up; neither is budget, which closed item 7 prices at one level per 36 hours. **The session
+also lost a run and the rule is worth more than the arm was.** Item 25's first arm named
+`NODES=50000000` and not `BUDGET_MS`, so it took `second_pass.sh:141`'s **60-second** default against a
+control `curve_pass.sh` had given **1,800**: **202 of 243 rows stopped on the clock**, 0 at the node cap,
+and it read as net +1 *with a level lost*. At the right clock nothing is lost. **A second-pass arm
+inherits `second_pass.sh`'s defaults, not its control's** — copy every env var the control's runner set,
+not only the one the question is about, and check the finished report's max `ms` against the guard before
+reading a node column. **What is left is a decision rather than a measurement**: `PushDepth = 1200`
+(`Search.cs:291`) and `SgDepth = 400` (`Program.cs:190`) are now both measured and both wrong as
+defaults, and changing them moves every future run. **The open list is four items: 21-24.**
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /
@@ -3216,8 +3375,8 @@ and this is the map:
 | 4 | what `--push-eval learned` ranks by at the shipped weights | closed item 1 above; the four keys are in [layer 4](layers.md#the-two-defects-that-kept-this-layer-inert-and-the-four-ranking-keys-that-came-out-of-them) |
 | 5 | level 10: the file's arithmetic and the machine disagree | closed item 8 above — **the pointer was right about the depth and wrong about the key** |
 | 6 | the driver cannot be run unattended | closed item 9 above — `--max-round` |
-| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#23-5th--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus) item 23 |
-| 8 | subgoal chaining over board changes | [next-actions](next-actions.md#22-4th--subgoal-chaining-over-board-changes) item 22 |
+| 7 | half the corpus is a Sokoban, and Sokoban has a solved literature (FESS) | [next-actions](next-actions.md#23-3rd--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus) item 23 |
+| 8 | subgoal chaining over board changes | [next-actions](next-actions.md#22-2nd--subgoal-chaining-over-board-changes) item 22 |
 | 9 | `MaxKeys` from the record, not from a global | closed item 12 above — `--max-keys-record` |
 | 10 | the width ceiling is memory, and the memory is keystreams | [next-actions](next-actions.md#24-parked--parent-pointers-instead-of-copied-keystreams) item 24, parked |
 | 11-12 | the three *checked, and not opportunities* items | [next-actions](next-actions.md#checked-and-not-opportunities) |

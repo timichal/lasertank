@@ -320,23 +320,47 @@ searchers literally stop on when nothing else is in their way. [Closed item 7](d
 
 ## What is open
 
-**Six items — 20-24, the old *Further out* bullets written out on 2026-09-15, and 25, which closed item
-7 handed over on 2026-09-16.** 20-24 are not new work; each one now carries a recipe, a cost and the
-measurement that would refuse it. The gate that section carried (*only after the numbers above have
+**Four items — 21-24, the old *Further out* bullets written out on 2026-09-15.** None is new work; each
+one carries a recipe, a cost and the measurement that would refuse it. The gate that section carried (*only after the numbers above have
 moved*) was met when item 2's fourth pass ran and item 10 closed. **Nothing on this list costs hours any
-more** — item 7, the one item that did, has run. Numbers are kept because these files refer to
+more** — items 20 and 25, the last two that did, both ran on 2026-09-17 and closed. Numbers are kept
+because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
 Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/next-actions.md).
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **20** | **1st** | **`--push-depth` is not a backstop on the `enables` arm.** Closed item 2 turned it up without being asked: `enables` is the only arm that stops on `push-depth` at scale — **177 levels of 3,691** against `l8fire`'s 6 and `layer7`'s 3 — leaving a median **10M of the 40M nodes unspent**. The population is banked (the `push-depth` rows of `l5-enables.jsonl`), the control is **0 of 177**, and the arm is re-run uncapped rather than raised, because *does this cap bind* is binary and *is 4,000 better than 1,200* is not a question | **~2 h wall**, derived off item 2's own rate rather than a `price` run |
-| **25** | **2nd** | **`--sg-depth` is not a backstop on the chain's subgoal passes either** — item 20's twin, one flag over and one searcher across, and [closed item 7](docs/solver/history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) found it. The help text says *a backstop, the node budget binds long before it*; at 50M, **156 of 233** `l3` misses and **163 of 232** `l4` misses stop on `subgoal-depth` against 17 and 12 on budget, with a median **2.78M of 50M nodes unspent (94%)** after 13.8 s. The 50M rung is banked as the control, so it is one re-run with the cap lifted. **Run it in the same sitting as item 20** | **~30 min wall**, derived off the banked rung's own rate |
-| **21** | 3rd | **The two bench-1 lists through one binary.** Session 48 recovered the original 60-level bench 1 beside the committed reconstruction, and the pair makes possible the one measurement neither could make alone — **the population isolated from the code**, which every bench-1 delta this project has argued about confounds. If they separate at layer 0 that is the answer; the held-out GAUNTLET use is weaker and comes second | **minutes** — 60 levels at 150k, twice |
-| **22** | 4th | **Subgoal chaining over board changes.** The acceptance test is already in `Subgoal.Offer`, and the first step is not a build: run the arithmetic against `--analyze` on levels 6 and 10 — how many subgoals, how deep each is on the hand line — because 20M nodes is the sizing and a deeper read makes it a number the driver does not have. **Closed item 5 is what it has to beat**: level 6's phases are short, the commitment is right, and the beam still cannot walk phase 2 from any board | **free** to refuse; a build to confirm |
-| **23** | 5th | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
+| **21** | **1st** | **The two bench-1 lists through one binary.** Session 48 recovered the original 60-level bench 1 beside the committed reconstruction, and the pair makes possible the one measurement neither could make alone — **the population isolated from the code**, which every bench-1 delta this project has argued about confounds. If they separate at layer 0 that is the answer; the held-out GAUNTLET use is weaker and comes second | **minutes** — 60 levels at 150k, twice |
+| **22** | 2nd | **Subgoal chaining over board changes.** The acceptance test is already in `Subgoal.Offer`, and the first step is not a build: run the arithmetic against `--analyze` on levels 6 and 10 — how many subgoals, how deep each is on the hand line — because 20M nodes is the sizing and a deeper read makes it a number the driver does not have. **Closed item 5 is what it has to beat**: level 6's phases are short, the commitment is right, and the beam still cannot walk phase 2 from any board | **free** to refuse; a build to confirm |
+| **23** | 3rd | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
 | **24** | parked | **Parent pointers instead of copied keystreams.** `Snapshot` copies the whole key prefix and `Restore` copies it back, which is why 76,800 wide was 1.1 GB. **The trigger is written down**: a run bounded by memory rather than nodes, which has happened once (level 9) and which items 14 and 19 between them argue against wanting again. It is also the one item that changes Core, so it is built and gated on the **game** machine before the solver machine trusts the binary | — |
+
+**Item 25 closed on 2026-09-17 beside its twin, positive on the flag and worth nothing to the corpus.**
+`--sg-depth 400` carries the same *backstop* claim one searcher across, and against closed item 7's
+banked 50M rung the uncapped arm scores **14 of 243 against 10 — a strict superset, 14 of 14 gated** —
+with `subgoal-depth` **156 → 0** and the control stopping on `subgoal-depth` on **all four** levels
+gained. It cost **3.66x the nodes**: 2 h 09 m of job time became 11 h 57 m and **161 of 243 now burn the
+whole 50M** against 17 before. **Its marginal contribution to the corpus is zero and that is structural**
+— its population is item 2's own 1-in-15 stride, so all 14 are already inside the fourth pass's 1,087 and
+no result it could have produced would have moved the composite. It resolves the `--sg-slack` fork it set
+itself, against slack: the cap was a real constraint, so the follow-up is not slack, and it is not budget
+either. **With item 20 it makes one reading — two searchers, two constants nobody sized, 1.7% and 1.6% of
+their own populations** — and what is left is a decision rather than a measurement: `PushDepth = 1200` and
+`SgDepth = 400` are both now measured and both wrong as defaults.
+[Closed item 25](docs/solver/history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price).
+
+**Item 20 closed on 2026-09-17, positive, and it is the smallest positive in these files.** The 177
+`enables` rows that stopped on `push-depth` — a control of **0 of 177** by construction — were
+re-attacked with the cap lifted from 1,200 board changes to 100,000, and **3 solved, 3 of 3 gated**:
+`Challenge-II` 291 *Full insight*, `Gary-I` 1051 *SlipBridge-325*, `Sokoban-I` 991 *The marathon*. Two
+are new, so **the composite is 1,583 of 4,185**. The cap is gone as a stop — **177 → 0**, 170 moving to
+`budget` and 4 to `push-dead-end` — and **174 of 177 now reach the 40M node cap** against a median 30.1M
+before, at **1.41x the nodes**. So `--push-depth`'s *backstop* documentation was wrong and the default
+was a bound; what it was **not** is a wall, on 98% of the searches it was ending. **A default should be a
+measurement** — `PushDepth`'s 1,200 never was, and neither is `SgDepth`'s 400, which is item 25.
+The predicted bug report did not materialise: no level stopped on `push-depth` again at 100,000.
+[Closed item 20](docs/solver/history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy).
 
 **Item 7 closed on 2026-09-16, negative, in 100 minutes, and it is the last of the fourth-pass list.**
 The solved-vs-budget curve ran the chain's four searchers at 1M, 10M and 50M over item 2's own 1-in-15

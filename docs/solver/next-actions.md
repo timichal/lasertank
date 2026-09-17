@@ -1,28 +1,51 @@
 # Next actions — the open items in full
 
-**Six items are open — 20-24, written on 2026-09-15 out of what used to be a section called *Further
-out*, and 25, which [closed item 7](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) handed over on its way out on 2026-09-16.** The
+**Four items are open — 21-24, written on 2026-09-15 out of what used to be a section called *Further
+out*.** The
 *Further out* gate — *only after the numbers above have moved* — was met when item 2's fourth pass ran
 and item 10 closed, and what it had been holding back were fifth-pass questions behind a fourth-pass
-list. **None of 20-24 is new work.** What is new is that each carries a recipe, a cost, and the
+list. **None of 21-24 is new work.** What is new is that each carries a recipe, a cost, and the
 measurement that would refuse it, which is what the rest of this file means by an item; three of them
 turned out to have a falsifier costing minutes that nobody had run, which is the argument for writing a
 bullet out as an item rather than leaving it as one. The reasoning behind the list is in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
-negative results, because a negative result that is deleted gets re-run. **20-25 are new numbers**, not
-reused ones.
+negative results, because a negative result that is deleted gets re-run. **20-25 were new numbers**, not
+reused ones; 20 and 25 closed on 2026-09-17 and what is left is the four that were never about a
+constant.
 
 **All of it runs on the solver machine.** The two halves split on 2026-09-08, and every recipe below
 except item 21's reads a report out of `build/reports/`, which is gitignored — so a checkout on the
 game machine has all of the tools and none of the inputs, and the one item that has to be built and
-gated *there* says so in its own entry (item 24). **Nothing left on this list wants the machine for more than a couple
-of hours** — item 7, the one item that did, has run and closed — so the habit sessions 42-51 proved is
-now a convenience rather than a constraint: a node-governed pass costs a cheap item its wall clock and
-none of its numbers, and **items 20 and 25 are the same question on two flags and should be run in one
-sitting**.
+gated *there* says so in its own entry (item 24). **Nothing left on this list wants the machine for
+hours at all** — items 7, 20 and 25, the three that did, have all run and closed — so the habit sessions
+42-51 proved is now a convenience rather than a constraint: a node-governed pass costs a cheap item its
+wall clock and none of its numbers, and there is no longer a pass here for it to cost anything against.
 
+**[Item 20 closed on 2026-09-17](history.md#20---push-depth-was-the-wall-on-three-levels-and-a-symptom-on-a-hundred-and-seventy), positive, and it is the smallest positive in these files.**
+The 177 `enables` rows that stopped on `push-depth` were re-attacked with the cap lifted to 100,000 and
+**3 solved, 3 of 3 gated** — `Challenge-II` 291 *Full insight*, `Gary-I` 1051 *SlipBridge-325*,
+`Sokoban-I` 991 *The marathon* — of which **2 are new to the composite**, taking it to
+**1,583 of 4,185 (37.8%)**. The cap is gone as a stop: **177 → 0**, with 170 moving to `budget` and 4 to
+`push-dead-end`, and **174 of 177 now reach the 40M node cap** against a median 30.1M before. So
+`--push-depth 1200` **was** binding rather than backstopping, and the flag's own documentation was
+wrong — but it was the wall on **1.7%** of the levels it was ending and a symptom on the rest, which is
+the answer the item wanted and the smaller half of it. **The cap cost 1.41x the nodes to lift and bought
+1.13% of the population.** What it hands the list is nothing new: the 174 at the cap are budget-bound and
+[closed item 7](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m) has already
+priced more budget at one level per 36 hours.
+**[Item 25 closed on 2026-09-17 too](history.md#25---sg-depth-was-a-bound-too--four-levels-at-two-and-a-half-times-item-20s-price), positive on the flag
+and worth nothing to the corpus.** `--sg-depth 400` is the same claim one searcher across — *a backstop,
+the node budget binds long before it* — and against closed item 7's banked 50M rung the uncapped arm
+scores **14 of 243 against 10, a strict superset, 14 of 14 gated**, with `subgoal-depth` **156 → 0** and
+the control stopping on `subgoal-depth` on **all four** levels gained. It cost **3.66x the nodes** (2 h 09 m
+of job time became 11 h 57 m, **161 of 243 now burn the whole 50M**), and **all 14 are already inside item
+2's 1,087** — the population is item 2's own stride, so this item could not have moved the composite
+whatever it found. It also resolves the `--sg-slack` fork it set itself, against slack. **Its first arm
+was void**: the recipe named `NODES` and not `BUDGET_MS`, so it ran at `second_pass.sh:141`'s 60-second
+default against a control with 1,800 and **202 of 243 rows stopped on the clock**. The rule that cost is
+in the closed entry and is the session's most portable result.
 **[Item 10 closed on 2026-09-15](history.md#10-wall-clock-on-the-push-rungs--the-memo-shipped-and-the-layer-underneath-it-is-declined)**
 — positive on its build and negative on the piece left over. `PushH` is **41-48% of the expansion**, which
 is the whole of the 166k-against-1.4M gap this item was written about, and `--push-memo` collects
@@ -158,7 +181,7 @@ python tools/harvest.py sheet                # the goal residual, ~41 min; tiles
 supply of **real recordings on off-distribution long levels**: the sample layer 4 is fit on and
 `--profile` / `basin.py`'s only input, which is 20 hand recordings today. Item 16's falsifiers are all
 measured over those same 20, so a wider bank widens every one of them, and the per-flag boards are a
-subgoal sequence nothing reads yet — [item 22](#22-4th--subgoal-chaining-over-board-changes), whose
+subgoal sequence nothing reads yet — [item 22](#22-2nd--subgoal-chaining-over-board-changes), whose
 acceptance test is already in a file. **What it does not give is human *routes***: a goal board names the destination, not
 the path, so "what did the human do next" stays a question only a recording answers. Three items inherit
 from it and none is blocked on it.
@@ -181,8 +204,9 @@ clock and none of its numbers**. **The flip landed in session 51 and re-gated `I
 then declined the board-keyed second layer off the code and closed item 10, so what was left was one
 measurement** — item 7 — **and session 54 spent it in 100 minutes**: it wanted the whole machine and
 [used a quarter of its price](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m), because the searchers it was buying nodes for had
-already stopped searching. **That leaves nothing on this list costing hours.** Item 20 is the longest
-at ~2 h and item 25 rides with it; the rest are minutes.
+already stopped searching. **Nothing on this list costs hours any more**: items 20 and 25, the last two
+that did, both ran in session 55 and closed. Item 23 refuses itself in ~3 minutes, item 21 in minutes,
+item 22 is free to refuse, and item 24 is parked on a trigger.
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -191,112 +215,7 @@ short.
 
 ---
 
-## 20 (1st) — `--push-depth` on the `enables` arm
-
-**The cheapest unclaimed thing in these files, and closed item 2 turned it up without being asked.**
-`enables` is the only arm of the fourth pass that stops on `push-depth` at scale — **177 levels of
-3,691**, against `l8fire`'s 6 and `layer7`'s 3 — and those stops leave a median **10M of the 40M nodes
-unspent** (p50 30.1M used). The flag is documented as *a backstop only*: `Search.cs:291` sets
-`PushDepth = 1200` board changes and `Push.cs:705` consumes it as the frontier loop's bound. On that
-arm, at that budget, the backstop is the thing that ends the search.
-
-**The population is banked and the control is free.** Those 177 are exactly the rows of
-`build/reports/l5-enables.jsonl` whose `stop` is `push-depth`, every one of them a failure — so the
-control is **0 of 177** and any level that falls is a level the fourth pass left on the table. Filter
-the banked report to those rows and re-attack them with the cap lifted and the arm otherwise identical;
-`second_pass.sh` re-attacks the unsolved rows of whatever report it is given, so the filtered report
-*is* the level list:
-
-```bash
-python - <<'PY'
-import json
-src, dst = "build/reports/l5-enables.jsonl", "build/reports/l5-enables-depth.jsonl"
-rows = {}
-for line in open(src, encoding="utf-8-sig"):
-    line = line.strip()
-    if line:
-        r = json.loads(line); rows[(r["collection"], r["level"])] = r    # last line wins
-keep = [r for r in rows.values() if not r["solved"] and r["stop"] == "push-depth"]
-open(dst, "w").write("".join(json.dumps(r) + "\n" for r in keep))
-print(len(keep), "levels ->", dst)                                       # expect 177
-PY
-
-BASE="--no-ida --no-beam --push --push-read --max-keys 5000 --max-keys-record"
-NODES=40000000 BUDGET_MS=1800000 JOBS=16 bash tools/second_pass.sh \
-      build/reports/l5-enables-depth.jsonl l5/enables-depth \
-      build/reports/l5-enables-depth-out.jsonl $BASE --push-enables 8 --push-depth 100000
-python tools/verify_solutions.py build/l5/enables-depth
-```
-
-**`--push-depth 100000` is uncapped rather than raised, and that is the whole design of the arm.** An
-intermediate value asks *is 4,000 better than 1,200*, which nothing here wants to know; uncapped asks
-*does this cap bind at all*, which is binary, and the node budget is still the real bound. Everything
-else on the line is `l5_pass.sh`'s own `BASE` plus its `arm_flags enables`, copied rather than retyped,
-so a difference against the banked rows is the cap and nothing else.
-
-**Cost is arithmetic off closed item 2, not a `price` run, and it is labelled that way on purpose.**
-The pass's three arms averaged 22.5 h of wall clock over 3,691 levels at 16 jobs; these 177 are 4.8% of
-that population, so **~1.1 h** if they cost the arm's average — and they do not, because each has a
-median 10M nodes it was not allowed to spend and will now spend it. **Call it two hours of wall clock,
-derived**, and if that matters, `SAMPLE=4` on `second_pass.sh` prices it against a quarter of the list
-first.
-
-**What refuses it:** the 177 re-attacked uncapped and **0 solved**, in which case `push-depth` was the
-symptom of an arm already lost rather than the wall, and the flag's own documentation was right. One
-intermediate outcome is worth predicting before the run so that it is not read as a result: if the
-stops move from `push-depth` to `budget` and nothing solves, that is the clean negative; if any level
-stops on `push-depth` *again* at 100,000, the cap is not the quantity anyone thinks it is and this is a
-bug report rather than a measurement.
-
-**Run it with [item 25](#25-2nd--sg-depth-on-the-chains-subgoal-passes) in the same sitting.** That item
-is this one's twin — `--sg-depth`, also documented as a backstop, also binding, on the *chain's* subgoal
-passes rather than on a push arm — and it was found by closed item 7 nine days after this one was found
-by closed item 2. **Two independent searchers have now been caught bounded by a depth constant nobody
-sized**, which is worth more as a pair of readings than as two items a month apart.
-
----
-
-## 25 (2nd) — `--sg-depth` on the chain's subgoal passes
-
-**Closed item 7 turned this up on its way out, and it is item 20's question one flag over and one
-searcher across.** `--sg-depth`'s own help text is the claim being refused: *"subgoal steps, default 400
-— a backstop, the node budget binds long before it"* (`Program.cs:190`). The budget curve measured that
-at 50M nodes and it is false. Of `l3`'s 233 misses, **156 stop on `subgoal-depth`** against 17 on
-`budget`; of `l4`'s 232, **163 against 12**. `Subgoal.cs:159` sets that stop when
-`for (int step = 0; step < _opt.SgDepth && frontier.Count > 0; step++)` falls out with a **live
-frontier** — so those levels walked 400 subgoal steps, still had somewhere to go, and were cut. **They
-had a median 2.78M of 50M nodes left, 94% of the budget unspent, after a median 13.8 s.** Item 20's
-`enables` arm leaves a median 10M of 40M on the table; this leaves 47M of 50M.
-
-**The population is banked and the control is free**, which is what makes this cheap: the 50M rung's
-`l3` and `l4` reports are in `build/reports/` from session 54, so the arm is one re-run against rows that
-already exist.
-
-```bash
-NODES=50000000 bash tools/second_pass.sh build/reports/curve-50000000-l0.jsonl solutions/sgdepth \
-  build/reports/sgdepth-l3.jsonl --no-ida --no-beam --subgoal --sg-eval coarse --sg-depth 100000
-python tools/verify_solutions.py build/solutions/sgdepth
-```
-
-**~30 min of wall clock at 16 jobs**, derived off the banked rung's own rate (2 h 09 m of job time for
-`l3` at 50M) rather than a `price` run. **Run it in the same sitting as item 20** — same question, same
-shape of answer, two flags — and read both against *does this cap bind*, which is binary, rather than
-against *is 100,000 better than 400*, which is not a question.
-
-**What refuses it:** the arm solves the same 10 levels and the stop reasons move from `subgoal-depth` to
-`budget` with nothing else changing. That is the cap doing its job as a backstop after all, on a budget
-big enough to reach it, and it closes negative in half an hour.
-
-**The nuance that decides which fix is right, and it is why the arm is uncapped rather than raised.**
-`--sg-slack` keeps board-changing successors that removed nothing, so a step is not necessarily an
-obstacle gone and a beam can spend 400 steps making no progress. If lifting the cap converts
-`subgoal-depth` into `budget` **without** solving anything, the cap was not the constraint — the slack
-was — and the follow-up is `--sg-slack`, not a bigger number. **The two outcomes are distinguishable in
-the same run**, which is the whole reason to run it uncapped: a raise to 4,000 would confound them.
-
----
-
-## 21 (3rd) — the two bench-1 lists through one binary
+## 21 (1st) — the two bench-1 lists through one binary
 
 **Minutes, and it decides whether a whole class of number in these files can be read at all.** Session
 48 brought back the **originals** of all three level lists from the game machine's `build/` —
@@ -336,7 +255,7 @@ needs `chain.jsonl` and a filter before it means anything.
 
 ---
 
-## 22 (4th) — subgoal chaining over board changes
+## 22 (2nd) — subgoal chaining over board changes
 
 **The pieces exist, the acceptance test is already in a file, and the first step is free.** Both open
 levels ask for layer 2's decomposition one level out. The acceptance test in `Subgoal.Offer`
@@ -377,7 +296,7 @@ a test.
 
 ---
 
-## 23 (5th) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
+## 23 (3rd) — a FESS-shaped rung for the Sokoban/ferry half of the corpus
 
 **The largest build on this list, and it has a free falsifier nobody has run.** FERRY + SOKOBAN is 53%
 of the sample at 5.1% solved, and level 6's diagnosis — *a greedy level-synchronous beam in a region
