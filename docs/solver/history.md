@@ -3541,6 +3541,22 @@ they land on opposite halves of the design. The goal-board bank does not rescue 
 destinations and the sizing was wrong about the distance between them.
 `tools/subgoal_arith.py` re-derives all of it. **The open list is two items: 23-24.**
 
+**session 58 — item 23's falsifier ran and did not refuse it, which is the first time that has happened.**
+Four items on this list turned out to carry a cheap test nobody had run; three of them died on it (17, 19,
+22) and the fourth did not. The FESS feature space was projected over the fourth pass's report in ten
+seconds on a table that already existed — the **1,475** FERRY + SOKOBAN failures spread over **64 of 66**
+`blocks x region` cells, largest **4.7%**, and the cells separate at **V 0.375, permutation p < 0.0005**.
+**The two tests the item did not write are the transferable half.** Each column separates at a fixed
+value of the other, so the pair is two features rather than one twice; and the cell survives the size
+confound *in both directions* — inside `poses` strata the cell still separates (**350.7 on 191 df**),
+inside cell strata `poses` is **140.0 on 133 df, p = 0.50**, which is its own degrees of freedom and
+nothing more. **The habit that produced the previous three negatives produced this positive at the same
+price**, and the thing it cost was ~3 minutes of re-running `--analyze-tsv`, because the banked corpus
+table predated the three columns item 16 added. `tools/fess_project.py` is the instrument and is not
+FESS-specific: any two columns, any report, four tests. **What it explicitly cannot say is that a state
+moves between cells during a search** — it reads the authored board — so item 23 stays open on its build
+and stays unpriced. **The open list is still two items: 23-24.**
+
 ## Where session 26's twelve pointers went
 
 The pointers section was a pass over the file and the source by a different model, tagged **measured** /

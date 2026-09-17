@@ -6,9 +6,11 @@
 and item 10 closed, and what it had been holding back were fifth-pass questions behind a fourth-pass
 list. **None of 23-24 is new work.** What is new is that each carries a recipe, a cost, and the
 measurement that would refuse it, which is what the rest of this file means by an item; four of them
-turned out to have a falsifier costing minutes that nobody had run, and **three of those four have now
-been refused by it** — items 17, 19 and 22 — which is the argument for writing a bullet out as an item
-rather than leaving it as one. The reasoning behind the list is in
+turned out to have a falsifier costing minutes that nobody had run, **all four have now been run, and
+three of the four were refused by it** — items 17, 19 and 22, against item 23, which survived its own on
+2026-09-17 and is the only one of the four still standing. That is the argument for writing a bullet out
+as an item rather than leaving it as one: the cheap test is what separates them, and it does so in both
+directions. The reasoning behind the list is in
 [`SOLVER.md`](../../SOLVER.md#what-is-open); this file carries the recipes, the costs and the evidence.
 Items keep their numbers because these files refer to them by number — the finished ones are in
 [*Closed items*](history.md#closed-items--the-measurements-including-the-negative-ones), including the
@@ -23,6 +25,8 @@ gated *there* says so in its own entry (item 24). **Nothing left on this list wa
 hours at all** — items 7, 20 and 25, the three that did, have all run and closed — so the habit sessions
 42-51 proved is now a convenience rather than a constraint: a node-governed pass costs a cheap item its
 wall clock and none of its numbers, and there is no longer a pass here for it to cost anything against.
+**What is left is not a measurement**: item 23's measurement ran on 2026-09-17 and did not refuse it, so
+what that item now holds is a build, and item 24 is parked on a trigger that has not fired.
 
 **[Item 22 closed on 2026-09-17](history.md#22-subgoal-chaining--refused-by-its-own-arithmetic-on-both-of-the-levels-it-was-sized-on) in four seconds of machine time, refused by the
 arithmetic it had carried as a note since it was written.** The read names the count the item assumed —
@@ -236,9 +240,10 @@ then declined the board-keyed second layer off the code and closed item 10, so w
 measurement** — item 7 — **and session 54 spent it in 100 minutes**: it wanted the whole machine and
 [used a quarter of its price](history.md#7-the-solved-vs-budget-curve--run-and-it-saturates-below-10m), because the searchers it was buying nodes for had
 already stopped searching. **Nothing on this list costs hours any more**: items 20 and 25, the last two
-that did, both ran in session 55 and closed. Item 23 refuses itself in ~3 minutes and item 24 is parked
-on a trigger — and the two that had a price at all spent almost none of it: item 21 took under a minute
-in session 56, and item 22 took four seconds in session 57 and closed.
+that did, both ran in session 55 and closed — and the three that had a price at all spent almost none of
+it: item 21 took under a minute in session 56, item 22 four seconds in session 57, and item 23's
+projection ten seconds in session 58, on a table that already existed. **Item 23 is the one that did not
+close**, because its falsifier came back positive; item 24 is still parked on a trigger.
 
 **`LaserTank.lvl` 6 is no longer an item** — closed item 5 measured that its line comes apart into six short
 phases and that the search cannot walk two of them from *any* board, the human's included, so the line
@@ -266,25 +271,49 @@ the engine still generates every state; the features are `Heuristic.cs` quantiti
 (holes filled, `TankRegion`, ferry-maze distance, `RouteDead`), and the advisors are the read's
 derivations under another name.
 
-**The free step is first, and it is free because the columns already exist.** `--analyze-tsv` carries
+**The free step ran on 2026-09-17 and it did not refuse the item** — the first of this list's cheap
+falsifiers to come back positive. It was free because the columns already exist: `--analyze-tsv` carries
 `work route_obst poses region barrier water blocks threats effects shots indirect on_barrier toward
-opens flag_reachable alive mob_max mob_sum`, joinable against any report on `(collection, level)`, and
-the whole corpus is one ~3-minute loop ([`instruments.md`](instruments.md)). So the feature space can
-be *projected* before any search is written:
+opens flag_reachable alive mob_max mob_sum`, joinable against any report on `(collection, level)`, so
+the feature space was *projected* before any search was written. `tools/fess_project.py` re-derives
+every number below in about ten seconds:
 
 ```bash
-for c in Beginner-I Beginner-II Challenge-I Challenge-II Challenge-III Challenge-IV Challenge-V \
-         Gary-I Gary-II LaserTank Sokoban-I Sokoban-II Special-I; do
-  build/lasertank-solve.exe --levels "data/levels/$c.lvl" --analyze-tsv "build/reports/an-$c.tsv"
-done
-# then join against build/reports/chain5.jsonl and cross-tabulate the FERRY + SOKOBAN rows on
-# (blocks x region) -- the two shipped columns closest to FESS's first two features
+# regenerate the projection first if it predates the binary -- the ~3-minute loop is in instruments.md
+python tools/fess_project.py --pairs
 ```
 
-**What that refuses, for three minutes:** FESS *is* cycling through occupied feature cells, so it buys
-nothing if the levels the chain fails all land in one cell, or if solved and unsolved land in the same
-cells at the same rate. A feature space that does not separate the population it is aimed at is not a
-feature space, and this is the one thing that can be known before the build.
+**The population is 2,234 of the 4,185 stride rows** — FERRY + SOKOBAN, **53.4%**, the 53% the item was
+written on — of which the fourth pass fails **1,475**; the shipped chain fails **2,115** of them, a
+**5.3%** solve rate, which is this item's 5.1% re-derived. Binned log2, `blocks x region` occupies
+**66 cells**, and both of the refusals the item wrote for itself miss:
+
+| the refusal the item wrote | what ran | |
+|---|---|---|
+| *the levels the chain fails all land in one cell* | **64** of the 66 cells hold a failure; the largest holds **69 of 1,475 (4.7%)**; **13** cells hold half of them and **36** hold 90% | **no** |
+| *solved and unsolved land in the same cells at the same rate* | chi-square **314.2** on 65 df, Cramer's **V = 0.375**, permutation **p < 0.0005**; over the 38 cells with n >= 20 the solve rate runs **12% to 73%** about a population 34% | **no** |
+
+**Two tests the item did not write, because a pair that fails either one is not a pair.** Each column has
+to separate at a fixed value of the other — `region` within `blocks` strata is **186.0 on 56 df** and
+`blocks` within `region` strata **224.4 on 58 df**, both p < 0.0005, against **133.7** and **100.4** for
+the columns alone — so this is two features and not one of them twice. And it has to survive the
+confound these files keep catching, because both columns are counts that grow with the level. **It
+survives that cleanly, and the size proxy does not survive it.** Inside strata of `poses` the cell still
+separates (**350.7 on 191 df, p < 0.0005**); inside strata of the cell, `poses` is **140.0 on 133 df,
+p = 0.50** — its own degrees of freedom, which is nothing. *The cell is not a proxy for how big the
+level is; how big the level is was a proxy for the cell.*
+
+**The item also picked the right two columns, which was not obvious when it was written.** Of all fifteen
+pairs of the six shipped columns nearest FESS's features, `blocks x region` is the strongest
+(**V 0.375**) and `blocks x mob_sum` second (0.356); single columns top out at **V 0.248** (`alive`), so
+the pairing is worth more than either half of it. The full table is `--pairs`, and the run of record is
+`build/reports/fess-project.txt`.
+
+**What none of it says, and what only the build can.** Every number here is a **root-state, per-level**
+projection, because `--analyze-tsv` reads the authored board. It says the space is not degenerate over
+the population it is aimed at — exactly what the item asked, and no more. FESS cycles cells over the
+*states of one level*, and whether a state **moves** between cells as the search pushes a block needs the
+features computed per node. **That is the build, and this measurement has not priced it.**
 
 **Its second gift is the packing order**, derived backwards from the goal: which hole must be filled
 before which, from where a block can still be pushed *after* the others are down. `--push-ferry-match`

@@ -322,10 +322,12 @@ searchers literally stop on when nothing else is in their way. [Closed item 7](d
 
 **Two items — 23 and 24, what is left of the old *Further out* bullets written out on 2026-09-15.** Neither
 is new work; each
-one carries a recipe, a cost and the measurement that would refuse it. The gate that section carried (*only after the numbers above have
+one carries a recipe, a cost and the measurement that would refuse it. **Every one of those measurements
+has now been run**, and item 23's is the only one of the four that came back positive. The gate that section carried (*only after the numbers above have
 moved*) was met when item 2's fourth pass ran and item 10 closed. **Nothing on this list costs hours any
 more** — items 20 and 25, the last two that did, both ran on 2026-09-17 and closed; item 21 closed the
-same day in eight four-second bench runs, and item 22 closed in four seconds without a build. Numbers are kept
+same day in eight four-second bench runs, item 22 closed in four seconds without a build, and item 23's
+projection ran in ten seconds on a table that already existed. Numbers are kept
 because these files refer to
 items by number; the finished ones are in
 [*Closed items*](docs/solver/history.md#closed-items--the-measurements-including-the-negative-ones).
@@ -333,8 +335,27 @@ Full recipes, costs and evidence: [`docs/solver/next-actions.md`](docs/solver/ne
 
 | # | order | what it is | cost |
 |---|---|---|---|
-| **23** | **1st** | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.1% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **It now has a free falsifier**: `--analyze-tsv`'s `blocks` and `region` columns already exist, so the feature space can be projected over `chain5.jsonl` in ~3 minutes, and a space that does not separate solved from unsolved is not one | **~3 min** to refuse; the largest build on the list to confirm |
+| **23** | **1st** | **A FESS-shaped rung for the Sokoban/ferry half.** FERRY + SOKOBAN is 53% of the sample at 5.3% solved and level 6's diagnosis is the textbook failure of beam search on Sokoban. **Its free falsifier ran on 2026-09-17 and did not refuse it** — `blocks x region` over `chain5.jsonl` puts the 1,475 failures across 64 of 66 cells and separates at **V 0.375, p < 0.0005**, inside strata of the size proxy as well. What is left is the build | the falsifier is spent (10 s); **the build is the largest on the list and is still unpriced** |
 | **24** | parked | **Parent pointers instead of copied keystreams.** `Snapshot` copies the whole key prefix and `Restore` copies it back, which is why 76,800 wide was 1.1 GB. **The trigger is written down**: a run bounded by memory rather than nodes, which has happened once (level 9) and which items 14 and 19 between them argue against wanting again. It is also the one item that changes Core, so it is built and gated on the **game** machine before the solver machine trusts the binary | — |
+
+**Item 23's free falsifier ran on 2026-09-17 and it is the first cheap test on this list to come back
+positive — the item stands, and what it now holds is a build rather than a question.** The item wrote two
+refusals for itself, and both miss. The **1,475** FERRY + SOKOBAN failures in `chain5.jsonl` do not land
+in one cell: `blocks x region`, binned log2, occupies **66 cells**, **64** of them hold a failure, the
+largest holds **4.7%** of them, and it takes **13** cells to hold half. And the cells do not solve at the
+same rate: chi-square **314.2** on 65 df, Cramér's **V = 0.375**, permutation **p < 0.0005**, with the 38
+cells of n >= 20 running **12% to 73%** about a population 34%. **Two tests the item did not write are
+the ones worth keeping.** Each column separates at a fixed value of the other (**186.0** and **224.4**
+against **133.7** and **100.4** for the columns alone), so it is two features rather than one twice. And
+the cell survives the size confound the other way round from how these files usually find it: inside
+strata of `poses` the cell still separates (**350.7 on 191 df**), while inside strata of the cell,
+`poses` is **140.0 on 133 df, p = 0.50** — its own degrees of freedom. *How big the level is was a proxy
+for the cell, not the other way about.* `blocks x region` also turns out to be the strongest of all
+fifteen pairs of the six columns nearest FESS's features. **What it does not say is the whole build**:
+`--analyze-tsv` reads the authored board, so this is a root-state, per-level projection — it says the
+space is not degenerate over the population it is aimed at, and it cannot say a state *moves* between
+cells as the search pushes a block. `tools/fess_project.py` re-derives all of it in ten seconds.
+[Item 23](docs/solver/next-actions.md#23-1st--a-fess-shaped-rung-for-the-sokobanferry-half-of-the-corpus).
 
 **Item 22 closed on 2026-09-17 in four seconds, refused by the arithmetic it had carried as a note since
 it was written — no build, no search.** The read names exactly the count the item assumed (**6** subgoals

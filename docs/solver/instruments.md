@@ -100,6 +100,33 @@ for f in build/reports/an-*.tsv; do grep -v '^#' "$f" >> build/reports/analyze-c
 That output stays in `build/` rather than `bench/` on the cheapness test the two directories are split
 by: **27 minutes is worth 16 KB in git, 3 minutes is not.**
 
+### 2b. Ask whether a feature space separates before building a search on it
+
+`tools/fess_project.py` joins that table against a campaign report on `(collection, level)`, bins two of
+its columns, and asks whether the resulting cells separate solved from unsolved. It was written for item
+23 — a feature space that does not separate the population it is aimed at is not a feature space, and
+that is knowable before the search is written — but nothing in it is specific to FESS or to
+`blocks x region`:
+
+```bash
+python tools/fess_project.py                      # the four tests and the cross-tab, ~10 s
+python tools/fess_project.py --pairs              # every pair of the six near-FESS columns
+python tools/fess_project.py --x water --y alive  # any two columns
+python tools/fess_project.py --chain build/reports/chain.jsonl   # against another report
+```
+
+**Four tests, and the last two are the ones that catch things.** 1 and 2 are the item's own refusals:
+do the failures all land in one cell, and do the cells all solve at the same rate (permutation p, labels
+shuffled over the population — stdlib only, so no chi-square tables). **3 asks whether each column
+separates at a fixed value of the other**, because a pair that is one column twice is one feature. **4
+is the confound these files keep catching**: both columns are counts that grow with the level, so the
+cell has to still separate inside strata of a size proxy (`--control`, `poses` by default) or all that
+has been measured is that bigger levels are harder.
+
+**It is a root-state, per-level projection and it cannot be anything else** — `--analyze-tsv` reads the
+authored board. It can say a space is not degenerate over a population; it cannot say a state *moves*
+between cells as a search pushes a block, which needs the features computed per node.
+
 ## 3. Ask where the *searcher* loses it, which is a different question
 
 `--push-line` replays a recording, keeps its state at every board change, and runs the real beam with
