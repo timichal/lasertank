@@ -82,6 +82,11 @@ def load(path):
             if "level" not in r or "collection" not in r:
                 runs.append(r)
                 continue
+            # An interrupted level (q / Ctrl+C, or a lane key) has no verdict,
+            # and the solver's resume does not count it as tried (Auto.LoadLedger)
+            # -- so it does not replace the row before it here either.
+            if not r.get("solved") and r.get("stop") in ("stopped", "skipped"):
+                continue
             rows[(r["collection"], r["level"])] = r
     return rows, runs, bad
 

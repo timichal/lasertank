@@ -673,6 +673,15 @@ namespace LaserTank.Solver
                     if (!r.TryGetProperty("level", out JsonElement lv)) continue;
                     bool solved = r.TryGetProperty("solved", out JsonElement s)
                                   && s.GetBoolean();
+                    // **An interrupted level has no verdict.**  q / Ctrl+C
+                    // writes `stopped` and a lane key `skipped`, and neither
+                    // says the iteration's rounds ran out -- a level has to
+                    // solve or fail, so the row does not replace whatever came
+                    // before it and a resume attempts the level again.  The row
+                    // is still written, because the campaign tools that read
+                    // their own reports count interruptions.
+                    if (!solved && r.TryGetProperty("stop", out JsonElement st)
+                        && st.GetString() is "stopped" or "skipped") continue;
                     int it = r.TryGetProperty("iteration", out JsonElement i)
                              ? i.GetInt32() : 0;
                     had[lv.GetInt32()] = new Ledger(solved, it);
