@@ -108,8 +108,11 @@ ever found for a level.** Two flags:
   round. Every rung spends the budget the round already gave it and the **shortest** of however many win
   is banked. **The cost is bounded by a round nobody wins** — the rungs are already sized to spend
   `nodes` each and a failed round spends exactly that — which is the argument for it being affordable at
-  all. `RATIO` (default 2.0) spends it only where it can pay: a win already inside 2.0x the record is a
-  good route and the round ends on it as before, so a collection of easy levels costs nothing. A level
+  all. `RATIO` (default 1.4) spends it only where it can pay: a win whose **score** — moves + shots, the
+  game's own counters — is already inside 1.4x the record's is a good route and the round ends on it as
+  before, so a collection of easy levels costs nothing. **Never keys against the record:** the record's
+  counters carry none of its holder's turns, so that ratio charges our route for every direction change
+  and theirs for none (`Challenge-IV` 40 ties its record at 43 + 49 and read as 1.3x). A level
   with no `.ghs` record always keeps the round open, because an unjudgeable route is the case the flag
   exists for.
 * **`--beat-banked`**, **ON by default** (`--no-beat-banked` opts out) — a round whose best route is
@@ -132,10 +135,11 @@ ever found for a level.** Two flags:
   whole 1.6-billion-node budget long after the win that was the point of opening it.
 * **`--best-of-shots [R]`** — **the rule that ships on**; spelling it out only changes `R`. Closed item
   13's test in place of the ratio. Shots are the strategy and moves the execution, so **a win that spends
-  more shots than the record is a worse route whatever its keystream ratio** — median 1.85x against 1.41x
-  for one that matches the record — and it keeps the round open; otherwise the ratio decides against a
-  looser bound, `R`, default 3.0, because the shot test has already said the plan is right and what is
-  left to buy is polish. The two tests disagree on **58 of 452 solved rows**: 41 wins the ratio closes the
+  more shots than the record is a worse route whatever its score ratio** and it keeps the round open;
+  otherwise the score ratio decides against a looser bound, `R`, default 2.2, because the shot test has
+  already said the plan is right. **Both bounds were measured on keys as 2.0 and 3.0** (the numbers in
+  this bullet are from then), and 1.4 / 2.2 are the same quantiles on the score ratio over the 4,754
+  solved rows with a record — `Auto.KeepOpen` has the derivation. The two tests disagree on **58 of 452 solved rows**: 41 wins the ratio closes the
   round on although the shot count says the strategy is wrong, 17 it holds open although the shot count
   says it is already right. **Item 4's campaign ran on 2026-09-14 and this rule won both its
   populations** — 95 keys against the ratio rule's 53 over the 494 levels the chain solves, 71 against 65
@@ -143,7 +147,8 @@ ever found for a level.** Two flags:
   is why it is the default rather than merely the better flag. It is not free: 1.15x the nodes on stage
   A and 1.22x on stage B, and 1.34x the wall there.
 * **Which rule ran is on every report row**, whether it came from a flag or from the default: `config`
-  ends in `[round-rule shots 3 beat-banked]`, `[round-rule ratio 2 …]` or `[round-rule off …]`. A
+  ends in `[round-rule shots 2.2 beat-banked]`, `[round-rule ratio 1.4 …]` or `[round-rule off …]` (rows
+  reading `shots 3` / `ratio 2` ran the keys-ratio rule). A
   default has no token in argv, so without this two rows produced by two different rules would carry the
   same `config` — the same hole `config` was added to close for `--push-beam`.
 

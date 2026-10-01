@@ -494,7 +494,8 @@ for lv in (8, 9):
             continue
         d = r["keys"] - len(rec)
         print(f"    {name:<6} {r['keys']:>5} keys ({r['moves']}m/{r['shots']}s)"
-              f" {r['ratio']:.2f}x   {d:+d} against the recovered"
+              f" {r['keys'] / max(1, r['ghs_moves'] + r['ghs_shots']):.2f}x keys"
+              f"   {d:+d} against the recovered"
               f"   {r['method']}, round {r.get('rounds', 1) - 1},"
               f" {r.get('total_nodes', 0) / 1e6:.0f}M nodes")
         if r.get("rung"):

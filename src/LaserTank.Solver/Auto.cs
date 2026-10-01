@@ -1332,8 +1332,8 @@ namespace LaserTank.Solver
                     {
                         settled = true;
                         Note(lane, string.Format(CultureInfo.InvariantCulture,
-                            "won at {0} keys ({1:F1}x) -- round open for a "
-                            + "shorter one", best.Keys, best.Ratio));
+                            "won at {0} keys, {1} -- round open for a "
+                            + "better one", best.Keys, Versus(best)));
                     }
                     else { settled = true; Stop(lane); }
                 }
@@ -1536,18 +1536,24 @@ namespace LaserTank.Solver
         /// that it disagrees with this one usefully.**  Shots are the strategy
         /// and moves the execution (the harvest blog's first rule, reproduced on
         /// our own rows): a win that spends *more* shots than the record is a
-        /// different and worse route -- median keystream 1.85x against 1.41x for
-        /// one that matches it -- and no amount of polishing takes a shot out of
-        /// a plan that needed it.  The ratio test and the shot test disagree on
-        /// 58 of 452 solved rows, 41 of them wins the ratio closes the round on
-        /// although the shot count says the strategy is wrong.  So the rule is:
-        /// **more shots than the record keeps the round open whatever the ratio;
-        /// otherwise the ratio decides, against a looser bound** -- looser
-        /// because the shot test has already said this is the right plan, and
-        /// what is left to buy is polish (the `shots == record` rows are p90
-        /// 1.79x, so 3.0 closes nearly all of them).  A level with no record
+        /// different and worse route, and no amount of polishing takes a shot
+        /// out of a plan that needed it.  So the rule is: **more shots than the
+        /// record keeps the round open whatever the ratio; otherwise the ratio
+        /// decides, against a looser bound** -- looser because the shot test
+        /// has already said this is the right plan.  A level with no record
         /// keeps the round open under either rule, which is the case the flag
         /// exists for.
+        ///
+        /// **The bounds are 1.4 and 2.2 because `Ratio` is the score ratio.**
+        /// Both rules were measured as 2.0 and 3.0 on keys / record, which
+        /// charged every route for its turns (Outcome.Ratio).  The new bounds
+        /// are the same quantiles on the score ratio, over the 4,754 solved
+        /// rows with a record in `data/reports/solutions.jsonl`: keys <= 2.0
+        /// held 87.8% of all rows and the score ratio's 87.8th percentile is
+        /// 1.43; keys <= 3.0 held 99.7% of the rows the shot test passes and
+        /// the score ratio's is 2.21.  So each rule spends about the budget it
+        /// was measured at, on the rows that are off the record rather than
+        /// the ones whose routes turn a lot.
         ///
         /// **Both of these now ship on, and the shot test is the one that
         /// runs** -- item 4's campaign measured them against a control on two
@@ -2037,14 +2043,24 @@ namespace LaserTank.Solver
                 : string.Format(CultureInfo.InvariantCulture,
                                 "record {0} moves + {1} shots", moves, shots);
 
+        /// The win against the record in the record's own units -- moves +
+        /// shots, never keys (see Outcome.Ratio for why).
+        private static string Versus(Program.Outcome o)
+        {
+            if (o.Ratio <= 0) return "no record to compare";
+            int d = o.Moves + o.Shots - (o.J.GhsMoves + o.J.GhsShots);
+            return d == 0 ? "ties the record"
+                : d < 0 ? string.Format(CultureInfo.InvariantCulture,
+                                        "beats the record by {0}", -d)
+                : string.Format(CultureInfo.InvariantCulture,
+                                "{0} over the record ({1:F2}x)", d, o.Ratio);
+        }
+
         private static string Detail(Program.Outcome o, int round, DateTime lt0)
         {
-            string ratio = o.Ratio > 0
-                ? string.Format(CultureInfo.InvariantCulture, "{0:F1}x the record", o.Ratio)
-                : "no record to compare";
             return string.Format(CultureInfo.InvariantCulture,
-                "{0} keys ({1} moves, {2} shots), {3}   {4}, round {5}, {6}, {7} nodes{8}",
-                o.Keys, o.Moves, o.Shots, ratio, o.Method, round,
+                "{0} moves + {1} shots, {2}   {3} keys, {4}, round {5}, {6}, {7} nodes{8}",
+                o.Moves, o.Shots, Versus(o), o.Keys, o.Method, round,
                 Progress.Span((DateTime.UtcNow - lt0).TotalSeconds), Num(o.Nodes),
                 o.Trimmed ? ", trimmed" : "");
         }

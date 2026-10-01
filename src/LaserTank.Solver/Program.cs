@@ -117,11 +117,13 @@ namespace LaserTank.Solver
 "                         SHORTEST of however many win is banked.  The first\n" +
 "                         rung to finish is not the one with the best route:\n" +
 "                         LaserTank.lvl 9 falls to the raw beam at 94.3M nodes\n" +
-"                         at 294 keys / 5.0x and to push-ferry-work at 162.8M\n" +
-"                         at 127 / 2.2x, and cancelling on the first win throws\n" +
-"                         the second away before it exists.  Costs at most what\n" +
-"                         a round nobody wins already costs.  R is a record\n" +
-"                         ratio, default 2.0: a win already inside it ends the\n" +
+"                         at 294 keys and to push-ferry-work at 162.8M at 127,\n" +
+"                         and cancelling on the first win throws the second\n" +
+"                         away before it exists.  Costs at most what a round\n" +
+"                         nobody wins already costs.  R bounds the score ratio,\n" +
+"                         (moves+shots) / the .ghs record's moves+shots -- turns\n" +
+"                         are not in the record, so keys are not compared --\n" +
+"                         default 1.4: a win already inside it ends the\n" +
 "                         round as before, so the cost is only paid where the\n" +
 "                         route looks bad.  A level with no .ghs record always\n" +
 "                         keeps the round open\n" +
@@ -129,10 +131,9 @@ namespace LaserTank.Solver
 "                         changes R.  Shots are the strategy\n" +
 "                         and moves the execution, so a win that spends MORE\n" +
 "                         shots than the record is a worse route whatever its\n" +
-"                         keystream ratio (median 1.85x against 1.41x for one\n" +
-"                         that matches the record) and the round stays open;\n" +
-"                         otherwise the ratio decides against a looser bound,\n" +
-"                         R, default 3.0.  The two tests disagree on 58 of 452\n" +
+"                         score ratio, and the round stays open; otherwise the\n" +
+"                         ratio decides against a looser bound, R, default\n" +
+"                         2.2.  The two tests disagree on 58 of 452\n" +
 "                         solved rows, and item 4's campaign measured the shot\n" +
 "                         rule ahead on both its populations: 95 keys against\n" +
 "                         53 over the 494 the chain solves, 71 against 65 over\n" +
@@ -141,7 +142,7 @@ namespace LaserTank.Solver
 "                         first win ends the round as it did before item 4.\n" +
 "                         This is what a campaign's control arm wants, and the\n" +
 "                         report row says which rule ran: config carries\n" +
-"                         [round-rule shots 3|ratio 2|off], from the default as\n" +
+"                         [round-rule shots 2.2|ratio 1.4|off], from the default as\n" +
 "                         well as from a flag\n" +
 "    --no-beat-banked     interactive only: turn OFF the default, which is that\n" +
 "                         a round whose best route is LONGER than the .lpb\n" +
@@ -664,13 +665,15 @@ namespace LaserTank.Solver
             // under --force, because without it an already-solved level is
             // skipped before a searcher starts.
             public bool BeatBanked = true;
-            public double BestRatio = 2.0;
+            // Both bounds are on the score ratio, (moves + shots) / record --
+            // see Auto.KeepOpen for how they were carried over from the 2.0
+            // and 3.0 that were measured on keys.
+            public double BestRatio = 1.4;
             // --best-of-shots: closed item 13's rule inside --best-of-round.
-            // The looser bound is 3.0 because the shot test has already said
-            // the plan is right when this is consulted, and the rows whose
-            // shots match the record are p90 1.79x -- see Auto.KeepOpen.
+            // The looser bound because the shot test has already said the
+            // plan is right when this is consulted.
             public bool BestOfShots = true;
-            public double ShotRatio = 3.0;
+            public double ShotRatio = 2.2;
             public double TrimRatio = 10.0;
             public bool Force, Quiet, Verbose, ByNumber, NoReport;
             public bool Polish = true;
@@ -1387,12 +1390,25 @@ namespace LaserTank.Solver
             public double Ms;
             public string Error;
 
+            /// The game's own score against the record's: (moves + shots) over
+            /// the `.ghs` moves + shots, 0 when there is no record.
+            ///
+            /// **Not keys.**  A turn on the spot is a keypress but `ScoreMove`
+            /// only counts in `UpDateTankPos`, so the record's two counters
+            /// carry none of its holder's turns -- dividing our keystream by
+            /// them charges us for every direction change and them for none.
+            /// `Challenge-IV` 40 ties its record at 43 + 49 exactly and read
+            /// as 1.3x, the 32 turns that route cannot do without; over the
+            /// 4,754 solved levels with a record the keys ratio's p50 was
+            /// 1.50x where this one is 1.00x.  Keys stays the measure of
+            /// keystream length (`--trim-ratio`, `--max-keys`, picking the
+            /// shortest win) and nothing else.
             public double Ratio
             {
                 get
                 {
                     int target = J.GhsMoves + J.GhsShots;
-                    return target > 0 && target < 65500 ? (double)Keys / target : 0.0;
+                    return target > 0 && target < 65500 ? (double)(Moves + Shots) / target : 0.0;
                 }
             }
 
@@ -1408,6 +1424,7 @@ namespace LaserTank.Solver
                 Level = J.Level,
                 Difficulty = J.Diff,
                 Keys = Keys,
+                Score = Moves + Shots,
                 Target = J.GhsMoves + J.GhsShots >= 65500 ? 0 : J.GhsMoves + J.GhsShots,
                 Solved = Solved,
                 Trimmed = Trimmed,
@@ -1435,7 +1452,10 @@ namespace LaserTank.Solver
                     w.WriteNumber("shots", Shots);
                     w.WriteNumber("ghs_moves", J.GhsMoves);
                     w.WriteNumber("ghs_shots", J.GhsShots);
-                    w.WriteNumber("ratio", Math.Round(Ratio, 3));
+                    // Renamed from "ratio" when it stopped being keys / record:
+                    // rows before that carry the old field, and a reader that
+                    // wants either computes it from the four counters above.
+                    w.WriteNumber("score_ratio", Math.Round(Ratio, 3));
                     w.WriteBoolean("trimmed", Trimmed);
                     w.WriteBoolean("polished", Polished);
                     w.WriteBoolean("replanned", Replanned);

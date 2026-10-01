@@ -204,7 +204,7 @@ def sigs(d):
 
 # The fields a memo may not touch.  `ms` is the one it is allowed to change and
 # the only one; `config` differs by the flag itself.
-FIELDS = ["solved", "keys", "raw_keys", "moves", "shots", "ratio", "trimmed",
+FIELDS = ["solved", "keys", "raw_keys", "moves", "shots", "score_ratio", "trimmed",
           "polished", "replanned", "method", "stop", "depth", "restarts", "nodes"]
 
 rows, ok = [], True

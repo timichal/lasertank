@@ -124,7 +124,8 @@ def verify_collection(directory, jobs, lvl=None):
         for lpb, res in pool.map(work, lpbs):
             ok, level, nkeys, moves, shots, note = res
             target = ghs_target(lvl, level)
-            ratio = (nkeys / sum(target)) if target else None
+            # moves + shots, not keys: the record does not count turns.
+            ratio = ((moves + shots) / sum(target)) if target else None
             rows.append((level, ok, nkeys, moves, shots, target, ratio, note))
             if not ok:
                 bad.append((lpb.name, note))
@@ -135,7 +136,7 @@ def verify_collection(directory, jobs, lvl=None):
                 if r[5] and (r[3], r[4]) == r[5])
     line = "  %-22s %4d/%-4d verified" % (collection, len(good), len(rows))
     if ratios:
-        line += "   ratio p50 %.1fx  p90 %.1fx  worst %.1fx" % (
+        line += "   score ratio p50 %.2fx  p90 %.2fx  worst %.1fx" % (
             statistics.median(ratios), ratios[min(len(ratios) - 1, int(.9 * len(ratios)))],
             ratios[-1])
     if exact:

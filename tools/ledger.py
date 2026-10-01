@@ -91,6 +91,19 @@ def load(path):
     return rows, runs, bad
 
 
+def score_ratio(r):
+    """The game's score against the record's: (moves + shots) over the .ghs
+    moves + shots, 0 when unsolved or there is no record.  Never keys -- the
+    record's counters carry none of its turns, so keys / record charges our
+    route for every direction change and the record's for none (Outcome.Ratio
+    in Program.cs).  Computed from the counters rather than read from the row
+    because rows before the change carry only the keys `ratio` it replaced."""
+    gm, gs = r.get("ghs_moves") or 0, r.get("ghs_shots") or 0
+    if not r.get("solved") or gm <= 0 or gm >= 65500:
+        return 0.0
+    return ((r.get("moves") or 0) + (r.get("shots") or 0)) / (gm + gs)
+
+
 def ordinal(n):
     if n <= 0:
         return "an unnumbered run"
@@ -292,10 +305,10 @@ def document(rows, runs, levels_dir):
             it = r.get("iteration", 0)
             it = f" (it {it})" if it else ""
             if r.get("solved"):
-                ratio = r.get("ratio") or 0
+                ratio = score_ratio(r)
                 out.append(f"| {lv} | {name} | {tier} | solved{it} "
                            f"| {r.get('keys', 0)} "
-                           f"| {f'{ratio:.1f}x' if ratio else '-'} | {how(r)} |")
+                           f"| {f'{ratio:.2f}x' if ratio else '-'} | {how(r)} |")
             else:
                 out.append(f"| {lv} | {name} | {tier} | **unsolved**{it} "
                            f"| | | {how(r)} |")

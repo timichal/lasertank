@@ -40,6 +40,19 @@ def load(path):
     return rows
 
 
+def score_ratio(r):
+    """The game's score against the record's: (moves + shots) over the .ghs
+    moves + shots, 0 when unsolved or there is no record.  Never keys -- the
+    record's counters carry none of its turns, so keys / record charges our
+    route for every direction change and the record's for none (Outcome.Ratio
+    in Program.cs).  Computed from the counters rather than read from the row
+    because rows before the change carry only the keys `ratio` it replaced."""
+    gm, gs = r.get("ghs_moves") or 0, r.get("ghs_shots") or 0
+    if not r.get("solved") or gm <= 0 or gm >= 65500:
+        return 0.0
+    return ((r.get("moves") or 0) + (r.get("shots") or 0)) / (gm + gs)
+
+
 def pct(a, b):
     return f"{100.0 * a / b:.1f}%" if b else "-"
 
@@ -59,9 +72,9 @@ def tiers(rows):
         if not v:
             continue
         ok = [r for r in v if r["solved"]]
-        ratios = [r["ratio"] for r in ok if r["ratio"] > 0]
+        ratios = [score_ratio(r) for r in ok if score_ratio(r) > 0]
         out.append((name, len(v), len(ok), pct(len(ok), len(v)), median(ratios),
-                    sum(1 for r in ok if r["ratio"] and r["ratio"] <= 1.0)))
+                    sum(1 for x in ratios if x <= 1.0)))
     return out
 
 
@@ -72,7 +85,7 @@ def report(path, rows):
     print()
     print("  tier       attempted    solved     rate    median ratio    at/under record")
     for name, n, s, rate, med, exact in tiers(rows):
-        print(f"  {name:<9} {n:9} {s:9} {rate:>8} {med:14.1f}x {exact:16}")
+        print(f"  {name:<9} {n:9} {s:9} {rate:>8} {med:14.2f}x {exact:16}")
 
     print()
     by_coll = defaultdict(list)
@@ -99,13 +112,13 @@ def report(path, rows):
     print("  solved, by method")
     for k, n in Counter(r["method"] for r in ok).most_common():
         print(f"    {k:<16} {n:7}  {pct(n, len(ok)):>7}")
-    ratios = sorted(r["ratio"] for r in ok if r["ratio"] > 0)
+    ratios = sorted(score_ratio(r) for r in ok if score_ratio(r) > 0)
     if ratios:
         print()
-        print(f"  keypresses / .ghs moves+shots:  p50 {median(ratios):.1f}x   "
-              f"p90 {ratios[int(0.9 * len(ratios))]:.1f}x   worst {ratios[-1]:.1f}x   "
-              f"over 10x: {sum(1 for v in ratios if v > 10)}   "
-              f"at or under the record: {sum(1 for v in ratios if v <= 1.0)}")
+        print(f"  moves+shots / .ghs moves+shots:  p50 {median(ratios):.2f}x   "
+              f"p90 {ratios[int(0.9 * len(ratios))]:.2f}x   worst {ratios[-1]:.1f}x   "
+              f"beat the record: {sum(1 for v in ratios if v < 1.0)}   "
+              f"tie it: {sum(1 for v in ratios if v == 1.0)}")
     shots(ok)
 
 
@@ -146,7 +159,7 @@ def shots(ok):
         v = [r for r in have if want(r["shots"] - r["ghs_shots"])]
         if not v:
             continue
-        rs = sorted(r["ratio"] for r in v if r["ratio"] > 0)
+        rs = sorted(score_ratio(r) for r in v if score_ratio(r) > 0)
         p90 = rs[int(0.9 * len(rs))] if rs else 0.0
         print(f"    {name:<20} {len(v):5}  {pct(len(v), len(have)):>6}"
               f"   median {median(rs):.2f}x   p90 {p90:.2f}x")

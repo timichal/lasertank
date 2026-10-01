@@ -59,7 +59,9 @@ for line in open(path, encoding="utf-8-sig"):
         rows[(r["collection"], r["level"])] = r        # last line wins
 rs = list(rows.values())
 ok = [r for r in rs if r["solved"]]
-ratios = sorted(r["ratio"] for r in ok if r["ratio"] > 0)
+# (moves + shots) / record, not keys: the record does not count turns.
+rec = lambda r: (r["ghs_moves"] + r["ghs_shots"]) if 0 < r["ghs_moves"] < 65500 else 0
+ratios = sorted((r["moves"] + r["shots"]) / rec(r) for r in ok if rec(r))
 p50 = ratios[len(ratios) // 2] if ratios else 0
 stops = collections.Counter(r["stop"] for r in rs if not r["solved"])
 # Nodes spent on the levels that failed: a searcher that gives up with the
@@ -67,6 +69,6 @@ stops = collections.Counter(r["stop"] for r in rs if not r["solved"])
 # the solved count alone.
 spent = sorted(r["nodes"] for r in rs if not r["solved"])
 med = spent[len(spent) // 2] if spent else 0
-print(f"{label:<26} {len(ok):>3}/{len(rs):<3} p50 {p50:5.1f}x  "
+print(f"{label:<26} {len(ok):>3}/{len(rs):<3} p50 {p50:5.2f}x  "
       f"unsolved-nodes-p50 {med:>8}  {dict(stops)}")
 PY

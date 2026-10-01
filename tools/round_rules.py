@@ -68,13 +68,27 @@ def num(n):
     return str(int(n))
 
 
+def keys_ratio(r):
+    """keys / .ghs moves+shots, the ratio item 4's campaign was measured on.
+    Computed rather than read because reports after it carry `score_ratio`
+    instead of `ratio`."""
+    gm, gs = r.get("ghs_moves") or 0, r.get("ghs_shots") or 0
+    if not r.get("solved") or gm <= 0 or gm >= 65500:
+        return 0.0
+    return (r.get("keys") or 0) / (gm + gs)
+
+
 def bites(rule, r, keys=None):
     """Whether `rule` would keep a round open on a win of `keys` keys.
 
-    The two rules are Auto.KeepOpen's, and this is the only other place they
-    are written down: a level with no record keeps the round open under both;
-    `bor` keeps it open above 2.0x the record; `shots` keeps it open whenever
-    the win spends more shots than the record, and otherwise at 3.0x.
+    **The rules as item 4 measured them, not as Auto.KeepOpen now runs them.**
+    A level with no record keeps the round open under both; `bor` keeps it
+    open above 2.0x the record; `shots` keeps it open whenever the win spends
+    more shots than the record, and otherwise at 3.0x -- all on keys / record.
+    KeepOpen has since moved to (moves + shots) / record at 1.4 and 2.2, the
+    same quantiles on a ratio that does not charge for turns, and the bracket
+    below cannot be drawn on that one: `longest` is a key count only.  This
+    stays on keys so the campaign's reports still read as they were measured.
 
     **It is judged on a route, not on a level, because that is what the flag
     does** -- `KeepOpen` is handed the shortest win that has landed by some
@@ -92,7 +106,7 @@ def bites(rule, r, keys=None):
     """
     if not r["solved"]:
         return False
-    if r["ratio"] <= 0:
+    if keys_ratio(r) <= 0:
         return True
     k = r["keys"] if keys is None else keys
     target = (r.get("ghs_moves") or 0) + (r.get("ghs_shots") or 0)
@@ -163,10 +177,11 @@ def arm(label, rule, ctl, a):
     print(f"    total keys {ck} -> {ck - fk - qk}"
           f"   ({fk + qk} net, of which {cck} is certainly the rule)")
 
-    print(f"    ratio     p50 {median([ctl[k]['ratio'] for k in both if ctl[k]['ratio'] > 0]):.2f}x"
-          f" -> {median([a[k]['ratio'] for k in both if a[k]['ratio'] > 0]):.2f}x"
-          f"   over 2.0x {sum(1 for k in both if ctl[k]['ratio'] > 2.0)}"
-          f" -> {sum(1 for k in both if a[k]['ratio'] > 2.0)}")
+    kr = lambda rows: [keys_ratio(rows[k]) for k in both]
+    print(f"    ratio     p50 {median([v for v in kr(ctl) if v > 0]):.2f}x"
+          f" -> {median([v for v in kr(a) if v > 0]):.2f}x"
+          f"   over 2.0x {sum(1 for v in kr(ctl) if v > 2.0)}"
+          f" -> {sum(1 for v in kr(a) if v > 2.0)}")
     # The strategy half, and the one the ratio cannot see: a round kept open
     # that comes back with fewer shots found a different plan, not a tidier
     # keystream.  Closed item 13 is the reason this column is here at all.
@@ -197,7 +212,7 @@ def arm(label, rule, ctl, a):
         print(f"      {k[0]:14} {k[1]:>5}  {ctl[k]['name'][:24]:24}"
               f" {ctl[k]['keys']:>5} -> {a[k]['keys']:<5} ({d:+d})"
               f"  {ctl[k]['method']} -> {a[k]['method']}"
-              f"   {ctl[k]['ratio']:.1f}x -> {a[k]['ratio']:.1f}x")
+              f"   {keys_ratio(ctl[k]):.1f}x -> {keys_ratio(a[k]):.1f}x")
     print()
 
 

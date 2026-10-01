@@ -132,13 +132,13 @@ namespace LaserTank.Solver
             if (solved.Count > 0)
             {
                 var ratios = solved.Where(r => r.Target > 0)
-                                   .Select(r => (double)r.Keys / r.Target).OrderBy(v => v).ToList();
-                Console.WriteLine("  solution quality (keypresses / .ghs moves+shots)");
+                                   .Select(r => (double)r.Score / r.Target).OrderBy(v => v).ToList();
+                Console.WriteLine("  solution quality (moves+shots / .ghs moves+shots)");
                 if (ratios.Count > 0)
-                    Console.WriteLine("    p50 {0:F1}x   p90 {1:F1}x   worst {2:F1}x   "
-                        + "over 10x: {3}   at or under the record: {4}",
+                    Console.WriteLine("    p50 {0:F2}x   p90 {1:F2}x   worst {2:F1}x   "
+                        + "beat the record: {3}   tie it: {4}",
                         Pick(ratios, .5), Pick(ratios, .9), ratios[^1],
-                        ratios.Count(v => v > 10), ratios.Count(v => v <= 1.0));
+                        ratios.Count(v => v < 1.0), ratios.Count(v => v == 1.0));
                 Console.WriteLine("    trimmed {0}   replanned {1}   polished {2}   "
                     + "by method: {3}",
                     solved.Count(r => r.Trimmed),
@@ -165,7 +165,7 @@ namespace LaserTank.Solver
 
         private static string Ratio(List<Row> ok)
         {
-            var r = ok.Where(x => x.Target > 0).Select(x => (double)x.Keys / x.Target)
+            var r = ok.Where(x => x.Target > 0).Select(x => (double)x.Score / x.Target)
                       .OrderBy(v => v).ToList();
             return r.Count == 0 ? "-"
                 : string.Format(CultureInfo.InvariantCulture, "{0:F1}x", Pick(r, .5));
@@ -191,7 +191,7 @@ namespace LaserTank.Solver
         /// does not have to be public.
         public sealed class Row
         {
-            public int Level, Difficulty, Keys, Target;
+            public int Level, Difficulty, Keys, Score, Target;
             public bool Solved, Trimmed, Polished, Replanned;
             public string Method = "-", Stop = "-", Error;
         }
